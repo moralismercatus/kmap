@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Knowledge Map 0.0.1</title>
+        <script type="text/javascript" src="node_modules/vis-network/dist/vis-network.js"></script>
+        <link rel="stylesheet" href="all.css" type="text/css" />
+        <link rel="stylesheet" href="node_modules/highlight.js/styles/vs2015.css" type="text/css" > <!-- TODO: Make selectable in settings (by parsing node_modules/hightlight.js/styles for available) -->
+        <link rel="stylesheet" href="node_modules/vis-network/dist/dist/vis-network.css" type="text/css" />
+    </head>
+    <body>
+        <div id="div_container"> <!-- top level div must be Viewport Height or Pixels, and can't be %, b/c nothing relative to. -->
+            <div id="div_fwd_breadcrumb">
+                <input id="fwd_breadcrumb" readonly/>
+            </div>
+            <div id="div_graph"></div>
+            <textarea id="text_area"></textarea>
+            <div id="div_preview"></div>
+            <div id="div_cli_input">
+                <div class="popup" id="div_cli_popup">
+                    <span class="popuptext" id="cli_popup">Empty CLI Popup</span>
+                </div>
+                <input id="cli_input" />
+            </div>
+        </div>
+        <!-- Script goes after, as elements need to be defined" -->
+        <script type="text/javascript" src="commands.js"></script>
+        <script type="text/javascript" src="kmap.js"></script>
+        <script type="text/javascript" src="network.js"></script>
+        <script type="text/javascript" src="emcc.index.js"></script>
+    </body>
+</html>

@@ -1,0 +1,7 @@
+.vscode
+tags
+emcc.index.html.symbols
+emcc.index.wasm
+emcc.index.html
+emcc.index.js
+node_modules

@@ -1,0 +1,274 @@
+diff --git a/include/sqlpp11/basic_expression_operators.h b/include/sqlpp11/basic_expression_operators.h
+index c924f96..c4a7239 100644
+--- a/include/sqlpp11/basic_expression_operators.h
++++ b/include/sqlpp11/basic_expression_operators.h
+@@ -126,8 +126,11 @@ namespace sqlpp
+     template <typename T>
+     auto operator==(T t) const -> _new_binary_expression_t<equal_to_t, T>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       using rhs = wrap_operand_t<T>;
+       check_comparison_t<Expr, rhs>{};
++      #pragma clang diagnostic pop
+ 
+       return {*static_cast<const Expr*>(this), rhs{t}};
+     }
+@@ -135,8 +138,11 @@ namespace sqlpp
+     template <typename T>
+     auto operator!=(T t) const -> _new_binary_expression_t<not_equal_to_t, T>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       using rhs = wrap_operand_t<T>;
+       check_comparison_t<Expr, rhs>{};
++      #pragma clang diagnostic pop
+ 
+       return {*static_cast<const Expr*>(this), rhs{t}};
+     }
+@@ -144,8 +150,11 @@ namespace sqlpp
+     template <typename T>
+     auto operator<(T t) const -> _new_binary_expression_t<less_than_t, T>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       using rhs = wrap_operand_t<T>;
+       check_comparison_t<Expr, rhs>{};
++      #pragma clang diagnostic pop
+ 
+       return {*static_cast<const Expr*>(this), rhs{t}};
+     }
+@@ -153,8 +162,11 @@ namespace sqlpp
+     template <typename T>
+     auto operator<=(T t) const -> _new_binary_expression_t<less_equal_t, T>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       using rhs = wrap_operand_t<T>;
+       check_comparison_t<Expr, rhs>{};
++      #pragma clang diagnostic pop
+ 
+       return {*static_cast<const Expr*>(this), rhs{t}};
+     }
+@@ -162,8 +174,11 @@ namespace sqlpp
+     template <typename T>
+     auto operator>(T t) const -> _new_binary_expression_t<greater_than_t, T>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       using rhs = wrap_operand_t<T>;
+       check_comparison_t<Expr, rhs>{};
++      #pragma clang diagnostic pop
+ 
+       return {*static_cast<const Expr*>(this), rhs{t}};
+     }
+@@ -171,8 +186,11 @@ namespace sqlpp
+     template <typename T>
+     auto operator>=(T t) const -> _new_binary_expression_t<greater_equal_t, T>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       using rhs = wrap_operand_t<T>;
+       check_comparison_t<Expr, rhs>{};
++      #pragma clang diagnostic pop
+ 
+       return {*static_cast<const Expr*>(this), rhs{t}};
+     }
+@@ -205,98 +223,154 @@ namespace sqlpp
+     template <typename... T>
+     auto in(T... t) const -> typename _new_nary_expression<in_t, T...>::type
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       check_in_t<Expr, wrap_operand_t<T>...>{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), typename wrap_operand<T>::type{t}...};
+     }
+ 
+     template <typename... T>
+     auto not_in(T... t) const -> typename _new_nary_expression<not_in_t, T...>::type
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       check_in_t<Expr, wrap_operand_t<T>...>{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), typename wrap_operand<T>::type{t}...};
+     }
+ 
+     template <typename Defer = void>
+     auto operator not() const -> return_type_not_t<Expr, Defer>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_not<Expr, Defer>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this)};
+     }
+ 
+     template <typename R>
+     auto operator and(const R& r) const -> return_type_and_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_and<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator&(const R& r) const -> return_type_bitwise_and_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_bitwise_and<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator|(const R& r) const -> return_type_bitwise_or_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_bitwise_or<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator or(const R& r) const -> return_type_or_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_or<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator+(const R& r) const -> return_type_plus_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_plus<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator-(const R& r) const -> return_type_minus_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_minus<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator*(const R& r) const -> return_type_multiplies_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_multiplies<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator/(const R& r) const -> return_type_divides_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_divides<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename R>
+     auto operator%(const R& r) const -> return_type_modulus_t<Expr, R>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_modulus<Expr, R>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this), wrap_operand_t<R>{r}};
+     }
+ 
+     template <typename Defer = void>
+     auto operator+() const -> return_type_unary_plus_t<Expr, Defer>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_unary_plus<Expr, Defer>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this)};
+     }
+ 
+     template <typename Defer = void>
+     auto operator-() const -> return_type_unary_minus_t<Expr, Defer>
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       typename return_type_unary_minus<Expr, Defer>::check{};
++      #pragma clang diagnostic pop
++
+       return {*static_cast<const Expr*>(this)};
+     }
+   };
+diff --git a/include/sqlpp11/custom_query.h b/include/sqlpp11/custom_query.h
+index 7099f30..b075303 100644
+--- a/include/sqlpp11/custom_query.h
++++ b/include/sqlpp11/custom_query.h
+@@ -99,7 +99,11 @@ namespace sqlpp
+     template <typename Db>
+     auto _prepare(Db& db) const -> decltype(std::declval<_methods_t>()._prepare(db, *this))
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       _prepare_check{};  // FIXME: dispatch here?
++      #pragma clang diagnostic pop
++
+       return _methods_t::_prepare(db, *this);
+     }
+ 
+diff --git a/include/sqlpp11/statement.h b/include/sqlpp11/statement.h
+index 89d903d..5509f24 100644
+--- a/include/sqlpp11/statement.h
++++ b/include/sqlpp11/statement.h
+@@ -237,14 +237,22 @@ namespace sqlpp
+     template <typename Database>
+     auto _run(Database& db) const -> decltype(std::declval<_result_methods_t<statement_t>>()._run(db))
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       _run_check{};  // FIXME: Dispatch?
++      #pragma clang diagnostic pop
++
+       return _result_methods_t<statement_t>::_run(db);
+     }
+ 
+     template <typename Database>
+     auto _prepare(Database& db) const -> decltype(std::declval<_result_methods_t<statement_t>>()._prepare(db))
+     {
++      #pragma clang diagnostic push
++      #pragma clang diagnostic ignored "-Wunused-value"
+       _prepare_check{};  // FIXME: Dispatch?
++      #pragma clang diagnostic pop
++
+       return _result_methods_t<statement_t>::_prepare(db);
+     }
+   };

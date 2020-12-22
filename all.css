@@ -1,0 +1,80 @@
+#div_container {
+    display: flex;
+    direction: row;
+    flex-wrap: wrap;
+}
+#div_fwd_breadcrumb {
+	width: 100vw;
+}
+#fwd_breadcrumb {
+	width: 100%;
+    font-size: medium;
+}
+#div_graph {
+    width: 100vw;
+    height: 50vh;
+    border: 1px solid black;
+    background-color: #333333;
+}
+#div_text_area {
+    width: 50vw;
+    height: 45vh;
+}
+#text_area {
+    width: 47vw;
+    height: 45vh;
+    font-size: large;
+    border: 1px solid black;
+    overflow-y: scroll;
+    overflow-wrap: break-word;
+}
+#div_preview {
+    width: 47vw;
+    height: 45vh;
+    font-size: large;
+    border: 1px solid black;
+    overflow-y: scroll;
+    overflow-wrap: break-word;
+}
+#div_cli_input {
+	width: 100vw;
+}
+#cli_input {
+	width: 100%;
+    font-size: medium;
+}
+
+.div_cli_popup {
+	width: 100%;
+    position: relative;
+    display: inline-block;
+}
+
+.popup .popuptext {
+  visibility: hidden;
+  background-color: #555;
+  color: #fff;
+  text-align: left;
+  border-radius: 6px;
+  padding: 3px 0;
+  position: absolute;
+  top: 87.5%;
+}
+.popup .show {
+  visibility: visible;
+}
+
+th {
+  background-color: black;
+  color: white;
+}
+
+td, th {
+  border: 1px solid #dddddd;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:nth-child(even) {
+  background-color: #dddddd;
+}
