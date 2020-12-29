@@ -2755,9 +2755,6 @@ auto Kmap::fetch_children_ordered( Uuid const& parent ) const
         BC_PRE([ & ]
         {
             BC_ASSERT( exists( parent ) ); // TODO: Warranted, or should I just return {}?
-            fmt::print( "ordering.size {} == {} children.size\n"
-                      , database().fetch_child_ordering( resolve( parent ) ).size()
-                      , fetch_children( parent ).size() );
             BC_ASSERT( database().fetch_child_ordering( resolve( parent ) ).size() == fetch_children( parent ).size() );
         })
         BC_POST([ & ]

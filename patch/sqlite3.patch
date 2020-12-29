@@ -1,0 +1,16 @@
+diff --git a/src/os_unix.c b/src/os_unix.c
+index a688ed270..31a683af6 100644
+--- a/src/os_unix.c
++++ b/src/os_unix.c
+@@ -6127,6 +6127,11 @@ static int unixOpen(
+   if( isCreate )    openFlags |= O_CREAT;
+   if( isExclusive ) openFlags |= (O_EXCL|O_NOFOLLOW);
+   openFlags |= (O_LARGEFILE|O_BINARY|O_NOFOLLOW);
++  
++  // <KMAP>
++  // Note: Electron apparently uses a symbolic link as a root path, so must "follow".
++  openFlags ^= O_NOFOLLOW;
++  // </KMAP>
+ 
+   if( fd<0 ){
+     mode_t openMode;              /* Permissions to create file with */

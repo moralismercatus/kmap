@@ -149,9 +149,18 @@ auto main( int argc
          , char* argv[] )
     -> int
 {
-    initialize();
-    // Ensure code & globals persist past scope exit.
-    emscripten_exit_with_live_runtime(); 
+    try
+    {
+        initialize();
+        // Ensure code & globals persist past scope exit.
+        emscripten_exit_with_live_runtime(); 
+    }
+    catch( std::exception const& e )
+    {
+        io::print( stderr
+                 , "exception: {}\n"
+                 , e.what() );
+    }
 
     return 0;
 }

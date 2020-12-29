@@ -46,7 +46,7 @@ auto dbErrorLogCallback( void* pArg
     -> void
 {
     fmt::print( stderr
-              , "(%d) %s\n"
+              , "{} {}\n"
               , iErrCode
               , zMsg );
 }

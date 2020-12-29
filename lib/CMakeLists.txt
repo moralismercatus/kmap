@@ -79,6 +79,10 @@ ExternalProject_Add(
 
     GIT_REPOSITORY
         https://github.com/sqlite/sqlite.git
+    GIT_TAG
+        961a72601bfb981f347d4860e65515e7ab5b7eba
+    PATCH_COMMAND
+        git apply ${CMAKE_SOURCE_DIR}/patch/sqlite3.patch
     UPDATE_COMMAND ""
     CONFIGURE_COMMAND
         ./configure --enable-static --enable-releasemode
