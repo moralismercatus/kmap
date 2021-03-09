@@ -17,9 +17,9 @@ class Kmap;
 namespace kmap::cmd {
 
 auto create_definition( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto add_definition( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

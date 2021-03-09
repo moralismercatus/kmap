@@ -519,9 +519,9 @@ auto process( ast::dotlang::Dot const& dot
 }
 
 auto load_dot( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -571,14 +571,14 @@ auto load_dot( Kmap& kmap )
                 else
                 {
                     fmt::print( "mmap error: {}\n", strerror( errno ) );
-                    return { CliResultCode::failure
+                    KMAP_MAKE_RESULT( error_code::common::uncategorized
                            , fmt::format( "unable to map file: {}"
                                         , fp.string() ) };
                 }
             }
             else
             {
-                return { CliResultCode::failure
+                KMAP_MAKE_RESULT( error_code::common::uncategorized
                        , fmt::format( "unable to open file: {}"
                                     , fp.string() ) };
             }
@@ -597,30 +597,24 @@ auto load_dot( Kmap& kmap )
                     fmt::print( "committing...\n" );
                     prep->commit( kmap );
                     fmt::print( "committed\n" );
-                    kmap.select_node( graph_root.value() );
+                    KMAP_TRY( kmap.select_node( graph_root.value() ) );
                 }
                 else
                 {
-                    return { CliResultCode::failure
-                            , fmt::format( "unsupported graph type: {}"
-                                        , dot->graph_type ) };
+                    return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unsupported graph type: {}", dot->graph_type ) );
                 }
             }
             else
             {
-                return { CliResultCode::failure
-                        , fmt::format( "parse failed; see console log" ) };
+                return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "parse failed; see console log" ) );
             }
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "file not found: {}"
-                                , fp.string() ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "file not found: {}", fp.string() ) );
         }
 
-        return { CliResultCode::success
-               , fmt::format( "dot file loaded" ) };
+        return fmt::format( "dot file loaded" );
     };
 }
 

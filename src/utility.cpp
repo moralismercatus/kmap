@@ -52,6 +52,24 @@ using namespace ranges;
 namespace fs = boost::filesystem;
 
 namespace kmap {
+
+template<>
+auto from_string( std::string const& s )
+    -> Result< bool >
+{
+    auto rv = KMAP_MAKE_RESULT_EC( bool, error_code::common::conversion_failed );
+    
+    if( s == "true" )
+    {
+        rv = true;
+    }
+    else if( s == "false" )
+    {
+        rv = false;
+    }
+
+    return rv;
+}
  
 auto compress_resource( std::byte const* data
                       , size_t const size )
@@ -585,6 +603,19 @@ auto to_string( Color const& c )
     }
 
     return ""; // Avoid compiler warning.
+}
+
+auto to_string( bool const b )
+    -> std::string
+{
+    if( !b )
+    {
+        return "false";
+    }
+    else
+    {
+        return "true";
+    }
 }
 
 auto to_uint64( std::string const& s

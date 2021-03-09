@@ -26,7 +26,6 @@
 #include "cmd/select_node.hpp"
 #include "cmd/state.hpp"
 #include "cmd/tag.hpp"
-#include "cmd/text.hpp"
 #include "contract.hpp"
 #include "io.hpp"
 #include "kmap.hpp"
@@ -96,7 +95,7 @@ auto fetch_leaf_or_selected( CliCommand::Args const& args
 
 auto absolute_path( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -105,52 +104,52 @@ auto absolute_path( Kmap& kmap )
             })
         ;
 
-        auto const& target = fetch_leaf_or_selected< 0 >( args
-                                                        , kmap );
+        auto rv = KMAP_MAKE_RESULT( std::string );
+        auto const& target = fetch_leaf_or_selected< 0 >( args, kmap );
 
         if( !target )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "Target node not found: {}"
-                                , args[ 0 ] ) };
+            rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
+                                    , fmt::format( "Target node not found: {}", args[ 0 ] ) );
+        }
+        else
+        {
+            rv = kmap.absolute_path_flat( *target );
         }
 
-        auto const ap = kmap.absolute_path_flat( *target );
-
-        return { CliResultCode::success
-               , ap };
+        return rv;
     };
 }
 
 auto run_unit_tests( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         (void)kmap;
         (void)args;
 
         fmt::print( "[Notice] Unloading Current and Loading Testing Environment.\n" );
 
+        auto rv = KMAP_MAKE_RESULT( std::string );
         auto output = kmap::run_unit_tests( /*StringVec{}*/ );
 
         if( output == 0 )
         {
-             return { CliResultCode::success
-                    , fmt::format( "unit test result: {}"
-                                 , output ) };
+             rv = fmt::format( "unit test result: {}", output );
         }
         else
         {
-             return { CliResultCode::failure
-                    , fmt::format( "unit test result: {}"
-                                 , output ) };
+             rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
+                                     , fmt::format( "unit test result: {}", output ) );
         }
+
+        return rv;
     };
 }
 
 auto list_commands( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         (void)args;
         
@@ -167,21 +166,20 @@ auto list_commands( Kmap& kmap )
         auto flat = keys
                   | views::join( '\n' )
                   | to< std::string >();
-        auto& tv = kmap.text_view();
+        auto& tv = kmap.text_area();
 
         tv.clear();
         tv.show_preview( flat );
         kmap.network()
             .focus();
 
-        return { CliResultCode::success
-               , "list-command" };
+        return std::string{ "list-command" };
     };
 }
 
 auto help( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -274,20 +272,19 @@ auto help( Kmap& kmap )
             }
         }();
 
-        auto& tv = kmap.text_view();
+        auto& tv = kmap.text_area();
 
         tv.clear();
         tv.hide_editor();
         tv.show_preview( markdown_to_html( out_text ) );
 
-        return { CliResultCode::success
-               , "See preview" };
+        return std::string{ "See preview" };
     };
 }
 
 auto jump_in( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -310,23 +307,20 @@ auto jump_in( Kmap& kmap )
 
         if( !rv )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "jump stack empty" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "jump stack empty" ) );
         }
         else
         {
             kmap.jump_to( *rv );
 
-            return { CliResultCode::success
-                   , fmt::format( "{} entered"
-                                , kmap.fetch_title( *rv ).value() ) };
+            return fmt::format( "{} entered", kmap.fetch_title( *rv ).value() );
         }
     };
 }
 
 auto jump_out( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -349,23 +343,20 @@ auto jump_out( Kmap& kmap )
 
         if( !rv )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "jump stack empty" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "jump stack empty" ) );
         }
         else
         {
-            kmap.select_node( *rv );
+            KMAP_TRY( kmap.select_node( *rv ) );
 
-            return { CliResultCode::success
-                   , fmt::format( "{} entered"
-                                , kmap.fetch_title( *rv ).value() ) };
+            return fmt::format( "{} entered", kmap.fetch_title( *rv ).value() );
         }
     };
 }
 
 auto edit_title( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -379,8 +370,7 @@ auto edit_title( Kmap& kmap )
 
         if( !target )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "target node not found" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "target node not found" ) );
         }
         else
         {
@@ -397,90 +387,10 @@ auto edit_title( Kmap& kmap )
             kmap.update_title( *target
                              , text );
 
-            return { CliResultCode::success
-                   , "node title open for editing" };
+            return std::string{ "node title open for editing" };
         }
     };
 }
-
-// TODO: Test corner cases e.g., an alias aliasing itself, recursive aliases trees, etc.
-// auto create_alias( Kmap& kmap )
-// {
-//     return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
-//     {
-//         BC_CONTRACT()
-//             BC_PRE([ & ]
-//             {
-//                 BC_ASSERT( args.size() == 1 || args.size() == 2 );
-//             })
-//         ;
-
-//         auto const& source = fetch_leaf< 0 >( args
-//                                             , kmap );
-
-//         if( !source )
-//         {
-//             return { CliResultCode::failure
-//                    , fmt::format( "Source node not found: {}"
-//                                 , args[ 0 ] ) };
-//         }
-
-//         auto const& target = fetch_leaf_or_selected< 1 >( args
-//                                                         , kmap );
-
-//         if( !target )
-//         {
-//             return { CliResultCode::failure
-//                    , fmt::format( "Target node not found: {}"
-//                                 , args[ 0 ] ) };
-//         }
-
-//         if( auto const alias = kmap.create_alias( *source
-//                                                 , *target )
-//           ; alias )
-//         {
-//             kmap.jump_to( alias.value() );
-
-//             return { CliResultCode::success
-//                    , "alias added" };
-//         }
-//         else
-//         {
-//             return { CliResultCode::failure
-//                    , "failed to create alias" };
-//         }
-//     };
-// }
-
-// TODO: Place in cmd/select_node.cpp?
-// auto resolve_alias( Kmap& kmap )
-// {
-//     return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
-//     {
-//         BC_CONTRACT()
-//             BC_PRE([ & ]
-//             {
-//                 BC_ASSERT( args.empty() || args.size() == 1 );
-//             })
-//         ;
-
-//         auto const& target = fetch_leaf_or_selected< 0 >( args
-//                                                         , kmap );
-
-//         if( !target )
-//         {
-//             return { CliResultCode::failure
-//                    , fmt::format( "target node not found" ) };
-//         }
-//         else
-//         {
-//             kmap.select_node( kmap.resolve( *target ) );
-
-//             return { CliResultCode::success
-//                    , "resolved" };
-//         }
-//     };
-// }
 
 } // anonymous ns
 
@@ -797,11 +707,11 @@ auto make_core_commands( Kmap& kmap )
     //     , ArgumentList{}
     //     , delete_node( kmap )
     //     }
-    ,   { "edit"
-        , "opens node body for editing"
-        , ArgumentList{}
-        , edit_body( kmap )
-        }
+    // ,   { "edit"
+    //     , "opens node body for editing"
+    //     , ArgumentList{}
+    //     , edit_body( kmap )
+    //     }
     ,   { "edit.title" 
         , "opens node title for editing"
         , ArgumentList{}

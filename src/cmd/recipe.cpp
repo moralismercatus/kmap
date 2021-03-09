@@ -243,7 +243,7 @@ auto add_prerequisite( Kmap& kmap
             }
         }
 
-        kmap.select_node( pr.value() );
+        BOOST_TEST( kmap.select_node( pr.value() ) );
     }
 
     return rv;
@@ -252,9 +252,9 @@ auto add_prerequisite( Kmap& kmap
 } // anonymous ns
 
 auto create_recipe( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -275,25 +275,23 @@ auto create_recipe( Kmap& kmap )
           ; cid )
         {
             kmap.update_title( cid.value(), title );
-            kmap.select_node( cid.value() );
+            KMAP_TRY( kmap.select_node( cid.value() ) );
       
-            return { CliResultCode::success
-                   , fmt::format( "{} added to {}"
-                                , heading
-                                , "/recipes" ) };
+            return fmt::format( "{} added to {}"
+                              , heading
+                              , "/recipes" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "recipe heading already exists" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "recipe heading already exists" ) );
         }
     };
 }
 
 auto create_step( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -315,15 +313,13 @@ auto create_step( Kmap& kmap )
         {
             kmap.update_title( step.value()
                              , title );
-            kmap.select_node( step.value() ); 
+            KMAP_TRY( kmap.select_node( step.value() ) );
 
-            return { CliResultCode::success
-                   , fmt::format( "created recipe step" ) };
+            return fmt::format( "created recipe step" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to create recipe step" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to create recipe step" ) );
         }
     };
 }
@@ -331,9 +327,9 @@ auto create_step( Kmap& kmap )
 // TODO: Need to inform user reason for failure e.g., that the "step" is nonempty.
 // TODO: Needs to ensure the step to be added isn't the recipe itself!
 auto add_step( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -348,22 +344,20 @@ auto add_step( Kmap& kmap )
                                       , heading )
           ; step )
         {
-            return { CliResultCode::success
-                   , fmt::format( "added recipe step" ) };
+            return fmt::format( "added recipe step" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to add recipe step" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to add recipe step" ) );
         }
     };
 }
 
 // TODO: Needs to ensure the step to be added isn't the recipe itself!
 auto add_prerequisite( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -378,21 +372,19 @@ auto add_prerequisite( Kmap& kmap )
                                              , heading )
           ; aid )
         {
-            return { CliResultCode::success
-                   , fmt::format( "added recipe prerequisite" ) };
+            return fmt::format( "added recipe prerequisite" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to add recipe prerequisite" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to add recipe prerequisite" ) );
         }
     };
 }
 
 auto create_prerequisite( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -412,19 +404,16 @@ auto create_prerequisite( Kmap& kmap )
                                                  , heading )
               ; aid )
             {
-                return { CliResultCode::success
-                    , fmt::format( "added recipe prerequisite" ) };
+                return fmt::format( "added recipe prerequisite" );
             }
             else
             {
-                return { CliResultCode::failure
-                    , fmt::format( "failed to add recipe prerequisite" ) };
+                return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to add recipe prerequisite" ) );
             }
         }
         else
         {
-            return { CliResultCode::failure
-                , fmt::format( "failed to create prerequisite recipe" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to create prerequisite recipe" ) );
         }
     };
 }

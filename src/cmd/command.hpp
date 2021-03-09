@@ -53,27 +53,27 @@ class Kmap;
 namespace kmap::cmd {
 
 auto execute_command( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto execute_command( Kmap& kmap
                     , Uuid const& cmd_id
                     , std::string const& arg )
-    -> CliCommandResult;
+    -> Result< std::string >;
 auto execute_kscript( Kmap& kmap 
                     , std::string const& code )
-    -> CliCommandResult;
+    -> Result< std::string >;
 auto execute_javascript( Uuid const& node
                        , std::string_view const fn_body
                        , StringVec const& args )
-    -> CliCommandResult;
+    -> Result< std::string >;
 auto execute_javascript( Uuid const& node
                        , std::string_view const fn_body
                        , StringVec const& arg )
-    -> CliCommandResult;
+    -> Result< std::string >;
 [[ nodiscard ]]
 auto evaluate_guard( Kmap& kmap
                    , Uuid const& guard_node
                    , std::string const& arg )
-    -> CliCommandResult;
+    -> Result< std::string >;
 [[ nodiscard ]]
 auto evaluate_completer( Kmap& kmap
                        , Uuid const& completer_node

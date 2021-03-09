@@ -5,8 +5,9 @@
  ******************************************************************************/
 #include "resource.hpp"
 
-#include "../contract.hpp"
 #include "../common.hpp"
+#include "../contract.hpp"
+#include "../error/master.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 
@@ -18,9 +19,9 @@ namespace fs = boost::filesystem;
 namespace kmap::cmd {
 
 auto add_resource( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -43,17 +44,14 @@ auto add_resource( Kmap& kmap )
 
         if( !source )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "resource reference node not found: {}"
-                                , args[ 0 ] ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "resource reference node not found: {}", args[ 0 ] ) );
         }
 
         auto const& target = [ & ]() -> Optional< Uuid >
         {
             if( args.size() == 2 )
             {
-                auto const& rv = kmap.fetch_descendant( kmap.root_node_id()
-                                                      , args[ 1 ]  );
+                auto const& rv = kmap.fetch_descendant( kmap.root_node_id(), args[ 1 ] );
                 
                 return rv ? rv.value() : Uuid{};
             }
@@ -65,19 +63,16 @@ auto add_resource( Kmap& kmap )
 
         if( !target )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "target node not found" ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "target node not found" ) );
         }
         else
         {
             auto ref_parent = [ & ]
             {
-                if( kmap.is_child( *target
-                                  , "resources" ) )
+                if( kmap.is_child( *target, "resources" ) )
                 {
                     return *kmap.database()
-                                .fetch_child( "resources"
-                                           , *target );
+                                .fetch_child( "resources", *target );
                 }
                 else
                 {
@@ -90,15 +85,13 @@ auto add_resource( Kmap& kmap )
                                                     , ref_parent )
               ; alias )
             {
-                kmap.select_node( *target ); // We don't want to move to the newly added alias.
+                KMAP_TRY( kmap.select_node( *target ) ); // We don't want to move to the newly added alias.
 
-                return { CliResultCode::success
-                       , "resource reference added" };
+                return "resource reference added";
             }
             else
             {
-                return { CliResultCode::failure
-                       , "failed to add resource reference" };
+                return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, "failed to add resource reference" );
             }
         }
     };
@@ -106,9 +99,9 @@ auto add_resource( Kmap& kmap )
 
 /// TODO: Use mmap instead of reading from file into local buffer.
 auto store_resource( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -117,15 +110,11 @@ auto store_resource( Kmap& kmap )
             })
         ;
 
-        using boost::system::error_code;
-
         auto const& p = kmap_root_dir / FsPath{ args[ 0 ] };
 
         if( !file_exists( p ) )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "file not found: {}"
-                                , p.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "file not found: {}", p.string() ) );
         }
 
         auto const fsize = fs::file_size( p );
@@ -135,15 +124,11 @@ auto store_resource( Kmap& kmap )
 
         if( fsize == 0 )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "file empty: {}"
-                                , p.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "file empty: {}", p.string() ) );
         }
         if( !ifs.good() )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to open file: {}"
-                                , p.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "unable to open file: {}", p.string() ) );
         }
 
         data.resize( fsize );
@@ -154,8 +139,7 @@ auto store_resource( Kmap& kmap )
 
         if( !resources )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire .root.resources" ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "unable to acquire .root.resources" ) );
         }
 
         auto const heading = [ & ]
@@ -167,12 +151,9 @@ auto store_resource( Kmap& kmap )
             }
         }();
 
-        if( kmap.is_child( *resources
-                         , heading ) )
+        if( kmap.is_child( *resources, heading ) )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "{} already exists"
-                                , heading ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "{} already exists", heading ) );
         }
 
         auto const id = kmap.store_resource( *resources
@@ -182,23 +163,20 @@ auto store_resource( Kmap& kmap )
         
         if( id )
         {
-            return { CliResultCode::success
-                   , fmt::format( "stored: {}"
-                                , p.string() ) };
+            return fmt::format( "stored: {}"
+                              , p.string() );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "store failed: {}"
-                                , p.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "store failed: {}", p.string() ) );
         }
     };
 }
 
 auto store_url_resource( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -212,8 +190,7 @@ auto store_url_resource( Kmap& kmap )
 
         if( !resource_root )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire .root.resources.url" ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "unable to acquire .root.resources.url" ) );
         }
         // TODO: Check that url doesn't already exist, as a resource, in the db.
         auto const id = kmap.store_resource( *resource_root
@@ -222,15 +199,11 @@ auto store_url_resource( Kmap& kmap )
                                            , url.size() );
         if( id )
         {
-            return { CliResultCode::success
-                   , fmt::format( "stored: {}"
-                                , url ) };
+            return fmt::format( "stored: {}", url );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "stor failed: {}"
-                                , url ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "stor failed: {}", url ) );
         }
     };
 }

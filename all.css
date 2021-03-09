@@ -1,52 +1,40 @@
-#div_container {
-    display: flex;
-    direction: row;
-    flex-wrap: wrap;
+/* #canvas {
+    position: absolute;
+    border: 1px solid black;
 }
-#div_fwd_breadcrumb {
-	width: 100vw;
-}
-#fwd_breadcrumb {
-	width: 100%;
+#canvas\.breadcrumb {
+    position: absolute;
     font-size: medium;
+    border: 1px solid black;
 }
-#div_graph {
-    width: 100vw;
-    height: 50vh;
+#canvas\.workspace\.network {
+    position: absolute;
     border: 1px solid black;
     background-color: #333333;
 }
-#div_text_area {
-    width: 50vw;
-    height: 45vh;
-}
-#text_area {
-    width: 47vw;
-    height: 45vh;
+#canvas\.workspace\.text_area\.editor {
+    position: absolute;
     font-size: large;
     border: 1px solid black;
     overflow-y: scroll;
     overflow-wrap: break-word;
 }
-#div_preview {
-    width: 47vw;
-    height: 45vh;
+#canvas\.workspace\.text_area\.preview {
+    position: absolute;
     font-size: large;
     border: 1px solid black;
     overflow-y: scroll;
     overflow-wrap: break-word;
 }
-#div_cli_input {
-	width: 100vw;
-}
-#cli_input {
-	width: 100%;
+#canvas\.cli {
+    position: absolute;
     font-size: medium;
+    border: 1px solid black;
 }
 
 .div_cli_popup {
+  position: absolute;
 	width: 100%;
-    position: relative;
     display: inline-block;
 }
 
@@ -62,7 +50,7 @@
 }
 .popup .show {
   visibility: visible;
-}
+} */
 
 th {
   background-color: black;

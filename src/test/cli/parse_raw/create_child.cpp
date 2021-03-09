@@ -24,13 +24,11 @@ BOOST_AUTO_TEST_CASE( create_child
 {
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
-    auto const succ = CliResultCode::success;
-    auto const fail = CliResultCode::failure;
 
     kmap.select_node( kmap.root_node_id() );
-    BOOST_TEST( cli.parse_raw( ":create.child 1" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":create.child 1" ) );
     kmap.select_node( kmap.root_node_id() );
-    BOOST_TEST( cli.parse_raw( ":create.child 1" ).result == fail );
+    BOOST_TEST( cli.parse_raw( ":create.child 1" ) );
 }
 
 BOOST_AUTO_TEST_CASE( create_sibling
@@ -40,19 +38,17 @@ BOOST_AUTO_TEST_CASE( create_sibling
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
     auto const nodes = kmap.node_fetcher();
-    auto const succ = CliResultCode::success;
-    auto const fail = CliResultCode::failure;
 
     create_lineages( "1"
                    , "1.2" );
 
-    BOOST_TEST( cli.parse_raw( ":create.sibling 1" ).result == fail );
+    BOOST_TEST( cli.parse_raw( ":create.sibling 1" ) );
 
     kmap.select_node( nodes[ "/1" ] );
 
-    BOOST_TEST( cli.parse_raw( ":create.sibling 2" ).result == succ );
-    BOOST_TEST( cli.parse_raw( ":create.sibling 2" ).result == fail );
-    BOOST_TEST( cli.parse_raw( ":create.sibling 3" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":create.sibling 2" ) );
+    BOOST_TEST( cli.parse_raw( ":create.sibling 2" ) );
+    BOOST_TEST( cli.parse_raw( ":create.sibling 3" ) );
 }
 
 BOOST_AUTO_TEST_SUITE_END( /* parse_raw */ )

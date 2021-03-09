@@ -23,9 +23,9 @@ using namespace ranges;
 namespace kmap::cmd {
 
 auto create_definition( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -41,28 +41,23 @@ auto create_definition( Kmap& kmap )
         if( auto const def = kmap.fetch_or_create_leaf( def_path )
           ; def )
         {
-            kmap.update_title( *def
-                             , title );
-            kmap.select_node( *def );
+            kmap.update_title( *def, title );
+            KMAP_TRY( kmap.select_node( *def ) );
 
-            return { CliResultCode::success
-                   , fmt::format( "added: {}"
-                                , def_path ) };
+            return fmt::format( "added: {}", def_path );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire {}"
-                                , def_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", def_path ) );
         }
     };
 }
 
 // TODO: Decide whether this should create an alias under the common "references" or the specific "definitions".
 auto add_definition( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -78,9 +73,7 @@ auto add_definition( Kmap& kmap )
 
         if( !def_root )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire {}"
-                                , droot_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized , fmt::format( "unable to acquire {}", droot_path ) );
         }
 
         auto const def_path_v = args[ 0 ]
@@ -97,9 +90,7 @@ auto add_definition( Kmap& kmap )
 
         if( !def )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire {}"
-                                , def_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", def_path ) );
         }
 
         auto alias_parent = [ & ]
@@ -122,17 +113,13 @@ auto add_definition( Kmap& kmap )
                                                 , alias_parent )
           ; alias )
         {
-            kmap.select_node( target ); // We don't want to move to the newly added alias.
+            KMAP_TRY( kmap.select_node( target ) ); // We don't want to move to the newly added alias.
 
-            return { CliResultCode::success
-                   , fmt::format( "added: {}"
-                                , def_path ) };
+            return fmt::format( "added: {}", def_path );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to add: {}"
-                                , def_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to add: {}", def_path ) );
         }
     };
 }

@@ -834,7 +834,7 @@ auto CommandPathArg::complete( std::string const& raw ) const
     -> StringVec 
 {
     auto rv = StringVec{};
-    auto const cmd_abs_path = "/settings.commands";
+    auto const cmd_abs_path = "/setting.command";
 
     if( auto const cmd_root = kmap_.fetch_leaf( cmd_abs_path )
       ; cmd_root )
@@ -985,9 +985,50 @@ REGISTER_ARGUMENT
 } // namespace anon
 } // namespace filesystem_path_def
 
-namespace unsigned_integer_def {
+namespace numeric_decimal_def {
 namespace {
 
+auto const guard_code =
+R"%%%(```javascript
+const parsed = Number( arg );
+
+if( Number.isNaN( parsed ) || parsed < 0 )
+{
+    return kmap.failure( 'not an decimal number' );
+}
+else if( parsed > Number.MAX_SAFE_INTEGER)
+{
+    return kmap.failure( 'number too large' );
+}
+else
+{
+    return kmap.success( 'decimal number' );
+}
+```)%%%";
+auto const completion_code =
+R"%%%(```javascript
+return arg;
+```)%%%";
+
+auto const description = "decimal number";
+auto const guard = guard_code;
+auto const completion = completion_code;
+
+REGISTER_ARGUMENT
+(
+    numeric.decimal
+,   description 
+,   guard
+,   completion
+);
+
+} // namespace anon
+} // namespace numeric_decimal_def 
+
+namespace numeric_unsigned_integer_def {
+namespace {
+
+// TODO: As Number accepts decimals, too, how is this handled? We could reject floats/decimals, as this is an integer.
 auto const guard_code =
 R"%%%(```javascript
 const parsed = Number( arg );
@@ -1016,13 +1057,13 @@ auto const completion = completion_code;
 
 REGISTER_ARGUMENT
 (
-    unsigned_integer 
+    numeric.unsigned_integer 
 ,   description 
 ,   guard
 ,   completion
 );
 
 } // namespace anon
-} // namespace unsigned_integer_def 
+} // namespace numeric_unsigned_integer_def 
 
 } // namespace kmap

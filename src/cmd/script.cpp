@@ -24,13 +24,11 @@ namespace fs = boost::filesystem;
 
 namespace kmap::cmd {
 
-// TODO: Should convert to Result< string >, but as parse_raw still using CliCommandResult, deferring until that changes.
 auto load_script( Kmap& kmap 
                 , std::istream& is )
-    -> CliCommandResult
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "unknown failure" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
     auto line = std::string{};
 
     while( std::getline( is, line ) )
@@ -58,15 +56,9 @@ auto load_script( Kmap& kmap
         
         if( ifs.good() )
         {
-            if( auto const exec_res = load_script( kmap, ifs )
-              ; !exec_res )
-            {
-                rv = exec_res.message; // TODO: Need a payload for error info here, as the failure message will be interpreted as a success.
-            }
-            else
-            {
-                rv = std::string{ "script executed" };
-            }
+            KMAP_TRY( load_script( kmap, ifs ) );
+
+            rv = std::string{ "script executed" };
         }
         else
         {

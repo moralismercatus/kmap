@@ -1,0 +1,21 @@
+/******************************************************************************
+ * Author(s): Christopher J. Havlicek
+ *
+ * See LICENSE and CONTACTS.
+ ******************************************************************************/
+#pragma once
+#ifndef KMAP_UTIL_WINDOW_HPP
+#define KMAP_UTIL_WINDOW_HPP
+
+#include <cstdint>
+
+namespace kmap::window {
+
+auto inner_width()
+    -> uint32_t;
+auto inner_height()
+    -> uint32_t;
+
+} // namespace kmap::window
+
+#endif // KMAP_UTIL_WINDOW_HPP

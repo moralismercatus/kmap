@@ -4,110 +4,126 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 
+kmap = Module
 const showdown = require( 'showdown' )
                , showdown_highlight = require( 'showdown-highlight' )
                ;
+const jshint = require( 'jshint' ).JSHINT;
+
+// [WARNING] Not thread safe! Uses global object 'jshint'!
+function lint_javascript( code )
+{
+    let rv = null;
+    const options = { 'esversion': 6 // Just guessing on the EMCAScript version. May need to bump in the future.
+                    , 'laxcomma': true  // Allows for `, line_item` style of line breaking.
+                    , 'laxbreak': true }; // Allows for `|| line_item` style of line breaking.
+
+    if( !jshint( code, options ) )
+    {
+        rv = '';
+
+        for( let i = 0
+           ; i < jshint.errors.length
+           ; ++i )
+        {
+            error = jshint.errors[ i ];
+
+            rv += [ 'error #: ' + i
+                  , 'scope: ' + error.scope
+                  , 'reason: ' + error.reason
+                  , 'evidence: ' + error.evidence
+                  , 'raw: ' + error.raw 
+                  , 'id: ' + error.id 
+                  , 'line: ' + error.line
+                  , 'character: ' + error.character
+                  , 'code: ' + error.code
+                  ].join( '\n' ) + '\n';
+        }
+
+        rv += 'full source: ' + code;
+    }
+
+    return rv;
+}
+
+function to_VectorString( li )
+{
+    let v = new kmap.VectorString();
+
+    for( i = 0
+       ; i < li.length
+       ; ++i )
+    {
+        v.push_back( li[ i ] );
+    }
+
+    return v;
+}
 
 function clear_cli_error()
 {
-    let cli = document.getElementById( 'cli_input' );
+    let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
 
     cli.style = 'background-color: white';
     cli.readOnly = false;
 }
 
-function clear_cli_input()
+function clear_canvas_cli()
 {
-    let cli = document.getElementById( 'cli_input' );
+    let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
 
     cli.value = "";
 }
 
-function reset_cli_input()
+function reset_canvas_cli()
 {
     clear_cli_error();
     reset_cli_error();
 }
 
-function clear_text_view()
+function clear_text_area()
 {
-    let tv = document.getElementById( "text_area" );
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
 
     tv.value = "";
 }
 
-function write_text_view( text )
+function write_text_area( text )
 {
-    let tv = document.getElementById( "text_area" );
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
 
     tv.value = text;
 }
 
-function focus_text_view()
+function focus_text_area()
 {
-    let tv = document.getElementById( "text_area" );
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
 
     tv.focus();
 }
 
 function focus_preview()
 {
-    let tv = document.getElementById( "div_preview" );
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value() );
 
     tv.focus();
 }
 
-function hide_text_view()
-{
-    let tv = document.getElementById( "text_area" );
-
-    tv.hidden = true;
-}
-
-function show_text_view()
-{
-    let tv = document.getElementById( "text_area" );
-
-    tv.hidden = false;
-}
-
-function resize_text_view( attr )
-{
-    let tv = document.getElementById( "text_area" );
-
-    tv.setAttribute( "style"
-                   , attr );
-}
-
 function get_editor_contents()
 {
-    let tv = document.getElementById( "text_area" );
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
 
     return tv.value;
 }
 
 function write_preview( text )
 {
-    document.getElementById( "div_preview" ).innerHTML = text;
-}
-
-function show_preview()
-{
-    let tv = document.getElementById( "text_area" );
-
-    tv.hidden = false;
-}
-
-function hide_preview()
-{
-    let tv = document.getElementById( "div_preview" );
-
-    tv.hidden = true;
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value() ).innerHTML = text;
 }
 
 function resize_preview( attr )
 {
-    let tv = document.getElementById( "div_preview" );
+    let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value() );
 
     tv.setAttribute( "style"
                    , attr );
@@ -169,40 +185,12 @@ function eval_js_command( code )
     return true;
 }
 
-function eval_code( code )
-{
-    try
-    {
-        eval( code );
-    }
-    catch( err )
-    {
-        // TODO: Should return error info message, to help user debug...
-        console.error( "code execution failed: " + err.message );
-        return false;
-    }
-
-    return true;
-}
-
-document.getElementById( "text_area" ).oninput = function( e )
-{
-    var md_text = document.getElementById( "text_area" );
-
-    write_preview( convert_markdown_to_html( md_text.value ) );
-}
-
-document.getElementById( "text_area" ).addEventListener( 'focusout', function()
-{
-    Module.on_leaving_editor();
-} );
-
 window.onkeydown = function( e )
 {
     let key = e.keyCode ? e.keyCode : e.which;
     let is_shift = !!e.shiftKey;
-    let cli = document.getElementById( "cli_input" );
-    let editor = document.getElementById( "text_area" );
+    let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
+    let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
 
     switch ( key )
     {
@@ -214,7 +202,7 @@ window.onkeydown = function( e )
             {
                 clear_cli_error();
                 cli.value = "";
-                cli.focus();
+                kmap.cli().focus();
             }
             break;
         }
@@ -226,7 +214,7 @@ window.onkeydown = function( e )
             {
                 clear_cli_error();
                 cli.value = ":";
-                cli.focus();
+                kmap.cli().focus();
             }
             break;
         }
@@ -237,7 +225,7 @@ window.onkeydown = function( e )
             {
                 clear_cli_error();
                 cli.value = ":";
-                cli.focus();
+                kmap.cli().focus();
             }
             break;
         }
@@ -247,40 +235,3 @@ window.onkeydown = function( e )
         }
     }
 }
-
-document.getElementById( "cli_input" ).onkeyup = function( e )
-{
-    let key = e.keyCode ? e.keyCode : e.which;
-    let text = document.getElementById( "cli_input" );
-    let is_ctrl = !!e.ctrlKey;
-    let is_shift = !!e.shiftKey;
-
-    Module.cli_on_key_up( key
-                        , is_ctrl
-                        , is_shift );
-}
-
-document.getElementById( "cli_input" ).onkeydown = function( e )
-{
-    let key = e.keyCode ? e.keyCode : e.which;
-    let text = document.getElementById( "cli_input" );
-
-    if( 9 == key ) // tab
-    {
-        Module.complete_cli( text.value );
-        e.preventDefault();
-    }
-}
-
-document.getElementById( "text_area" ).onkeydown = function( e )
-{
-    let key = e.keyCode ? e.keyCode : e.which;
-    let is_ctrl = !!e.ctrlKey;
-
-    if( 27 == key // escape
-     || ( is_ctrl && 67 == key ) ) // ctrl+c
-    {
-        Module.focus_network();
-    }
-}
-

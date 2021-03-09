@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include "cli.hpp"
 
+#include "canvas.hpp"
 #include "cli/parser.hpp"
 #include "cmd/command.hpp"
 #include "cmd/parser.hpp"
@@ -42,21 +43,15 @@ using namespace std::string_literals;
 namespace kmap
 {
 
-CliCommandResult::operator bool() const
-{
-    return result == CliResultCode::success;
-}
-
 Cli::Cli( Kmap& kmap )
     : kmap_{ kmap }
 {
 }
 
 auto Cli::parse_raw( std::string const& input )
-    -> CliCommandResult
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "Unknown failure" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
 
     if( auto const cbar = parser::cli::parse_command_bar( input )
       ; cbar )
@@ -83,23 +78,17 @@ auto Cli::parse_raw( std::string const& input )
             // Return to original.
             if( kmap_.exists( selected ) ) // Corner case in which the command deletes the original node! TODO: Make test case for this.
             {
-                kmap_.select_node( selected );
+                KMAP_TRY( kmap_.select_node( selected ) );
             }
         }
         else if( cmd )
         {
             rv = execute( cmd->first, cmd->second );
-            if( !rv )
-            {
-                io::print( "execution failed: {}\n", rv.message );
-            }
         }
     }
     else
     {
-        // TODO: rv = ...syntax error details... from Spirit / parser.
-        rv = CliCommandResult{ CliResultCode::failure
-                             , "Syntax error" };
+        rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "Syntax error" );
     }
 
     if( rv )
@@ -107,11 +96,20 @@ auto Cli::parse_raw( std::string const& input )
         // Note: no longer need to notify of success, as this should be done automatically.
         // Only failure to find command or execute body should be reported.
         // A failure to execute the command is already handled.
-        notify_success( rv.message );
+        notify_success( rv.value() );
     }
     else
     {
-        notify_failure( rv.message );
+        #if KMAP_DEBUG
+            io::print( stderr, "parse_raw() command failed: {}\n", to_string( rv.error() ) );
+        #endif // KMAP_DEBUG
+
+        BC_ASSERT( rv.has_error() );
+        BC_ASSERT( !rv.error().stack.empty() );
+
+        io::print( "{}\n", to_string( rv.error() ) );
+
+        notify_failure( rv.error().stack.front().message );
     }
 
     if( is_focused() )
@@ -136,16 +134,16 @@ auto Cli::register_argument( PreregisteredArgument const& arg )
 
 auto Cli::execute( std::string const& cmd_str
                  , std::string const& arg )
-    -> CliCommandResult
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "Unknown error" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
+io::print( "execute.arg: {}\n", arg );
 
     // This block temporary until old-style cmds are transitioned to new.
     if( auto const resolved_cmd = fetch_general_command_guard_resolved( cmd_str )
       ; resolved_cmd )
     {
-        rv = cmd::execute_command( kmap_, resolved_cmd.value(), arg );
+        rv = KMAP_TRY( cmd::execute_command( kmap_, resolved_cmd.value(), arg ) );
 
         return rv;
     }
@@ -155,8 +153,7 @@ auto Cli::execute( std::string const& cmd_str
 
     if( !cmd )
     {
-        rv = { CliResultCode::failure
-             , "unrecognized command" };
+        rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "unrecognized command" );
     }
     else
     {
@@ -184,11 +181,11 @@ auto Cli::execute( std::string const& cmd_str
         if( args.size() < min_size
          || args.size() > max_size )
         {
-            rv = { CliResultCode::failure
-                 , fmt::format( "expected between [{},{}] arguments, got {}"
-                              , min_size
-                              , max_size
-                              , args.size() ) };
+            rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
+                                    , fmt::format( "expected between [{},{}] arguments, got {}"
+                                                 , min_size
+                                                 , max_size
+                                                 , args.size() ) );
         }
         else
         {
@@ -210,9 +207,9 @@ auto Cli::execute( std::string const& cmd_str
 
             if( malformed )
             {
-                rv = { CliResultCode::failure
-                     , fmt::format( "malformation at position: {}"
-                                  , *malformed ) };
+                rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
+                                        , fmt::format( "malformation at position: {}"
+                                                     , *malformed ) );
             }
             else
             {
@@ -227,8 +224,7 @@ auto Cli::execute( std::string const& cmd_str
 auto Cli::register_command( CliCommand const& cmd )
     -> void
 {
-    valid_cmds_.insert( {cmd.command
-                       , cmd} );
+    valid_cmds_.insert( { cmd.command, cmd } );
 }
 
 [[ deprecated( "used in old cmd style" ) ]]
@@ -253,7 +249,7 @@ auto Cli::fetch_general_command( Heading const& path ) const
     auto rv = Optional< Uuid >{};
 
     if( auto const desc =  kmap_.fetch_descendant( fmt::format( "{}.{}"
-                                                              , "/meta.settings.commands"
+                                                              , "/meta.setting.command"
                                                               , path ) )
       ; desc )
     {
@@ -293,13 +289,20 @@ auto Cli::fetch_general_command_guard_resolved( Heading const& path ) const
     -> Optional< Uuid >
 {
     auto rv = Optional< Uuid >{};
+    io::print( "fetching: {}\n", path );
 
     if( auto const guarded = fetch_general_command( path )
       ; guarded )
     {
+        io::print( "found: {}\n", path );
         if( auto const resolved = resolve_contextual_guard( guarded.value() ) )
         {
+            io::print( "resolved: {}\n", path );
             rv = resolved.value();
+        }
+        else
+        {
+            io::print( "ctx guard failed: \n", to_string( resolved.error() ) );
         }
     }
     
@@ -405,7 +408,7 @@ auto Cli::complete_command( std::string const& input ) const
         })
     ;
 
-    auto const cmds_root = kmap_.fetch_descendant( "/meta.settings.commands" );
+    auto const cmds_root = kmap_.fetch_descendant( "/meta.setting.command" );
     auto const ctx_filter = views::filter( [ & ]( auto const& e )
     {
         auto const resolved = resolve_contextual_guard( e.target );
@@ -527,12 +530,11 @@ auto Cli::write( std::string const& out )
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    val::global( "cli_input" ).set( "value"
-                                  , out );
+    val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).set( "value", out );
 }
 
 auto Cli::read()
@@ -544,11 +546,11 @@ auto Cli::read()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto const elem = val::global( "cli_input" )[ "value" ];
+    auto const elem = val::global( to_string( kmap_.canvas().cli_pane() ).c_str() )[ "value" ];
 
     assert( elem.as< bool >() );
 
@@ -563,13 +565,17 @@ auto Cli::focus()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( js::fetch_element_by_id< val >( to_string( kmap_.canvas().cli_pane() ) ).has_value() );
         })
     ;
 
-    auto elem = val::global( "cli_input" );
+    auto elem = js::fetch_element_by_id< val >( to_string( kmap_.canvas().cli_pane() ) );
 
-    elem.call< val >( "focus" );
+    BC_ASSERT( elem );
+
+    elem.value().call< val >( "focus" );
+
+    update_pane();
 }
 
 auto Cli::is_focused()
@@ -580,11 +586,11 @@ auto Cli::is_focused()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto const elem = val::global( "cli_input" );
+    auto const elem = val::global( to_string( kmap_.canvas().cli_pane() ).c_str() );
     auto const doc = val::global( "document" );
 
     return elem == doc[ "activeElement" ];
@@ -598,14 +604,13 @@ auto Cli::clear_input()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto elem = val::global( "cli_input" );
+    auto elem = val::global( to_string( kmap_.canvas().cli_pane() ).c_str() );
 
-    elem.set( "value"
-            , "" );
+    elem.set( "value", "" );
 
     hide_popup();
 }
@@ -625,14 +630,13 @@ auto Cli::enable_write()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto elem = val::global( "cli_input" );
+    auto elem = val::global( to_string( kmap_.canvas().cli_pane() ).c_str() );
 
-    elem.set( "readOnly"
-            , false );
+    elem.set( "readOnly", false );
 }
 
 auto Cli::disable_write()
@@ -643,14 +647,13 @@ auto Cli::disable_write()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto elem = val::global( "cli_input" );
+    auto elem = val::global( to_string( kmap_.canvas().cli_pane() ).c_str() );
 
-    elem.set( "readOnly"
-            , true );
+    elem.set( "readOnly", true );
 }
 
 auto Cli::set_color( Color const& c )
@@ -661,11 +664,11 @@ auto Cli::set_color( Color const& c )
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "cli_input" ).isUndefined() );
+            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto elem = val::global( "cli_input" );
+    auto elem = val::global( to_string( kmap_.canvas().cli_pane() ).c_str() );
 
     elem.set( "style"
             , fmt::format( "background-color: {}"
@@ -686,10 +689,10 @@ auto Cli::show_popup( std::string const& text )
 
     auto elem = val::global( "cli_popup" );
 
-    elem.set( "innerHTML"
-            , text );
+    elem.set( "innerHTML", text );
 
     // TODO: how to call elem.classList.call< val >( "add", "show" )?
+    KMAP_LOG_LINE();
     EM_ASM(
     {
         let popup = document.getElementById( "cli_popup" );
@@ -698,6 +701,7 @@ auto Cli::show_popup( std::string const& text )
              .add( "show" );
     }
     , text.c_str() ); // TODO: Is this line dead code?
+    KMAP_LOG_LINE();
 }
 
 auto Cli::show_popup( StringVec const& lines )
@@ -716,6 +720,7 @@ auto Cli::hide_popup()
     -> void
 {
     // TODO: how to call elem.classList.call< val >( "remove", "show" )?
+    KMAP_LOG_LINE();
     EM_ASM(
     {
         let popup = document.getElementById( "cli_popup" );
@@ -723,6 +728,7 @@ auto Cli::hide_popup()
         popup.classList
              .remove( "show" );
     } );
+    KMAP_LOG_LINE();
 }
 
 /// Assumes any completion/abortion of input will unfocus CLI.
@@ -784,13 +790,13 @@ auto register_command( Kmap& kmap
 {
     auto rv = bool{};
     #if 0
-    auto const path = fmt::format(  "/settings.commands.{}"
+    auto const path = fmt::format(  "/setting.command.{}"
                                  , cmd.command );
     if( auto const cmd_root = kmap.fetch_or_create_leaf( path )
       ; cmd_root )
     {
         if( auto const args_root = kmap.fetch_or_create_leaf( *cmd_root
-                                                            , "arguments" )
+                                                            , "argument" )
           ; args_root )
         {
             for( auto const& arg : cmd.args )
@@ -826,6 +832,7 @@ auto Cli::notify_success( std::string const& message )
                       , message ) );
     disable_write();
     set_color( Color::green );
+    update_pane();
 }
 
 auto Cli::notify_failure( std::string const& message )
@@ -842,6 +849,7 @@ auto Cli::notify_failure( std::string const& message )
                       , message ) );
     disable_write();
     set_color( Color::red );
+    update_pane();
 }
 
 auto Cli::create_argument( PreregisteredArgument const& arg )
@@ -850,7 +858,7 @@ auto Cli::create_argument( PreregisteredArgument const& arg )
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     auto const arg_root = kmap_.fetch_or_create_descendant( kmap_.root_node_id()
-                                                          , "/meta.settings.arguments" ); // TODO: Should this be setting.command.argument instead?
+                                                          , "/meta.setting.argument" ); // TODO: Should this be setting.command.argument instead?
     auto const arg_root_path = kmap_.absolute_path_flat( arg_root.value() );
     
     if( auto const existing = kmap_.fetch_descendant( io::format( "{}.{}", arg_root_path, arg.path ) )
@@ -882,7 +890,7 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const cmd_root = KMAP_TRY( kmap_.fetch_or_create_descendant( kmap_.root_node_id()
-                                                                    , "/meta.settings.commands" ) );
+                                                                    , "/meta.setting.command" ) );
     auto const path_from_root = fmt::format( "/{}.{}"
                                            , prereg.path
                                            , prereg.guard.heading );
@@ -893,92 +901,137 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
         KMAP_TRY( kmap_.delete_node( existing.value() ) );
     } 
 
-    auto const cmdlin = KMAP_TRY( kmap_.create_descendants( cmd_root
-                                                          , path_from_root ) );
+    auto const cmdlin = KMAP_TRY( kmap_.create_descendants( cmd_root, path_from_root ) );
     auto const cmd = cmdlin.back();
     auto const children = kmap_.create_children( cmd
                                                , "description"
-                                               , "arguments"
+                                               , "argument"
                                                , "action" );
     auto const nodes = kmap_.node_view( cmd );
     
-    kmap_.update_body( cmd
-                     , prereg.guard.code );
-    kmap_.update_body( nodes[ "/description" ]
-                     , prereg.description );
+    kmap_.update_body( cmd, prereg.guard.code );
+    kmap_.update_body( nodes[ "/description" ], prereg.description );
+
     for( auto const& arg : prereg.arguments )
     {
-        auto const arg_src = KMAP_TRY( kmap_.fetch_descendant( fmt::format( "/meta.settings.arguments.{}"
+        auto const arg_src = KMAP_TRY( kmap_.fetch_descendant( fmt::format( "/meta.setting.argument.{}"
                                                                           , arg.argument_alias ) ) );
-        auto const arg_dst = KMAP_TRY( kmap_.create_child( nodes[ "/arguments" ], arg.heading ) );
+        auto const arg_dst = KMAP_TRY( kmap_.create_child( nodes[ "/argument" ], arg.heading ) );
 
-        kmap_.update_body( arg_dst
-                         , arg.description );
+        kmap_.update_body( arg_dst, arg.description );
 
         KMAP_TRY( kmap_.create_alias( arg_src, arg_dst ) );
     }
-    kmap_.update_body( nodes[ "/action" ]
-                     , prereg.action );
+
+    kmap_.update_body( nodes[ "/action" ], prereg.action );
 
     rv = cmd;
 
     return rv;
 }
 
-auto Cli::reset_preregistered_arguments()
-    -> bool 
+auto Cli::on_key_down( int const key
+                     , bool const is_ctrl
+                     , bool const is_shift
+                     , std::string const& text )
+    -> Result< void >
 {
-    bool rv = true; // TODO: Propagate notification that a command failed to be registered.
+    auto rv = KMAP_MAKE_RESULT( void );
+    KMAP_LOG_LINE();
+
+    io::print( "checking key: {}\n", key );
+
+    switch( key )
+    {
+        case 9/*tab*/:
+        {
+    KMAP_LOG_LINE();
+            complete( text );
+    KMAP_LOG_LINE();
+            break;
+        }
+        case 13/*enter*/:
+        {
+            parse_raw( read() );
+            break;
+        }
+        case 27/*escape*/:
+        {
+            if( is_ctrl && 67 == key ) // ctrl+c
+            {
+                auto& nw = kmap_.network();
+                
+                clear_input();
+                nw.focus();
+            }
+            break;
+        }
+        case 67/*c*/:
+        {
+            if( is_ctrl )
+            {
+                auto& nw = kmap_.network();
+                
+                clear_input();
+                nw.focus();
+            }
+            break;
+        }
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Cli::reset_preregistered_arguments()
+    -> Result< void > 
+{
+    auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& prereg : prereg_args_ )
     {
-        auto const res = create_argument( prereg );
-
-        if( !res )
-        {
-            io::print( stderr
-                     , "failed to create argument: {}: {}\n"
-                     , prereg.path
-                     , to_string( res.error() ) );
-            // TODO: propagate out.
-        }
-
-        rv = res.has_value();
+        KMAP_TRY( create_argument( prereg ) );
     }
+
+    rv = outcome::success();
 
     return rv;
 }
 
 auto Cli::reset_preregistered_commands()
-    -> bool 
+    -> Result< void > 
 {
-    bool rv = true; // TODO: Propagate notification that a command failed to be registered.
+    auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& prereg : prereg_cmds_ )
     {
-        auto const res = create_command( prereg );
-
-        if( !res )
-        {
-            io::print( stderr
-                     , "failed to create command: {}: {}\n"
-                     , prereg.path
-                     , to_string( res.error() ) );
-            // TODO: propagate out.
-        }
-
-        rv = res.has_value();
+        KMAP_TRY( create_command( prereg ) );
     }
+
+    rv = outcome::success();
 
     return rv;
 }
 
 auto Cli::reset_all_preregistered()
-    -> bool
+    -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
+
     // Note: Must be applied the order below, as commands depends upon arguments.
-    return reset_preregistered_arguments()
-        && reset_preregistered_commands();
+    KMAP_TRY( reset_preregistered_arguments() );
+    KMAP_TRY( reset_preregistered_commands() );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Cli::update_pane()
+    -> void
+{
+    kmap_.canvas().update_pane( kmap_.canvas().cli_pane() ); // TODO: Find out why focusing requires a repositioning of the CLI element. That is, why to calls to this are necessary to maintain dimensions.
 }
 
 /* :<cmd> args ...

@@ -18,16 +18,16 @@ class Kmap;
 namespace kmap::cmd {
 
 auto select_destination( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto select_node( Kmap& kmap
                 , std::string const& dst )
-    -> CliCommandResult;
+    -> Result< std::string >;
 auto select_node( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto select_root( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto select_source( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

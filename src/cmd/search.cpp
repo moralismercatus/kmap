@@ -75,7 +75,7 @@ auto search_headings( std::regex const& rgx
 auto process_search_results( Kmap& kmap
                            , std::string const& srgx
                            , std::vector< Uuid > const& matching_nodes )
-    -> CliCommandResult
+    -> Result< std::string >
 {
     auto sorted_matches = matching_nodes;
 
@@ -89,9 +89,7 @@ auto process_search_results( Kmap& kmap
 
     if( kmap.exists( search_root_path ) )
     {
-        return { CliResultCode::failure
-               , fmt::format( "search {} already exists"
-                            , search_root_path ) };
+        return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "search {} already exists", search_root_path ) );
     }
 
     auto const search_root = kmap.fetch_or_create_leaf( search_root_path );
@@ -129,19 +127,18 @@ auto process_search_results( Kmap& kmap
 
     }
 
-    kmap.select_node( *search_root );
+    KMAP_TRY( kmap.select_node( *search_root ) );
 
     auto cumulative_match_count = sorted_matches.size();
 
-    return { CliResultCode::success
-           , fmt::format( "matches found: {}"
-                        , cumulative_match_count ) };
+    return fmt::format( "matches found: {}"
+                      , cumulative_match_count );
 }
 
 auto search_bodies( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -165,9 +162,9 @@ auto search_bodies( Kmap& kmap )
 }
 
 auto search_bodies_first( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -194,9 +191,9 @@ auto search_bodies_first( Kmap& kmap )
 //       If common, a simple command in the graph could be named search.leaf.bodies that calls the chained commands.
 // TODO: Create test for rgx=".*" when all leaf node bodies are empty. Got an error trying this.
 auto search_leaf_bodies( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -229,9 +226,9 @@ auto search_leaf_bodies( Kmap& kmap )
 }
 
 auto search_headings( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]

@@ -17,6 +17,7 @@
 #include "error/network.hpp"
 #include "error/node_manip.hpp"
 #include "io.hpp"
+#include "js_iface.hpp"
 #include "lineage.hpp"
 #include "network.hpp"
 #include "path.hpp"
@@ -55,52 +56,61 @@ namespace kmap
 
 Kmap::Kmap()
     : env_{ std::make_unique< Environment >() }
-    , cli_{ std::make_unique< Cli >( *this ) }
+    , canvas_{ std::make_unique< Canvas >( *this ) }
 {
-    reset();
+    io::print( "in kmap ctor\n" );
+    // if( auto const r = reset()
+    //   ; !r )
+    // {
+    //     KMAP_THROW_EXCEPTION_MSG( to_string( r.error() ) );
+    // }
 
-    for( auto const& c : cmd::make_core_commands( *this ) )
-    {
-        cli_->register_command( c );
-    }
+    // for( auto const& c : cmd::make_core_commands( *this ) )
+    // {
+    //     cli_->register_command( c );
+    // }
 }
 
-auto Kmap::set_up_root()
+auto Kmap::set_up_db_root()
     -> void
 {
     auto const id = root_node_id();
     auto const heading = "root";
     auto const title = format_title( heading );
+    auto& db = database();
+    auto nt = nodes::nodes{};
+    auto ht = headings::headings{};
+    auto tt = titles::titles{};
+    auto bt = bodies::bodies{};
 
-    {
-        auto& db = database();
-        auto nt = nodes::nodes{};
-        auto ht = headings::headings{};
-        auto tt = titles::titles{};
-        auto bt = bodies::bodies{};
+    db.execute( insert_into( nt )
+              . set( nt.uuid = to_string( id ) ) );
+    db.execute( insert_into( ht )
+              . set( ht.uuid = to_string( id )
+                   , ht.heading = heading ) );
+    db.execute( insert_into( tt )
+              . set( tt.uuid = to_string( id )
+                   , tt.title = title ) );
+    db.execute( insert_into( bt )
+              . set( bt.uuid = to_string( id )
+                   , bt.body =  "Welcome.\n\nType `:help` for assistance." ) );
+}
 
-        db.execute( insert_into( nt )
-                  . set( nt.uuid = to_string( id ) ) );
-        db.execute( insert_into( ht )
-                  . set( ht.uuid = to_string( id )
-                       , ht.heading = heading ) );
-        db.execute( insert_into( tt )
-                  . set( tt.uuid = to_string( id )
-                       , tt.title = title ) );
-        db.execute( insert_into( bt )
-                  . set( bt.uuid = to_string( id )
-                       , bt.body =  "Welcome. Type ':help' for usage info." ) );
-    }
-    {
-        auto& nw = network();
+auto Kmap::set_up_nw_root()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const id = root_node_id();
+    auto const heading = fetch_heading( id ).value();
+    auto const title = fetch_title( id ).value();
+    auto& nw = network();
 
-        nw.create_node( id, title );
-        nw.select_node( id );
-    }
-    {
-        select_node( id );
-        hide_editor();
-    }
+    nw.create_node( id, title );
+    ( void )nw.select_node( id );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::set_ordering_position( Uuid const& id
@@ -228,7 +238,7 @@ auto Kmap::travel_left()
     auto const selected = selected_node();
     auto const parent = KMAP_TRY( fetch_parent( selected ) );
 
-    select_node( parent );
+    KMAP_TRY( select_node( parent ) );
 
     return parent;
 }
@@ -244,7 +254,7 @@ auto Kmap::travel_right()
     {
         auto const dst = mid( children );
 
-        select_node( dst );
+        KMAP_TRY( select_node( dst ) );
         rv = dst;
     }
 
@@ -257,7 +267,7 @@ auto Kmap::travel_up()
     auto const selected = selected_node();
     auto const above = KMAP_TRY( fetch_above( selected ) );
 
-    select_node( above );
+    KMAP_TRY( select_node( above ) );
 
     return above;
 }
@@ -268,7 +278,7 @@ auto Kmap::travel_down()
     auto const selected = selected_node();
     auto const below = KMAP_TRY( fetch_below( selected ) );
 
-    select_node( below );
+    KMAP_TRY( select_node( below ) );
 
     return below;
 }
@@ -369,11 +379,20 @@ auto Kmap::network()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( env_ );
+            assert( canvas_ );
         })
     ;
 
-    return env_->network();
+    KMAP_LOG_LINE();
+
+    if( !network_ )
+    {
+        network_ = std::make_unique< Network >( canvas_->network_pane() );
+    }
+
+    KMAP_LOG_LINE();
+
+    return *network_;
 }
 
 auto Kmap::network() const
@@ -382,11 +401,12 @@ auto Kmap::network() const
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( env_ );
+            assert( canvas_ );
+            assert( network_ );
         })
     ;
 
-    return env_->network();
+    return *network_;
 }
 
 auto Kmap::aliases()
@@ -465,19 +485,61 @@ auto Kmap::copy_state( FsPath const& dst )
 auto Kmap::cli()
     -> Cli&
 {
+    if( !cli_ )
+    {
+        cli_ = std::make_unique< Cli >( *this );
+    }
+
     return *cli_;
 }
 
 auto Kmap::cli() const
     -> Cli const&
 {
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( cli_ );
+        })
+    ;
+
     return *cli_;
 }
 
-auto Kmap::text_view()
-    -> TextView&
+auto Kmap::canvas()
+    -> Canvas&
 {
-    return text_view_;
+    return *canvas_;
+}
+
+auto Kmap::canvas() const
+    -> Canvas const&
+{
+    return *canvas_;
+}
+
+auto Kmap::text_area()
+    -> TextArea&
+{
+    if( !text_area_ )
+    {
+        text_area_ = std::make_unique< TextArea >( *this );
+    }
+
+    return *text_area_;
+}
+
+auto Kmap::text_area() const
+    -> TextArea const&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( text_area_ );
+        })
+    ;
+
+    return *text_area_;
 }
 
 auto Kmap::root_node_id() const
@@ -486,7 +548,7 @@ auto Kmap::root_node_id() const
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( env_ );
+            BC_ASSERT( env_ );
         })
     ;
 
@@ -496,7 +558,7 @@ auto Kmap::root_node_id() const
 auto Kmap::parse_cli( std::string const& input )
     -> void
 {
-    if( CliResultCode::failure == cli().parse_raw( input ).result )
+    if( !cli().parse_raw( input ) )
     {
         network().focus();
     }
@@ -798,8 +860,6 @@ auto Kmap::create_child( Uuid const& parent
                        , Title const& title )
     -> Result< Uuid >
 {
-    // TODO: Make generic outcome::failure( error_code::general::unknown ) that will be assigned via a KMAP_MAKE_RESULT( T );
-    //       This way, auto rv = KMAP_MAKE_RESULT( Uuid >() can be called without hassle.
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
@@ -1192,20 +1252,78 @@ auto Kmap::store_resource( Uuid const& parent
     return hash;
 }
 
-auto Kmap::complete_cli( std::string const& input )
-    -> void
-{
-    cli().complete( input );
-}
-
 auto Kmap::reset()
-    -> void
+    -> Result< void >
 {
-    env_ = std::make_unique< Environment>();
+    auto rv = KMAP_MAKE_RESULT( void );
+    env_ = std::make_unique< Environment >();
 
+    // TODO: propage errors for following calls:
+    KMAP_LOG_LINE();
     database().create_tables();
-    set_up_root();
-    cli().reset_all_preregistered();
+    KMAP_LOG_LINE();
+    set_up_db_root();
+    KMAP_LOG_LINE();
+    KMAP_TRY( canvas().reset() );
+    KMAP_LOG_LINE();
+    KMAP_TRY( set_up_nw_root() );
+    KMAP_LOG_LINE();
+    KMAP_TRY( cli().reset_all_preregistered() );
+    KMAP_LOG_LINE();
+
+    {
+        KMAP_LOG_LINE();
+        KMAP_TRY( select_node( root_node_id() ) );
+        KMAP_LOG_LINE();
+        KMAP_TRY( canvas().hide( canvas().editor_pane() ) );
+        KMAP_LOG_LINE();
+    }
+    {
+        KMAP_LOG_LINE();
+        KMAP_TRY( js::eval_void( io::format( R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() ).onkeydown = function( e )
+                                                   {{
+                                                       let key = e.keyCode ? e.keyCode : e.which;
+                                                       let is_ctrl = !!e.ctrlKey;
+                                                       let is_shift = !!e.shiftKey;
+                                                       let text = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
+
+                                                       const res = kmap.cli().on_key_down( key
+                                                                                         , is_ctrl
+                                                                                         , is_shift
+                                                                                         , text.value );
+ 
+                                                       if( key == 9/*tab*/
+                                                        || key == 13/*enter*/ )
+                                                       {{
+                                                           e.preventDefault();
+                                                       }}
+                                                       if( res.has_error() )
+                                                       {{
+                                                           console.log( 'CLI error: ' + res.error_message() );
+                                                       }}
+                                                   }};)%%%" ) ) );
+        KMAP_LOG_LINE();
+        KMAP_TRY( js::eval_void( io::format( R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() ).onkeydown = function( e )
+                                                   {{
+                                                       let key = e.keyCode ? e.keyCode : e.which;
+                                                       let is_ctrl = !!e.ctrlKey;
+                                                       let is_shift = !!e.shiftKey;
+
+                                                       if(   key == 27/*esc*/
+                                                        || ( key == 67/*c*/ && is_ctrl ) )
+                                                       {{
+                                                           // Focus on network. There's already a callback to call 'on_leaving_editor' on focusout event.
+                                                           kmap.canvas().focus( kmap.canvas().network_pane() );
+                                                           e.preventDefault();
+                                                       }}
+                                                   }};)%%%" ) ) );
+        KMAP_LOG_LINE();
+    }
+
+    rv = outcome::success();
+        KMAP_LOG_LINE();
+    
+    return rv;
 }
 
 auto Kmap::rename( Uuid const& id
@@ -1256,7 +1374,7 @@ auto Kmap::exists( Heading const& heading ) const
 // Note: 'children' should be unresolved. TODO: Actually, I suspect this is only a requirement for the precondition, which could always resolve all IDs. To confirm. I believe, when it comes to ordering, the resolved node is the only one used.
 auto Kmap::reorder_children( Uuid const& parent
                            , std::vector< Uuid > const& children )
-    -> void 
+    -> Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1269,6 +1387,11 @@ auto Kmap::reorder_children( Uuid const& parent
         })
     ;
 
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE( rv, exists( parent ), error_code::network::invalid_parent );
+    KMAP_ENSURE( rv, fetch_children( parent ) == ( children | to< UuidSet >() ), error_code::network::invalid_parent );
+
     auto const order_ids = children
                          | views::transform( [ & ]( auto const& e ){ return resolve( e ); } )
                          | views::transform( to_ordering_id )
@@ -1277,28 +1400,33 @@ auto Kmap::reorder_children( Uuid const& parent
 
     db.update_child_ordering( parent
                             , order_ids );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
+// Returns previously selected node.
 // TODO: Add unit tests for:
 //   - node coloring
 auto Kmap::select_node( Uuid const& id )
-    -> bool
+    -> Result< Uuid > 
 {
     KMAP_PROFILE_SCOPE();
 
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( id ) ); // TODO: this function should return an outcome rather than fail with precondition. I'm not actually sold that this shouldn't be a precondition.... Need more thought.
-        })
         BC_POST([ & ]
         {
             BC_ASSERT( selected_node() == id );
             // assert viewport is centered...
             // assert nw is focused...
-            // assert jump stack is increased...
+            // assert jump stack is increased...(possibly, depends)
         })
     ;
+
+    KMAP_ENSURE( rv, exists( id ), error_code::network::invalid_node );
 
     auto const prev_selected = selected_node();
     auto& nw = network();
@@ -1353,18 +1481,17 @@ auto Kmap::select_node( Uuid const& id )
         {
             color_node( e ); 
 
-            nw.change_node_font( e 
-                               , get_appropriate_node_font_face( e )
-                               , Color::black );
+            KMAP_TRY( nw.change_node_font( e 
+                                         , get_appropriate_node_font_face( e )
+                                         , Color::black ) );
         }
     }
 
-    load_preview( id );
     nw.color_node_background( id
                             , Color::black );
-    nw.change_node_font( id
-                       , get_appropriate_node_font_face( id )
-                       , Color::white );
+    KMAP_TRY( nw.change_node_font( id
+                                 , get_appropriate_node_font_face( id )
+                                 , Color::white ) );
     nw.select_node( id );
     nw.center_viewport_node( id );
     nw.focus();
@@ -1372,9 +1499,15 @@ auto Kmap::select_node( Uuid const& id )
     auto breadcrumb = id_abs_path
                     | views::drop_last( 1 )
                     | to< UuidVec >();
+    KMAP_LOG_LINE();
     set_fwd_breadcrumb( to_heading_path_flat( *this, breadcrumb ) );
+    KMAP_LOG_LINE();
+    load_preview( id ); // Note: load preview must be after nw.select_node(), as it uses fetch_descendant, which uses selected_node, which must exist!
+    KMAP_LOG_LINE();
 
-    return true;
+    rv = prev_selected;
+
+    return rv;
 }
 
 auto Kmap::swap_nodes( Uuid const& t1
@@ -1479,74 +1612,31 @@ auto Kmap::load_preview( Uuid const& id )
         })
     ;
 
+    KMAP_LOG_LINE();
     auto& db = database();
-    auto& tv = text_view();
+    KMAP_LOG_LINE();
+    auto& tv = text_area();
+    KMAP_LOG_LINE();
     auto const body = *db.fetch_body( resolve( id ) );
 
+    KMAP_LOG_LINE();
+    io::print( "loading_preview: {}\n", body );
     tv.show_preview( markdown_to_html( body ) );
-}
-
-auto Kmap::load_body_editor( Uuid const& id )
-    -> void 
-{
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( id ) ); // TODO: this function should return an outcome rather than fail with precondition.
-            BC_ASSERT( database().fetch_body( resolve( id ) ) ); // TODO: this function should return an outcome rather than fail with precondition.
-        })
-    ;
-
-    auto const rid = resolve( id );
-    auto& db = database();
-    auto& tv = text_view();
-    auto const body = *db.fetch_body( rid );
-
-    tv.resize_editor( "width:47vw" );
-    tv.resize_preview( "width:47vw" );
-    tv.write( body );
-    tv.show_editor();
-    tv.focus_editor();
-    load_preview( rid );
-    set_leaving_editor_cb( [ id ]( auto& kmap )
-    {
-        auto& tv = kmap.text_view();
-        auto const contents = tv.editor_contents();
-        auto const selected_id = id;
-        auto const rid = kmap.resolve( selected_id );
-
-        BC_ASSERT( kmap.exists( selected_id ) );
-        BC_ASSERT( kmap.exists( rid ) );
-
-        kmap.database().update_body( rid, contents );
-        kmap.hide_editor();
-        kmap.select_node( selected_id ); // Ensure the newly added preview is updated.
-    } );
+    KMAP_LOG_LINE();
 }
 
 auto Kmap::on_leaving_editor()
     -> void
 {
-    if( on_leaving_editor_cb_ )
-    {
-        on_leaving_editor_cb_( *this );
-        on_leaving_editor_cb_ = {}; // Resetting here, as a precaution. I'd rather the cb get cleared than accidently e.g., erroneously/mysteriously update a node body.
-    }
-}
+    auto& tv = text_area();
+    auto const contents = tv.editor_contents();
+    auto const rid = resolve( selected_node() );
 
-auto Kmap::set_leaving_editor_cb( std::function< void( Kmap& ) > const& cb )
-    -> void
-{
-    on_leaving_editor_cb_ = cb;
-}
+    BC_ASSERT( exists( rid ) );
 
-auto Kmap::hide_editor()
-    -> void
-{
-    auto& tv = text_view();
-
-    tv.hide_editor();
-    tv.resize_preview( "width:98vw" );
+    database().update_body( rid, contents );
+    canvas().hide( canvas().editor_pane() );
+    select_node( selected_node() ); // Ensure the newly added preview is updated.
 }
 
 auto Kmap::node_fetcher() const
@@ -1672,31 +1762,6 @@ auto Kmap::update_aliases( Uuid const& descendant )
             update_alias( id
                         , dst );
         }
-    }
-}
-
-auto Kmap::cli_on_key_up( int const key
-                        , bool const is_ctrl
-                        , bool const is_shift )
-    -> void
-{
-    if( 13 == key ) // enter
-    {
-        auto& cl = cli();
-
-        if( cl.parse_raw( cl.read() ).result == CliResultCode::failure )
-        {
-            network().focus();
-        }
-    }
-    else if( ( 27 == key ) // escape
-          || ( is_ctrl && 67 == key ) ) // ctrl+c
-    {
-        auto& cl = cli();
-        auto& nw = network();
-        
-        cl.clear_input();
-        nw.focus();
     }
 }
 
@@ -2033,7 +2098,7 @@ auto Kmap::delete_node( Uuid const& id )
     {
         auto const next_sel = KMAP_TRY( fetch_next_as_if_deleted( id ) );
 
-        select_node( next_sel );
+        KMAP_TRY( select_node( next_sel ) );
 
         rv = next_sel;
     }
@@ -2053,7 +2118,7 @@ auto Kmap::delete_node( Uuid const& id )
 }
 
 auto Kmap::delete_node_internal( Uuid const& id )
-    -> void
+    -> Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -2068,39 +2133,35 @@ auto Kmap::delete_node_internal( Uuid const& id )
         })
     ;
 
+    auto rv = KMAP_MAKE_RESULT( void );
+
     {
         auto& db = database();
 
         // Delete children.
         for( auto const& e : fetch_children( id ) )
         {
-            delete_node_internal( e );
+            KMAP_TRY( delete_node_internal( e ) );
         }
         // Delete node.
         if( is_alias( id ) )
         {
-            delete_alias( id );
+            KMAP_TRY( delete_alias( id ) );
         }
         else
         {
             for( auto const& dst : database().fetch_alias_destinations( id ) )
             {
-                delete_node( make_alias_id( id
-                                          , dst ) );
+                KMAP_TRY( delete_node( make_alias_id( id, dst ) ) );
             }
 
             db.remove( id );
         }
     }
-    // Removing should be done by select_node(), as a means of refreshing. Removing.
-    // {
-    //     auto& nw = network();
 
-    //     if( nw.exists( id ) )
-    //     {
-    //         nw.remove( id );
-    //     }
-    // }
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::delete_alias( Uuid const& id )
@@ -3124,11 +3185,15 @@ auto Kmap::fetch_or_create_leaf( Uuid const& root
     return { pid };
 }
 
-auto Kmap::fetch_or_create_leaf( Heading const& heading )
-    -> Optional< Uuid >
+auto Kmap::fetch_or_create_descendant( Uuid const& root
+                                     , Uuid const& selected
+                                     , Heading const& heading ) 
+    -> Result< Uuid >
 {
-    return fetch_or_create_leaf( root_node_id()
-                               , heading );
+    return kmap::fetch_or_create_descendant( *this
+                                           , root
+                                           , selected
+                                           , heading );
 }
 
 auto Kmap::fetch_or_create_descendant( Uuid const& root
@@ -3139,6 +3204,13 @@ auto Kmap::fetch_or_create_descendant( Uuid const& root
                                            , root
                                            , adjust_selected( root )
                                            , heading );
+}
+
+auto Kmap::fetch_or_create_leaf( Heading const& heading )
+    -> Optional< Uuid >
+{
+    return fetch_or_create_leaf( root_node_id()
+                               , heading );
 }
 
 auto Kmap::fetch_or_create_descendant( Heading const& heading ) 
@@ -3198,7 +3270,21 @@ Kmap& Singleton::instance()
 {
     if( !inst_ )
     {
-        inst_ = std::make_unique< Kmap >();
+        KMAP_LOG_LINE();
+        try
+        {
+            inst_ = std::make_unique< Kmap >();
+            if( !inst_ )
+            {
+                io::print( "failed to intitialize Kmap instance\n" );
+            KMAP_LOG_LINE();
+            }
+        }
+        catch( std::exception& e )
+        {
+            io::print( "Singleton::instance exception: {}\n", e.what() );
+        }
+        KMAP_LOG_LINE();
     }
 
     return *inst_;

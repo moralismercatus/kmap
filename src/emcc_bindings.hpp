@@ -17,7 +17,9 @@
         .function( "error_message", &kmap::binding::Result< type >::error_message ) \
         .function( "has_error", &kmap::binding::Result< type >::has_error ) \
         .function( "has_value", &kmap::binding::Result< type >::has_value ) \
+        .function( "throw_on_error", &kmap::binding::Result< type >::throw_on_error ) \
         .function( "value", &kmap::binding::Result< type >::value ) \
+        .function( "value_or_throw", &kmap::binding::Result< type >::value_or_throw ) \
         ;
    
 
@@ -62,20 +64,40 @@ struct Result
         return result.has_value();
     }
 
-    auto value()
-        -> T&
-    {
-        return result.value();
-    }
-
     auto success_message() const
         -> std::string
     {
         return success_message;
     }
 
+    auto throw_on_error()
+    {
+        if( has_error() )
+        {
+            KMAP_THROW_EXCEPTION_MSG( error_message() );
+        }
+    }
+
+    auto value()
+        -> T&
+    {
+        return result.value();
+    }
+
+    auto value_or_throw()
+        -> T&
+    {
+        throw_on_error();
+
+        return result.value();
+    }
+
+    operator kmap::Result< T >()
+    {
+        return result;
+    }
+
     kmap::Result< T > result;
-    Optional< std::string > failure_message = {}; // Optional payload for CLI output. Bit of a hack. Subject to future improvement as understanding of payloads in Boost.Outcome increases.
 };
 
 /**
@@ -110,6 +132,14 @@ struct Result< void >
         -> bool
     {
         return result.has_value();
+    }
+
+    auto throw_on_error()
+    {
+        if( has_error() )
+        {
+            KMAP_THROW_EXCEPTION_MSG( error_message() );
+        }
     }
 
     kmap::Result< void > result;

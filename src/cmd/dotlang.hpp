@@ -17,7 +17,7 @@ class Kmap;
 namespace kmap::cmd {
 
 auto load_dot( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

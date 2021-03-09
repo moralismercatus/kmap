@@ -409,7 +409,7 @@ BOOST_AUTO_TEST_CASE( sel_parent
     create_lineages( "/1.2.3"
                    , "/4.5.6" );
 
-    kmap.select_node( nodes[ "1.2.3" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "1.2.3" ] ) );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
@@ -440,7 +440,7 @@ BOOST_AUTO_TEST_CASE( mult_bwd
     create_lineages( "/1.2.3"
                    , "/4.5.6" );
 
-    kmap.select_node( nodes[ "1.2.3" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "1.2.3" ] ) );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()

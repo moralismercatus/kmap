@@ -16,27 +16,25 @@ class Kmap;
 
 namespace kmap::cmd {
 
-// auto copy_body( Kmap& kmap )
-//     -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
 auto create_child( Kmap& kmap
                  , Uuid const& parent
                  , Title const& title
                  , Heading const& heading )
-    -> CliCommandResult;
+    -> Result< std::string >;
 auto merge_nodes( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto move_body( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto move_node( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto move_up( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto move_down( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto move_children( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 auto move_siblings( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

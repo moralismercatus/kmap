@@ -29,10 +29,6 @@ public:
         -> Database&;
     auto database() const
         -> Database const&;
-    auto network()
-        -> Network&;
-    auto network() const
-        -> Network const&;
     auto root_node_id() const
         -> Uuid const&;
     auto set_root( Uuid const& id )
@@ -41,7 +37,6 @@ public:
 private:
     Uuid root_node_id_ = gen_uuid();
     Database db_{ kmap_root_dir / gen_temp_db_name() };
-    Network network_{ "div_graph" };
 };
 
 } // namespace kmap

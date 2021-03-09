@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE( /*kmap_test/kmap_iface*/travel
 
     auto const new_root = view[ "new_root" ];
 
-    kmap.select_node( new_root );
+    BOOST_TEST( kmap.select_node( new_root ) );
 
     // .root
     {
@@ -61,7 +61,7 @@ BOOST_AUTO_TEST_CASE( /*kmap_test/kmap_iface*/travel
     }
     // .root.<mid>
     {
-        kmap.select_node( new_root );
+        BOOST_TEST( kmap.select_node( new_root ) );
 
         BOOST_TEST_REQUIRE( nw.selected_node() == new_root );
 

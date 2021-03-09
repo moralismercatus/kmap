@@ -18,30 +18,7 @@
 namespace kmap
 {
 
-enum class CliResultCode
-{
-    failure
-,   success
-};
-
 // TODO: Probably worth replacing with Boost.Outcome and "custom payloads" for adding additional contextual information about the failure. See Custom Payloads section in the doc.
-struct CliCommandResult
-{
-    [[ nodiscard]]
-    CliCommandResult() = default;
-    [[ nodiscard]]
-    CliCommandResult( CliResultCode rc
-                    , std::string const& msg )
-        : result( rc )
-        , message( msg )
-    {
-    }
-
-    explicit operator bool() const;
-
-    CliResultCode result = CliResultCode::failure;
-    std::string message = "unknown failure";
-};
 
 // TODO:
 // -needed: optional example list.
@@ -49,7 +26,7 @@ struct CliCommand
 {
     using Arg = std::string;
     using Args = std::vector< std::string >;
-    using Dispatch = std::function< CliCommandResult( Args const& ) >;
+    using Dispatch = std::function< Result< std::string >( Args const& ) >;
 
     std::string command = {};
     std::string help = {};
@@ -96,10 +73,10 @@ public:
     Cli( Kmap& kmap );
 
     auto parse_raw( std::string const& input )
-        -> CliCommandResult;
+        -> Result< std::string >;
     auto execute( std::string const& cmd
                 , std::string const& arg )
-        -> CliCommandResult;
+        -> Result< std::string >;
     auto fetch_command( std::string const& cmd ) const
         -> Optional< CliCommand >;
     auto fetch_general_command( Heading const& path ) const
@@ -126,6 +103,12 @@ public:
     [[ nodiscard ]]
     auto create_command( PreregisteredCommand const& prereg )
         -> Result< Uuid >;
+    [[ nodiscard ]]
+    auto on_key_down( int const key
+                    , bool const is_ctrl
+                    , bool const is_shift
+                    , std::string const& text )
+        -> Result< void >;
     auto write( std::string const& out )
         -> void;
     [[ nodiscard ]]
@@ -174,13 +157,15 @@ public:
     auto notify_failure( std::string const& message )
         -> void;
     auto reset_all_preregistered()
-        -> bool;
+        -> Result< void >;
+    auto update_pane()
+        -> void;
 
 protected:
     auto reset_preregistered_arguments()
-        -> bool;
+        -> Result< void >;
     auto reset_preregistered_commands()
-        -> bool;
+        -> Result< void >;
 
 private:
     using CommandMap = std::map< std::string

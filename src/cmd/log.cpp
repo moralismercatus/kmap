@@ -70,9 +70,9 @@ auto fetch_daily_log( Kmap const& kmap
 // Now we're getting into the realm of cross-domain commands (projects and daily logs), and the question of where to place the command comes into question.
 // I'm adding it here because log is the thing changing whereas the project can be thought of as read only.
 auto add_daily_task( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         auto const selected = kmap.selected_node();
 
@@ -88,52 +88,46 @@ auto add_daily_task( Kmap& kmap )
                                                        , task_root.value() )
                 ; task )
                 {
-                    kmap.select_node( kmap.selected_node() );
+                    KMAP_TRY( kmap.select_node( kmap.selected_node() ) );
 
-                    return { CliResultCode::success
-                           , fmt::format( "added {} as a task of {}"
-                                        , kmap.absolute_path_flat( project_root.value() )
-                                        , kmap.absolute_path_flat( *log ) ) };
+                    return fmt::format( "added {} as a task of {}"
+                                      , kmap.absolute_path_flat( project_root.value() )
+                                      , kmap.absolute_path_flat( *log ) );
                 }
                 else
                 {
-                    return { CliResultCode::failure
-                           , "could not add task" };
+                    return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "could not add task" );
                 }
             }
             else
             {
-                return { CliResultCode::failure
-                       , "could not obtain daily log" };
+                return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "could not obtain daily log" );
             }
         }
         else
         {
-            return { CliResultCode::failure
-                   , "selected node is not a project nor a descendant of" };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "selected node is not a project nor a descendant of" );
         }
     };
 }
 
 // TODO: Create unit test with other yy.mm.dd to ensure the correct is selected.
 auto create_daily_log( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         if( auto const did = fetch_or_create_daily_log( kmap
                                                       , to_log_date_string( std::chrono::system_clock::now() ) )
           ; did )
         {
-            kmap.select_node( *did );
+            KMAP_TRY( kmap.select_node( *did ) );
 
-            return { CliResultCode::success
-                   , fmt::format( "log created or was existent" ) };
+            return fmt::format( "log created or was existent" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to create daily log" ) };
+            return fmt::format( "unable to create daily log" );
         }
     };
 }

@@ -28,7 +28,11 @@ namespace kmap::test {
 
 ResetInstanceFixture::ResetInstanceFixture()
 {
-    Singleton::instance().reset();
+    if( auto const res = Singleton::instance().reset()
+      ; !res )
+    {
+        KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) );
+    }
 }
 
 ResetInstanceFixture::~ResetInstanceFixture()
@@ -48,7 +52,11 @@ ClearMapFixture::ClearMapFixture()
         }
     }
 
-    kmap.select_node( kmap.root_node_id() );
+    if( auto const res = kmap.select_node( kmap.root_node_id() )
+      ; !res )
+    {
+        KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) );
+    }
 }
 
 ClearMapFixture::~ClearMapFixture()
@@ -60,7 +68,7 @@ auto select_each_descendant_test( Kmap& kmap
                                 , Uuid const& node )
     -> bool
 {
-    auto rv = kmap.select_node( node );
+    auto rv = kmap.select_node( node ).has_value();
 
     for( auto const& child : kmap.fetch_children( node ) )
     {

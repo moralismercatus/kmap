@@ -69,23 +69,4 @@ auto select_each_descendant_test( Kmap& kmap
 
 } // namespace kmap
 
-namespace boost::test_tools::tt_detail {    
-
-template<>
-struct print_log_value< kmap::CliResultCode >
-{
-    auto operator()( std::ostream& os
-                   , kmap::CliResultCode const& code )
-        -> void
-    {
-        switch( code )
-        {
-        case kmap::CliResultCode::success: os << "success"; break;
-        case kmap::CliResultCode::failure: os << "failure"; break;
-        }
-    }
-};
-
-} // namespace boost::test_tools::tt_detail 
-
 #endif // KMAP_TEST_MASTER_HPP

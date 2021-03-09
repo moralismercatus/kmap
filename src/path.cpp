@@ -1016,7 +1016,7 @@ auto decide_path( Kmap const& kmap
     auto rv = KMAP_MAKE_RESULT( UuidVec );
 
     KMAP_ENSURE( rv, !raw.empty(), error_code::node::invalid_heading );
-    KMAP_ENSURE( rv, is_valid_heading_path( raw ), error_code::node::invalid_heading );
+    KMAP_ENSURE_MSG( rv, is_valid_heading_path( raw ), error_code::node::invalid_heading, raw );
     KMAP_ENSURE_MSG( rv, kmap.is_lineal( root, selected ), error_code::node::not_lineal, io::format( "root `{}` not lineal to selected `{}`\n", kmap.absolute_path_flat( root ), kmap.absolute_path_flat( selected ) ) );
 
     auto const tokens = tokenize_path( raw );
@@ -1549,18 +1549,18 @@ auto fetch_descendant( Kmap const& kmap
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const desc = decide_path( kmap
-                                 , root
-                                 , selected
-                                 , heading );
+    auto const desc = KMAP_TRY( decide_path( kmap
+                                           , root
+                                           , selected
+                                           , heading ) );
 
-    if( desc )
+    if( desc.size() == 1 )
     {
-        rv = desc.value().back();
+        rv = desc.back();
     }
     else
     {
-        rv = KMAP_PROPAGATE_FAILURE( desc );
+        rv = KMAP_MAKE_ERROR_MSG( error_code::network::ambiguous_path, heading );
     }
     
     return rv;

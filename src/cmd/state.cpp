@@ -7,6 +7,7 @@
 
 #include "../common.hpp"
 #include "../contract.hpp"
+#include "../error/master.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
@@ -14,9 +15,9 @@
 namespace kmap::cmd {
 
 auto copy_state( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -25,8 +26,6 @@ auto copy_state( Kmap& kmap )
             })
         ;
         
-        using boost::system::error_code;
-
         auto const& src = kmap.database()
                               .path();
         auto const& dst = FsPath{ args[ 0 ] };
@@ -34,22 +33,19 @@ auto copy_state( Kmap& kmap )
 
         if( !succ )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "copy failed: {}"
-                                , dst.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "copy failed: {}", dst.string() ) );
         }
 
-        return { CliResultCode::success
-               , fmt::format( "{} copied to {}"
-                            , src.string() 
-                            , dst.string() ) };
+        return fmt::format( "{} copied to {}"
+                          , src.string() 
+                          , dst.string() );
     };
 }
 
 auto load_state( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -63,23 +59,19 @@ auto load_state( Kmap& kmap )
 
         if( !succ )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to load state: {}"
-                                , p.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "failed to load state: {}", p.string() ) );
         }
         else
         {
-            return { CliResultCode::success
-                   , fmt::format( "loaded state: {}"
-                                , p.string() ) };
+            return fmt::format( "loaded state: {}", p.string() );
         }
     };
 }
 
 auto save_state( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -93,23 +85,19 @@ auto save_state( Kmap& kmap )
                            && kmap.load_state( p )
           ; succ )
         {
-            return { CliResultCode::success
-                   , fmt::format( "state saved and loaded: {}"
-                                , p.string() ) };
+            return fmt::format( "state saved and loaded: {}", p.string() );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "state save failed: {}"
-                                , p.string() ) };
+            return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "state save failed: {}", p.string() ) );
         }
     };
 }
 
 auto new_state( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -120,7 +108,7 @@ auto new_state( Kmap& kmap )
         ;
 
         // TODO: check for unsaved attributes... e.g., text buffers.
-        kmap.reset();
+        KMAP_TRY( kmap.reset() );
 
         if( args.size() == 1 )
         {
@@ -129,14 +117,11 @@ auto new_state( Kmap& kmap )
 
             if( !succ )
             {
-                return { CliResultCode::failure
-                       , fmt::format( "move failed: {}"
-                                    , p.string() ) };
+                return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "move failed: {}" , p.string() ) );
             }
         }
 
-        return { CliResultCode::success
-               , "new kmap created" };
+        return "new kmap created";
     };
 }
 

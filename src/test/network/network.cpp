@@ -3,8 +3,10 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "../../network.hpp"
 #include "../master.hpp"
+
+#include "../../canvas.hpp"
+#include "../../network.hpp"
 
 #include <boost/test/unit_test.hpp>
 
@@ -16,7 +18,8 @@ BOOST_AUTO_TEST_SUITE( network )
 
 BOOST_AUTO_TEST_CASE( create_node )
 {
-    auto nw = Network{ "div_graph" };
+    auto& kmap = Singleton::instance();
+    auto nw = Network{ kmap.canvas().network_pane() };
 
     BOOST_TEST( nw.exists( nw.create_node( { 0x0 }, "0" ) ) );
     BOOST_TEST( nw.nodes().size() == 1 );
@@ -32,7 +35,8 @@ BOOST_AUTO_TEST_CASE( add_edge
                     ,
                     * utf::depends_on( "network/create_node" ) )
 {
-    auto nw = Network{ "div_graph" };
+    auto& kmap = Singleton::instance();
+    auto nw = Network{ kmap.canvas().network_pane() };
  
     nw.create_node( { 0x0 }, "0" );
     nw.create_node( { 0x1 }, "a" );

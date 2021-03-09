@@ -23,9 +23,9 @@ using namespace ranges;
 namespace kmap::cmd {
 
 auto create_tag( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -41,32 +41,27 @@ auto create_tag( Kmap& kmap )
             if( auto const tag = kmap.fetch_or_create_leaf( tag_path )
             ; tag )
             {
-                kmap.select_node( *tag );
+                KMAP_TRY( kmap.select_node( *tag ) );
 
-                return { CliResultCode::success
-                       , fmt::format( "added: {}"
-                                    , tag_path ) };
+                return fmt::format( "added: {}"
+                                  , tag_path );
             }
             else
             {
-                return { CliResultCode::failure
-                       , fmt::format( "unable to acquire {}"
-                                    , tag_path ) };
+                return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", tag_path ) );
             }
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "tag already exists {}"
-                                , tag_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "tag already exists {}", tag_path ) );
         }
     };
 }
 
 auto add_tag( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -82,9 +77,7 @@ auto add_tag( Kmap& kmap )
 
         if( !tag_root )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire {}"
-                                , troot_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", troot_path ) );
         }
 
         auto const tag_path_v = args[ 0 ]
@@ -101,9 +94,7 @@ auto add_tag( Kmap& kmap )
 
         if( !tag )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to acquire {}"
-                                , tag_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", tag_path ) );
         }
 
         auto alias_parent = [ & ]
@@ -126,17 +117,13 @@ auto add_tag( Kmap& kmap )
                                                 , alias_parent )
           ; alias )
         {
-            kmap.select_node( target ); // We don't want to move to the newly added alias.
+            KMAP_TRY( kmap.select_node( target ) ); // We don't want to move to the newly added alias.
 
-            return { CliResultCode::success
-                   , fmt::format( "added: {}"
-                                , tag_path ) };
+            return fmt::format( "added: {}", tag_path );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "unable to add tag: {}"
-                                , tag_path ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to add tag: {}", tag_path ) );
         }
     };
 }

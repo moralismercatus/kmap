@@ -9,36 +9,39 @@
 #define KMAP_EC_MASTER_HPP
 
 // TODO: Replace macros with std::source_location. This can be done by creating a default
-//       argument KMAP_MAKE_RESULT( T >( boost::system::error_code const& ec = common::unknown, std::source_location const& = std::source_location::current() )
+//       argument KMAP_MAKE_RESULT( T >( boost::system::error_code const& ec = common::uncategorized, std::source_location const& = std::source_location::current() )
 // TODO: Once std::source_location becomes available, exchange all macros for functions.
-#define KMAP_MAKE_RESULT_STACK_ELEM() \
+#define KMAP_MAKE_RESULT_STACK_ELEM_MSG( msg ) \
     kmap::error_code::StackElement{ __LINE__ \
                                   , __PRETTY_FUNCTION__ \
-                                  , __FILE__ }
+                                  , __FILE__ \
+                                  , ( msg ) }
+#define KMAP_MAKE_RESULT_STACK_ELEM() KMAP_MAKE_RESULT_STACK_ELEM_MSG( "" )
 #define KMAP_MAKE_ERROR_MSG( ec, msg ) \
     kmap::error_code::Payload{ ( ec ) \
-                             , ( msg ) \
-                             , { KMAP_MAKE_RESULT_STACK_ELEM() } }
+                             , { KMAP_MAKE_RESULT_STACK_ELEM_MSG( msg ) } }
 #define KMAP_MAKE_ERROR_UUID( ec, id ) KMAP_MAKE_ERROR_MSG( ec, io::format( "ID: {}\n", id ) )
 #define KMAP_MAKE_ERROR( ec ) KMAP_MAKE_ERROR_MSG( ec, "" )
 #define KMAP_MAKE_RESULT_EC( type, ec ) Result< type >{ KMAP_MAKE_ERROR( ( ec ) ) }
-#define KMAP_MAKE_RESULT( type ) KMAP_MAKE_RESULT_EC( type, kmap::error_code::common::unknown  )
-#define KMAP_ENSURE_MSG( rv, pred, ec, msg ) \
-    { \
-        auto&& res = ( pred ); \
-        if( !( res ) ) \
-        { \
-            ( rv ) = KMAP_MAKE_ERROR_MSG( ( ec ), ( msg ) ); \
-            return ( rv ).as_failure(); \
-        } \
-    }
-#define KMAP_ENSURE( rv, pred, ec ) KMAP_ENSURE_MSG( ( rv ), ( pred ), ( ec ), "" )
+#define KMAP_MAKE_RESULT( type ) KMAP_MAKE_RESULT_EC( type, kmap::error_code::common::uncategorized  )
 #define KMAP_PROPAGATE_FAILURE( ... ) \
     ({ \
         auto res = ( __VA_ARGS__ ); \
         res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
         res.as_failure(); \
     })
+// TODO: Remove 'rv', I don't believe it's used.
+#define KMAP_ENSURE_MSG( rv, pred, ec, msg ) \
+    { \
+        auto&& res = ( pred ); \
+        if( !( res ) ) \
+        { \
+            { \
+                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( msg ) ) ); \
+            } \
+        } \
+    }
+#define KMAP_ENSURE( rv, pred, ec ) KMAP_ENSURE_MSG( ( rv ), ( pred ), ( ec ), "" )
 // Inspired by BOOST_OUTCOME_TRYX, with the addition of appending to the stack.
 #define KMAP_TRY( ... ) \
     ({ \
@@ -81,13 +84,13 @@ struct StackElement
     uint32_t line = {};
     std::string function = {};
     std::string file = {};
+    std::string message = {};
 };
 
 struct Payload
 {
     boost::system::error_code ec = {}; // TODO: Any good reason to choose boost over std error_code?
-    std::string message = {};
-    std::vector< StackElement > stack = {}; // TODO: Replace StackElement with std::source_location
+    std::vector< StackElement > stack = {};
 };
 
 template< typename T
@@ -99,10 +102,31 @@ using Result = outcome::result< T
 
 enum class common
 {
-    unknown = 1 // 0 should never be an error.
+    uncategorized = 1 // 0 should never be an error.
 ,   data_not_found
 ,   conversion_failed
+,   invalid_numeric
 };
+
+// This is a helper function to propagate a Result<> if input is Result<> or make one if the input is bool.
+template< typename Pred
+        , typename ErrorCode >
+auto ensure_propagate_error( Pred const& pred
+                           , ErrorCode const& ec
+                           , kmap::error_code::StackElement const& se )
+{
+    if constexpr( requires{ pred.as_failure(); } )
+    {
+        auto tpred = pred;
+        // TODO: what about msg? Would stack element need a message?
+        tpred.error().stack.emplace_back( se );
+        return tpred.as_failure();
+    }
+    else
+    {
+        return kmap::error_code::Payload{ ec, { se } };
+    }
+}
 
 inline 
 auto make_error_code( Payload const& sp )
@@ -117,15 +141,16 @@ auto to_string( Payload const& sp )
 {
     std::stringstream ss;
 
-    ss << fmt::format( "error: {}\n"
-                       "message: {}\n"
+    ss << fmt::format( "cateogory: {}\n"
+                       "item: {}\n"
                        "result stack:\n"
-                     , sp.ec.message()
-                     , sp.message );
+                     , sp.ec.category().name()
+                     , sp.ec.message() );
 
     for( auto const& e : sp.stack )
     {
-        ss << fmt::format( "\t{}|{}|{}\n"
+        ss << fmt::format( "\tmessage:{}\n{}|{}|{}\n"
+                         , e.message
                          , e.line
                          , e.function
                          , e.file );
@@ -168,9 +193,10 @@ public:
 
         switch ( static_cast< common >( c ) )
         {
-        case common::unknown: return "unknown error";
+        case common::uncategorized: return "uncategorized";
         case common::data_not_found: return "data not found";
         case common::conversion_failed: return "conversion failed";
+        case common::invalid_numeric: return "invalid numeric";
         }
     }
 };

@@ -76,9 +76,9 @@ BOOST_AUTO_TEST_CASE( move_node_alias
     BOOST_TEST( !kmap.exists( "/2.1" ) );
     BOOST_TEST( kmap.exists( "/3.1" ) );
 
-    kmap.select_node( *kmap.fetch_leaf( "/2" ) );
+    BOOST_TEST( kmap.select_node( *kmap.fetch_leaf( "/2" ) ) );
     BOOST_TEST( c2.value() == kmap.selected_node() );
-    kmap.select_node( *kmap.fetch_leaf( "/3.1" ) );
+    BOOST_TEST( kmap.select_node( *kmap.fetch_leaf( "/3.1" ) ) );
     BOOST_TEST( c1.value() == kmap.resolve( kmap.selected_node() ) );
 }
 

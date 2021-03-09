@@ -22,7 +22,6 @@
 #include <boost/uuid/uuid_hash.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/outcome.hpp>
-// #include <boost/safe_numerics/safe_integer.hpp>
 
 #include <ostream>
 #include <set>

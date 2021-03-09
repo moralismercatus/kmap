@@ -20,9 +20,9 @@ using namespace ranges;
 namespace kmap::cmd {
 
 auto select_destination( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -44,13 +44,11 @@ auto select_destination( Kmap& kmap )
         {
             kmap.jump_to( it->first );
 
-            return { CliResultCode::success
-                   , "alias destination selected" };
+            return "alias destination selected";
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "node has no aliases" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "node has no aliases" ) );
         }
 
     };
@@ -58,28 +56,25 @@ auto select_destination( Kmap& kmap )
 
 auto select_node( Kmap& kmap
                 , std::string const& dst )
-    -> CliCommandResult
+    -> Result< std::string >
 {
     if( auto const target = kmap.fetch_leaf( dst )
       ; target )
     {
         kmap.jump_to( *target );
 
-        return { CliResultCode::success
-               , "selected" };
+        return "selected";
     }
     else
     {
-        return { CliResultCode::failure
-               , fmt::format( "Target node not found: {}"
-                            , dst ) };
+        return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "Target node not found: {}", dst ) );
     }
 }
 
 auto select_node( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -94,9 +89,9 @@ auto select_node( Kmap& kmap )
 }
 
 auto select_root( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ & ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ & ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -108,15 +103,14 @@ auto select_root( Kmap& kmap )
 
         BC_ASSERT( kmap.select_node( "/" ).has_value() );
 
-        return { CliResultCode::success
-               , "selected" };
+        return "selected";
     };
 }
 
 auto select_source( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -131,13 +125,11 @@ auto select_source( Kmap& kmap )
         {
             kmap.jump_to( kmap.resolve( selected ) );
 
-            return { CliResultCode::success
-                   , "alias source selected" };
+            return "alias source selected";
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "node is not an alias" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "node is not an alias" ) );
         }
 
     };
@@ -396,6 +388,50 @@ REGISTER_COMMAND
 
 } // namespace anon
 } // namespace resolve_alias_def
+
+namespace resolve_def {
+namespace { 
+
+auto const guard_code =
+R"%%%(```javascript
+if( kmap.is_alias( kmap.selected_node() ) )
+{
+    return kmap.success( 'success' );
+}
+else
+{
+    return kmap.failure( 'non-alias' );
+}
+```)%%%";
+auto const action_code =
+R"%%%(```javascript
+const selected = kmap.selected_node();
+
+kmap.select_node( kmap.resolve_alias( selected ) );
+
+return kmap.success( 'alias resolved' );
+```)%%%";
+
+using Guard = PreregisteredCommand::Guard;
+using Argument = PreregisteredCommand::Argument;
+
+auto const description = "selects underlying source node of selected alias";
+auto const arguments = std::vector< Argument >{};
+auto const guard = Guard{ "is_alias"
+                        , guard_code };
+auto const action = action_code;
+
+REGISTER_COMMAND // TODO: Use REGISTER_COMMAND_ALIAS instead.
+(
+    resolve
+,   description 
+,   arguments
+,   guard
+,   action
+);
+
+} // namespace anon
+} // namespace resolve_def
 
 
 } // namespace kmap::cmd

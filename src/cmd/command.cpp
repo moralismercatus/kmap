@@ -21,12 +21,14 @@
 #include <emscripten.h>
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
+#include <range/v3/action/join.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/remove.hpp>
 #include <range/v3/view/split.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <sstream>
 
@@ -40,7 +42,7 @@ auto is_general_command( Kmap const& kmap
 {
     auto rv = bool{};
 
-    if( auto const cmd_root = kmap.fetch_descendant( "/meta.settings.commands" )
+    if( auto const cmd_root = kmap.fetch_descendant( "/meta.setting.command" )
       ; cmd_root )
     {
         rv = kmap.has_descendant( id
@@ -60,14 +62,14 @@ auto is_particular_command( Kmap const& kmap
 {
     auto rv = bool{};
 
-    if( auto const cmd_root = kmap.fetch_descendant( "/meta.settings.commands" )
+    if( auto const cmd_root = kmap.fetch_descendant( "/meta.setting.command" )
       ; cmd_root )
     {
         rv = kmap.is_lineal( cmd_root.value()
                            , id )
           && kmap.is_child( id
                           , "description"
-                          , "arguments"
+                          , "argument"
                           , "action" );
     }
 
@@ -80,7 +82,7 @@ auto is_argument( Kmap const& kmap
 {
     auto rv = bool{};
 
-    if( auto const cmd_root = kmap.fetch_leaf( "/meta.settings.arguments" ) )
+    if( auto const cmd_root = kmap.fetch_leaf( "/meta.setting.argument" ) )
     {
         rv = kmap.is_lineal( *cmd_root
                            , id )
@@ -108,10 +110,9 @@ auto to_command_name( Uuid const& id )
 
 auto execute_kscript( Kmap& kmap 
                     , std::string const& code )
-    -> CliCommandResult
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "unknown failure" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
     auto ss = std::stringstream{ code };
 
     rv = load_script( kmap, ss );
@@ -122,46 +123,29 @@ auto execute_kscript( Kmap& kmap
 auto execute_javascript( Uuid const& node
                        , std::string_view const fn_body
                        , StringVec const& args )
-    -> CliCommandResult
+    -> Result< std::string >
 {
     using emscripten::val;
 
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "unknown failure" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
     auto const fn_name = fmt::format( "fn_{}"
                                     , format_heading( to_string( node ) ) );
+    auto const stringed = args
+                        | views::transform( []( auto const& arg ){ return io::format( "'{}'", arg ); } )
+                        | to< StringVec >();
+    auto const csep = stringed
+                    | views::join( ',' )
+                    | to< std::string >();
 
+    io::print( "execute_javascript.args: {}\n", csep );
 
-    if( auto const fn_created = js::publish_function( fn_name, { "args" }, fn_body )
-      ; fn_created )
-    {
-        if( auto crv = js::call< binding::Result< std::string > >( fn_name, args )
-          ; crv )
-        {
-            if( crv->has_value() )
-            {
-                rv.result = CliResultCode::success;
-                rv.message = crv->value();
-            }
-            else
-            {
-                rv.result = CliResultCode::failure;
-                rv.message = crv->failure_message.value_or( crv->error_message() );
-            }
-        }
-        else
-        {
-            EM_ASM
-            (
-                throw "Unknown type returned from guard function; expected kmap.Result<std::string>";
-            );
-        }
-    }
-    else
-    {
-        rv.result = CliResultCode::failure;
-        rv.message = "function publication failed";
-    }
+    KMAP_TRY( js::publish_function( fn_name, { "args" }, fn_body ) );
+
+    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "{}( to_VectorString( [{}] ) );"
+                                                                         , fn_name
+                                                                         , csep ) ) );
+
+    KMAP_LOG_LINE();
 
     return rv;
 }
@@ -169,46 +153,16 @@ auto execute_javascript( Uuid const& node
 auto execute_javascript( Uuid const& node
                        , std::string_view const fn_body
                        , std::string const& arg )
-    -> CliCommandResult
+    -> Result< std::string >
 {
     using emscripten::val;
 
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "unknown failure" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
     auto const fn_name = fmt::format( "fn_{}"
                                     , format_heading( to_string( node ) ) );
-
-
-    if( auto const fn_created = js::publish_function( fn_name, { "arg" }, fn_body )
-      ; fn_created )
-    {
-        if( auto crv = js::call< binding::Result< std::string > >( fn_name, arg )
-          ; crv )
-        {
-            if( crv->has_value() )
-            {
-                rv.result = CliResultCode::success;
-                rv.message = crv->value();
-            }
-            else
-            {
-                rv.result = CliResultCode::failure;
-                rv.message = crv->failure_message.value_or( crv->error_message() );
-            }
-        }
-        else
-        {
-            EM_ASM
-            (
-                throw "Unknown type returned from guard function; expected kmap.Result<std::string>";
-            );
-        }
-    }
-    else
-    {
-        rv.result = CliResultCode::failure;
-        rv.message = "function publication failed";
-    }
+    KMAP_TRY( js::publish_function( fn_name, { "arg" }, fn_body ) );
+    io::print( "executing: {}\n", io::format( "{}( '{}' );", fn_name, arg )  );
+    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "{}( '{}' );", fn_name, arg ) ) );
 
     return rv;
 }
@@ -216,10 +170,9 @@ auto execute_javascript( Uuid const& node
 auto execute_body( Kmap& kmap
                  , Uuid const& node
                  , StringVec const& args )
-    -> CliCommandResult
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "failed to execute body" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -240,14 +193,11 @@ auto execute_body( Kmap& kmap
 
                 if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
                 {
-                    rv = execute_kscript( kmap
-                                        , e.code );
+                    rv = execute_kscript( kmap, e.code );
                 }
                 else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                 {
-                    rv = execute_javascript( node
-                                           , e.code
-                                           , args );
+                    rv = execute_javascript( node, e.code, args );
                 }
                 else
                 {
@@ -269,10 +219,9 @@ auto execute_body( Kmap& kmap
 auto evaluate_guard( Kmap& kmap
                    , Uuid const& guard_node
                    , std::string const& arg )
-    -> CliCommandResult
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "unknown failuare" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
 
     if( auto const body = kmap.fetch_body( guard_node )
       ; body )
@@ -286,7 +235,7 @@ auto evaluate_guard( Kmap& kmap
 
                 if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
                 {
-                    rv.message = "kscript is not supported in a guard node";
+                    rv = "kscript is not supported in a guard node";
                 }
                 else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                 {
@@ -379,7 +328,7 @@ auto has_unconditional_arg( Kmap const& kmap
     ;
 
     auto const unconditional = kmap.fetch_descendant( args_root, "/unconditional" ).value(); // TODO: This is dangerous. User could delete "unconditional".
-    auto const arg_node = kmap.fetch_descendant( cmd, "/arguments" ).value();
+    auto const arg_node = kmap.fetch_descendant( cmd, "/argument" ).value();
     auto const children = kmap.fetch_children( arg_node );
 
     for( auto const& arg_descr : children )
@@ -416,9 +365,9 @@ auto fetch_args( Kmap& kmap
         })
     ;
 
-    auto const arg_nodes = kmap.fetch_children_ordered( kmap.node_view( cmd_id )[ "/arguments" ] );
+    auto const arg_nodes = kmap.fetch_children_ordered( kmap.node_view( cmd_id )[ "/argument" ] );
 
-    if( auto const args_root = kmap.fetch_descendant( "/meta.settings.arguments" ) // TODO: Eventually, this check should be superfluous when this node is made immutable.
+    if( auto const args_root = kmap.fetch_descendant( "/meta.setting.argument" ) // TODO: Eventually, this check should be superfluous when this node is made immutable.
       ; args_root )
     {
         auto const split_args = arg
@@ -504,18 +453,17 @@ auto fetch_args( Kmap& kmap
         }
         else
         {
-            rv = KMAP_MAKE_ERROR( error_code::command::incorrect_arg_number );
-            // TODO: Give exact expected numbers:
-            // rv.errer().payload = fmt::format( "expected between [{},{}] arguments, got {}"
-            //                         , high
-            //                         , low
-            //                         , distance( split_args ) );
+            rv = KMAP_MAKE_ERROR_MSG( error_code::command::incorrect_arg_number
+                                    , fmt::format( "expected between [{},{}] arguments, got {}"
+                                                 , arg_nodes.size() // TODO: Need to determine optional args.
+                                                 , arg_nodes.size()
+                                                 , distance( split_args ) ) );
         }
     }
     else
     {
         rv = KMAP_MAKE_ERROR( error_code::node::not_found );
-        // TODO: rv.error().payload ="no settings.argument nodes found";
+        // TODO: rv.error().payload ="no setting.argument nodes found";
     }
 
     return rv;
@@ -530,7 +478,7 @@ auto fetch_params_ordered( Kmap& kmap
     KMAP_ENSURE( rv, kmap.exists( cmd_id ), error_code::network::invalid_node );
 
     auto params = UuidVec{};
-    auto const children = kmap.fetch_children_ordered( cmd_id, "arguments" );
+    auto const children = kmap.fetch_children_ordered( cmd_id, "argument" );
 
     for( auto const& child : children )
     {
@@ -549,10 +497,9 @@ auto fetch_params_ordered( Kmap& kmap
 auto execute_command( Kmap& kmap
                     , Uuid const& cmd_id
                     , std::string const& arg )
-    -> CliCommandResult 
+    -> Result< std::string >
 {
-    auto rv = CliCommandResult{ CliResultCode::failure
-                              , "failed to execute command" };
+    auto rv = KMAP_MAKE_RESULT( std::string );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -563,34 +510,23 @@ auto execute_command( Kmap& kmap
 
     if( is_particular_command( kmap, cmd_id ) ) 
     {
-        auto const args = fetch_args( kmap, cmd_id, arg );
+        auto const args = KMAP_TRY( fetch_args( kmap, cmd_id, arg ) );
+        auto const action = kmap.node_view( cmd_id )[ "/action" ];
 
-        if( args )
-        {
-            auto const action = kmap.node_view( cmd_id )[ "/action" ];
-
-            rv = execute_body( kmap, action, args.value() );
-        }
-        else
-        {
-            io::print( stderr, "{}\n", to_string( args.error() ) );
-
-            rv.message = args.error().ec.message();
-        }
+         rv = KMAP_TRY( execute_body( kmap, action, args ) );
     }
     else
     {
-        rv = CliCommandResult{ CliResultCode::failure
-                             , "not a command node" };
+        rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "not a command node" );
     }
 
     return rv;
 }
 
 auto execute_command( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -621,8 +557,7 @@ auto execute_command( Kmap& kmap )
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "target not found" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "target not found" ) );
         }
     };
 }
@@ -687,7 +622,7 @@ return kmap.is_valid_heading_path( arg );
 auto const completion_code =
 R"%%%(```javascript
 let rv = new kmap.VectorString();
-const root = kmap.fetch_node( '.root.meta.settings.commands' );
+const root = kmap.fetch_node( '.root.meta.setting.command' );
 
 if( root.has_value() )
 {
@@ -738,7 +673,7 @@ auto fetch_nearest_command( Uuid const& node )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& kmap = Singleton::instance();
-    auto const cmd_root = KMAP_TRY( kmap.fetch_descendant( "/meta.settings.commands" ) );
+    auto const cmd_root = KMAP_TRY( kmap.fetch_descendant( "/meta.setting.command" ) );
 
     auto parent = Optional< Uuid >( node );
 

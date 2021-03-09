@@ -16,12 +16,6 @@ class Kmap;
 }
 
 namespace kmap::cmd {
-
-auto edit_body( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
-auto view_body( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >;
-
 } // namespace kmap::cmd
 
 #endif // KMAP_CMD_TEXT_HPP

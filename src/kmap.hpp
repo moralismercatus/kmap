@@ -11,7 +11,7 @@
 #include "jump_stack.hpp"
 #include "node_fetcher.hpp"
 #include "node_view.hpp"
-#include "text_view.hpp"
+#include "text_area.hpp"
 #include "utility.hpp"
 
 #include <memory>
@@ -26,6 +26,7 @@ class Cli;
 class Database;
 class Environment;
 class Network;
+class Canvas;
 
 class Kmap
 {
@@ -69,14 +70,23 @@ public:
     auto aliases() const
         -> Aliases const&;
     [[ nodiscard ]]
+    auto canvas()
+        -> Canvas&;
+    [[ nodiscard ]]
+    auto canvas() const
+        -> Canvas const&;
+    [[ nodiscard ]]
     auto cli()
         -> Cli&;
     [[ nodiscard ]]
     auto cli() const
         -> Cli const&;
     [[ nodiscard ]]
-    auto text_view()
-        -> TextView&;
+    auto text_area()
+        -> TextArea&;
+    [[ nodiscard ]]
+    auto text_area() const
+        -> TextArea const&;
     [[ nodiscard ]]
     auto root_node_id() const
         -> Uuid const&;
@@ -194,8 +204,6 @@ public:
                        , std::byte const* data
                        , size_t const& size )
         -> Result< Uuid >;
-    auto complete_cli( std::string const& input )
-        -> void;
     [[ maybe_unused ]]
     auto copy_body( Uuid const& src
                   , Uuid const& dst )
@@ -210,10 +218,10 @@ public:
     [[ nodiscard ]]
     auto move_state( FsPath const& dst )
         -> bool;
-    auto set_leaving_editor_cb( std::function< void( Kmap& ) > const& cb )
+    auto set_up_db_root()
         -> void;
-    auto set_up_root()
-        -> void;
+    auto set_up_nw_root()
+        -> Result< void >;
     [[ maybe_unused ]]
     auto set_ordering_position( Uuid const& id
                               , uint32_t pos )
@@ -239,7 +247,7 @@ public:
     auto travel_up()
         -> Result< Uuid >;
     auto reset()
-        -> void;
+        -> Result< void >;
     auto rename( Uuid const& id
                , Heading const& heading )
         -> void;
@@ -254,10 +262,10 @@ public:
     auto exist( Args const&... args ) const -> bool { return ( exists( args ) && ... ); } // Warning: arguments must be explicit for template deduction, so e.g., "/" must be Heading{ "/" }.
     auto reorder_children( Uuid const& parent
                          , std::vector< Uuid > const& children )
-        -> void;
+        -> Result< void >;
     [[ maybe_unused ]]
     auto select_node( Uuid const& id )
-        -> bool;
+        -> Result< Uuid >;
     [[ maybe_unused ]]
     auto swap_nodes( Uuid const& t1
                    , Uuid const& t2 )
@@ -269,8 +277,6 @@ public:
     auto selected_node() const
         -> Uuid;
     auto load_preview( Uuid const& id )
-        -> void;
-    auto load_body_editor( Uuid const& id )
         -> void;
     auto on_leaving_editor()
         -> void;
@@ -286,10 +292,6 @@ public:
                      , Uuid const& to )
         -> Result< Uuid >;
     auto update_aliases( Uuid const& descendant )
-        -> void;
-    auto cli_on_key_up( int const key
-                      , bool const is_ctrl
-                      , bool const is_shift  )
         -> void;
     auto color_node( Uuid const& id
                    , Color const& color )
@@ -412,6 +414,11 @@ public:
     // TODO: Replace with mirror()...
     [[ nodiscard ]]
     auto fetch_or_create_descendant( Uuid const& root
+                                   , Uuid const& selected
+                                   , Heading const& heading ) 
+        -> Result< Uuid >;
+    [[ nodiscard ]]
+    auto fetch_or_create_descendant( Uuid const& root
                                    , Heading const& heading ) 
         -> Result< Uuid >;
     [[ nodiscard ]]
@@ -520,8 +527,6 @@ public:
         -> Result< Uuid >;
     auto update( Uuid const& id )
         -> void;
-    auto hide_editor()
-        -> void;
     [[ nodiscard ]]
     auto node_fetcher() const
         -> NodeFetcher;
@@ -546,7 +551,7 @@ protected:
                               , Uuid const& dst )
         -> void;
     auto delete_node_internal( Uuid const& id )
-        -> void;
+        -> Result< void >;
     [[ nodiscard ]]
     auto is_child_internal( Uuid const& parent
                           , Uuid const& id ) const
@@ -558,14 +563,15 @@ protected:
 
 private:
     std::unique_ptr< Environment > env_; // pimpl.
+    std::unique_ptr< Canvas > canvas_; // pimpl.
+    std::unique_ptr< Network > network_; // pimpl.
     std::unique_ptr< Cli > cli_; // pimpl.
-    TextView text_view_ = {};
+    std::unique_ptr< TextArea > text_area_ = {}; // pimpl.
     JumpStack jump_stack_ = {}; // TODO: Rather belongs in Environment, as it's tied to the kmap instance.
     // TODO: Refactor alias functionality into e.g., AliasStore.
     Aliases aliases_ = {};
     AliasParents alias_parents_ = {}; // Parents of alias children.
     AliasChildren alias_children_ = {}; // Alias children of parents.
-    std::function< void( Kmap& ) > on_leaving_editor_cb_ = {};
 };
 
 class Singleton

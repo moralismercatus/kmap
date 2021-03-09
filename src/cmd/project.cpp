@@ -693,9 +693,7 @@ auto update_task_statuses( Kmap& kmap
 
     if( kmap.fetch_heading( *present_status ).value() != status )
     {
-        kmap.move_node( project
-                      , fmt::format( "/projects.{}"
-                                   , full_status ) );
+        kmap.move_node( project, fmt::format( "/projects.{}", full_status ) );
 
         auto const aliases = kmap.fetch_aliases_to( project );
         auto const task_aliases = aliases
@@ -719,8 +717,7 @@ auto update_task_statuses( Kmap& kmap
                                                                             , top_status ) );
                 BC_ASSERT( task_dst );
 
-                kmap.move_node( task
-                              , *task_dst );
+                kmap.move_node( task, *task_dst );
             }
         }
     }
@@ -893,9 +890,9 @@ auto launder_categories( Kmap& kmap
 }
 
 auto activate_project( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -931,8 +928,7 @@ auto activate_project( Kmap& kmap )
         
         if( !pid )
         {
-            return { CliResultCode::failure
-                   , "project not found" };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "project not found" );
         }
 
         auto const status = fetch_project_status( kmap
@@ -944,18 +940,17 @@ auto activate_project( Kmap& kmap )
             update_task_statuses( kmap
                                 , *pid
                                 , "active" );
-            kmap.select_node( *pid );
+            KMAP_TRY( kmap.select_node( *pid ) );
         }
 
-        return { CliResultCode::success
-               , fmt::format( "project activated" ) };
+        return fmt::format( "project activated" );
     };
 }
 
 auto deactivate_project( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -991,8 +986,7 @@ auto deactivate_project( Kmap& kmap )
         
         if( !pid )
         {
-            return { CliResultCode::failure
-                   , "project not found" };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "project not found" );
         }
 
         auto const status = fetch_project_status( kmap
@@ -1006,11 +1000,10 @@ auto deactivate_project( Kmap& kmap )
             update_task_statuses( kmap
                                 , *pid
                                 , "inactive" );
-            kmap.select_node( *pid );
+            KMAP_TRY( kmap.select_node( *pid ) );
         }
 
-        return { CliResultCode::success
-               , fmt::format( "project deactivated" ) };
+        return fmt::format( "project deactivated" );
     };
 }
 

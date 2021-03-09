@@ -25,7 +25,7 @@ auto create_child( Kmap& kmap
                  , Uuid const& parent
                  , Title const& title
                  , Heading const& heading )
-    -> CliCommandResult
+    -> Result< std::string >
 {
     if( !kmap.is_child( parent
                       , heading ) )
@@ -35,23 +35,20 @@ auto create_child( Kmap& kmap
 
         kmap.update_title( cid.value()
                          , title );
-        kmap.select_node( cid.value() );
+        KMAP_TRY( kmap.select_node( cid.value() ) );
 
-        return { CliResultCode::success
-               , fmt::format( "added: {}"
-                            , heading ) };
+        return fmt::format( "added: {}", heading );
     }
     else
     {
-        return { CliResultCode::failure
-               , fmt::format( "path already exists" ) };
+        return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "path already exists" ) );
     }
 }
 
 auto merge_nodes( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -71,23 +68,21 @@ auto merge_nodes( Kmap& kmap )
                        , src
                        , dst );
 
-            kmap.select_node( dst );
+            KMAP_TRY( kmap.select_node( dst ) );
 
-            return { CliResultCode::success
-                   , "merge succeeded" };
+            return "merge succeeded";
         }
         else
         {
-            return { CliResultCode::failure
-                   , "merge failed; invalid path" };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "merge failed; invalid path" );
         }
     };
 }
 
 auto create_child( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -109,9 +104,9 @@ auto create_child( Kmap& kmap )
 }
 
 auto create_sibling( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -136,8 +131,7 @@ auto create_sibling( Kmap& kmap )
         {
             BC_ASSERT( target == kmap.root_node_id() );
 
-            return { CliResultCode::failure
-                   , "cannot create sibling for root" };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "cannot create sibling for root" );
         }
     };
 }

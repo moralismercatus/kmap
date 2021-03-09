@@ -8,7 +8,7 @@ add_executable( emcc.index.html
                 backend/basic_network.cpp
 				cli/parser.cpp
 				cmd/bookmark.cpp
-				cmd/call_map.cpp
+				cmd/canvas.cpp
 				cmd/cardinality.cpp
 				cmd/contact.cpp
 				cmd/command.cpp
@@ -29,7 +29,7 @@ add_executable( emcc.index.html
 				cmd/select_node.cpp
 				cmd/state.cpp
                 cmd/tag.cpp
-                cmd/text.cpp
+                cmd/text_area.cpp
 				node_fetcher.cpp
 				node_view.cpp
                 arg.cpp
@@ -50,6 +50,7 @@ add_executable( emcc.index.html
                 path.cpp
                 path/sm.cpp
                 stmt_prep.cpp
+                # test/canvas/canvas.cpp
                 test/cli/cli.cpp
                 test/cli/parse_raw/conclusion.cpp
                 test/cli/parse_raw/create_child.cpp
@@ -74,7 +75,8 @@ add_executable( emcc.index.html
                 test/path/path.cpp
                 test/sqlite/sqlite.cpp
                 test/sqlpp/sqlpp.cpp
-                text_view.cpp
+                text_area.cpp
+                util/window.cpp
                 utility.cpp
                 main.cpp )
 set_target_properties( emcc.index.html
@@ -123,6 +125,7 @@ else()
         -g4 \
         -O0 \
         -s DISABLE_EXCEPTION_CATCHING=0 \
+        -s EXCEPTION_DEBUG=1 \
         -s DEMANGLE_SUPPORT=1 \
         -s SAFE_HEAP=1 \
         -s ASSERTIONS=2 \

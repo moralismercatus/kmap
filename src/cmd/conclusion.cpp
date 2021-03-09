@@ -320,9 +320,9 @@ auto add_objection( Kmap& kmap
 } // anonymous ns
 
 auto create_conclusion( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -343,25 +343,23 @@ auto create_conclusion( Kmap& kmap )
           ; cid )
         {
             kmap.update_title( cid.value(), title );
-            kmap.select_node( cid.value() );
+            KMAP_TRY( kmap.select_node( cid.value() ) );
       
-            return { CliResultCode::success
-                   , fmt::format( "{} added to {}"
-                                , heading
-                                , "/conclusions" ) };
+            return fmt::format( "{} added to {}"
+                              , heading
+                              , "/conclusions" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "conclusion heading already exists" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "conclusion heading already exists" ) );
         }
     };
 }
 
 auto create_premise( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -383,15 +381,13 @@ auto create_premise( Kmap& kmap )
         {
             kmap.update_title( *premise
                              , title );
-            kmap.select_node( *premise ); 
+            KMAP_TRY( kmap.select_node( *premise ) ); 
 
-            return { CliResultCode::success
-                   , fmt::format( "created conclusion premise" ) };
+            return fmt::format( "created conclusion premise" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to create conclusion premise" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to create conclusion premise" ) );
         }
     };
 }
@@ -399,9 +395,9 @@ auto create_premise( Kmap& kmap )
 // TODO: Needs to ensure the premise to be added isn't the project itself!
 // TODO: This has a lot of overlap with project, recipe.
 auto add_premise( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -416,21 +412,19 @@ auto add_premise( Kmap& kmap )
                                             , heading )
           ; premise )
         {
-            return { CliResultCode::success
-                   , fmt::format( "added conclusion premise" ) };
+            return fmt::format( "added conclusion premise" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to add conclusion premise" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to add conclusion premise" ) );
         }
     };
 }
 
 auto create_objection( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -452,15 +446,13 @@ auto create_objection( Kmap& kmap )
         {
             kmap.update_title( *objection
                              , title );
-            kmap.select_node( *objection ); 
+            KMAP_TRY( kmap.select_node( *objection ) ); 
 
-            return { CliResultCode::success
-                , fmt::format( "created conclusion objection" ) };
+            return fmt::format( "created conclusion objection" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to create conclusion objection" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to create conclusion objection" ) );
         }
     };
 }
@@ -468,9 +460,9 @@ auto create_objection( Kmap& kmap )
 // TODO: Needs to ensure the objection to be added isn't the project itself!
 // TODO: This has a lot of overlap with project, recipe.
 auto add_objection( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -485,21 +477,19 @@ auto add_objection( Kmap& kmap )
                                                 , heading )
           ; objection )
         {
-            return { CliResultCode::success
-                   , fmt::format( "added conclusion objection" ) };
+            return fmt::format( "added conclusion objection" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "failed to add conclusion objection" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "failed to add conclusion objection" ) );
         }
     };
 }
 
 auto create_citation( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -512,8 +502,7 @@ auto create_citation( Kmap& kmap )
 
         if( !concl_root )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "citation not found" ) };
+            KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "citation not found" ) );
         }
 
         auto const source = kmap.fetch_leaf( *concl_root
@@ -523,8 +512,7 @@ auto create_citation( Kmap& kmap )
 
         if( !source )
         {
-            return { CliResultCode::failure
-                   , fmt::format( "citation not found" ) };
+            KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "citation not found" ) );
         }
 
         auto ref_parent = [ & ]
@@ -549,13 +537,11 @@ auto create_citation( Kmap& kmap )
         {
             kmap.select_node( target ); // We don't want to move to the newly added reference.
 
-            return { CliResultCode::success
-                   , "citation added" };
+            return "citation added";
         }
         else
         {
-            return { CliResultCode::failure
-                   , "failed to add citation" }; // TODO: Better diagnostics via Boost.Outcome over Optional?
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "failed to add citation" ); // TODO: Better diagnostics via Boost.Outcome over Optional?
         }
     };
 }

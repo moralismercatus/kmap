@@ -26,9 +26,8 @@ BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create
 {
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
-    auto const succ = CliResultCode::success;
 
-    BOOST_TEST( cli.parse_raw( ":create.recipe 1" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":create.recipe 1" )  );
     BOOST_TEST( kmap.exists( "/recipes.1.step" ) );
     BOOST_TEST( !kmap.exists( "/recipes.1.steps" ) );
     BOOST_TEST( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1" );
@@ -41,12 +40,11 @@ BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create_step_empty_body
 {
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
-    auto const succ = CliResultCode::success;
 
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 1" ).result == succ );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 1" )  );
     BOOST_TEST_REQUIRE( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1" );
 
-    BOOST_TEST( cli.parse_raw( ":create.step 2" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":create.step 2" )  );
     BOOST_TEST( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1.steps.2" );
     BOOST_TEST( !kmap.exists( "/recipes.1.step" ) );
     BOOST_TEST( kmap.exists( "/recipes.2" ) );
@@ -62,16 +60,14 @@ BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create_step_nonempty_body
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
     auto const nodes = kmap.node_fetcher();
-    auto const succ = CliResultCode::success;
-    auto const fail = CliResultCode::failure;
 
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 1" ).result == succ );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 1" )  );
     BOOST_TEST_REQUIRE( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1" );
 
     kmap.update_body( nodes[ "/recipes.1.step" ]
                     , "content" );
 
-    BOOST_TEST( cli.parse_raw( ":create.step 2" ).result == fail );
+    BOOST_TEST( cli.parse_raw( ":create.step 2" )  );
     BOOST_TEST( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1" );
     BOOST_TEST( kmap.exists( "/recipes.1.step" ) );
     BOOST_TEST( !kmap.exists( "/recipes.1.steps" ) );
@@ -86,28 +82,27 @@ BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create_in_category
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
     auto const nodes = kmap.node_fetcher();
-    auto const succ = CliResultCode::success;
 
-    cli.parse_raw( ":create.recipe 1" );
-    cli.parse_raw( ":create.recipe prereq" );
+    BOOST_TEST( cli.parse_raw( ":create.recipe 1" ) );
+    BOOST_TEST( cli.parse_raw( ":create.recipe prereq" ) );
     create_lineages( "recipes.category" );
-    kmap.select_node( nodes[ "/recipes.category" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/recipes.category" ] ) );
 
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 2" ).result == succ );
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 3" ).result == succ );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 2" )  );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 3" )  );
     BOOST_TEST_REQUIRE( kmap.exists( "/recipes.category.2" ) );
     BOOST_TEST_REQUIRE( kmap.exists( "/recipes.category.3" ) );
     BOOST_TEST_REQUIRE( kmap.selected_node() == nodes[ "/recipes.category.3" ] );
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":add.prerequisite category.2" ).result == succ );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":add.prerequisite category.2" )  );
     BOOST_TEST_REQUIRE( kmap.selected_node() == nodes[ "/recipes.category.3" ] );
     BOOST_TEST_REQUIRE( kmap.exists( "/recipes.category.3.prerequisites.2" ) );
     BOOST_TEST_REQUIRE( kmap.exists( "/recipes.category.3.prerequisites.2.step" ) );
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":add.step category.2" ).result == succ );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":add.step category.2" )  );
     BOOST_TEST_REQUIRE( !kmap.exists( "/recipes.category.3.step" ) );
     BOOST_TEST_REQUIRE( kmap.exists( "/recipes.category.3.steps" ) );
     BOOST_TEST_REQUIRE( kmap.exists( "/recipes.category.3.steps.2" ) );
     BOOST_TEST_REQUIRE( kmap.selected_node() == nodes[ "/recipes.category.3" ] );
-    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.prerequisite 4" ).result == succ );
+    BOOST_TEST_REQUIRE( cli.parse_raw( ":create.prerequisite 4" )  );
 
     kmap.select_node( "/recipes.category.3.steps" );
 }

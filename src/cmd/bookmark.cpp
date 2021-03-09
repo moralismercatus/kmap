@@ -11,40 +11,6 @@
 #include "../kmap.hpp"
 #include "command.hpp"
 
-// auto select_bookmark( Kmap& kmap )
-//     -> std::function< CliCommandResult( CliCommand::Args const& args ) >
-// {   
-//     return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
-//     {
-//         BC_CONTRACT()
-//             BC_PRE([ & ]
-//             {
-//                 BC_ASSERT( args.size() == 1 );
-//             })
-//         ;
-
-//         // TODO: This should resolve the alias pointed to by the bookmark. I believe it makes more sense to "select" what the bookmark refers to than the bookmark itself.
-//         // What makes this slightly uncertain is whether a bookmark can point to an alias. If so, resolving the alias will likely resolve it to the original, which may not be the intent.
-//         // It's a corner case, and one concerning resolve() that I can't considered.
-//         auto const heading = args[ 0 ];
-
-//         if( auto const target = kmap.fetch_leaf( heading )
-//           ; target )
-//         {
-//             kmap.select_node( *target );
-
-//             return { CliResultCode::success
-//                    , fmt::format( "bookmark selected" ) };
-//         }
-//         else
-//         {
-//             return { CliResultCode::failure
-//                    , fmt::format( "bookmark not found: {}"
-//                                 , heading ) };
-//         }
-//     };
-// }
-
 namespace kmap::cmd {
 
 namespace create_bookmark_def {

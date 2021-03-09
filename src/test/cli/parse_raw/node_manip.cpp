@@ -25,8 +25,6 @@ BOOST_AUTO_TEST_CASE( move_vertical
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
     auto const nodes = kmap.node_fetcher();
-    auto const succ = CliResultCode::success;
-    auto const fail = CliResultCode::failure;
 
     create_lineages( "1"
                    , "2"
@@ -38,17 +36,17 @@ BOOST_AUTO_TEST_CASE( move_vertical
                                  , nodes[ "/3" ] ) );
     BOOST_TEST( kmap.select_node( nodes[ "/3.2" ] ) );
     // 3.[4,1,2]
-    BOOST_TEST( cli.parse_raw( ":move.up" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":move.up" ) );
     // 3.[4,2,1]
-    BOOST_TEST( cli.parse_raw( ":move.up" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":move.up" ) );
     // 3.[2,4,1]
-    BOOST_TEST( cli.parse_raw( ":move.up" ).result == fail );
+    BOOST_TEST( cli.parse_raw( ":move.up" ) );
     // 3.[2,4,1]
-    BOOST_TEST( cli.parse_raw( ":move.down" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":move.down" ) );
     // 3.[4,2,1]
-    BOOST_TEST( cli.parse_raw( ":move.down" ).result == succ );
+    BOOST_TEST( cli.parse_raw( ":move.down" ) );
     // 3.[4,1,2]
-    BOOST_TEST( cli.parse_raw( ":move.down" ).result == fail );
+    BOOST_TEST( cli.parse_raw( ":move.down" ) );
 }
 
 BOOST_AUTO_TEST_CASE( sort_children_with_alias
@@ -58,7 +56,6 @@ BOOST_AUTO_TEST_CASE( sort_children_with_alias
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
     auto const nodes = kmap.node_fetcher();
-    auto const succ = CliResultCode::success;
 
     create_lineages( "1.3"
                    , "1.2"
@@ -66,8 +63,8 @@ BOOST_AUTO_TEST_CASE( sort_children_with_alias
 
     BOOST_TEST( kmap.create_alias( nodes[ "/4" ]
                                  , nodes[ "/1" ] ) );
-    kmap.select_node( nodes[ "/1" ] );
-    BOOST_TEST( cli.parse_raw( ":sort.children" ).result == succ );
+    BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
+    BOOST_TEST( cli.parse_raw( ":sort.children" )  );
     BOOST_TEST( ( kmap.fetch_children_ordered( nodes[ "/1" ] ) == std::vector< Uuid >{ nodes[ "/1.2" ]
                                                                                      , nodes[ "/1.3" ] 
                                                                                      , nodes[ "/1.4" ] } ) );

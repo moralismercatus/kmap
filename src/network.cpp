@@ -7,7 +7,9 @@
 
 #include "contract.hpp"
 #include "db.hpp"
+#include "error/network.hpp"
 #include "io.hpp"
+#include "js_iface.hpp"
 #include "utility.hpp"
 
 #include <emscripten.h>
@@ -40,7 +42,7 @@ auto operator<<( std::ostream& os
     return os;
 }
 
-Network::Network( std::string const& container )
+Network::Network( Uuid const& container )
    : js_nw_{ std::make_shared< val >( val::global().call< val >( "new_network", container ) ) } // TODO: There's some way to invoke a ctor directly without a wrapper, but can't figure it out.
 {
     if( js_nw_->isNull() )
@@ -67,7 +69,7 @@ auto Network::create_node( Uuid const& id
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !id.is_nil() );
+            // BC_ASSERT( !id.is_nil() ); // Why is a nill Uuid{ 0x0 } disallowed? I understand that it's "probably" an error, but is that a good reason? Test uses 0x0.
             BC_ASSERT( !exists( id ) );
         })
         BC_POST([ & ]
@@ -247,11 +249,11 @@ auto Network::create_edges( std::vector< std::pair< Uuid, Uuid > > const& edges 
 }
 
 auto Network::select_node( Uuid const& id )
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
     KMAP_PROFILE_SCOPE();
 
-    auto rv = Optional< Uuid >{};
+    auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -261,20 +263,19 @@ auto Network::select_node( Uuid const& id )
         BC_POST([ & ]
         {
             BC_ASSERT( id == selected_node() );
-            BC_ASSERT( !rv || exists( *rv ) );
+            BC_ASSERT( !rv || exists( rv.value() ) );
         })
     ;
 
-    if( val prev = js_nw_->call< val >( "selected_node_id" )
-      ; prev.as< bool >() )
+    if( auto const prev = js::call< val >( *js_nw_, "selected_node_id" )
+      ; prev )
     {
-        auto const pid = prev.as< std::string >();
+        auto const pid = prev.value().as< std::string >();
 
         rv = uuid_from_string( pid ).value();
     }
 
-    js_nw_->call< val >( "select_node"
-                       , to_string( id ) );
+    KMAP_TRY( js::call< val >( *js_nw_, "select_node", to_string( id ) ) );
 
     return rv;
 }
@@ -284,31 +285,28 @@ auto Network::selected_node() const
 {
     using emscripten::val;
 
-    val nid = js_nw_->call< val >( "selected_node_id" );
+    auto const nid = js::call< val >( *js_nw_, "selected_node_id" );
 
-    BC_ASSERT( nid.as< bool >() );
+    if( !nid )
+    {
+        KMAP_THROW_EXCEPTION_MSG( "network has no node selected" );
+    }
     
-    auto const& sid = nid.as< std::string >();
+    auto const& sid = nid.value().as< std::string >();
     
     return uuid_from_string( sid ).value();
 }
 
 auto Network::fetch_parent( Uuid const& id ) const
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
     using emscripten::val;
 
-    auto rv = Optional< Uuid >{};
-
-    val nid = js_nw_->call< val >( "parent_id"
-                                 , to_string( id ) );
-
-    if( nid.as< bool >() )
-    {
-        auto const& sid = nid.as< std::string >();
-        
-        rv = uuid_from_string( sid ).value();
-    }
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nid = KMAP_TRY( js::call< val >( *js_nw_, "parent_id", to_string( id ) ) );
+    auto const& sid = nid.as< std::string >();
+    
+    rv = uuid_from_string( sid );
     
     return rv;
 }
@@ -394,22 +392,29 @@ auto Network::color_node_background( Uuid const& id
 auto Network::change_node_font( Uuid const& id
                               , std::string const& face
                               , Color const& color )
-    -> void
+    -> Result< void >
 {
+    using emscripten::val;
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
             BC_ASSERT( js_nw_ );
-            BC_ASSERT( exists( id ) );
         })
     ;
 
-    using emscripten::val;
+    KMAP_ENSURE( rv, exists( id ), error_code::network::invalid_node );
 
     js_nw_->call< val >( "change_node_font"
                        , to_string( id )
                        , face
                        , to_string( color ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Network::siblings_inclusive( Uuid const& id ) const
@@ -510,10 +515,10 @@ auto Network::update_title( Uuid const& id
 
 auto Network::fetch_child( Uuid const& parent
                          , Title const& title ) const
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const cids = children( parent );
-    auto rv = Optional< Uuid >{};
 
     for( auto const& e : cids )
     {
@@ -539,16 +544,12 @@ auto Network::title( Uuid const& id ) const
 }
 
 auto Network::fetch_title( Uuid const& id ) const
-    -> Optional< Title >
+    -> Result< Title >
 {
-    auto rv = Optional< Title >{};
-    auto const tv = js_nw_->call< val >( "title_of"
-                                       , to_string( id ) );
+    auto rv = KMAP_MAKE_RESULT( Title );
+    auto const tv = KMAP_TRY( js::call< val >( *js_nw_, "title_of", to_string( id ) ) );
 
-    if( tv.as< bool >() )
-    {
-        rv = tv.as< std::string >();
-    }
+    rv = tv.as< std::string >();
 
     return rv;
 }
@@ -596,20 +597,17 @@ auto Network::to_titles( UuidPath const& path ) const
 }
 
 auto Network::fetch_position( Uuid const& id ) const
-    -> Optional< Position2D >
+    -> Result< Position2D >
 {
     using emscripten::val;
 
-    val ns = js_nw_->call< val >( "node_position"
-                               , to_string( id ) );
+    auto rv = KMAP_MAKE_RESULT( Position2D );
+    auto const ns = KMAP_TRY( js::call< val >( *js_nw_, "node_position", to_string( id ) ) );
 
-    if( !ns.as< bool >() )
-    {
-        return nullopt;
-    }
-
-    return { Position2D{ ns[ "x" ].as< int32_t >()
-                       , ns[ "y" ].as< int32_t >() } };
+    rv = Position2D{ ns[ "x" ].as< int32_t >()
+                   , ns[ "y" ].as< int32_t >() };
+    
+    return rv;
 }
 
 auto Network::position( Uuid const& id ) const
@@ -622,7 +620,7 @@ auto Network::position( Uuid const& id ) const
         })
     ;
 
-    return *fetch_position( id );
+    return fetch_position( id ).value(); // TODO: Propagate Result<>?
 }
 
 auto Network::remove( Uuid const& id )

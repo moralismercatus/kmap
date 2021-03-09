@@ -34,7 +34,7 @@ auto operator<<( std::ostream&, Position2D const& )
 class Network
 {
 public:
-    Network( std::string const& container );
+    Network( Uuid const& container );
     Network( Network const& ) = delete;
     Network( Network&& ) = default;
     ~Network();
@@ -66,10 +66,10 @@ public:
         -> bool;
     [[ nodiscard ]]
     auto fetch_parent( Uuid const& id ) const
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
     [[ nodiscard ]]
     auto fetch_position( Uuid const& id ) const
-        -> Optional< Position2D >;
+        -> Result< Position2D >;
     auto focus()
         -> void;
     [[ nodiscard ]]
@@ -89,7 +89,7 @@ public:
         -> void;
     [[ maybe_unused ]]
     auto select_node( Uuid const& id )
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
     [[ nodiscard ]]
     auto selected_node() const
         -> Uuid;
@@ -109,14 +109,14 @@ public:
     auto change_node_font( Uuid const& id
                          , std::string const& face
                          , Color const& color )
-        -> void;
+        -> Result< void >;
     auto exists( Title const& title ) const
         -> bool;
     auto fetch_child( Uuid const& parent
                     , Title const& title ) const
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
     auto fetch_title( Uuid const& id ) const
-        -> Optional< Title >;
+        -> Result< Title >;
     auto title( Uuid const& id ) const
         -> Title;
     auto is_child( Uuid parent

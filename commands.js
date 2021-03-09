@@ -1,3 +1,16 @@
+var registration_arguments =
+[
+    "bookmark_heading"
+,   "canvas_pane_path"
+,   "command_heading_path"
+,   "filesystem_path"
+,   "heading"
+,   "heading_path"
+,   "numeric_decimal"
+,   "numeric_unsigned_integer"
+,   "unconditional"
+];
+
 var registration_commands =
 [
     "check_state"
@@ -21,6 +34,10 @@ var registration_commands =
 ,   "delete_node"
 ,   "dress"
 ,   "echo"
+,   "edit"
+,   "edit_body"
+,   "focus_pane"
+,   "hide_pane"
 ,   "load_kscript"
 ,   "load_state"
 ,   "log_reference"
@@ -32,8 +49,12 @@ var registration_commands =
 ,   "move_up"
 ,   "print_heading"
 ,   "print_id"
+,   "rebase_pane"
 ,   "repair_state"
+,   "resolve"
 ,   "resolve_alias"
+,   "reveal_pane"
+,   "rotate_pane"
 ,   "run_unit_tests"
 ,   "select_bookmark"
 ,   "select_daily_log"
@@ -48,15 +69,4 @@ var registration_commands =
 ,   "update_body"
 ,   "update_heading"
 ,   "update_title"
-];
-
-var registration_arguments =
-[
-    "bookmark_heading"
-,   "command_heading_path"
-,   "filesystem_path"
-,   "heading"
-,   "heading_path"
-,   "unconditional"
-,   "unsigned_integer"
 ];

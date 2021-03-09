@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_CASE( leaf
     BOOST_TEST( kmap.fetch_children( nodes[ "/2.1" ] ).empty() );
     BOOST_TEST( kmap.resolve( nodes[ "/2.1" ] ) == nodes[ "/1" ] );
 
-    kmap.select_node( nodes[ "/2.1" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/2.1" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/2.1" ] );
 }
 
@@ -54,7 +54,7 @@ BOOST_AUTO_TEST_CASE( delete_alias
     BOOST_TEST( kmap.fetch_children( nodes[ "/2" ] ).empty() );
     BOOST_TEST( kmap.exists( "/1" ) );
 
-    kmap.select_node( nodes[ "/2" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/2" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/2" ] );
 }
 
@@ -96,11 +96,11 @@ BOOST_AUTO_TEST_CASE( alias_has_alias_child
                                  , nodes[ "/4" ] ) );
     BOOST_TEST( kmap.resolve( nodes[ "/4.3.1" ] ) == nodes[ "/1" ] );
 
-    kmap.select_node( nodes[ "/4" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/4" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/4" ] );
-    kmap.select_node( nodes[ "/4.3" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/4.3" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/4.3" ] );
-    kmap.select_node( nodes[ "/4.3.1.2" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/4.3.1.2" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/4.3.1.2" ] );
 }
 
@@ -121,7 +121,7 @@ BOOST_AUTO_TEST_CASE( has_child
     BOOST_TEST( kmap.exists( "/3.1.2" ) );
     BOOST_TEST( kmap.fetch_children( nodes[ "/3.1" ] ).size() == 1 );
     BOOST_TEST( kmap.resolve( nodes[ "/3.1" ] ) == nodes[ "/1" ] );
-    kmap.select_node( nodes[ "/3.1" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/3.1" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/3.1" ] );
 }
 
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE( update_alias_create_child
                                  , nodes[ "/2" ] ) );
     create_lineages( "1.3" );
     BOOST_TEST( kmap.exists( "/2.1.3" ) );
-    kmap.select_node( nodes[ "/2.1.3" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/2.1.3" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/2.1.3" ] );
 }
 
@@ -159,7 +159,7 @@ BOOST_AUTO_TEST_CASE( update_alias_delete_child
                                  , nodes[ "/3" ] ) );
     BOOST_TEST( kmap.delete_node( nodes[ "/1.2" ] ) );
     BOOST_TEST( !kmap.exists( "/3.1.2" ) );
-    kmap.select_node( nodes[ "/3.1" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/3.1" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/3.1" ] );
 }
 
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE( update_alias_delete_source
     BOOST_TEST( kmap.delete_node( nodes[ "/1" ] ) );
     BOOST_TEST( !kmap.exists( "/1" ) );
     BOOST_TEST( !kmap.exists( "/2.1" ) );
-    kmap.select_node( nodes[ "/2" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/2" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/2" ] );
 }
 
@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE( create_alias_nested_outside_in
                                  , nodes[ "/2" ] ) );
     BOOST_TEST( kmap.create_alias( nodes[ "/2" ]
                                  , nodes[ "/1" ] ) );
-    kmap.select_node( nodes[ "/1" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
     BOOST_TEST( kmap.travel_right() );
     BOOST_TEST( kmap.travel_right() );
     BOOST_TEST( kmap.selected_node() == nodes[ "/1.2.3" ] );
@@ -221,7 +221,7 @@ BOOST_AUTO_TEST_CASE( create_alias_nested_inside_out
                                  , nodes[ "/1" ] ) );
     BOOST_TEST( kmap.create_alias( nodes[ "/3" ]
                                  , nodes[ "/2" ] ) );
-    kmap.select_node( nodes[ "/1" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
     BOOST_TEST( kmap.travel_right() );
     BOOST_TEST( kmap.travel_right() );
     BOOST_TEST( kmap.selected_node() == nodes[ "/1.2.3" ] );

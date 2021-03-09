@@ -20,7 +20,6 @@ Environment::Environment()
 Environment::Environment( FsPath const& p )
     : root_node_id_{}
     , db_{ p }
-    , network_{ "div_graph" }
 {
 }
 
@@ -34,18 +33,6 @@ auto Environment::database() const
     -> Database const&
 {
     return db_;
-}
-
-auto Environment::network()
-    -> Network&
-{
-    return network_;
-}
-
-auto Environment::network() const
-    -> Network const&
-{
-    return network_;
 }
 
 auto Environment::root_node_id() const

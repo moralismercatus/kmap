@@ -10,6 +10,7 @@
 #include "common.hpp"
 
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 
 #include <ostream>
 #include <utility>

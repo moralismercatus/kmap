@@ -75,6 +75,19 @@ ExternalProject_Add(
 )
 
 ExternalProject_Add(
+    magic_enum
+
+    GIT_REPOSITORY
+        https://github.com/Neargye/magic_enum.git
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
+        -DCMAKE_CXX_COMPILER=emcc
+        -DCMAKE_CXX_COMPILER_WORKS=1
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+
+ExternalProject_Add(
     sqlite3
 
     GIT_REPOSITORY

@@ -6,6 +6,7 @@
 #include "js_iface.hpp"
 
 #include "contract.hpp"
+#include "error/js_iface.hpp"
 #include "utility.hpp"
 
 #include <range/v3/range/conversion.hpp>
@@ -17,18 +18,61 @@
 
 using namespace ranges;
 
-namespace kmap::js
+namespace kmap::js {
+
+auto lint( std::string const& code )
+    -> Result< void >
 {
-// TODO: A canvas represents what's rendered inside the window on screen. Thus do TextView, Editor, Network, breadcrumbs, CLI, belong here?
+    using emscripten::val;
+
+    auto rv = KMAP_MAKE_RESULT( void ); 
+
+    if( auto const linted = call< std::string >( "lint_javascript", code )
+      ; linted )
+    {
+        rv = KMAP_MAKE_ERROR_MSG( error_code::js::lint_failed, linted.value() );
+    }
+    else
+    {
+        rv = outcome::success();
+    }
+
+    return rv;
+}
+
+auto eval_void( std::string const& expr )
+    -> Result< void >
+{
+    using emscripten::val;
+
+    auto rv = KMAP_MAKE_RESULT( void ); 
+
+    KMAP_ENSURE( rv, lint( expr ), error_code::js::lint_failed );
+
+    auto const eval_str = io::format( "( function(){{ try{{ {} return true; }} catch( err ){{ console.log( err ); return undefined; }} }} )()"
+                                    , expr );
+
+    if( auto const res = val::global().call< val >( "eval"
+                                                  , eval_str )
+      ; !res.isUndefined() && !res.isNull() )
+    {
+        rv = outcome::success();
+    }
+
+    return rv;
+}
 
 auto publish_function( std::string_view const name
                      , StringVec const& params
                      , std::string_view const body )
-    -> bool
+    -> Result< void >
 {
     using emscripten::val;
 
-    auto rv = false;
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE( rv, lint( std::string{ body } ), error_code::js::lint_failed );
+
     auto const joined_params = params
                              | views::join( ',' )
                              | to< std::string >();
@@ -37,12 +81,7 @@ auto publish_function( std::string_view const name
                                    , joined_params 
                                    , body );
 
-    if( auto const fn_created = val::global().call< val >( "eval_code"
-                                                         , fn_def )
-      ; fn_created.as< bool >() )
-    {
-        rv = true;
-    }
+    rv = eval_void( fn_def );
 
     return rv;
 }

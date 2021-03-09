@@ -141,7 +141,7 @@ public:
         case command::fn_publication_failed: return "function publication failed";
         case command::not_general_command: return "not general command node";
         case command::not_particular_command: return "not particular command node";
-        case command::incorrect_arg_number: return "incorrect number of arguments";
+        case command::incorrect_arg_number: return "incorrect number of argument";
         case command::nonarg_node_found: return "non-argument node found";
         case command::invalid_arg: return "invalid argument";
         }

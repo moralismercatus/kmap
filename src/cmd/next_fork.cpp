@@ -13,9 +13,9 @@
 namespace kmap::cmd {
 
 auto next_fork( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -54,21 +54,19 @@ auto next_fork( Kmap& kmap )
         {
             kmap.jump_to( *target );
 
-            return { CliResultCode::success
-                   , fmt::format( "selected next fork" ) };
+            return fmt::format( "selected next fork" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "no next fork found" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "no next fork found" ) );
         }
     };
 }
 
 auto prev_fork( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -112,21 +110,19 @@ auto prev_fork( Kmap& kmap )
         {
             kmap.jump_to( *target );
 
-            return { CliResultCode::success
-                   , fmt::format( "selected previous fork" ) };
+            return fmt::format( "selected previous fork" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "no previuous fork found" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "no previuous fork found" ) );
         }
     };
 }
 
 auto next_leaf( Kmap& kmap )
-    -> std::function< CliCommandResult( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> CliCommandResult
+    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -135,8 +131,7 @@ auto next_leaf( Kmap& kmap )
             })
         ;
 
-        return { CliResultCode::failure
-               , fmt::format( "impl. needed" ) };
+        return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "impl. needed" ) );
 
         auto const target = [ & ]() -> Optional< Uuid >
         {
@@ -168,13 +163,11 @@ auto next_leaf( Kmap& kmap )
         {
             kmap.jump_to( *target );
 
-            return { CliResultCode::success
-                   , fmt::format( "selected next leaf" ) };
+            return fmt::format( "selected next leaf" );
         }
         else
         {
-            return { CliResultCode::failure
-                   , fmt::format( "no next leaf found" ) };
+            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "no next leaf found" ) );
         }
     };
 }

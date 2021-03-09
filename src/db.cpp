@@ -780,6 +780,8 @@ auto Database::update_child_ordering( Uuid const& parent
         })
     ;
 
+    // TODO: Should return Result< void > and ensure that the update actually reflect real children IDs!
+
     auto const sparent = to_string( parent );
     auto const new_ordering = abbreviations
                             | views::join

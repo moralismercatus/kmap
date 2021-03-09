@@ -29,6 +29,7 @@
 #else
     #define KMAP_PROFILE_SCOPE() ( void )0;
 #endif // KMAP_PROFILE
+#define KMAP_LOG_LINE() fmt::print( "[log.line] {}|{}|{}\n", __func__, __LINE__, FsPath{ __FILE__ }.filename().string() )
 
 namespace kmap {
 
@@ -66,6 +67,12 @@ auto const color_level_map = std::vector< Color >
 ,   Color::violet
 };
 
+template< typename T >
+auto from_string( std::string const& s )
+    -> Result< T >;
+template<>
+auto from_string( std::string const& s )
+    -> Result< bool >;
 [[ nodiscard ]]
 auto compress_resource( std::byte const* data
                       , size_t const size )
@@ -153,6 +160,9 @@ auto to_optional( Result< T > const& r )
 }
 [[ nodiscard ]]
 auto to_string( Color const& c )
+    -> std::string;
+[[ nodiscard ]]
+auto to_string( bool const b )
     -> std::string;
 [[ nodiscard ]]
 auto to_uint64( std::string const& s )

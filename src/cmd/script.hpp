@@ -19,7 +19,7 @@ namespace kmap::cmd {
 
 auto load_script( Kmap& kmap 
                 , std::istream& is )
-    -> CliCommandResult;
+    -> Result< std::string >;
 
 } // namespace kmap::cmd
 

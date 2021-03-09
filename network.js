@@ -14,7 +14,7 @@ class Network
         let nodes = new vis.DataSet();
         let data = { nodes: nodes
                    , edges: edges };
-        //  TODO: All these options should exist in a settings node, configurable by the user.
+        //  TODO: All these options should exist in a setting node, configurable by the user.
         let options = { height: '100%'
                       , width: '100%'
                       , autoResize: true
@@ -31,6 +31,7 @@ class Network
                       , edges: { smooth: { type: 'continuous'
                                          , forceDirection: 'horizontal' } }
                       , nodes: { shape: 'box'
+                               , shapeProperties: { interpolation: false }
                                , widthConstraint: { minimum: 200
                                                   , maximum: 200 } } };
         this.network = new vis.Network( container
@@ -258,7 +259,7 @@ class Network
 
 function new_network( container )
 {
-    return new Network( document.getElementById( container ) );
+    return new Network( document.getElementById( kmap.uuid_to_string( container ).value() ) );
 }
 
 let network_on_deselect_node_event = function( network ) 
@@ -302,70 +303,70 @@ function network_onkeydown( e )
 
     switch ( key )
     {
-    case 69: // e
-    {
-        kmap.edit_body();
-        e.preventDefault();
-        break;
-    }
-    case 72: // h
-    case 37: // left-arrow
-    {
-        kmap.travel_left();
-        e.preventDefault();
-        break;
-    }
-    case 74: // j
-    case 40: // down-arrow
-    {
-        kmap.travel_down();
-        e.preventDefault();
-        break;
-    }
-    case 75: // k
-    case 38: // up-arrow
-    {
-        kmap.travel_up();
-        e.preventDefault();
-        break;
-    }
-    case 76: // l
-    case 39: // right-arrow
-    {
-        kmap.travel_right();
-        e.preventDefault();
-        break;
-    }
-    case 73: // i
-    {
-        if( is_ctrl )
+        case 69: // e
         {
-            console.log( 'ctrl+i' );
-            kmap.jump_in();
+            kmap.parse_cli( ':edit.body' );
+            e.preventDefault();
+            break;
         }
-        break;
-    }
-    case 79: // o
-    {
-        if( is_ctrl )
+        case 72: // h
+        case 37: // left-arrow
         {
-            console.log( 'ctrl+o' );
-            kmap.jump_out();
+            kmap.travel_left();
+            e.preventDefault();
+            break;
         }
-        break;
-    }
-    case 86: // v
-    {
-        kmap.view_body();
-        e.preventDefault();
-        break;
-    }
-    case 71: // g
-    {
-        if( is_shift ) // G
+        case 74: // j
+        case 40: // down-arrow
         {
-            kmap.travel_bottom();
+            kmap.travel_down();
+            e.preventDefault();
+            break;
         }
-    }
+        case 75: // k
+        case 38: // up-arrow
+        {
+            kmap.travel_up();
+            e.preventDefault();
+            break;
+        }
+        case 76: // l
+        case 39: // right-arrow
+        {
+            kmap.travel_right();
+            e.preventDefault();
+            break;
+        }
+        case 73: // i
+        {
+            if( is_ctrl )
+            {
+                console.log( 'ctrl+i' );
+                kmap.jump_in();
+            }
+            break;
+        }
+        case 79: // o
+        {
+            if( is_ctrl )
+            {
+                console.log( 'ctrl+o' );
+                kmap.jump_out();
+            }
+            break;
+        }
+        case 86: // v
+        {
+            kmap.view_body();
+            e.preventDefault();
+            break;
+        }
+        case 71: // g
+        {
+            if( is_shift ) // G
+            {
+                kmap.travel_bottom();
+            }
+        }
     }
 }
