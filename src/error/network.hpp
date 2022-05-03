@@ -16,12 +16,19 @@ enum class network
 {
     success = 0
 ,   ambiguous_path
+,   attribute
 ,   child_already_exists
+,   duplicate_node 
 ,   invalid_heading
 ,   invalid_lineage
+,   invalid_instance
+,   invalid_edge
 ,   invalid_node 
+,   invalid_ordering
 ,   invalid_parent
+,   invalid_path
 ,   invalid_root
+,   no_prev_selection
 };
 
 } // namespace kmap::error_code
@@ -53,12 +60,19 @@ public:
         {
         case network::success: return "success";
         case network::ambiguous_path: return "path is ambiguous";
+        case network::attribute: return "attribute";
         case network::child_already_exists: return "child already exists";
+        case network::duplicate_node: return "duplicate_node";
         case network::invalid_heading: return "invalid heading";
         case network::invalid_lineage: return "invalid lineage";
+        case network::invalid_instance: return "invalid instance";
+        case network::invalid_edge: return "invalid edge";
         case network::invalid_node: return "invalid node";
+        case network::invalid_ordering: return "invalid ordering";
         case network::invalid_parent: return "invalid parent";
+        case network::invalid_path: return "invalid path";
         case network::invalid_root: return "invalid root";
+        case network::no_prev_selection: return "no previous node selected";
         }
     }
 };

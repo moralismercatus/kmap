@@ -55,19 +55,22 @@ auto to_heading_path( std::string_view const s )
     return rv;
 }
 
-auto is_valid_heading_char( char const c )
-    -> bool
-{
-    return isalnum( c )
-        || c == '_';
-}
+// auto is_valid_heading_char( char const c )
+//     -> bool
+// {
+//     // TODO: Remove; duplicate with is_valid_heading_path in utility.cpp
+//     return isalnum( c )
+//         || c == '_'
+//         || c == '.'
+//         || c == '/';
+// }
 
-auto is_valid_heading( std::string_view const s )
-    -> bool
-{
-    return end( s ) == find_if_not( s
-                                  , is_valid_heading_char );
-}
+// auto is_valid_heading( std::string_view const s )
+//     -> bool
+// {
+//     return end( s ) == find_if_not( s
+//                                   , is_valid_heading_char );
+// }
 
 auto begin( Heading& heading )
     -> std::string::iterator

@@ -10,6 +10,12 @@
 #include "kmap.hpp"
 #include "lineage.hpp"
 
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/filter.hpp>
+#include <range/v3/view/transform.hpp>
+
+#include <vector>
+
 namespace kmap
 {
 

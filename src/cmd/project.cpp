@@ -10,6 +10,7 @@
 #include "../emcc_bindings.hpp"
 #include "../error/master.hpp"
 #include "../error/project.hpp"
+#include "../db.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "../lineage.hpp"
@@ -345,7 +346,7 @@ auto close_project( Kmap& kmap
         })
     ;
 
-    KMAP_ENSURE( rv, is_project( kmap, project ), error_code::project::invalid_project );
+    KMAP_ENSURE( is_project( kmap, project ), error_code::project::invalid_project );
 
     rv = update_project_status( kmap
                               , project
@@ -370,7 +371,7 @@ auto open_project( Kmap& kmap
         })
     ;
 
-    KMAP_ENSURE( rv, is_project( kmap, project ), error_code::project::invalid_project );
+    KMAP_ENSURE( is_project( kmap, project ), error_code::project::invalid_project );
 
     rv = update_project_status( kmap
                               , project
@@ -395,7 +396,7 @@ auto update_project_status( Kmap& kmap
         })
     ;
 
-    KMAP_ENSURE( rv, is_project( kmap, project ), error_code::project::invalid_project );
+    KMAP_ENSURE( is_project( kmap, project ), error_code::project::invalid_project );
 
     auto const heading_map = std::map< ProjectCategory, std::string >
     {
@@ -433,7 +434,7 @@ auto update_project_status( Kmap& kmap
         {
             if( kmap.resolve( des.value() ) == project )
             {
-                KMAP_TRY( kmap.delete_alias( des.value() ) );
+                KMAP_TRY( kmap.erase_alias( des.value() ) );
             }
             else
             {
@@ -503,25 +504,22 @@ auto tasks_of( Kmap const& kmap
     auto rv = std::vector< Uuid >{};
     auto const& db = kmap.database();
 
-    if( auto const tasks = db.fetch_child( "tasks"
-                                         , project )
+    if( auto const tasks = db.fetch_child( project, "tasks" )
       ; tasks )
     {
-        if( auto const open = db.fetch_child( "open"
-                                            , *tasks )
+        if( auto const open = db.fetch_child( tasks.value(), "open" )
           ; open )
         {
-            auto const cids = kmap.fetch_children( *open );
+            auto const cids = kmap.fetch_children( open.value() );
 
             rv.insert( rv.begin()
                      , cids.begin()
                      , cids.end() );
         }
-        if( auto const closed = db.fetch_child( "closed"
-                                              , *tasks )
+        if( auto const closed = db.fetch_child( tasks.value(), "closed" )
           ; closed )
         {
-            auto const cids = kmap.fetch_children( *closed );
+            auto const cids = kmap.fetch_children( closed.value() );
 
             rv.insert( rv.begin()
                      , cids.begin()
@@ -617,7 +615,7 @@ auto fetch_project_status_alias( Kmap const& kmap
             | to< decltype( all ) >();
     }();
 
-    KMAP_ENSURE( rv, aliases.size() == 1, error_code::project::ambiguous_status );
+    KMAP_ENSURE( aliases.size() == 1, error_code::project::ambiguous_status );
 
     rv = aliases.back();
 
@@ -693,7 +691,7 @@ auto update_task_statuses( Kmap& kmap
 
     if( kmap.fetch_heading( *present_status ).value() != status )
     {
-        kmap.move_node( project, fmt::format( "/projects.{}", full_status ) );
+        kmap.move_node( project, fmt::format( "/projects.{}", full_status ) ).value();
 
         auto const aliases = kmap.fetch_aliases_to( project );
         auto const task_aliases = aliases
@@ -717,7 +715,7 @@ auto update_task_statuses( Kmap& kmap
                                                                             , top_status ) );
                 BC_ASSERT( task_dst );
 
-                kmap.move_node( task, *task_dst );
+                kmap.move_node( task, *task_dst ).value();
             }
         }
     }
@@ -731,8 +729,15 @@ auto fetch_project( Kmap& kmap
                                                  , heading );
     auto const& db = kmap.database();
 
-    return db.fetch_child( heading
-                         , *status_root );
+    if( auto const child = db.fetch_child( *status_root, heading )
+      ; child )
+    {
+        return child.value();
+    }
+    else
+    {
+        return nullopt;
+    }
 }
 
 auto fetch_categorical_lineage( Kmap const& kmap
@@ -884,7 +889,7 @@ auto launder_categories( Kmap& kmap
         if( auto const lin = fetch_user_categorical_lineage( kmap, leaf_category )
           ; !lin.empty() )
         {
-            kmap.delete_node( lin.front() );
+            kmap.erase_node( lin.front() ).value();
         }
     }
 }
@@ -935,7 +940,7 @@ auto activate_project( Kmap& kmap )
                                                 , *pid );
         auto const& db = kmap.database();
 
-        if( *db.fetch_heading( *status ) != "active" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
+        if( db.fetch_heading( *status ).value() != "active" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
         {
             update_task_statuses( kmap
                                 , *pid
@@ -993,7 +998,7 @@ auto deactivate_project( Kmap& kmap )
                                                 , *pid );
         auto const& db = kmap.database();
 
-        if( *db.fetch_heading( *status ) != "inactive" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
+        if( KMAP_TRY( db.fetch_heading( *status ) ) != "inactive" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
         {
             // kmap.move_node( *pid
             //               , "/projects.open.inactive" );
@@ -1299,7 +1304,7 @@ auto create_project( Uuid const& at
 
     if( id )
     {
-        kmap.update_title( id.value(), title ); // TODO: This probably doesn't belong here. Either in the JS, or cmd::create_project. This should only be an interface wrapper.
+        KMAP_TRY( kmap.update_title( id.value(), title ) ); // TODO: This probably doesn't belong here. Either in the JS, or cmd::create_project. This should only be an interface wrapper.
     }
 
     return id;

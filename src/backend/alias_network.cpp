@@ -57,8 +57,8 @@ auto AliasNetwork::create_child( Uuid const& parent
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    KMAP_ENSURE( rv, exists( parent ), error_code::network::invalid_parent );
-    KMAP_ENSURE( rv, !exists( child ), error_code::network::child_already_exists );
+    KMAP_ENSURE( exists( parent ), error_code::network::invalid_parent );
+    KMAP_ENSURE( !exists( child ), error_code::network::child_already_exists );
 
     if( children_.insert( IdPair{ parent, child } ).second )
     {
@@ -73,7 +73,7 @@ auto AliasNetwork::delete_node( Uuid const& node )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    KMAP_ENSURE( rv, exists( node ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( node ), error_code::network::invalid_node );
 
     auto const children = KMAP_TRY( fetch_children( node ) );
 
@@ -112,7 +112,7 @@ auto AliasNetwork::fetch_children( Uuid const& parent ) const
 {
     auto rv = KMAP_MAKE_RESULT( std::set< Uuid > );
 
-    KMAP_ENSURE( rv, exists( parent ), error_code::network::invalid_parent );
+    KMAP_ENSURE( exists( parent ), error_code::network::invalid_parent );
 
     auto set = std::set< Uuid >{};
 
@@ -146,7 +146,7 @@ auto AliasNetwork::fetch_parent( Uuid const& child ) const
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    KMAP_ENSURE( rv, child_exists( child ), error_code::network::invalid_parent );
+    KMAP_ENSURE( child_exists( child ), error_code::network::invalid_parent );
 
     rv = children_.get< 2 >().find( child )->first;
 
@@ -159,10 +159,10 @@ auto AliasNetwork::move_node( Uuid const& src
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_ENSURE( rv, exists( src ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, exists( dst ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, src != dst, error_code::network::invalid_node );
-    KMAP_ENSURE( rv, src != root(), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( src ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( dst ), error_code::network::invalid_node );
+    KMAP_ENSURE( src != dst, error_code::network::invalid_node );
+    KMAP_ENSURE( src != root(), error_code::network::invalid_node );
 
     KMAP_TRY( delete_node( src ) );
     KMAP_TRY( create_child( dst, src ) );
@@ -191,7 +191,7 @@ auto AliasNetwork::copy( Uuid const& parent
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_ENSURE( rv, exists( parent ), error_code::network::invalid_parent );
+    KMAP_ENSURE( exists( parent ), error_code::network::invalid_parent );
 
     io::print( "copying {} into {}\n", to_uint64( other_root ).value(), to_uint64( parent ).value() );
 

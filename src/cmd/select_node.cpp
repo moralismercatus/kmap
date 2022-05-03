@@ -42,7 +42,7 @@ auto select_destination( Kmap& kmap )
                                 , &std::pair< Uuid, Heading >::second )
           ; it != map.end() )
         {
-            kmap.jump_to( it->first );
+            kmap.jump_to( it->first ).value();
 
             return "alias destination selected";
         }
@@ -61,7 +61,7 @@ auto select_node( Kmap& kmap
     if( auto const target = kmap.fetch_leaf( dst )
       ; target )
     {
-        kmap.jump_to( *target );
+        KMAP_TRY( kmap.jump_to( *target ) );
 
         return "selected";
     }
@@ -123,7 +123,7 @@ auto select_source( Kmap& kmap )
 
         if( kmap.is_alias( selected ) )
         {
-            kmap.jump_to( kmap.resolve( selected ) );
+            kmap.jump_to( kmap.resolve( selected ) ).value();
 
             return "alias source selected";
         }

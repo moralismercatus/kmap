@@ -49,74 +49,82 @@ Network::Network( Uuid const& container )
     {
         KMAP_THROW_EXCEPTION_MSG( "failed to initialize Network" );
     }
+
+    // install_events();
 }
 
 Network::~Network()
 {
-    // if( js_nw_ )
-    // {
-        // TODO: I'm not sure that this is actually necessary, or if GC is sufficient.
-        //js_nw_->call< val >( "destroy_network" );
-    // }
+    if( js_nw_ )
+    {
+        js_nw_->call< val >( "destroy_network" );
+    }
 }
 
 auto Network::create_node( Uuid const& id
-                         , Title const& title )
-    -> Uuid
+                         , Title const& label )
+    -> Result< void >
 {
-    KMAP_PROFILE_SCOPE();
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            // BC_ASSERT( !id.is_nil() ); // Why is a nill Uuid{ 0x0 } disallowed? I understand that it's "probably" an error, but is that a good reason? Test uses 0x0.
-            BC_ASSERT( !exists( id ) );
-        })
         BC_POST([ & ]
         {
-            BC_ASSERT( exists( id ) );
+            if( rv )
+            {
+                BC_ASSERT( exists( id ) );
+                BC_ASSERT( fetch_title( id ).value() == label );
+            }
         })
     ;
+
+    KMAP_ENSURE( !exists( id ), error_code::network::invalid_node );
 
     auto const& sid = to_string( id );
 
     js_nw_->call< val >( "create_node"
                        , sid
-                       , title ); // Note: I'd like to have markdown_to_html( title ) here, but visjs doesn't support HTML labels.
+                       , label ); // Note: I'd like to have markdown_to_html( title ) here, but visjs doesn't support HTML labels.
+    // TODO: Remake to something like this:
+    // KMAP_TRY( js::call< val >( *js_nw_, "select_node", to_string( id ) ) );
 
-    return id;
+    rv = outcome::success();
+
+    return rv; 
 }
 
 auto Network::add_edge( Uuid const& from
                       , Uuid const& to )
-    -> void
+    -> Result< void >
 {
-    KMAP_PROFILE_SCOPE();
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            // Ensure that title does not conflict with an existing path.
-            // TODO: unsure if this should be checked here or in body.
-            BC_ASSERT( exists( from ) );
-            BC_ASSERT( exists( to ) );
-            BC_ASSERT( !edge_exists( from 
-                                   , to ) );
-            BC_ASSERT( !is_child( from
-                                , title( to ) ) );
-        })
         BC_POST([ & ]
         {
             // Ensure edge exists.
-            BC_ASSERT( edge_exists( from
-                                  , to ) );
+            if( rv )
+            {
+                BC_ASSERT( edge_exists( from, to ) );
+            }
         })
     ;
+
+    // Ensure that title does not conflict with an existing path.
+    // TODO: unsure if this should be checked here or in body.
+    KMAP_ENSURE( exists( from ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( to ), error_code::network::invalid_node );
+    KMAP_ENSURE( !edge_exists( from, to ), error_code::network::invalid_edge );
+    KMAP_ENSURE( !is_child( from, fetch_title( to ).value() ), error_code::network::invalid_node );
 
     js_nw_->call< val >( "add_edge"
                        , to_string( make_edge_id( from, to ) )
                        , to_string( from )
                        , to_string( to ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Network::create_nodes( std::vector< Uuid > const& ids
@@ -253,7 +261,7 @@ auto Network::select_node( Uuid const& id )
 {
     KMAP_PROFILE_SCOPE();
 
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::no_prev_selection );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -347,7 +355,7 @@ auto Network::child_titles( Uuid const& parent ) const
     auto const cts = children( parent );
 
     return cts 
-         | views::transform( [ & ]( auto const& e ){ return this->title( e ); } )
+         | views::transform( [ & ]( auto const& e ){ return KMAP_TRYE( this->fetch_title( e ) ); } )
          | to_vector;
 }
 
@@ -405,7 +413,7 @@ auto Network::change_node_font( Uuid const& id
         })
     ;
 
-    KMAP_ENSURE( rv, exists( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
 
     js_nw_->call< val >( "change_node_font"
                        , to_string( id )
@@ -456,14 +464,6 @@ auto Network::center_viewport_node( Uuid const& id )
                        , to_string( id ) );
 }
 
-auto Network::focus()
-    -> void
-{
-    KMAP_PROFILE_SCOPE();
-
-    js_nw_->call< val >( "focus_network" );
-}
-
 auto Network::exists( Uuid const& id ) const
     -> bool
 {
@@ -479,7 +479,7 @@ auto Network::exists( Title const& title ) const
     KMAP_PROFILE_SCOPE();
 
     return 0 != count_if( nodes()
-                        , [ & ]( auto const& e ){ return this->title( e ) == title; } );
+                        , [ & ]( auto const& e ){ return KMAP_TRYE( this->fetch_title( e ) ) == title; } );
 }
 
 auto Network::edge_exists( Uuid const& from
@@ -490,6 +490,24 @@ auto Network::edge_exists( Uuid const& from
 
     return js_nw_->call< bool >( "edge_exists"
                                , to_string( make_edge_id( from, to ) ) );
+}
+
+auto Network::focus()
+    -> void
+{
+    KMAP_PROFILE_SCOPE();
+
+    js_nw_->call< val >( "focus_network" );
+}
+
+auto Network::install_keydown_handler()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    
+    KMAP_TRY( js::call< val >( *js_nw_, "install_keydown_handler" ) );
+
+    return rv;
 }
 
 auto Network::update_title( Uuid const& id
@@ -504,7 +522,7 @@ auto Network::update_title( Uuid const& id
         })
         BC_POST([ & ]
         {
-            BC_ASSERT( this->title( id ) == title );
+            BC_ASSERT( this->fetch_title( id ).value() == title );
         })
     ;
 
@@ -522,7 +540,7 @@ auto Network::fetch_child( Uuid const& parent
 
     for( auto const& e : cids )
     {
-        if( auto const ct = this->title( e )
+        if( auto const ct = KMAP_TRY( this->fetch_title( e ) )
           ; ct == title )
         {
             rv = e;
@@ -532,15 +550,6 @@ auto Network::fetch_child( Uuid const& parent
     }
 
     return rv;
-}
-
-auto Network::title( Uuid const& id ) const
-    -> Title
-{
-    auto const rv = js_nw_->call< std::string >( "title_of"
-                                               , to_string( id ) );
-
-    return format_heading( rv );
 }
 
 auto Network::fetch_title( Uuid const& id ) const
@@ -557,8 +566,6 @@ auto Network::fetch_title( Uuid const& id ) const
 auto Network::nodes() const
     -> std::vector< Uuid >
 {
-    KMAP_PROFILE_SCOPE();
-
     using emscripten::vecFromJSArray;
 
     val ns = js_nw_->call< val >( "node_ids" );
@@ -592,7 +599,7 @@ auto Network::to_titles( UuidPath const& path ) const
     -> StringVec
 {
     return path
-         | views::transform( [ & ]( auto const& e ){ return this->title( e ); } )
+         | views::transform( [ & ]( auto const& e ){ return KMAP_TRYE( this->fetch_title( e ) ); } )
          | to< StringVec >();
 }
 
@@ -624,23 +631,27 @@ auto Network::position( Uuid const& id ) const
 }
 
 auto Network::remove( Uuid const& id )
-    -> void
+    -> Result< void >
 {
-    KMAP_PROFILE_SCOPE();
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( id ) );
-        })
         BC_POST([ & ]
         {
-            BC_ASSERT( !exists( id ) );
+            if( rv )
+            {
+                BC_ASSERT( !exists( id ) );
+            }
         })
     ;
 
-    js_nw_->call< val >( "remove_node"
-                       , to_string( id ) );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
+
+    js_nw_->call< val >( "remove_node", to_string( id ) );
+    
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Network::remove_nodes()
@@ -665,24 +676,27 @@ auto Network::remove_nodes()
 
 auto Network::remove_edge( Uuid const& from
                          , Uuid const& to )
-    -> void
+    -> Result< void >
 {
-    KMAP_PROFILE_SCOPE();
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( from ) );
-            BC_ASSERT( exists( to ) );
-        })
         BC_POST([ & ]
         {
             BC_ASSERT( !edge_exists( from, to ) );
         })
     ;
 
+    KMAP_ENSURE( edge_exists( to, from ), error_code::network::invalid_edge );
+    KMAP_ENSURE( exists( from ), error_code::network::invalid_node  );
+    KMAP_ENSURE( exists( to ), error_code::network::invalid_node  );
+
     js_nw_->call< val >( "remove_edge"
                        , to_string( make_edge_id( from, to ) ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Network::remove_edges()
@@ -701,6 +715,12 @@ auto Network::remove_edges()
 
     // TODO: check if successful.
     js_nw_->call< val >( "remove_edges" );
+}
+
+auto Network::underlying_js_network()
+    -> std::shared_ptr< emscripten::val >
+{
+    return js_nw_;
 }
 
 } // namespace kmap

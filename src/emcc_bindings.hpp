@@ -116,19 +116,19 @@ struct Result< void >
     {
     }
 
-    auto error_message()
+    auto error_message() const
         -> std::string
     {
         return to_string( result.error() );
     }
 
-    auto has_error()
+    auto has_error() const
         -> bool
     {
         return result.has_error();
     }
 
-    auto has_value()
+    auto has_value() const
         -> bool
     {
         return result.has_value();

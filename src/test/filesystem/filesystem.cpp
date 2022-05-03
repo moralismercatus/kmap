@@ -37,6 +37,7 @@ auto utf_filesystem_dtor()
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( filesystem 
                      , 
+                     * utf::label( "env" )
                      * utf::fixture( &utf_filesystem_ctor, &utf_filesystem_dtor ) )
 
 BOOST_AUTO_TEST_CASE( write_file )

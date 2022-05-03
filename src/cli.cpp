@@ -15,6 +15,7 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 
+#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/sml.hpp>
 #include <emscripten.h>
@@ -22,8 +23,10 @@
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/count_if.hpp>
 #include <range/v3/algorithm/find_if.hpp>
+#include <range/v3/algorithm/max.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop.hpp>
+#include <range/v3/view/drop_last.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/indices.hpp>
 #include <range/v3/view/intersperse.hpp>
@@ -100,7 +103,7 @@ auto Cli::parse_raw( std::string const& input )
     }
     else
     {
-        #if KMAP_DEBUG
+        #if KMAP_DEBUG 
             io::print( stderr, "parse_raw() command failed: {}\n", to_string( rv.error() ) );
         #endif // KMAP_DEBUG
 
@@ -123,6 +126,7 @@ auto Cli::parse_raw( std::string const& input )
 auto Cli::register_command( PreregisteredCommand const& prereg )
     -> void
 {
+    // TODO: Can I put a KMAP_ENSURE( cmd::parser::parse_command() ) here, to ensure the syntax is fine?
     prereg_cmds_.emplace_back( prereg );
 }
 
@@ -680,28 +684,83 @@ auto Cli::show_popup( std::string const& text )
 {
     using emscripten::val;
 
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( !val::global( "cli_popup" ).isUndefined() );
-        })
-    ;
+    auto& canvas = kmap_.canvas();
+    auto const cli_dims = canvas.dimensions( canvas.cli_pane() ).value();
+    auto box_dims = Dimensions{};
+    auto elem = KMAP_TRYE( js::fetch_element_by_id< val >( to_string( canvas.completion_overlay() ) ) ); 
+    auto style = KMAP_TRYE( js::eval< val >( io::format( "return document.getElementById( '{}' ).style;", to_string( canvas.completion_overlay() ) ) ) ); 
+    auto const font_size = [ & ]
+    {
+        auto const t = KMAP_TRYE( js::fetch_computed_property_value< std::string >( to_string( canvas.completion_overlay() )
+                                                                                  , "font-size" ) ); 
 
-    auto elem = val::global( "cli_popup" );
+        if( t.ends_with( "px" ) )
+        {
+            return std::stoull( t | views::drop_last( 2 ) | to< std::string >() );
+        }
+        else
+        {
+            return std::stoull( t );
+        }
+    }();
+    auto const padding = [ & ]
+    {
+        auto const t = KMAP_TRYE( js::fetch_computed_property_value< std::string >( to_string( canvas.completion_overlay() )
+                                                                                  , "padding" ) ); 
+
+        if( t.ends_with( "px" ) )
+        {
+            return std::stoull( t | views::drop_last( 2 ) | to< std::string >() );
+        }
+        else
+        {
+            return std::stoull( t );
+        }
+    }();
+    auto const lines = [ & ]
+    {
+        auto ls = StringVec{};
+
+        auto pos = size_t{ 0 };
+        auto token = std::string{};
+        auto const delimiter = std::string{ "<br>" };
+        auto s = text;
+        while( ( pos = s.find( delimiter ) ) != std::string::npos )
+        {
+            token = s.substr( 0, pos );
+            s.erase( 0, pos + delimiter.length() );
+            ls.emplace_back( token );
+        }
+
+        return ls;
+    }();
+    auto const line_count = lines.size() + 1;
+    auto const max_width = [ & ]
+    {
+        auto const lengths = lines
+                           | views::transform( []( auto const& e ){ return static_cast< uint32_t >( e.size() ); } ) // TODO: Checked conversion...
+                           | to< std::vector< uint32_t > >();
+
+        return ranges::max( lengths );
+    }();
+
+    box_dims.left = cli_dims.left;
+    box_dims.right = padding + ( font_size * 0.5 * max_width ); // TODO: Figure out consistent way of determining text width.
+    box_dims.bottom = cli_dims.top;
+    box_dims.top = box_dims.bottom - ( ( font_size * line_count ) + ( ( font_size * line_count ) * .15 ) + padding ); // TODO: Figure out consistent way of determining text height. Presently, I'm hueristically determining height from "font-size".
+    io::print( "dims: {}\n", cli_dims );
+
+    BC_ASSERT( cli_dims.bottom >= cli_dims.top );
+    BC_ASSERT( cli_dims.right >= cli_dims.left );
+
+    style.set( "position", "absolute" );
+    style.set( "top", io::format( "{}px", box_dims.top ) );
+    style.set( "height", io::format( "{}px", box_dims.bottom - box_dims.top ) );
+    style.set( "left", io::format( "{}px", box_dims.left ) );
+    style.set( "width", io::format( "{}px", box_dims.right - box_dims.left ) );
 
     elem.set( "innerHTML", text );
-
-    // TODO: how to call elem.classList.call< val >( "add", "show" )?
-    KMAP_LOG_LINE();
-    EM_ASM(
-    {
-        let popup = document.getElementById( "cli_popup" );
-
-        popup.classList
-             .add( "show" );
-    }
-    , text.c_str() ); // TODO: Is this line dead code?
-    KMAP_LOG_LINE();
+    elem.set( "hidden", false );
 }
 
 auto Cli::show_popup( StringVec const& lines )
@@ -719,16 +778,11 @@ auto Cli::show_popup( StringVec const& lines )
 auto Cli::hide_popup()
     -> void
 {
-    // TODO: how to call elem.classList.call< val >( "remove", "show" )?
-    KMAP_LOG_LINE();
-    EM_ASM(
-    {
-        let popup = document.getElementById( "cli_popup" );
+    using emscripten::val;
 
-        popup.classList
-             .remove( "show" );
-    } );
-    KMAP_LOG_LINE();
+    auto elem = KMAP_TRYE( js::fetch_element_by_id< val >( to_string( kmap_.canvas().completion_overlay() ) ) ); 
+
+    elem.set( "hidden", true );
 }
 
 /// Assumes any completion/abortion of input will unfocus CLI.
@@ -845,8 +899,7 @@ auto Cli::notify_failure( std::string const& message )
     ;
 
     clear_input();
-    write( fmt::format( "[failure] {}"
-                      , message ) );
+    write( fmt::format( "[failure] {}", message ) );
     disable_write();
     set_color( Color::red );
     update_pane();
@@ -864,7 +917,7 @@ auto Cli::create_argument( PreregisteredArgument const& arg )
     if( auto const existing = kmap_.fetch_descendant( io::format( "{}.{}", arg_root_path, arg.path ) )
       ; existing )
     {
-        KMAP_TRY( kmap_.delete_node( existing.value() ) );
+        KMAP_TRY( kmap_.erase_node( existing.value() ) );
     } 
 
     auto const arglin = KMAP_TRY( kmap_.create_descendants( arg_root.value()
@@ -875,9 +928,9 @@ auto Cli::create_argument( PreregisteredArgument const& arg )
                                             , "guard"
                                             , "completion" );
     
-    kmap_.update_body( nodes[ 0 ], arg.description );
-    kmap_.update_body( nodes[ 1 ], arg.guard );
-    kmap_.update_body( nodes[ 2 ], arg.completion );
+    KMAP_TRY( kmap_.update_body( nodes[ 0 ], arg.description ) );
+    KMAP_TRY( kmap_.update_body( nodes[ 1 ], arg.guard ) );
+    KMAP_TRY( kmap_.update_body( nodes[ 2 ], arg.completion ) );
 
     rv = arg_node;
 
@@ -898,7 +951,7 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
     if( auto const existing = kmap_.fetch_descendant( cmd_root, prereg.path )
       ; existing )
     {
-        KMAP_TRY( kmap_.delete_node( existing.value() ) );
+        KMAP_TRY( kmap_.erase_node( existing.value() ) );
     } 
 
     auto const cmdlin = KMAP_TRY( kmap_.create_descendants( cmd_root, path_from_root ) );
@@ -909,8 +962,8 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
                                                , "action" );
     auto const nodes = kmap_.node_view( cmd );
     
-    kmap_.update_body( cmd, prereg.guard.code );
-    kmap_.update_body( nodes[ "/description" ], prereg.description );
+    KMAP_TRY( kmap_.update_body( cmd, prereg.guard.code ) );
+    KMAP_TRY( kmap_.update_body( nodes[ "/description" ], prereg.description ) );
 
     for( auto const& arg : prereg.arguments )
     {
@@ -918,12 +971,11 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
                                                                           , arg.argument_alias ) ) );
         auto const arg_dst = KMAP_TRY( kmap_.create_child( nodes[ "/argument" ], arg.heading ) );
 
-        kmap_.update_body( arg_dst, arg.description );
-
+        KMAP_TRY( kmap_.update_body( arg_dst, arg.description ) );
         KMAP_TRY( kmap_.create_alias( arg_src, arg_dst ) );
     }
 
-    kmap_.update_body( nodes[ "/action" ], prereg.action );
+    KMAP_TRY( kmap_.update_body( nodes[ "/action" ], prereg.action ) );
 
     rv = cmd;
 
@@ -937,22 +989,17 @@ auto Cli::on_key_down( int const key
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
-    KMAP_LOG_LINE();
-
-    io::print( "checking key: {}\n", key );
 
     switch( key )
     {
         case 9/*tab*/:
         {
-    KMAP_LOG_LINE();
             complete( text );
-    KMAP_LOG_LINE();
             break;
         }
         case 13/*enter*/:
         {
-            parse_raw( read() );
+            KMAP_TRY( parse_raw( read() ) );
             break;
         }
         case 27/*escape*/:
@@ -1031,7 +1078,7 @@ auto Cli::reset_all_preregistered()
 auto Cli::update_pane()
     -> void
 {
-    kmap_.canvas().update_pane( kmap_.canvas().cli_pane() ); // TODO: Find out why focusing requires a repositioning of the CLI element. That is, why to calls to this are necessary to maintain dimensions.
+    kmap_.canvas().update_pane( kmap_.canvas().cli_pane() ).value(); // TODO: Find out why focusing requires a repositioning of the CLI element. That is, why to calls to this are necessary to maintain dimensions.
 }
 
 /* :<cmd> args ...

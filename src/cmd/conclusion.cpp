@@ -7,6 +7,7 @@
 
 #include "../common.hpp"
 #include "../contract.hpp"
+#include "../db.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 
@@ -174,7 +175,7 @@ auto convert_to_premised_conclusion( Kmap& kmap
           ; body
          && body.value().empty() )
         {
-            KMAP_TRY( kmap.delete_node( assertion.value() ) );
+            KMAP_TRY( kmap.erase_node( assertion.value() ) );
             KMAP_TRY( kmap.create_child( con 
                                        , "premises" ) );
         }
@@ -260,8 +261,7 @@ auto create_objection( Kmap& kmap
                                                , kmap.selected_node() )
       ; pr )
     {
-        if( auto const objections = kmap.fetch_or_create_descendant( *pr
-                                                                   , "objections" )
+        if( auto const objections = kmap.fetch_or_create_descendant( *pr, "objections" )
           ; objections )
         {
             if( auto const ns = create_conclusion( kmap
@@ -291,8 +291,7 @@ auto add_objection( Kmap& kmap
                                                , kmap.selected_node() )
       ; pr )
     {
-        if( auto const objections = kmap.fetch_or_create_descendant( *pr
-                                                                   , "objections" )
+        if( auto const objections = kmap.fetch_or_create_descendant( *pr, "objections" )
           ; objections )
         {
             if( auto const con_root = kmap.fetch_leaf( "/conclusions" )
@@ -520,9 +519,10 @@ auto create_citation( Kmap& kmap )
             if( kmap.is_child( target
                              , "citations" ) )
             {
-                return *kmap.database()
-                            .fetch_child( "citations"
-                                        , target );
+                return kmap.database()
+                           .fetch_child( target
+                                       , "citations" )
+                           .value();
             }
             else
             {
@@ -535,7 +535,7 @@ auto create_citation( Kmap& kmap )
                                                 , ref_parent )
           ; alias )
         {
-            kmap.select_node( target ); // We don't want to move to the newly added reference.
+            kmap.select_node( target ).value(); // We don't want to move to the newly added reference.
 
             return "citation added";
         }

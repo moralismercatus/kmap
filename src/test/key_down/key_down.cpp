@@ -15,8 +15,8 @@ namespace kmap::test {
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( on_key_down 
                      ,
-                     * utf::depends_on( "kmap_iface" ) 
-                     * utf::depends_on( "network" ) )
+                     * utf::depends_on( "kmap_iface" ) )
+                //      * utf::depends_on( "network" ) )
 BOOST_AUTO_TEST_SUITE_END( /* on_key_down */ )
 
 } // namespace kmap::test

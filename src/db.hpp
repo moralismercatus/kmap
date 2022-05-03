@@ -8,8 +8,8 @@
 #define KMAP_DB_HPP
 
 #include "common.hpp"
-#include "db_cache.hpp"
-#include "db_cache.hpp"
+#include "db/cache.hpp"
+#include "db/common.hpp"
 #include "path.hpp"
 #include "utility.hpp" // TODO: Remove. Only reason this is here is for testing.
 
@@ -63,26 +63,10 @@ SQLPP_DECLARE_TABLE
 
 SQLPP_DECLARE_TABLE
 (
-    ( genesis_times )
-    ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-    ( unix_time, bigint, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
     ( aliases )
     ,
     ( src_uuid, text, SQLPP_NOT_NULL  )
     ( dst_uuid, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( child_orderings )
-    ,
-    ( parent_uuid, text, SQLPP_NOT_NULL  )
-    ( sequence, text, SQLPP_NOT_NULL  ) // First 8-bytes of child id per child.
 )
 
 SQLPP_DECLARE_TABLE
@@ -95,44 +79,74 @@ SQLPP_DECLARE_TABLE
 
 SQLPP_DECLARE_TABLE
 (
-    ( original_resource_sizes )
+    ( attributes )
     ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-    ( resource_size, int, SQLPP_NOT_NULL  )
+    ( parent_uuid, text, SQLPP_NOT_NULL  )
+    ( child_uuid, text, SQLPP_NOT_NULL  )
 )
 
-namespace kmap
-{
+namespace kmap {
 
 namespace sql = sqlpp::sqlite3;
 
 class Database
 {
 public:
-    using UniqueIdMultiStrSet = DbCache::UniqueIdMultiStrSet;
-    using NonUniqueIdNonUniqueIdSet = DbCache::NonUniqueIdNonUniqueIdSet;
+    // using TableId = db::TableId;
+    // using ItemValue = db::ValueVariant;
+    // using UniqueIdMultiStrSet = DbCache::UniqueIdMultiStrSet;
+    // using NonUniqueIdNonUniqueIdSet = DbCache::NonUniqueIdNonUniqueIdSet;
+    #if 0
+    struct ActionSequence // TODO: Rename to Transaction
+    {
+        using TableId = db::TableId;
+        using ItemValue = db::ValueVariant;
+        struct Item
+        {
+            db::TableId tbl;
+            db::KeyVariant const key;
+            ItemValue value;
+        };
+        
+        ActionSequence( Database& db );
+        ~ActionSequence();
 
-    Database( FsPath const& db_path );
+        auto fetch( TableId const& tbl
+                  , Uuid const& key )
+            -> Result< ItemValue >;
+        auto push( TableId const& tbl
+                 , db::KeyVariant const& key
+                 , ItemValue const& value )
+            -> void;
+        auto push( Item const& item )
+            -> void;
+        auto pop()
+            -> void;
+        auto top()
+            -> Item const&;
+
+    private:
+        Database& db_;
+    };
+    #endif // 0
+
+    Database() = default;
 
     // Core interface.
     // TODO: Only executing through this 'execute' iface should be enforced, as long as cache relies on these.
+    // TODO: Remove this entirely. It bypasses cache which violates constraints.
     template < typename... Args >
     auto execute( Args&&... args )
     {
-        #if KMAP_LOGGING_DB_CACHE
-        fmt::print( "[DEBUG] db non-const\n" );
-        #endif // KMAP_LOGGING_DB_CACHE 
-
-        flush_cache();
+        fmt::print( "non-const db.execute\n" );
+        BC_ASSERT( con_ );
 
         return ( *con_ )( std::forward< Args >( args )... );
     }
     template < typename... Args >
     auto execute( Args&&... args ) const
     {
-        #if KMAP_LOGGING_DB_CACHE
-        fmt::print( "[DEBUG] db const\n" );
-        #endif // KMAP_LOGGING_DB_CACHE 
+        BC_ASSERT( con_ );
 
         return ( *con_ )( std::forward< Args >( args )... );
     }
@@ -143,74 +157,115 @@ public:
         -> FsPath;
 
     // Convenience interface.
-    auto add_child( Uuid const& parent 
-                  , Uuid const& child )
-        -> void;
-    auto fetch_aliases() const
-        -> NonUniqueIdNonUniqueIdSet;
+    template< typename Table >
+    auto contains( auto const& key ) const
+        -> bool
+    {
+        return cache_.contains< Table >( key );
+    }
+    template< typename Table >
+    auto erase( auto const& key ) const
+        -> Result< void > 
+    {
+        return cache_.erase< Table >( key );
+    }
+    template< typename Table >
+    auto fetch() const
+        -> Table const&
+    {
+        return cache_.fetch< Table >();
+    }
+
+    auto has_file_on_disk()
+        -> bool;
+    auto push_node( Uuid const& id )
+        -> Result< void >;
+    auto push_body( Uuid const& node
+                  , std::string const& body )
+        -> Result< void >;
+    auto push_heading( Uuid const& node
+                     , std::string const& heading )
+        -> Result< void >;
+    auto push_child( Uuid const& parent 
+                   , Uuid const& child )
+        -> Result< void >;
+    auto push_title( Uuid const& node
+                   , std::string const& title )
+        -> Result< void >;
+    auto push_attr( Uuid const& parent
+                  , Uuid const& attr )
+        -> Result< void >;
+    // auto fetch_aliases() const
+    //     -> NonUniqueIdNonUniqueIdSet;
     auto fetch_alias_destinations( Uuid const& src ) const
-        -> std::vector< Uuid >;
+        -> Result< std::vector< Uuid > >;
     auto fetch_alias_sources( Uuid const& dst ) const
         -> std::vector< Uuid >;
-    auto set_defaults()
-        -> void;
+    auto init_db_on_disk( FsPath const& path )
+        -> Result< void >;
+    auto cache() const
+        -> db::Cache const&;
     auto create_tables()
         -> void;
-    auto create_node( Uuid const& id
-                    , Uuid const& parent
-                    , Heading const& heading
-                    , Title const& title )
-        -> bool;
+    // auto create_node( Uuid const& id
+    //                 , Uuid const& parent
+    //                 , Heading const& heading
+    //                 , Title const& title )
+    //     -> bool;
     auto create_alias( Uuid const& src 
                      , Uuid const& dst )
-        -> bool;
+        -> Result< void >;
     auto fetch_parent( Uuid const& id ) const
-        -> Optional< Uuid >;
-    auto fetch_child( Heading const& heading
-                    , Uuid const& parent ) const
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
+    auto fetch_child( Uuid const& parent 
+                    , Heading const& heading) const
+        -> Result< Uuid >;
     auto fetch_body( Uuid const& id ) const
-        -> Optional< std::string >;
+        -> Result< std::string >;
     auto fetch_children() const
         -> std::vector< std::pair< Uuid
                                  , Uuid > >;
     auto fetch_children( Uuid const& id ) const
-        -> UuidSet;
+        -> Result< UuidSet >;
     auto fetch_heading( Uuid const& id ) const
-        -> Optional< Heading >;
-    auto fetch_headings() const
-        -> UniqueIdMultiStrSet const&;
-    auto fetch_bodies() const
-        -> UniqueIdMultiStrSet const&;
+        -> Result< Heading >;
+    auto fetch_attr( Uuid const& parent ) const
+        -> Result< Uuid >;
+    auto fetch_attr_owner( Uuid const& attrn ) const
+        -> Result< Uuid >;
+    // auto fetch_bodies() const
+    //     -> UniqueIdMultiStrSet;
     auto fetch_nodes() const
-        -> UuidUnSet const&;
+        -> UuidUnSet;
     auto fetch_nodes( Heading const& heading ) const
         -> UuidSet;
     auto fetch_title( Uuid const& id ) const
-        -> Optional< std::string >;
+        -> Result< std::string >;
     auto fetch_genesis_time( Uuid const& id ) const
         -> Optional< uint64_t >;
-    auto heading_exists( Heading const& heading ) const
-        -> bool;
-    auto update_child_ordering( Uuid const& parent
-                              , std::vector< std::string > const& abbreviations )
-        -> void;
-    auto update_heading( Uuid const& id
+    auto update_heading( Uuid const& node
                        , Heading const& heading )
-        -> void;
-    auto update_title( Uuid const& id
+        -> Result< void >;
+    auto update_title( Uuid const& node
                      , Title const& title )
-        -> void;
+        -> Result< void >;
     auto update_body( Uuid const& node
                     , std::string const& content )
-        -> void;
-    auto update_bodies( std::vector< std::pair< Uuid, std::string > > const& updates )
-        -> void;
-    auto exists( Uuid const& id ) const
+        -> Result< void >;
+    // TODO: I think all these "exists" "is" utilities can be replaced with template< Table, Key > contains( auto const& key ):
+    auto node_exists( Uuid const& id ) const
         -> bool;
     auto alias_exists( Uuid const& src
                      , Uuid const& dst ) const
         -> bool;
+    auto erase_alias( Uuid const& src
+                    , Uuid const& dst )
+        -> Result< void >;
+    auto erase_all( Uuid const& id ) // Ensures all lhs/rhs for all tables is erased ("cascading erase")
+        -> void;
+    auto erase_child( Uuid const& parent
+                    , Uuid const& child )
+        -> void;
     auto is_child( Uuid const& parent
                  , Uuid const& id ) const
         -> bool;
@@ -219,45 +274,29 @@ public:
         -> bool;
     auto has_parent( Uuid const& child ) const
         -> bool;
-    auto has_child_ordering( Uuid const& parent ) const
-        -> bool;
-    auto remove( Uuid const& id ) // TODO: Rename to remove_node to be explicit.
-        -> void;
-    auto remove_child( Uuid const& parent
-                     , Uuid const& child )
-        -> void;
-    auto remove_alias( Uuid const& src
-                     , Uuid const& dst )
-        -> void;
     auto child_headings( Uuid const& id ) const
         -> std::vector< Heading >;
+    auto flush_delta_to_disk()
+        -> Result< void >;
+    auto has_delta() const
+        -> bool;
 
 //protected: // Allowing access for "repair-state". TODO: Better handle this.
-    // The child_orderings table is constrained as part of this class. 
-    auto append_child_to_ordering( Uuid const& parent
-                                 , Uuid const& child )
-        -> void;
-    auto fetch_child_ordering( Uuid const& parent ) const
-        -> std::vector< std::string >;
-    auto remove_alias_from_ordering( Uuid const& src
-                                   , Uuid const& dst )
-        -> void;
-    auto remove_from_ordering( Uuid const& parent
-                             , Uuid const& target )
-        -> void;
-    auto remove_from_ordering( Uuid const& parent
-                             , std::string const& order_id )
-        -> void;
-    auto is_ordered( Uuid const& parent
-                   , Uuid const& child ) const
-        -> bool;
-    auto flush_cache()
-        -> void;
+    // auto action_seq()
+    //     -> ActionSequence;
+
+    // auto fetch( TableId const& tbl
+    //           , Uuid const& key )
+    //     -> Result< db::ValueVariant >;
+    // auto push( TableId const& tbl
+    //          , db::KeyVariant const& id
+    //          , ItemValue const& value )
+    //     -> Result< void >;
 
 private:
-    FsPath path_;
-    std::unique_ptr< sql::connection > con_;
-    mutable DbCache cache_; // Needs to be mutable, as fetching/reading operations are const.
+    FsPath path_ = {};
+    std::unique_ptr< sql::connection > con_ = {};
+    mutable db::Cache cache_ = {}; // Needs to be mutable, as fetching/reading operations are const, but may update the cache. TODO: Really? I think what I had in mind was when it needed to be loaded from disk, but this all happens at one time via explicit command, so I don't think mutable is necessary.
 };
 
 } // namespace kmap

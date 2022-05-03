@@ -15,7 +15,7 @@
 namespace kmap {
 
 class Network;
-class Kmap;
+// class Kmap;
 class Lineal;
 class LinealRange;
 
@@ -83,6 +83,13 @@ auto fetch_descendants( Kmap const& kmap
                       , Uuid const& selected
                       , std::string const& raw )
     -> Result< UuidVec >;
+template< typename KMap
+        , typename Pred >
+[[ nodiscard ]]
+auto fetch_descendants( Kmap const& kmap 
+                      , Uuid const& root
+                      , Pred pred )
+    -> Result< UuidSet >;
 /**
  * Returns descendants of root who are ancestros to direct descendants of path described by descendant_path.
  * 
@@ -175,6 +182,39 @@ auto mirror_basic( Kmap& kmap
                  , Uuid const& dst )
     -> Result< Uuid >;
 
+template< typename KMap
+        , typename Pred >
+[[ nodiscard ]]
+auto fetch_descendants( KMap const& kmap 
+                      , Uuid const& root
+                      , Pred pred )
+    -> Result< UuidSet >
+{
+    auto rv = KMAP_MAKE_RESULT( UuidSet );
+    auto matches = UuidSet{};
+
+    if( pred( root ) )
+    {
+        matches.emplace( root );
+    }
+
+    for( auto const& child : kmap.fetch_children( root ) )
+    {
+        auto const descs = KMAP_TRY( fetch_descendants( kmap, child, pred ) );
+
+        matches.insert( descs.begin(), descs.end() );
+    }
+
+    rv = matches;
+
+    return rv;
+}
+
+/// Returns all descendants of 'root'.
+auto fetch_descendants( Kmap const& kmap
+                      , Uuid const& root )
+    -> Result< UuidSet >;
+
 #if 0
 class Heading
 {
@@ -235,6 +275,7 @@ auto operator/( HeadingPath const& lhs
               , HeadingPath const& rhs )
     -> HeadingPath;
 #endif // 0
+
 
 } // namespace kmap
 

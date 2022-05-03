@@ -5,14 +5,19 @@
  ******************************************************************************/
 #include "emcc_bindings.hpp"
 
+#include "db/autosave.hpp"
 #include "canvas.hpp"
+#include "db.hpp"
 #include "error/cli.hpp"
+#include "error/js_iface.hpp"
 #include "error/master.hpp"
 #include "error/network.hpp"
+#include "event/event.hpp"
 #include "filesystem.hpp"
 #include "io.hpp"
 #include "jump_stack.hpp"
 #include "kmap.hpp"
+#include "option/option.hpp"
 #include "test/master.hpp"
 #include "utility.hpp"
 
@@ -47,6 +52,40 @@ auto register_enum( std::string_view const name )
         reg_enum.value( entry.second.data(), entry.first );
     }
 }
+
+struct Autosave
+{
+    Kmap& kmap_;
+
+    Autosave( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+    
+    auto interval()
+        -> binding::Result< void >
+    {
+        return kmap_.autosave().interval();
+    }
+
+    auto install_event_outlet( std::string const& unit )
+        -> binding::Result< void >
+    {
+        return kmap_.autosave().install_event_outlet( unit );
+    }
+
+    auto uninstall_event_outlet()
+        -> binding::Result< void >
+    {
+        return kmap_.autosave().uninstall_event_outlet();
+    }
+
+    auto set_threshold( uint32_t const threshold )
+        -> void
+    {
+        return kmap_.autosave().set_threshold( threshold );
+    }
+};
 
 // Note: These class wrappers are needed for global types, as Embind doesn't take well to references nor pointers,
 //       so the whole class ends up being copied; thus, I am providing simple wrappers to get copied.
@@ -132,7 +171,16 @@ struct Canvas
         return kmap_.canvas().subdivide( pane, heading, Division{ parsed_orient, base }, elem_type );
     }
 
+    auto update_all_panes()
+        -> binding::Result< void >
+    {
+        return kmap_.canvas().update_all_panes();
+    }
+
+    auto breadcrumb_pane() const -> Uuid { return kmap_.canvas().breadcrumb_pane(); } 
+    auto breadcrumb_table_pane() const -> Uuid { return kmap_.canvas().breadcrumb_table_pane(); } 
     auto cli_pane() const -> Uuid { return kmap_.canvas().cli_pane(); } 
+    auto completion_overlay() const -> Uuid { return kmap_.canvas().completion_overlay(); }
     auto editor_pane() const -> Uuid { return kmap_.canvas().editor_pane(); } 
     auto network_pane() const -> Uuid { return kmap_.canvas().network_pane(); }
     auto preview_pane() const -> Uuid { return kmap_.canvas().preview_pane(); }
@@ -159,8 +207,6 @@ struct Cli
     {
         auto& kmap = Singleton::instance();
 
-        KMAP_LOG_LINE();
-        
         return kmap.cli().on_key_down( key
                                      , is_ctrl 
                                      , is_shift
@@ -189,6 +235,50 @@ struct Cli
     }
 };
 
+struct Database
+{
+    Kmap& kmap_;
+
+    Database( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto init_db_on_disk( std::string const& path )
+        -> binding::Result< void >
+    {
+        return kmap_.database().init_db_on_disk( kmap_root_dir / path );
+    }
+
+    auto flush_delta_to_disk()
+        -> binding::Result< void >
+    {
+        return kmap_.database().flush_delta_to_disk();
+    }
+
+    auto has_file_on_disk()
+        -> bool
+    {
+        return kmap_.database().has_file_on_disk();
+    }
+};
+
+struct EventStore
+{
+    Kmap& kmap_;
+
+    EventStore( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto fire_event( std::vector< std::string > const& requisites )
+        -> Result< void >
+    {
+        return kmap_.event_store().fire_event( requisites | ranges::to< std::set >() );
+    }
+};
+
 struct JumpStack
 {
     auto jump_in( Uuid const& node )
@@ -198,6 +288,34 @@ struct JumpStack
 
         kmap.jump_stack().jump_in( node );
     }
+};
+
+struct Network
+{
+    Network( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto center_viewport_node( Uuid const& node )
+        -> void
+    {
+        kmap_.network().center_viewport_node( node );
+    }
+
+    auto install_keydown_handler()
+        -> binding::Result< void >
+    {
+        return kmap_.network().install_keydown_handler();
+    }
+
+    auto underlying_js_network()
+        -> emscripten::val
+    {
+        return *kmap_.network().underlying_js_network();
+    }
+
+    Kmap& kmap_;
 };
 
 struct TextArea
@@ -246,10 +364,36 @@ struct TextArea
     Kmap& kmap_;
 };
 
+auto autosave()
+    -> binding::Autosave
+{
+    return Autosave{ Singleton::instance() };
+}
+
+auto apply_options()
+    -> binding::Result< void >
+{
+    auto opt = OptionStore{ Singleton::instance() };
+
+    return opt.apply_all();
+}
+
 auto canvas()
     -> binding::Canvas
 {
     return binding::Canvas{ Singleton::instance() };
+}
+
+auto event_store()
+    -> binding::EventStore
+{
+    return binding::EventStore{ Singleton::instance() };
+}
+
+auto network()
+    -> binding::Network
+{
+    return binding::Network{ Singleton::instance() };
 }
 
 auto text_area()
@@ -428,19 +572,27 @@ auto create_child( Uuid const& parent
                             , title );
 }
 
+auto database()
+    -> binding::Database
+{
+    return binding::Database{ Singleton::instance() };
+}
+
 auto delete_alias( Uuid const& node )
     -> binding::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
 
-    return kmap.delete_alias( node );
+    return kmap.erase_alias( node );
 }
 
 auto delete_children( Uuid const& parent )
-    -> binding::Result< std::string >
+    -> binding::Result< std::string > // TODO: Why is this returning std::string? Think it should be void.
 {
     auto& kmap = Singleton::instance();
-    auto const res = kmap.delete_children( parent );
+    auto const res = view::root( parent )
+                   | view::child 
+                   | view::erase_node( kmap );
     
     if( !res )
     {
@@ -457,15 +609,15 @@ auto delete_node( Uuid const& node )
 {
     auto& kmap = Singleton::instance();
 
-    return kmap.delete_node( node );
+    return kmap.erase_node( node );
 }
 
 auto focus_network()
-    -> void
+    -> binding::Result< void >
 {
     auto& kmap = Singleton::instance();
     
-    kmap.focus_network();
+    return kmap.focus_network();
 }
 
 auto fs_path_exists( std::string const& path )
@@ -498,6 +650,15 @@ auto fetch_children( Uuid const& parent )
     auto const& kmap = Singleton::instance();
 
     return kmap.fetch_children( parent ) | to< UuidVec >();
+}
+
+auto has_delta()
+    -> bool 
+{
+    auto const& kmap = Singleton::instance();
+    auto const& db = kmap.database();
+
+    return db.has_delta();
 }
 
 auto is_alias( Uuid const& node )
@@ -547,6 +708,7 @@ auto is_lineal( Uuid const& root
                          , node );
 }
 
+// TODO: This is incorrect. A heading is not identical to a heading path.
 auto is_valid_heading( std::string const& heading )
     -> binding::Result< std::string >
 {
@@ -639,7 +801,7 @@ auto move_node( Uuid const& src
 
 auto move_body( Uuid const& src
               , Uuid const& dst )
-    -> bool
+    -> binding::Result< void >
 {
     auto& kmap = Singleton::instance();
 
@@ -647,11 +809,11 @@ auto move_body( Uuid const& src
 }
 
 auto on_leaving_editor()
-    -> void
+    -> binding::Result< void >
 {
     auto& kmap = Singleton::instance();
     
-    kmap.on_leaving_editor();
+    return kmap.on_leaving_editor();
 }
 
 auto parse_cli( std::string const& input )
@@ -660,6 +822,25 @@ auto parse_cli( std::string const& input )
     auto& kmap = Singleton::instance();
     
     kmap.parse_cli( input );
+}
+
+auto present_time()
+    -> std::string
+{
+    return std::to_string( kmap::present_time() );
+}
+
+auto std_exception_to_string( intptr_t const exception_ptr )
+    -> std::string
+{
+    return fmt::format( "{}", std::string( reinterpret_cast< std::exception* >( exception_ptr )->what() ) );
+}
+
+auto print_std_exception( intptr_t const exception_ptr )
+    -> void
+{
+    fmt::print( "std::exception from exception_ptr:\n" );
+    fmt::print( "{}\n", std_exception_to_string( exception_ptr ) );
 }
 
 auto travel_down()
@@ -716,7 +897,7 @@ auto update_body( Uuid const& node
 {
     auto& kmap = Singleton::instance();
     
-    kmap.update_body( node, content );
+    KMAP_TRY( kmap.update_body( node, content ) );
 
     // TODO: Return result from 'update_*' in case error occurred.
     return kmap::Result< std::string >{ "updated" };
@@ -728,7 +909,7 @@ auto update_heading( Uuid const& node
 {
     auto& kmap = Singleton::instance();
     
-    kmap.update_heading( node, content );
+    KMAP_TRY( kmap.update_heading( node, content ) );
 
     // TODO: Return result from 'update_*' in case error occurred.
     return kmap::Result< std::string >{ "updated" };
@@ -740,7 +921,7 @@ auto update_title( Uuid const& node
 {
     auto& kmap = Singleton::instance();
 
-    kmap.update_title( node, content );
+    KMAP_TRY( kmap.update_title( node, content ) );
 
     // TODO: Return result from 'update_*' in case error occurred.
     return kmap::Result< std::string >{ "updated" };
@@ -783,10 +964,16 @@ auto root_node()
     return kmap.root_node_id();
 }
 
-auto run_unit_tests()
+auto run_unit_tests( std::string const& arg )
     -> binding::Result< std::string >
 {
-    auto const res = kmap::run_unit_tests();
+    // Automatically append standard options.
+    auto const cmd_args = StringVec{ "kmap"
+                                    , "--show_progress=true"
+                                    , "--report_level=detailed"
+                                    , "--log_level=all"
+                                    , io::format( "--run_test={}\n", arg ) };
+    auto const res = kmap::run_unit_tests( cmd_args );
 
     if( res == 0 )
     {
@@ -849,6 +1036,21 @@ auto make_success( std::string const& msg )
     return kmap::Result< std::string >( msg );
 }
 
+auto make_eval_failure( std::string const& msg )
+    -> binding::Result< void >
+{
+    auto res = Result< void >{ KMAP_MAKE_ERROR_MSG( error_code::js::js_exception, msg ) };
+    auto bound_result = binding::Result< void >{ res };
+
+    return bound_result;
+}
+
+auto make_eval_success()
+    -> binding::Result< void >
+{
+    return binding::Result< void >{ kmap::Result< void >{ outcome::success() } };
+}
+
 auto sort_children( Uuid const& parent )
     -> binding::Result< std::string > // TODO: return Result< void >? And let caller create a string success?
 {
@@ -889,6 +1091,8 @@ EMSCRIPTEN_BINDINGS( kmap_module )
 {
     // function( "edit_body", &kmap::binding::edit_body );
     // function( "fetch_nodes", &kmap::binding::fetch_nodes ); // This fetches one or more nodes.
+    function( "autosave", &kmap::binding::autosave );
+    function( "apply_options", &kmap::binding::apply_options );
     function( "canvas", &kmap::binding::canvas );
     function( "cli", &kmap::binding::cli );
     function( "complete_child_heading", &kmap::binding::complete_child_heading );
@@ -899,9 +1103,13 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "count_descendants", &kmap::binding::count_descendants );
     function( "create_alias", &kmap::binding::create_alias );
     function( "create_child", &kmap::binding::create_child );
+    function( "database", &kmap::binding::database );
     function( "delete_alias", &kmap::binding::delete_alias );
     function( "delete_children", &kmap::binding::delete_children );
     function( "delete_node", &kmap::binding::delete_node );
+    function( "eval_failure", &kmap::binding::make_eval_failure );
+    function( "eval_success", &kmap::binding::make_eval_success );
+    function( "event_store", &kmap::binding::event_store );
     function( "execute_sql", &kmap::binding::execute_sql );
     function( "failure", &kmap::binding::make_failure );
     function( "fetch_above", &kmap::binding::fetch_above );
@@ -916,6 +1124,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "fetch_parent", &kmap::binding::fetch_parent );
     function( "focus_network", &kmap::binding::focus_network );
     function( "fs_path_exists", &kmap::binding::fs_path_exists );
+    function( "has_delta", &kmap::binding::has_delta );
     function( "is_alias", &kmap::binding::is_alias );
     function( "is_alias_pair", &kmap::binding::is_alias_pair );
     function( "is_ancestor", &kmap::binding::is_ancestor );
@@ -930,8 +1139,12 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "map_headings", &kmap::binding::map_headings );
     function( "move_body", &kmap::binding::move_body );
     function( "move_node", &kmap::binding::move_node );
+    function( "network", &kmap::binding::network );
     function( "on_leaving_editor", &kmap::binding::on_leaving_editor );
     function( "parse_cli", &kmap::binding::parse_cli );
+    function( "present_time", &kmap::binding::present_time );
+    function( "std_exception_to_string", &kmap::binding::std_exception_to_string );
+    function( "print_std_exception", &kmap::binding::print_std_exception );
     function( "resolve_alias", &kmap::binding::resolve_alias );
     function( "root_node", &kmap::binding::root_node );
     function( "run_unit_tests", &kmap::binding::run_unit_tests );
@@ -955,9 +1168,18 @@ EMSCRIPTEN_BINDINGS( kmap_module )
 
     function( "view_body", &kmap::binding::view_body );
 
+    class_< kmap::binding::Autosave >( "Autosave" )
+        .function( "interval", &kmap::binding::Autosave::interval )
+        .function( "install_event_outlet", &kmap::binding::Autosave::install_event_outlet )
+        .function( "uninstall_event_outlet", &kmap::binding::Autosave::uninstall_event_outlet )
+        .function( "set_threshold", &kmap::binding::Autosave::set_threshold )
+        ;
     class_< kmap::binding::Canvas >( "Canvas" )
+        .function( "breadcrumb_pane", &kmap::binding::Canvas::breadcrumb_pane )
+        .function( "breadcrumb_table_pane", &kmap::binding::Canvas::breadcrumb_table_pane )
         .function( "cli_pane", &kmap::binding::Canvas::cli_pane )
         .function( "complete_path", &kmap::binding::Canvas::complete_path )
+        .function( "completion_overlay", &kmap::binding::Canvas::completion_overlay )
         .function( "editor_pane", &kmap::binding::Canvas::editor_pane )
         .function( "fetch_base", &kmap::binding::Canvas::fetch_base )
         .function( "fetch_orientation", &kmap::binding::Canvas::fetch_orientation )
@@ -971,6 +1193,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
         .function( "reorient", &kmap::binding::Canvas::reorient )
         .function( "reveal", &kmap::binding::Canvas::reveal )
         .function( "text_area_pane", &kmap::binding::Canvas::text_area_pane )
+        .function( "update_all_panes", &kmap::binding::Canvas::update_all_panes )
         .function( "workspace_pane", &kmap::binding::Canvas::workspace_pane )
         ;
     class_< kmap::binding::Cli >( "Cli" )
@@ -980,8 +1203,21 @@ EMSCRIPTEN_BINDINGS( kmap_module )
         .function( "on_key_down", &kmap::binding::Cli::on_key_down )
         .function( "reset_all_preregistered", &kmap::binding::Cli::reset_all_preregistered )
         ;
+    class_< kmap::binding::Database >( "Database" )
+        .function( "init_db_on_disk", &kmap::binding::Database::init_db_on_disk )
+        .function( "flush_delta_to_disk", &kmap::binding::Database::flush_delta_to_disk )
+        .function( "has_file_on_disk", &kmap::binding::Database::has_file_on_disk )
+        ;
+    class_< kmap::binding::EventStore >( "EventStore" )
+        .function( "fire_event", &kmap::binding::EventStore::fire_event )
+        ;
     class_< kmap::binding::JumpStack >( "JumpStack" )
         .function( "jump_in", &kmap::binding::JumpStack::jump_in )
+        ;
+    class_< kmap::binding::Network >( "Network" )
+        .function( "center_viewport_node", &kmap::binding::Network::center_viewport_node )
+        .function( "install_keydown_handler", &kmap::binding::Network::install_keydown_handler )
+        .function( "underlying_js_network", &kmap::binding::Network::underlying_js_network )
         ;
     class_< kmap::binding::TextArea >( "TextArea" )
         .function( "focus_editor", &kmap::binding::TextArea::focus_editor )

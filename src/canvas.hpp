@@ -19,16 +19,17 @@ namespace kmap {
 // If we assert that /misc.window.canvas cannot be renamed nor moved, then it's ID can safely be dynamic, as lookup "/misc.window.canvas" will be reliable.
 // TODO: Vary these IDs more. Avoid future conflicts in case somewhere else these hardcoded UUIDs are copied and a single byte changed.
 // auto const inline canvas_uuid = Uuid{ 0xfe, 0xae, 0xb8, 0x7a, 0xf2, 0x7f, 0x42, 0x22, 0xa8, 0x00, 0xbb, 0x5c, 0x67, 0xf7, 0xe3, 0x24 };
-auto const inline breadcrumb_uuid   = Uuid{ 0x5c, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
-auto const inline cli_uuid   = Uuid{ 0x5d, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
-auto const inline editor_uuid   = Uuid{ 0x5f, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
-auto const inline network_uuid   = Uuid{ 0x5b, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
-auto const inline preview_uuid   = Uuid{ 0x5e, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
-auto const inline text_area_uuid = Uuid{ 0xee, 0xd3, 0x06, 0xa4, 0x4e, 0xc3, 0x42, 0xc5, 0x8c, 0x89, 0x4d, 0xa5, 0x29, 0xab, 0x1b, 0x70 };
-auto const inline workspace_uuid = Uuid{ 0x94, 0xee, 0xc8, 0x87, 0x46, 0xbb, 0x40, 0xd8, 0xb2, 0x5d, 0xc4, 0xe4, 0x97, 0x03, 0x3c, 0xcf };
-
-auto set_fwd_breadcrumb( std::string_view const text )
-    -> bool;
+auto const inline util_canvas_uuid        = Uuid{ 0x5b, 0x00, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 }; // Canvas used exclusively for utility computations (e.g., text measurements).
+auto const inline breadcrumb_uuid         = Uuid{ 0x5c, 0x00, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline breadcrumb_table_uuid   = Uuid{ 0x5c, 0x01, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline breadcrumb_fill_uuid    = Uuid{ 0x5c, 0x02, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline cli_uuid                = Uuid{ 0x5d, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline editor_uuid             = Uuid{ 0x5f, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline network_uuid            = Uuid{ 0x5b, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline preview_uuid            = Uuid{ 0x5e, 0xd4, 0x51, 0x26, 0x74, 0xac, 0x4a, 0x5c, 0xb7, 0xf6, 0xa4, 0x86, 0xb2, 0x94, 0x10, 0x33 };
+auto const inline text_area_uuid          = Uuid{ 0xee, 0xd3, 0x06, 0xa4, 0x4e, 0xc3, 0x42, 0xc5, 0x8c, 0x89, 0x4d, 0xa5, 0x29, 0xab, 0x1b, 0x70 };
+auto const inline workspace_uuid          = Uuid{ 0x94, 0xee, 0xc8, 0x87, 0x46, 0xbb, 0x40, 0xd8, 0xb2, 0x5d, 0xc4, 0xe4, 0x97, 0x03, 0x3c, 0xcf };
+auto const inline completion_overlay_uuid = Uuid{ 0xda, 0xe5, 0x12, 0xb0, 0xc1, 0x19, 0x4c, 0xc7, 0xb1, 0x6e, 0xc4, 0xd4, 0x57, 0x53, 0x8f, 0x78 };
 
 enum class Orientation
 {
@@ -66,9 +67,17 @@ auto operator<<( std::ostream& lhs
 auto fetch_canvas_root( Kmap& kmap )
     -> Result< Uuid >;
 [[ nodiscard ]]
+auto fetch_overlay_root( Kmap& kmap )
+    -> Result< Uuid >;
+[[ nodiscard ]]
 auto fetch_subdiv_root( Kmap& kmap )
     -> Result< Uuid >;
 
+/**
+ * It should be noted that subdivisions, and their hierarchies, are represented as nodes, so all actions except for "update_*" change the node
+ * description, and not the HTML itself. It is for "update" to apply these representations to the HTML.
+ * 
+ */
 class Canvas
 {
 public:
@@ -77,6 +86,10 @@ public:
     [[ nodiscard ]]
     auto complete_path( std::string const& path )
         -> StringVec;
+    auto create_overlay( Uuid const& id
+                       , std::string const& heading
+                       , std::string const& elem_type )
+        -> Result< Uuid >;
     auto create_subdivision( Uuid const& parent
                            , Uuid const& child
                            , std::string const& heading
@@ -88,6 +101,10 @@ public:
                            , Division const& subdiv
                            , std::string const& elem_type )
         -> Result< Uuid >;
+    auto delete_pane( Uuid const& pane )
+        -> Result< void >;
+    auto delete_subdivisions( Uuid const& pane )
+        -> Result< void >;
     [[ nodiscard ]]
     auto dimensions( Uuid const& target )
         -> Result< Dimensions >;
@@ -100,12 +117,21 @@ public:
     [[ nodiscard ]]
     auto fetch_parent_pane( Uuid const& node )
         -> Result< Uuid >;
+    [[ nodiscard ]]
+    auto fetch_subdivisions( Uuid const& pane )
+        -> Result< UuidSet >;
     auto focus( Uuid const& pane )
         -> Result< void >;
     [[ nodiscard ]]
     auto height() const
         -> uint32_t;
     auto hide( Uuid const& pane )
+        -> Result< void >;
+    auto init_event_callbacks()
+        -> Result< void >;
+    auto install_events()
+        -> Result< void >;
+    auto install_options()
         -> Result< void >;
     auto make_subdivision( Uuid const& target
                          , Division const& subdiv )
@@ -114,6 +140,9 @@ public:
     auto orient( Uuid const& pane
                , Orientation const& orientation )
         -> Result< void >;
+    [[ nodiscard ]]
+    auto is_overlay( Uuid const& node )
+        -> bool;
     [[ nodiscard ]]
     auto is_pane( Uuid const& node )
         -> bool;
@@ -137,9 +166,13 @@ public:
         -> Result< void >;
     auto reset()
         -> Result< void >;
+    auto reset_breadcrumb( Uuid const& supdiv )
+        -> Result< Uuid >;
     auto reset_root()
         -> Result< Uuid >;
     auto reveal( Uuid const& pane )
+        -> Result< void >;
+    auto set_breadcrumb( UuidVec const& bc )
         -> Result< void >;
     auto subdivide( Uuid const& parent_pane
                   , Uuid const& pane_id
@@ -152,6 +185,8 @@ public:
                   , Division const& subdiv
                   , std::string const& elem_type )
         -> Result< Uuid >;
+    auto update_all_panes()
+        -> Result< void >;
     auto update_pane( Uuid const& pane )
         -> Result< void >;
     auto update_pane_descending( Uuid const& root ) // TODO: Lineal< window_root, pane >
@@ -163,7 +198,16 @@ public:
         -> uint32_t;
 
     [[ nodiscard ]]
+    auto breadcrumb_fill_pane() const
+        -> Uuid;
+    [[ nodiscard ]]
     auto breadcrumb_pane() const
+        -> Uuid;
+    [[ nodiscard ]]
+    auto breadcrumb_table_pane() const
+        -> Uuid;
+    [[ nodiscard ]]
+    auto completion_overlay() const
         -> Uuid;
     [[ nodiscard ]]
     auto cli_pane() const
@@ -197,14 +241,12 @@ protected:
 
 private:
     Kmap& kmap_;
+    uint32_t next_tabindex_ = 0; // tabIndex enables divs to be focus-able, so give each an increment.
 };
 
 // exists( std::string_view const div ) 
 // operator[]( std::string_view const div ) fetch division
 // begin/end for iterating through all subdivisions. Just return begin/end to map< path, Division >
-
-// TODO:
-// https://www.w3schools.com/jsref/event_onresize.asp - use callback for "onresize" to recalculate Divisions when window changes size.
 
 } // namespace kmap
 

@@ -102,15 +102,12 @@ auto process_search_results( Kmap& kmap
                                           "Hits: {}<br>"
                                         , srgx
                                         , sorted_matches.size() );
-        kmap.update_body( *search_root
-                        ,  details );
-        kmap.update_title( *search_root
-                          , srgx );
+        KMAP_TRY( kmap.update_body( *search_root,  details ) );
+        KMAP_TRY( kmap.update_title( *search_root, srgx ) );
     }
 
     for( auto const [ idx, id ] : views::enumerate( sorted_matches ) )
     {
-        fmt::print( "id: {}\n", to_string( id ) );
         auto const iid = kmap.create_child( *search_root
                                            , fmt::format( "match_{}"
                                                         , idx ) );
@@ -119,12 +116,9 @@ auto process_search_results( Kmap& kmap
                                         , kmap.absolute_ipath_flat( id )
                                         , kmap.count_ancestors( id ) );
 
-        kmap.update_body( iid.value()
-                        , details );
+        KMAP_TRY( kmap.update_body( iid.value(), details ) );
 
-        auto const aid = kmap.create_alias( id
-                                          , iid.value() );
-
+        auto const aid = kmap.create_alias( id, iid.value() );
     }
 
     KMAP_TRY( kmap.select_node( *search_root ) );
@@ -146,6 +140,8 @@ auto search_bodies( Kmap& kmap )
                 BC_ASSERT( args.size() >= 1 );
             })
         ;
+ 
+        KMAP_THROW_EXCEPTION_MSG( "current search is disabled, refactoring needed" );
 
         auto& db = kmap.database();
         auto const srgx = flatten( args, ' ' );
@@ -172,6 +168,8 @@ auto search_bodies_first( Kmap& kmap )
                 BC_ASSERT( args.size() >= 1 );
             })
         ;
+
+        KMAP_THROW_EXCEPTION_MSG( "current search is disabled, refactoring needed" );
 
         auto& db = kmap.database();
         auto const srgx = flatten( args, ' ' );

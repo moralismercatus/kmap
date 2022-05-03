@@ -12,6 +12,7 @@ namespace utf = boost::unit_test;
 
 namespace kmap::test {
 
+// TODO: I think we don't want this nested under kmap_iface; rather, we want kmap iface to be a dependency (depends_on()) where relevant.
 BOOST_AUTO_TEST_SUITE( kmap_iface )
 BOOST_AUTO_TEST_SUITE( node_manip 
                      ,
@@ -113,13 +114,9 @@ BOOST_AUTO_TEST_CASE( copy_body
     create_lineages( "1"
                    , "2" );
     
-    kmap.update_body( nodes[ "1" ]
-                    , content_1 );
-    kmap.update_body( nodes[ "2" ]
-                    , content_2 );
-    kmap.copy_body( nodes[ "1" ]
-                  , nodes[ "2" ] );
-    
+    BOOST_TEST( !kmap.update_body( nodes[ "1" ], content_1 ).has_error() );
+    BOOST_TEST( !kmap.update_body( nodes[ "2" ], content_2 ).has_error() );
+    BOOST_TEST( !kmap.copy_body( nodes[ "1" ], nodes[ "2" ] ).has_error() );
     BOOST_TEST( kmap.fetch_body( nodes[ "1" ] ).has_value() );
     BOOST_TEST( content_1 == kmap.fetch_body( nodes[ "1" ] ).value() );
     BOOST_TEST( content_1 == kmap.fetch_body( nodes[ "2" ] ).value() );

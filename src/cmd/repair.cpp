@@ -7,8 +7,10 @@
 
 #include "../common.hpp"
 #include "../contract.hpp"
+#include "../db.hpp"
 #include "../emcc_bindings.hpp"
 #include "../error/filesystem.hpp"
+#include "../error/master.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
@@ -40,9 +42,11 @@ auto repair_missing_entry( Database& db
                          , RepairFn repair )
     -> void
 {
-    for( auto const nid : db.fetch_nodes() )
+    auto const& nt = db.fetch< db::NodeTable >();
+
+    for( auto const& ti : nt )
     {
-        assert( db.exists( nid ) );
+        auto const nid = ti.key();
 
         if( !check( nid ) )
         {
@@ -63,11 +67,14 @@ auto repair_missing_entry( Database& db
 auto repair_orderings( Database& db )
     -> void
 {
+    KMAP_THROW_EXCEPTION_MSG( "TODO: Impl." );
+
+#if 0
     for( auto const pid : db.fetch_nodes() )
     {
         auto const children = [ & ]
         {
-            auto const rcids = db.fetch_children( pid );
+            auto const rcids = KMAP_TRYE( db.fetch_children( pid ) );
             auto const ass = db.fetch_alias_sources( pid );
 
             return views::concat( rcids
@@ -97,7 +104,7 @@ auto repair_orderings( Database& db )
         {
             fmt::print( "[repair.state] Repairing child ordering for: [ {}, {} ]\n"
                         , to_string( pid )
-                        , *db.fetch_heading( pid ) );
+                        , db.fetch_heading( pid ).value() );
             
             db.append_child_to_ordering( pid
                                        , child_map.at( e ) );
@@ -106,12 +113,13 @@ auto repair_orderings( Database& db )
         {
             fmt::print( "[repair.state] Repairing child ordering for: [ {}, {} ]\n"
                         , to_string( pid )
-                        , *db.fetch_heading( pid ) );
+                        , db.fetch_heading( pid ).value() );
             
             db.remove_from_ordering( pid
                                    , e );
         }
     }
+#endif // 0
 }
 
 // TODO: Account for aliases. This does not account for child alias headings that conflict.
@@ -123,9 +131,9 @@ auto repair_conflicting_headings( Database& db )
 {
     for( auto const pid : db.fetch_nodes() )
     {
-        auto const cids = db.fetch_children( pid );
+        auto const cids = KMAP_TRYE( db.fetch_children( pid ) );
         auto chs = cids
-                 | views::transform( [ & ]( auto const& e ){ return std::make_pair( e, *db.fetch_heading( e ) ); } )
+                 | views::transform( [ & ]( auto const& e ){ return std::make_pair( e, db.fetch_heading( e ).value() ); } )
                  | to_vector;
 
         for( auto it1 = chs.begin()
@@ -140,13 +148,12 @@ auto repair_conflicting_headings( Database& db )
                  && it1->second == it2->second )
                 {
                     fmt::print( "[repair.state] Repairing conflicting child heading for: [ {}, {} ]\n"
-                              , *db.fetch_heading( it1->first )
-                              , *db.fetch_heading( it2->first ) );
+                              , db.fetch_heading( it1->first ).value()
+                              , db.fetch_heading( it2->first ).value() );
                     
-                    auto const new_heading = fmt::format( "{}_conflict", *db.fetch_heading( it2->first ) );
+                    auto const new_heading = fmt::format( "{}_conflict", db.fetch_heading( it2->first ).value() );
 
-                    db.update_heading( it2->first
-                                     , new_heading );
+                    KMAP_TRYE( db.update_heading( it2->first, new_heading ) );
                     it1->second = new_heading;
                 }
             }
@@ -228,9 +235,7 @@ auto check_state( Database const& db )
     check_single( headings::headings{}, "heading" );
     check_single( titles::titles{}, "title" );
     check_single( bodies::bodies{}, "body" );
-    check_single( genesis_times::genesis_times{}, "genesis_time" );
     check_single( resources::resources{}, "resource" );
-    check_single( original_resource_sizes::original_resource_sizes{}, "original_resource_size" );
 
     {
         io::print( "[log] checking: children\n" );
@@ -271,17 +276,18 @@ auto check_state( Database const& db )
     {
         io::print( "[log] checking: child_ordering\n" );
 
-        auto tbl = child_orderings::child_orderings{};
+        KMAP_THROW_EXCEPTION_MSG( "TODO: Impl." );
+        // auto tbl = child_orderings::child_orderings{};
 
-        for( auto rows = db.execute( select( all_of( tbl ) ).from( tbl ).unconditionally() )
-           ; auto const& e : rows )
-        {
-            if( !( all_nodes.contains( std::string{ e.parent_uuid } ) ) )
-            {
-                io::print( "abnormality detected: child_ordering:({}) does not correspond to any entry in nodes table\n"
-                         , std::string{ e.parent_uuid } );
-            }
-        }
+        // for( auto rows = db.execute( select( all_of( tbl ) ).from( tbl ).unconditionally() )
+        //    ; auto const& e : rows )
+        // {
+        //     if( !( all_nodes.contains( std::string{ e.parent_uuid } ) ) )
+        //     {
+        //         io::print( "abnormality detected: child_ordering:({}) does not correspond to any entry in nodes table\n"
+        //                  , std::string{ e.parent_uuid } );
+        //     }
+        // }
     }
     {
         io::print( "[log] checking: for unbegotten nodes. Should only be a single unbegotten (root)\n" );
@@ -314,7 +320,9 @@ auto check_state( FsPath const& path )
 
     if( file_exists( fp ) )
     {
-        auto const db = Database{ fp };
+        auto db = Database{};
+
+        KMAP_TRYE( db.init_db_on_disk( fp ) );
 
         rv = check_state( db ); 
     }
@@ -339,7 +347,9 @@ auto repair_state( FsPath const& path )
     {
         back_up_state( fp );
 
-        auto db = Database( fp );
+        auto db = Database{};
+
+        KMAP_TRYE( db.init_db_on_disk( fp ) );
 
         db.create_tables();
 
@@ -363,11 +373,11 @@ auto repair_state( FsPath const& path )
                             , [ &db ]( auto const& e ) -> bool { return db.fetch_body( e ).has_value(); }
                             , [ &db ]( auto const& e ){ auto t = bodies::bodies{}; 
                                                         db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.body = "" ) ); } );
-        repair_missing_entry( db
-                            , "genesis_time"
-                            , [ &db ]( auto const& e ) -> bool { return db.fetch_genesis_time( e ).has_value(); }
-                            , [ &db ]( auto const& e ){ auto t = genesis_times::genesis_times{}; 
-                                                        db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.unix_time = present_time() ) ); } );
+        // repair_missing_entry( db
+        //                     , "genesis_time"
+        //                     , [ &db ]( auto const& e ) -> bool { return db.fetch_genesis_time( e ).has_value(); }
+        //                     , [ &db ]( auto const& e ){ auto t = genesis_times::genesis_times{}; 
+        //                                                 db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.unix_time = present_time() ) ); } );
         fmt::print( "Analyzing heading conflicts...\n" );
         repair_conflicting_headings( db ); // depends_on( "repair_missing_nodes" )
 

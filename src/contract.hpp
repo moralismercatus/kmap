@@ -17,8 +17,7 @@
 #define BC_POST( ... ) BOOST_CONTRACT_POSTCONDITION( __VA_ARGS__ )
 #define BC_OLDOF( ... ) BOOST_CONTRACT_OLDOF( __VA_ARGS__ )
 // #define BC_ASSERT( ... ) BOOST_CONTRACT_ASSERT( __VA_ARGS__ )
-// TODO: Figure out why BOOST_CONTRACT_ASSERT is malfuctioning with emcc. Using
-// regular assert for the time being.
+// TODO: Figure out why BOOST_CONTRACT_ASSERT is malfuctioning with emcc. Using regular assert for the time being.
 #define BC_ASSERT( ... ) assert( __VA_ARGS__ )
 // Note: Using BOOST_TEST_REQUIRE, as this seems to be the only kind of assertion capable of printing details about the types involved,
 //       at the expensive of having to provide ostream overloads for the respective types.

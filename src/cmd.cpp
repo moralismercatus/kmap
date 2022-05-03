@@ -7,7 +7,6 @@
 
 #include "arg.hpp"
 // #include "cmd/bookmark.hpp"
-#include "cmd/call_map.hpp"
 #include "cmd/cardinality.hpp"
 #include "cmd/command.hpp"
 #include "cmd/conclusion.hpp"
@@ -115,32 +114,6 @@ auto absolute_path( Kmap& kmap )
         else
         {
             rv = kmap.absolute_path_flat( *target );
-        }
-
-        return rv;
-    };
-}
-
-auto run_unit_tests( Kmap& kmap )
-{
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
-    {
-        (void)kmap;
-        (void)args;
-
-        fmt::print( "[Notice] Unloading Current and Loading Testing Environment.\n" );
-
-        auto rv = KMAP_MAKE_RESULT( std::string );
-        auto output = kmap::run_unit_tests( /*StringVec{}*/ );
-
-        if( output == 0 )
-        {
-             rv = fmt::format( "unit test result: {}", output );
-        }
-        else
-        {
-             rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
-                                     , fmt::format( "unit test result: {}", output ) );
         }
 
         return rv;
@@ -311,7 +284,7 @@ auto jump_in( Kmap& kmap )
         }
         else
         {
-            kmap.jump_to( *rv );
+            KMAP_TRY( kmap.jump_to( *rv ) );
 
             return fmt::format( "{} entered", kmap.fetch_title( *rv ).value() );
         }
@@ -384,8 +357,7 @@ auto edit_title( Kmap& kmap )
             // TODO: this needs to ensure that any aliases dependent on this
             // get dynamically updated as well. The body isn't an issue, as the
             // preview will resolve the alias to the original/real node.
-            kmap.update_title( *target
-                             , text );
+            KMAP_TRY( kmap.update_title( *target, text ) );
 
             return std::string{ "node title open for editing" };
         }
@@ -758,15 +730,6 @@ auto make_core_commands( Kmap& kmap )
         , ArgumentList{}
         , list_commands( kmap )
         }
-    ,   { "load.call.map"
-        , "loads call map"
-        , ArgumentList{}
-            | FsPathArg{ "path to itrace file"
-                       , "loads itrace file at <_>" } 
-            | FsPathArg{ "path to function map file"
-                       , "loads function map file at <_>" } 
-        , load_call_map( kmap )
-        }
     ,   { "load.dot.file"
         , "Reads and parses a DOT file into a node hierarchy at the selected node"
         , ArgumentList{}
@@ -881,14 +844,6 @@ auto make_core_commands( Kmap& kmap )
     //                         , kmap }
     //             | Attr::optional
     //     , resolve_alias( kmap )
-    //     }
-    // ,   { "run.unit.tests"
-    //     , "runs all unit tests"
-    //     , ArgumentList{}
-    //         // | HeadingArg{ "first argument forwarded to boost::unit_test::unit_test_main"
-    //         //           , "forwards <_> to boost::unit_test::unit_test_main" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-    //         //      | Attr::optional
-    //     , run_unit_tests( kmap )
     //     }
     ,   { "search.bodies"
         , "searches node bodies for regex comparison"

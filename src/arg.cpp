@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include "arg.hpp"
 
+#include "db.hpp"
 #include "cli.hpp"
 #include "cmd/command.hpp"
 #include "contract.hpp"

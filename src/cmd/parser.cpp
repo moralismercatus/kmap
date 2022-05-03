@@ -5,6 +5,8 @@
  ******************************************************************************/
 #include "parser.hpp"
 
+#include "error/parser.hpp"
+
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/fusion/include/io.hpp>
 #include <boost/spirit/home/x3.hpp>
@@ -87,7 +89,7 @@ struct javascript_class : ErrorHandler, x3::annotate_on_success {};
 struct code_class : ErrorHandler, x3::annotate_on_success {};
 
 auto parse_body_code( std::string_view const raw )
-    -> Optional< cmd::ast::Code >
+    -> Result< cmd::ast::Code >
 {
     using boost::spirit::x3::with;
     using boost::spirit::x3::ascii::space;
@@ -95,6 +97,7 @@ auto parse_body_code( std::string_view const raw )
     using iterator_type = std::string_view::const_iterator;
     using error_handler_type = boost::spirit::x3::error_handler< iterator_type >;
 
+    auto rv = KMAP_MAKE_RESULT( cmd::ast::Code );
     auto cb_ast = cmd::ast::Code{};
     auto rb = raw.begin();
     auto const re = raw.end();
@@ -111,16 +114,17 @@ auto parse_body_code( std::string_view const raw )
 
     if( r && rb == re )
     {
-        return { cb_ast };
+        rv = cb_ast;
     }
     else
     {
-        // TODO: errstrm.rdbuf() should be returned to the caller somehow (Boost.Outcome?)
-        std::cout << "parse failed" << std::endl;
-        std::cout << errstrm.str() << std::endl;
+        std::cerr << "parse failed" << std::endl;
+        std::cerr << errstrm.str() << std::endl;
 
-        return Optional< cmd::ast::Code >{};
+        rv = KMAP_MAKE_ERROR_MSG( error_code::parser::parse_failed, fmt::format( "Parse Failure: {}\nRaw: {}", errstrm.str(), raw ) );
     }
+
+    return rv;
 }
 
 } // kmap::cmd::parser

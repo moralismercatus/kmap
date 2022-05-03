@@ -6,6 +6,7 @@
 #include "utility.hpp"
 
 #include "contract.hpp"
+#include "db.hpp"
 #include "error/master.hpp"
 #include "error/node_manip.hpp"
 #include "io.hpp"
@@ -208,6 +209,10 @@ auto gen_uuid()
 }
 
 // TODO: Use fstream instead?
+// TODO: Deprecate. Firstly, openssl has these annoying compilation warnings about md5 being deprecated that I can't turn off, so I'm temporarily disabling,
+//       as it's not in use at the moment anyway. Secondly, I should probably use a less collision prone hash, such as SHA1 or SHA256. It's probably overkill, but also
+//       future proof. As it's larger than a UUID, I couldn't use it for the resource node ID; however, I could simply make the hash part of the node's attributes, which
+//       are arbitrary sized. This is probably the way to go.
 auto gen_md5_uuid( FILE* fp )
     -> Uuid
 {
@@ -224,6 +229,7 @@ auto gen_md5_uuid( FILE* fp )
         })
     ;
 
+#if 0
     using std::array;
     using InBuf = array< char
                        , 512 >; 
@@ -251,6 +257,7 @@ auto gen_md5_uuid( FILE* fp )
 
     MD5_Final( rv.data
              , &ctx );
+#endif
 
     return rv;
 }
@@ -272,6 +279,7 @@ auto gen_md5_uuid( std::byte const* data
         })
     ;
 
+#if 0
     auto const chunk_size = size_t{ 512 };
     auto const dend = data + size;
     auto next = [ chunk_size
@@ -318,6 +326,7 @@ auto gen_md5_uuid( std::byte const* data
 
     MD5_Final( rv.data
              , &ctx );
+#endif
 
     return rv;
 }
@@ -372,8 +381,7 @@ auto to_uuids( HeadingPath const& path
 
     for( auto const& e : path )
     {
-        auto const ou = db.fetch_child( e
-                                      , parent );
+        auto const ou = db.fetch_child( parent, e );
 
         if( !ou )
         {
@@ -382,7 +390,7 @@ auto to_uuids( HeadingPath const& path
         }
 
         rv.emplace_back( parent );
-        parent = *ou;
+        parent = ou.value();
     }
 
     return rv;
@@ -683,7 +691,7 @@ auto to_uint64( Uuid const& id )
              , reinterpret_cast< char* >( &tv ) );
 
     // Only first 8 bytes are allowed to contain data.
-    KMAP_ENSURE( rv, tv == 0, error_code::common::conversion_failed );
+    KMAP_ENSURE( tv == 0, error_code::common::conversion_failed );
 
     std::copy( std::begin( id.data ), std::begin( id.data ) + sizeof( uint64_t )
              , reinterpret_cast< char* >( &tv ) );
@@ -713,6 +721,27 @@ auto to_uuid( uint64_t const& id )
 
     std::copy( id_begin, id_end
              , std::begin( rv.data ) );
+
+    return rv;
+}
+
+auto to_uuid( std::string const& s )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    std::stringstream ss{ s };
+    auto id = Uuid{};
+
+    ss >> id;
+
+    if( !ss.fail() )
+    {
+        rv = id;
+    }
+    else
+    {
+        rv = KMAP_MAKE_ERROR_MSG( error_code::common::conversion_failed, fmt::format( "cannot convert '{}' to UUID", s ) );
+    }
 
     return rv;
 }
@@ -933,6 +962,7 @@ auto url_to_heading( std::string const url )
          | to< Heading >();
 }
 
+// TODO: make template< typename TimeUnit > rather than always chrono::seconds.
 auto present_time()
     -> uint64_t
 {
@@ -1032,12 +1062,11 @@ auto merge_trees_internal( Stmts& stmts
         }
         else
         {
-            stmts.move_node( src_child.first
-                           , dst );
+            stmts.move_node( src_child.first, dst );
         }
     }
 
-    stmts.delete_node( src );
+    stmts.erase_node( src );
 }
 
 auto merge_trees( Kmap& kmap
@@ -1103,9 +1132,9 @@ auto print_stacktrace()
 auto copy_body( Kmap& kmap
               , Uuid const& src
               , Uuid const& dst )
-    -> bool
+    -> Result< void >
 {
-    auto rv = false;
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1130,14 +1159,11 @@ auto copy_body( Kmap& kmap
         })
     ;
 
-    if( auto const src_body = kmap.fetch_body( src )
-      ; src_body )
-    {
-        kmap.update_body( dst
-                        , src_body.value() );
+    auto const src_body = KMAP_TRY( kmap.fetch_body( src ) );
+
+    KMAP_TRY( kmap.update_body( dst, src_body ) );
         
-        rv = true;
-    }
+    rv = outcome::success();
 
     return rv;
 }
@@ -1145,9 +1171,9 @@ auto copy_body( Kmap& kmap
 auto move_body( Kmap& kmap
               , Uuid const& src
               , Uuid const& dst )
-    -> bool
+    -> Result< void >
 {
-    auto rv = false;
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1170,15 +1196,10 @@ auto move_body( Kmap& kmap
         })
     ;
 
-    if( copy_body( kmap
-                 , src
-                 , dst ) )
-    {
-        kmap.update_body( src
-                        , "" );
+    KMAP_TRY( copy_body( kmap, src, dst ) );
+    KMAP_TRY( kmap.update_body( src, "" ) ); // TODO: Delete body?
         
-        rv = true;
-    }
+    rv = outcome::success();
 
     return rv;
 }

@@ -75,13 +75,13 @@ auto TextArea::editor_contents()
 auto TextArea::hide_editor()
     -> void
 {
-    kmap_.canvas().hide( kmap_.canvas().editor_pane() );
+    kmap_.canvas().hide( kmap_.canvas().editor_pane() ).value();
 }
 
 auto TextArea::show_editor()
     -> void
 {
-    kmap_.canvas().reveal( kmap_.canvas().editor_pane() );
+    kmap_.canvas().reveal( kmap_.canvas().editor_pane() ).value();
 }
 
 auto TextArea::rebase_pane( float const base )
@@ -89,7 +89,7 @@ auto TextArea::rebase_pane( float const base )
 {
     auto& canvas = kmap_.canvas();
 
-    canvas.rebase( canvas.text_area_pane(), base );
+    canvas.rebase( canvas.text_area_pane(), base ).value();
 }
 
 auto TextArea::rebase_editor_pane( float const base )
@@ -98,7 +98,7 @@ auto TextArea::rebase_editor_pane( float const base )
     auto& canvas = kmap_.canvas();
     auto const pane = canvas.editor_pane();
 
-    canvas.rebase( pane, base );
+    canvas.rebase( pane, base ).value();
 }
 
 auto TextArea::rebase_preview_pane( float const base )
@@ -107,7 +107,7 @@ auto TextArea::rebase_preview_pane( float const base )
     auto& canvas = kmap_.canvas();
     auto const pane = canvas.preview_pane();
 
-    canvas.rebase( pane, base );
+    canvas.rebase( pane, base ).value();
 }
 
 auto TextArea::show_preview( std::string const& text )
@@ -122,13 +122,13 @@ auto TextArea::show_preview( std::string const& text )
     //                          , to_string( canvas.preview_pane() )
     //                          , text ) );
 
-    canvas.reveal( canvas.preview_pane() );
+    canvas.reveal( canvas.preview_pane() ).value();
 }
 
 auto TextArea::hide_preview()
     -> void
 {
-    kmap_.canvas().hide( kmap_.canvas().preview_pane() );
+    kmap_.canvas().hide( kmap_.canvas().preview_pane() ).value();
 }
 
 auto TextArea::resize_preview( std::string const& attr )
@@ -144,7 +144,7 @@ auto TextArea::resize_preview( std::string const& attr )
 auto TextArea::update_pane()
     -> void
 {
-    kmap_.canvas().update_pane( kmap_.canvas().text_area_pane() );
+    kmap_.canvas().update_pane( kmap_.canvas().text_area_pane() ).value();
 }
 
 } // namespace kmap

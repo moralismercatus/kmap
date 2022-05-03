@@ -52,7 +52,7 @@ auto next_fork( Kmap& kmap )
 
         if( target )
         {
-            kmap.jump_to( *target );
+            kmap.jump_to( *target ).value();
 
             return fmt::format( "selected next fork" );
         }
@@ -108,7 +108,7 @@ auto prev_fork( Kmap& kmap )
 
         if( target )
         {
-            kmap.jump_to( *target );
+            kmap.jump_to( *target ).value();
 
             return fmt::format( "selected previous fork" );
         }
@@ -161,7 +161,7 @@ auto next_leaf( Kmap& kmap )
 
         if( target )
         {
-            kmap.jump_to( *target );
+            kmap.jump_to( *target ).value();
 
             return fmt::format( "selected next leaf" );
         }

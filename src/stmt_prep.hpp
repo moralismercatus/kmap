@@ -60,7 +60,7 @@ public:
     auto create_child( Uuid const& parent
                      , Heading const& heading )
         -> Uuid;
-    auto delete_node( Uuid const& id )
+    auto erase_node( Uuid const& id )
         -> void;
     [[ nodiscard ]]
     auto exists( Uuid const& id ) const

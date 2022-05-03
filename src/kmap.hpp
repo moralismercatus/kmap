@@ -11,6 +11,7 @@
 #include "jump_stack.hpp"
 #include "node_fetcher.hpp"
 #include "node_view.hpp"
+#include "path/node_view.hpp"
 #include "text_area.hpp"
 #include "utility.hpp"
 
@@ -18,15 +19,27 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <regex>
 
-namespace kmap
-{
+namespace kmap {
 
+class Canvas;
 class Cli;
 class Database;
 class Environment;
+class EventStore;
 class Network;
-class Canvas;
+class OptionStore;
+
+namespace chrono
+{
+    class Timer;
+}
+
+namespace db
+{
+    class Autosave;
+}
 
 class Kmap
 {
@@ -43,6 +56,12 @@ public:
     Kmap( Kmap const& ) = delete;
     Kmap operator=( Kmap const& ) = delete;
 
+    [[ nodiscard ]]
+    auto autosave()
+        -> db::Autosave&;
+    [[ nodiscard ]]
+    auto autosave() const
+        -> db::Autosave const&;
     auto parse_cli( std::string const& input )
         -> void; // Return simple void to simplify EMCC binding.
     [[ nodiscard ]]
@@ -91,6 +110,16 @@ public:
     auto root_node_id() const
         -> Uuid const&;
     [[ nodiscard ]]
+    auto event_store()
+        -> EventStore&;
+    [[ nodiscard ]]
+    auto option_store()
+        -> OptionStore&;
+    [[ nodiscard ]]
+    auto option_store() const
+        -> OptionStore const&;
+    // TODO [cleanup]: All these abs_path varieties are composables. They are better served with pipes than functions for each composition.
+    [[ nodiscard ]]
     auto absolute_path_uuid( Lineal const& node ) const
         -> UuidPath;
     [[ nodiscard ]]
@@ -112,6 +141,7 @@ public:
     [[ nodiscard ]]
     auto absolute_ipath_flat( Uuid const& id ) const
         -> InvertedHeading;
+    [[ nodiscard ]]
     auto adjust_selected( Uuid const& root ) const
         -> Uuid;
     [[ nodiscard ]]
@@ -129,7 +159,7 @@ public:
                                , std::regex const& geometry ) const
         -> Result< Uuid >;
     [[ nodiscard ]]
-    auto fetch_next_as_if_deleted( Uuid const& node ) const
+    auto fetch_next_selected_as_if_erased( Uuid const& node ) const
         -> Result< Uuid >;
     [[ nodiscard ]]
     auto fetch_visible_nodes_from( Uuid const& id ) const
@@ -146,7 +176,7 @@ public:
                      , Uuid const& child
                      , Heading const& heading )
         -> kmap::Result< Uuid >;
-    // TODO: this must ensure "heading" is a valid heading. If I make a Heading type that cannot be invalid, the problem solves itself.
+    // TODO: This must ensure "heading" is a valid heading. If I make a Heading type that cannot be invalid, the problem solves itself.
     [[ maybe_unused ]]
     auto create_child( Uuid const& parent
                      , Heading const& heading )
@@ -156,7 +186,8 @@ public:
                      , Heading const& heading
                      , Title const& title )
         -> kmap::Result< Uuid >;
-    // TODO: need to convey error somehow e.g. vector< Optional< Uuid > >, or Optional< UuidVec >;
+    // TODO: Need to propagate error: Result< UuidVec >
+    // TODO: Is this even necessary with composible node_view now?
     template< typename... Nodes >
     [[ maybe_unused ]]
     auto create_children( Uuid const& parent
@@ -165,10 +196,13 @@ public:
     {
         auto rv = UuidVec{};
 
+        // TODO: ( rv.emplace_back( KMAP_TRY( create_child( parent, children ) ) ), ... );
         ( rv.emplace_back( create_child( parent, children ).value() ), ... );
 
         return rv;
     }
+    // TODO [cleanup]: A lot of this API can be rid of and replaced with node_view which uses path.hpp API, bypassing this unnecessary API.
+    //                 I think only the fundamentals (core building blocks) really belong in Kmap: create_[child,alias,attr]
     [[ nodiscard ]]
     auto create_descendants( Uuid const& root
                            , Uuid const& selected
@@ -188,6 +222,7 @@ public:
     [[ nodiscard ]]
     auto count_ancestors( Uuid const& node ) const
         -> uint32_t;
+    // TODO [cleanu]: Replace with node_view counterpart.
     [[ nodiscard ]]
     auto count_descendants( Uuid const& root ) const
         -> uint32_t;
@@ -207,19 +242,19 @@ public:
     [[ maybe_unused ]]
     auto copy_body( Uuid const& src
                   , Uuid const& dst )
-        -> bool;
-    [[ nodiscard ]] // TODO: I believe nodiscard is the correct attr. User should always check if the copy was successful.
+        -> Result< void >;
+    [[ nodiscard ]] // TODO: I believe nodiscard is the correct attr. User should always check if the copy was successful. 
     auto copy_state( FsPath const& dst )
-        -> bool;
+        -> bool; // TODO: Replace with Result<>
     [[ nodiscard ]]
     auto move_body( Uuid const& src
                   , Uuid const& dst )
-        -> bool;
+        -> Result< void >;
     [[ nodiscard ]]
     auto move_state( FsPath const& dst )
-        -> bool;
+        -> Result< void >;
     auto set_up_db_root()
-        -> void;
+        -> Result< void >;
     auto set_up_nw_root()
         -> Result< void >;
     [[ maybe_unused ]]
@@ -227,11 +262,11 @@ public:
                               , uint32_t pos )
         -> bool;
     auto update_body( Uuid const& id
-                    , std::string_view const contents )
-        -> void;
+                    , std::string const& contents )
+        -> Result< void >;
     [[ nodiscard ]]
     auto load_state( FsPath const& db_path )
-        -> bool;
+        -> Result< void >;
     [[ maybe_unused ]]
     auto travel_bottom() // TODO: Add unit test for this.
         -> Uuid;
@@ -247,6 +282,10 @@ public:
     auto travel_up()
         -> Result< Uuid >;
     auto reset()
+        -> Result< void >;
+    auto reset_database()
+        -> Result< void >;
+    auto reset_network()
         -> Result< void >;
     auto rename( Uuid const& id
                , Heading const& heading )
@@ -272,27 +311,28 @@ public:
         -> Result< std::pair< Uuid, Uuid > >;
     [[ maybe_unused ]]
     auto select_node( Heading const& heading )
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
     [[ nodiscard ]]
     auto selected_node() const
         -> Uuid;
     auto load_preview( Uuid const& id )
         -> void;
     auto on_leaving_editor()
-        -> void;
+        -> Result< void >;
     auto focus_network()
-        -> void;
+        -> Result< void >;
     auto update_heading( Uuid const& id
                        , Heading const& heading )
-        -> void;
+        -> Result< void >;
     auto update_title( Uuid const& id
                      , Title const& title )
-        -> void;
+        -> Result< void >;
     auto update_alias( Uuid const& from
                      , Uuid const& to )
         -> Result< Uuid >;
     auto update_aliases( Uuid const& descendant )
-        -> void;
+        -> Result< void >;
+    // TODO: Belongs in Network, instead?
     auto color_node( Uuid const& id
                    , Color const& color )
         -> void;
@@ -348,6 +388,7 @@ public:
     [[ nodiscard ]]
     auto fetch_siblings_inclusive_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
+    // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::child | view::to_node_set( kmap ) | view::by_ordering( kmap )?
     [[ nodiscard ]]
     auto fetch_children_ordered( Uuid const& root
                                , Heading const& path ) const
@@ -371,9 +412,9 @@ public:
     [[ nodiscard ]]
     auto fetch_title( Uuid const& id ) const
         -> Result< Title >;
-    [[ nodiscard ]]
-    auto fetch_nodes() const
-        -> UuidUnSet;
+    // [[ nodiscard ]]
+    // auto fetch_nodes() const
+    //     -> UuidUnSet;
     [[ nodiscard ]]
     auto descendant_leaves( Uuid const& root ) const
         -> std::vector< Uuid >;
@@ -437,6 +478,7 @@ public:
     [[ nodiscard ]]
     auto fetch_aliased_ancestry( Uuid const& id ) const
         -> std::vector< Uuid >;
+    // TODO [cleanup]: Belongs in node_view, I think: root | view::child( view::all_of( n1, n2 ) ) | view::are_siblings( kmap );
     [[ nodiscard ]]
     auto are_siblings( Uuid const& n1 // TODO: Replace with initializer_list to allow for arbitrary number of nodes?
                      , Uuid const& n2 ) const
@@ -448,6 +490,7 @@ public:
     [[ nodiscard ]]
     auto is_ancestry_aliased( Uuid const& id ) const
         -> bool;
+    // TODO [cleanup]: Can be replaced by node_view.
     template< typename... Nodes >
     [[ nodiscard ]]
     auto is_child( Uuid const& parent
@@ -456,6 +499,7 @@ public:
     {
         return ( ... && is_child_internal( parent, children ) );
     }
+    // TODO [cleanup]: Can be replaced by node_view.
     [[ nodiscard ]]
     auto is_child( std::vector< Uuid > const& parents
                  , Uuid const& child ) const
@@ -470,6 +514,7 @@ public:
     [[ nodiscard ]]
     auto is_top_alias( Uuid const& id ) const
         -> bool;
+    // TODO [cleanup]: Can be replaced by node_view.
     [[ nodiscard ]]
     auto is_leaf_node( Uuid const& id ) const
         -> bool;
@@ -481,14 +526,17 @@ public:
     auto is_lineal( Uuid const& ancestor
                   , Heading const& descendant ) const
         -> bool;
+    // TODO [cleanup]: Can be replaced by node_view: view::root( root ) | view::desc( node ) | view::exists( kmap )
     [[ nodiscard ]]
     auto is_in_tree( Uuid const& root
                    , Uuid const& node ) const
         -> bool;
+    // TODO [cleanup]: Can be replaced by node_view: view::root( ancestor ) | view::direct_desc( path ) | view::exists( kmap )
     [[ nodiscard ]]
     auto is_direct_descendant( Uuid const& ancestor
                              , Heading const& path ) const
         -> bool;
+    // TODO [cleanup]: Can be replaced by node_view: view::root( root ) | view::ancestor( node ) | view::exists( kmap )
     [[ nodiscard ]]
     auto is_ancestor( Uuid const& root
                     , Uuid const& node ) const
@@ -497,7 +545,7 @@ public:
     auto is_root( Uuid const& node ) const
         -> bool;
     auto jump_to( Uuid const& id )
-        -> void;
+        -> Result< void >;
     auto jump_in()
         -> void;//Optional< Uuid >;
     auto jump_out()
@@ -508,6 +556,8 @@ public:
     [[ nodiscard ]]
     auto jump_stack() const
         -> JumpStack const&;
+    auto root_view() const
+        -> view::Intermediary;
     [[ maybe_unused ]]
     auto move_node( Uuid const& from
                   , Uuid const& to )
@@ -519,11 +569,9 @@ public:
     [[ nodiscard ]]
     auto resolve( Uuid const& id ) const
         -> Uuid;
-    auto delete_children( Uuid const& parent )
-        -> Result< void >;
-    auto delete_node( Uuid const& id )
+    auto erase_node( Uuid const& id )
         -> Result< Uuid >;
-    auto delete_alias( Uuid const& id )
+    auto erase_alias( Uuid const& id )
         -> Result< Uuid >;
     auto update( Uuid const& id )
         -> void;
@@ -540,17 +588,35 @@ public:
                   , Uuid const& selected ) const
         -> NodeView;
     [[ nodiscard ]]
+    auto fetch_attr_node( Uuid const& id ) const
+        -> Result< Uuid >;
+    [[ nodiscard ]]
+    auto create_attr_node( Uuid const& parent)
+        -> Result< Uuid >;
+    // TODO [cleanup]: move to attr.hpp?
+    [[ nodiscard ]]
     auto fetch_genesis_time( Uuid const& id ) const
-        -> Optional< uint64_t >;
+        -> Optional< uint64_t >; // TODO: Result< uint64_t >
     [[ nodiscard ]]
     auto get_appropriate_node_font_face( Uuid const& id ) const
         -> std::string;
+    [[ nodiscard ]]
+    auto timer()
+        -> chrono::Timer&;
+    [[ nodiscard ]]
+    auto timer() const
+        -> chrono::Timer const&;
 
 protected:
+    auto create_child_internal( Uuid const& parent
+                              , Uuid const& child
+                              , Heading const& heading
+                              , Title const& title )
+        -> kmap::Result< void >;
     auto create_alias_internal( Uuid const& src
                               , Uuid const& dst )
         -> void;
-    auto delete_node_internal( Uuid const& id )
+    auto erase_node_internal( Uuid const& id )
         -> Result< void >;
     [[ nodiscard ]]
     auto is_child_internal( Uuid const& parent
@@ -563,10 +629,15 @@ protected:
 
 private:
     std::unique_ptr< Environment > env_; // pimpl.
+    std::unique_ptr< Database > database_; // pimpl.
     std::unique_ptr< Canvas > canvas_; // pimpl.
     std::unique_ptr< Network > network_; // pimpl.
     std::unique_ptr< Cli > cli_; // pimpl.
     std::unique_ptr< TextArea > text_area_ = {}; // pimpl.
+    std::unique_ptr< EventStore > event_store_ = {}; // pimpl.
+    std::unique_ptr< OptionStore > option_store_ = {}; // pimpl.
+    std::unique_ptr< chrono::Timer > timer_ = {}; // pimpl.
+    std::unique_ptr< db::Autosave > autosave_ = {}; // pimpl.
     JumpStack jump_stack_ = {}; // TODO: Rather belongs in Environment, as it's tied to the kmap instance.
     // TODO: Refactor alias functionality into e.g., AliasStore.
     Aliases aliases_ = {};

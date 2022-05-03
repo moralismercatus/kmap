@@ -41,7 +41,7 @@ auto create_definition( Kmap& kmap )
         if( auto const def = kmap.fetch_or_create_leaf( def_path )
           ; def )
         {
-            kmap.update_title( *def, title );
+            KMAP_TRY( kmap.update_title( *def, title ) );
             KMAP_TRY( kmap.select_node( *def ) );
 
             return fmt::format( "added: {}", def_path );
@@ -98,19 +98,15 @@ auto add_definition( Kmap& kmap )
             if( kmap.is_child( target
                               , "definitions" ) )
             {
-                return *kmap.database()
-                            .fetch_child( "definitions"
-                                        , target );
+                return kmap.fetch_child( target, "definitions" ).value(); // TODO: Handle failure case.
             }
             else
             {
-                return kmap.create_child( target
-                                        , "definitions" ).value();
+                return kmap.create_child( target, "definitions" ).value(); // TODO: Handle failure case.
             }
         }();
 
-        if( auto const alias = kmap.create_alias( *def
-                                                , alias_parent )
+        if( auto const alias = kmap.create_alias( *def, alias_parent )
           ; alias )
         {
             KMAP_TRY( kmap.select_node( target ) ); // We don't want to move to the newly added alias.

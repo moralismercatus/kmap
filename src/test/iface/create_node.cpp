@@ -12,6 +12,7 @@ namespace utf = boost::unit_test;
 
 namespace kmap::test {
 
+// TODO: I think we don't want this nested under kmap_iface; rather, we want kmap iface to be a dependency (depends_on()) where relevant.
 BOOST_AUTO_TEST_SUITE( kmap_iface )
 
 // TODO: Test negative cases to (those that result in ECs).

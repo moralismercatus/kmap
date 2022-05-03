@@ -4,14 +4,21 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #include "../master.hpp"
+#include "canvas.hpp"
+#include "js_iface.hpp"
+#include "kmap.hpp"
+#include "path/node_view.hpp"
 
 #include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/contains.hpp>
 #include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 
-namespace utf = boost::unit_test;
+using namespace kmap;
 using namespace ranges;
+namespace utf = boost::unit_test;
 
 namespace kmap::test {
 
@@ -21,6 +28,7 @@ namespace kmap::test {
 // TODO: Why doesn't this depend on kmap_iface instead of vice versa?
 BOOST_AUTO_TEST_SUITE( path 
                      ,
+                     * utf::label( "env" ) // TODO: Rather, shouldn't this depends_on( "kmap_iface" )? Well, that would incur a cyclic dep., so need to resolve.
                      * utf::fixture< ClearMapFixture >() )
 /******************************************************************************/
 /* path/decide_path */
@@ -117,13 +125,15 @@ BOOST_AUTO_TEST_SUITE( complete
                      * utf::depends_on( "path/decide_path" ) )
 
 auto check_completion( Kmap const& kmap
+                     , Uuid const& root
                      , std::string const& path
                      , StringVec const& completions )
     -> bool
 {
+    auto rv = false;
     auto const pss = kmap::complete_selection( kmap
-                                             , kmap.root_node_id()
-                                             , kmap.selected_node()
+                                             , root
+                                             , root
                                              , path ).value();
     auto const ps = pss
                   | views::transform( &CompletionNode::path )
@@ -131,13 +141,15 @@ auto check_completion( Kmap const& kmap
 
     if( completions.empty() )
     {
-        return ps.empty();
+        rv = ps.empty();
     }
     else
     {
         if( ps.size() != completions.size() )
         {
-            return false;
+            io::print( "[ failed ] Size mismatch: expected:{} != actual:{}\n", ps.size(), completions.size() );
+
+            rv = false;
         }
         else
         {
@@ -145,14 +157,36 @@ auto check_completion( Kmap const& kmap
             {
                 if( !ranges::contains( ps, completion ) )
                 {
-                    
-                    return false;
+                    io::print( stderr, "[ failed ] Result set does not contain completion: '{}'\n", completion );
+                    rv = false;
+                    break;
                 }
             }
-        }
 
-        return true;
+            rv = true;
+        }
     }
+
+    if( !rv )
+    {
+        io::print( stderr
+                 , "[ failed ] Completion check.\n[ failed ] Expected: {}\n[ failed ] Actual: {}\n"
+                 , completions | views::join( ' ' ) | to< std::string >()
+                 , ps | views::join( ' ' ) | to< std::string >() );
+    }
+
+    return rv;
+}
+
+auto check_completion( Kmap const& kmap
+                     , std::string const& path
+                     , StringVec const& completions )
+    -> bool
+{
+    return check_completion( kmap
+                           , kmap.root_node_id()
+                           , path
+                           , completions );
 }
 
 BOOST_AUTO_TEST_CASE( /*path/complete*/start_state
@@ -160,14 +194,16 @@ BOOST_AUTO_TEST_CASE( /*path/complete*/start_state
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
-    auto nodes = create_lineages( "/zulu"
-                                , "/foo"
-                                , "/foobar" );
+    auto nodes = create_lineages( "/test"
+                                , "/test.zulu"
+                                , "/test.foo"
+                                , "/test.foobar" );
+    auto const root = nodes[ "/test" ];
 
-    BOOST_TEST( check_completion( kmap, "/", { "/zulu", "/foo", "/foobar", "/meta" } ) );
-    BOOST_TEST( check_completion( kmap, "z", { "zulu" } ) );
-    BOOST_TEST( check_completion( kmap, "fo", { "foo", "foobar" } ) ); // TODO: Make "foo" more unique like "z185", so diminish future chance of collision with meta.
-    BOOST_TEST( check_completion( kmap, "foo", { "foo", "foo,", "foobar" } ) );
+    BOOST_TEST( check_completion( kmap, root, "/", { "/zulu", "/foo", "/foobar" } ) );
+    BOOST_TEST( check_completion( kmap, root, "z", { "zulu" } ) );
+    BOOST_TEST( check_completion( kmap, root, "fo", { "foo", "foobar" } ) );
+    BOOST_TEST( check_completion( kmap, root, "foo", { "foo", "foo,", "foobar" } ) );
 }
 
 BOOST_AUTO_TEST_CASE( /*path/complete*/next_state

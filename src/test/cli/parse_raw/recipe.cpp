@@ -16,9 +16,7 @@ BOOST_AUTO_TEST_SUITE( cli )
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( parse_raw )
 /******************************************************************************/
-BOOST_AUTO_TEST_SUITE( /*cli/parse_raw*/recipe
-                     ,
-                     * utf::disabled() )
+BOOST_AUTO_TEST_SUITE( /*cli/parse_raw*/recipe )
 
 BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create
                     , 
@@ -64,8 +62,7 @@ BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create_step_nonempty_body
     BOOST_TEST_REQUIRE( cli.parse_raw( ":create.recipe 1" )  );
     BOOST_TEST_REQUIRE( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1" );
 
-    kmap.update_body( nodes[ "/recipes.1.step" ]
-                    , "content" );
+    BOOST_TEST( !kmap.update_body( nodes[ "/recipes.1.step" ], "content" ).has_error() );
 
     BOOST_TEST( cli.parse_raw( ":create.step 2" )  );
     BOOST_TEST( kmap.absolute_path_flat( kmap.selected_node() ) == "/recipes.1" );
@@ -104,7 +101,7 @@ BOOST_AUTO_TEST_CASE( /*cli/parse_raw/recipe*/create_in_category
     BOOST_TEST_REQUIRE( kmap.selected_node() == nodes[ "/recipes.category.3" ] );
     BOOST_TEST_REQUIRE( cli.parse_raw( ":create.prerequisite 4" )  );
 
-    kmap.select_node( "/recipes.category.3.steps" );
+    BOOST_TEST( kmap.select_node( "/recipes.category.3.steps" ) );
 }
 
 BOOST_AUTO_TEST_SUITE_END( /*cli/parse_raw/recipe*/)

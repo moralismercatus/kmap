@@ -21,16 +21,20 @@
 #include <utility>
 #include <vector>
 
-namespace kmap::js
-{
+namespace kmap::js {
 
+auto create_html_canvas( std::string const& id )
+    -> Result< void >;
+auto erase_child_element( std::string const& doc_id )
+    -> Result< void >;
 auto lint( std::string const& code )
     -> Result< void >;
-
 auto publish_function( std::string_view const name
                      , std::vector< std::string > const& params
                      , std::string_view const body )
     -> Result< void >;
+auto set_global_kmap( Kmap& kmap )
+    -> void;
 
 template< typename Return
         , typename... Args >
@@ -76,22 +80,45 @@ auto eval( std::string const& expr )
     using emscripten::val;
 
     auto rv = KMAP_MAKE_RESULT( Return ); 
-    auto const eval_str = io::format( "( function(){{ try{{ return {} }} catch( err ){{ console.log( err ); return undefined; }} }} )();"
-                                    , expr );
+    auto constexpr script =
+R"%%%(
+(
+    function()
+    {{
+        try
+        {{
+            {}
+        }}
+        catch( err )
+        {{
+            if( is_cpp_exception( err ) )
+            {{
+                console.log( '[kmap][error] std::exception encountered:' );
+                // print std exception
+                kmap.print_std_exception( err );
+            }}
+            else // Javascript exception
+            {{
+                console.log( '[kmap][error] JS exception: ' + err );
+            }}
+            return undefined;
+        }}
+    }}
+)();
+)%%%";
+    auto const eval_str = io::format( script, expr );
 
-    // io::print( "evaluating string: {}\n", eval_str );
+    KMAP_ENSURE( lint( eval_str ), error_code::js::lint_failed );
 
-    KMAP_ENSURE( rv, lint( eval_str ), error_code::js::lint_failed );
+    auto const eval_res = val::global().call< val >( "eval", eval_str );
 
-    if( auto const res = val::global().call< val >( "eval"
-                                                  , eval_str )
-      ; !res.isUndefined() && !res.isNull() )
+    if( !eval_res.isUndefined() && !eval_res.isNull() )
     {
-        rv = res.template as< Return >();
+        rv = eval_res.template as< Return >();
     }
     else
     {
-        rv = KMAP_MAKE_ERROR_MSG( error_code::js::eval_failed, io::format( "failed to evaluate javascript expression: {}", expr ) );
+        rv = KMAP_MAKE_ERROR_MSG( error_code::js::eval_failed, io::format( "Null returned (did you fail to return a result?) failed to evaluate javascript expression: {}", expr ) );
     }
 
     return rv;
@@ -101,6 +128,22 @@ auto eval_void( std::string const& expr )
     -> Result< void >;
 
 template< typename Return >
+auto fetch_computed_property_value( std::string const& elem_id
+                                  , std::string const& property )
+    -> Result< Return >
+{
+    using emscripten::val;
+
+    auto rv = KMAP_MAKE_RESULT( Return ); 
+
+    rv = eval< Return >( fmt::format( "return window.getComputedStyle( document.getElementById( '{}' ), null ).getPropertyValue( '{}' );"
+                                    , elem_id
+                                    , property ) );
+
+    return rv;
+}
+
+template< typename Return >
 auto fetch_element_by_id( std::string const& id )
     -> Result< Return >
 {
@@ -108,10 +151,18 @@ auto fetch_element_by_id( std::string const& id )
 
     auto rv = KMAP_MAKE_RESULT( Return ); 
 
-    rv = eval< Return >( io::format( "document.getElementById( '{}' );", id ) );
+    rv = eval< Return >( io::format( "return document.getElementById( '{}' );", id ) );
 
     return rv;
 }
+
+auto exists( Uuid const& id )
+    -> bool;
+auto element_exists( std::string const& doc_id )
+    -> bool;
+
+auto is_global_kmap_null()
+    -> bool;
 
 } // namespace kmap::js
 

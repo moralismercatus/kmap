@@ -102,7 +102,7 @@ auto const action_code =
 R"%%%(```javascript
 let rv = kmap.failure( 'failed to hide pane' );
 const canvas = kmap.canvas();
-const pane = canvas.fetch_pane( args.get( 0 ) )
+const pane = canvas.fetch_pane( args.get( 0 ) );
 
 if( pane.has_value() ) // TODO: Is it possible to fail if canvas.pane.path holds true?
 {
@@ -198,7 +198,7 @@ REGISTER_COMMAND
 ,   action
 );
 
-} // namespace reveal_pane_def
+} // namespace rebase_pane_def
 } // namespace anon
 
 namespace reveal_pane_def {

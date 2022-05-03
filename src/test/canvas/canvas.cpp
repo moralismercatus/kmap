@@ -7,28 +7,29 @@
 #include "../../canvas.hpp"
 #include "../../kmap.hpp"
 #include "../master.hpp"
+#include "js_iface.hpp"
 
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-namespace utf = boost::unit_test;
+using namespace kmap;
 
-namespace kmap::test {
-
-BOOST_AUTO_TEST_SUITE( kmap_iface )
-BOOST_AUTO_TEST_SUITE( canvas ) 
-
-BOOST_AUTO_TEST_CASE( subdivide
-                    ,
-                    // * utf::depends_on( "kmap_iface/create_node" )
-                    * utf::fixture< ClearMapFixture >() )
+SCENARIO( "canvas" )
 {
     auto& kmap = Singleton::instance();
-    auto canvas = Canvas{ kmap };
+    auto& canvas = kmap.canvas();
 
-    // BOOST_TEST( canvas.subdivide( "" ) );
+    GIVEN( "html canvas" )
+    {
+        REQUIRE( !js::element_exists( to_string( util_canvas_uuid ) ) ); 
+        REQUIRE( succ( js::create_html_canvas( to_string( util_canvas_uuid ) ) ) );
+
+        // canvas.
+        // This would be a good opportunity to run through exactly how the canvas operates.
+        WHEN( "" )
+        {
+            // canvas.root is created..
+        }
+
+        REQUIRE( succ( js::erase_child_element( to_string( util_canvas_uuid ) ) ) );
+    }
 }
-
-BOOST_AUTO_TEST_SUITE_END( /* canvas */ )
-BOOST_AUTO_TEST_SUITE_END( /* kmap_iface */ )
-
-} // namespace kmap::test

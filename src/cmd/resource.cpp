@@ -7,6 +7,7 @@
 
 #include "../common.hpp"
 #include "../contract.hpp"
+#include "../db.hpp"
 #include "../error/master.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
@@ -71,8 +72,9 @@ auto add_resource( Kmap& kmap )
             {
                 if( kmap.is_child( *target, "resources" ) )
                 {
-                    return *kmap.database()
-                                .fetch_child( "resources", *target );
+                    return kmap.database()
+                               .fetch_child( *target, "resources" )
+                               .value();
                 }
                 else
                 {

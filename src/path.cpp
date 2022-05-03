@@ -11,6 +11,7 @@
 #include "error/network.hpp"
 #include "io.hpp"
 #include "kmap.hpp"
+#include "kmap.hpp"
 #include "lineage.hpp"
 #include "network.hpp"
 #include "path/sm.hpp"
@@ -108,7 +109,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         {
             auto const& db = kmap_.database();
 
-            return db.heading_exists( ev );
+            return db.contains< db::HeadingTable >( ev );
         };
 
         auto is_root = [ & ]( auto const& ev )
@@ -398,23 +399,28 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             // ;
 
             auto const& db = kmap_.database();
-            auto const& headings = db.fetch_headings().get< 2 >();
+            // auto const& headings = db.fetch_headings().get< 2 >();
+            auto const& ht = db.fetch< db::HeadingTable >().underlying();
+            auto const& hv = ht.get< db::right_ordered >();
             auto matches = std::vector< UuidPath >{};
             
-            for( auto it = headings.lower_bound( ev )
-               ; it != headings.end()
+            for( auto it = hv.lower_bound( ev )
+               ; it != hv.end()
                ; ++it )
             {
-                if( it->second.compare( 0, ev.size(), ev ) != 0 )
+                auto const nid = it->left();
+                auto const heading = it->right();
+
+                if( heading.compare( 0, ev.size(), ev ) != 0 )
                 {
                     break;
                 }
 
                 auto const node_and_aliases = [ & ]
                 {
-                    auto all = kmap_.fetch_aliases_to( it->first );
+                    auto all = kmap_.fetch_aliases_to( nid );
 
-                    all.emplace_back( it->first );
+                    all.emplace_back( nid );
 
                     return all;
                 }();
@@ -673,26 +679,30 @@ auto complete_any( Kmap const& kmap
 {
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
-    KMAP_ENSURE( rv, is_valid_heading( heading ), error_code::network::invalid_heading );
+    KMAP_ENSURE( is_valid_heading( heading ), error_code::network::invalid_heading );
 
     auto const& db = kmap.database();
-    auto const& headings = db.fetch_headings().get< 2 >();
+    auto const& ht = db.fetch< db::HeadingTable >().underlying();
+    auto const& hv = ht.get< db::right_ordered >();
     auto matches = UuidSet{};
     
-    for( auto it = headings.lower_bound( heading )
-       ; it != headings.end()
+    for( auto it = hv.lower_bound( heading )
+       ; it != hv.end()
        ; ++it )
     {
-        if( it->second.compare( 0, heading.size(), heading ) != 0 )
+        auto const& nid = it->left();
+        auto const& nh = it->right();
+
+        if( nh.compare( 0, heading.size(), heading ) != 0 )
         {
             break;
         }
 
         auto const node_and_aliases = [ & ]
         {
-            auto all = kmap.fetch_aliases_to( it->first );
+            auto all = kmap.fetch_aliases_to( nid );
 
-            all.emplace_back( it->first );
+            all.emplace_back( nid );
 
             return all;
         }();
@@ -734,7 +744,7 @@ auto complete_path( Kmap const& kmap
         } )
     ;
 
-    KMAP_ENSURE( rv, kmap.is_lineal( root, selected ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( kmap.is_lineal( root, selected ), error_code::network::invalid_lineage );
 
     auto const tokens = tokenize_path( raw );
 
@@ -1004,27 +1014,27 @@ auto decide_path( Kmap const& kmap
 }
 
 /**
- * Returns all matches (if more than one => ambiguous) that could be resolved from the path given by "raw".
+ * Returns all matches (if more than one implies ambiguous) that could be resolved from the path given by "raw".
  **/
 auto decide_path( Kmap const& kmap
                 , Uuid const& root
                 , Uuid const& selected
                 , std::string const& raw )
-    -> Result< UuidVec >
+    -> Result< UuidVec > 
 {
 
     auto rv = KMAP_MAKE_RESULT( UuidVec );
 
-    KMAP_ENSURE( rv, !raw.empty(), error_code::node::invalid_heading );
-    KMAP_ENSURE_MSG( rv, is_valid_heading_path( raw ), error_code::node::invalid_heading, raw );
-    KMAP_ENSURE_MSG( rv, kmap.is_lineal( root, selected ), error_code::node::not_lineal, io::format( "root `{}` not lineal to selected `{}`\n", kmap.absolute_path_flat( root ), kmap.absolute_path_flat( selected ) ) );
+    KMAP_ENSURE( !raw.empty(), error_code::node::invalid_heading );
+    KMAP_ENSURE_MSG( is_valid_heading_path( raw ), error_code::node::invalid_heading, raw );
+    KMAP_ENSURE_MSG( kmap.is_lineal( root, selected ), error_code::node::not_lineal, io::format( "root `{}` not lineal to selected `{}`\n", kmap.absolute_path_flat( root ), kmap.absolute_path_flat( selected ) ) );
 
     auto const tokens = tokenize_path( raw );
 
-    rv = decide_path( kmap
-                    , root
-                    , selected
-                    , tokens );
+    rv = KMAP_TRY( decide_path( kmap
+                              , root
+                              , selected
+                              , tokens ) );
 
     return rv;
 }
@@ -1041,6 +1051,15 @@ auto fetch_descendants( Kmap const& kmap
                       , root_id
                       , selected_node
                       , raw );
+}
+
+auto fetch_descendants( Kmap const& kmap
+                      , Uuid const& root )
+    -> Result< UuidSet >
+{
+    return KMAP_TRY( fetch_descendants( kmap
+                                      , root
+                                      , []( auto const& e ){ (void)e; return true; } ) );
 }
 
 auto has_geometry( Kmap const& kmap
@@ -1146,7 +1165,7 @@ auto disambiguate_paths( Kmap const& kmap
     {
         for( auto const& dup : duplicates )
         {
-            KMAP_ENSURE( rv, kmap.root_node_id() != dup.disambig, error_code::network::invalid_node );
+            KMAP_ENSURE( kmap.root_node_id() != dup.disambig, error_code::network::invalid_node );
         }
         auto const expanded = duplicates
                             | views::transform( [ & ]( auto const& e )
@@ -1229,8 +1248,8 @@ auto complete_selection( Kmap const& kmap
 
     auto rv = KMAP_MAKE_RESULT( Set );
     auto const completed_ms = KMAP_TRY( complete_path_reducing( kmap
-                                                              , kmap.root_node_id()
-                                                              , kmap.selected_node()
+                                                              , root
+                                                              , selected
                                                               , path ) );
     // auto const disambiguated = KMAP_TRY( disambiguate_paths( kmap, completed_ms ) );
 
@@ -1419,9 +1438,9 @@ auto fetch_nearest_ascending( Kmap const& kmap
         })
     ;
 
-    KMAP_ENSURE( rv, kmap.exists( root ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, kmap.exists( leaf ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, kmap.is_lineal( root, leaf ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( kmap.exists( root ), error_code::network::invalid_node );
+    KMAP_ENSURE( kmap.exists( leaf ), error_code::network::invalid_node );
+    KMAP_ENSURE( kmap.is_lineal( root, leaf ), error_code::network::invalid_lineage );
 
     auto const check = [ & ]( Uuid const& c ){ return pred( kmap, c ); }; // TODO: Replace with std::bind_front. TODO: Assume predicate has captured kmap, and just call pred( c ).
     auto child = leaf;
@@ -1463,8 +1482,8 @@ auto create_descendants( Kmap& kmap
         } )
     ;
 
-    KMAP_ENSURE( rv, kmap.exists( root ), error_code::network::invalid_root );
-    KMAP_ENSURE( rv, kmap.is_lineal( root, selected ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( kmap.exists( root ), error_code::network::invalid_root );
+    KMAP_ENSURE( kmap.is_lineal( root, selected ), error_code::network::invalid_lineage );
     
     // Algorithm:
     // 1. Tokenize
@@ -1493,9 +1512,9 @@ auto create_descendants( Kmap& kmap
         //    (2) Launder should occur as a pre, not post, so errors are preserved, for at least one cycle.
         if( sm->is( boost::sml::state< sm::state::Error > ) )
         {
-            if( !is_valid_heading( curr_token ) )
+            if( !is_valid_heading_path( curr_token ) )
             {
-                rv = KMAP_MAKE_ERROR_MSG( error_code::network::invalid_heading, heading );
+                rv = KMAP_MAKE_ERROR_MSG( error_code::network::invalid_heading, fmt::format( "'{}' in '{}'", curr_token, heading ) );
                 break;
             }
             else if( output->prospects.size() > 1 )
@@ -1511,6 +1530,8 @@ auto create_descendants( Kmap& kmap
             else
             {
                 BC_ASSERT( output->prospects.size() == 1 );
+
+                KMAP_ENSURE_EXCEPT( is_valid_heading( curr_token ) );
 
                 auto const ccr = kmap.create_child( output->prospects.back().second->prospect.back(), curr_token );
 
@@ -1549,10 +1570,24 @@ auto fetch_descendant( Kmap const& kmap
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const desc = KMAP_TRY( decide_path( kmap
-                                           , root
-                                           , selected
-                                           , heading ) );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( rv.value() != root );
+            }
+        })
+    ;
+
+    auto const decided = KMAP_TRY( decide_path( kmap
+                                              , root
+                                              , selected
+                                              , heading ) );
+    auto const desc = decided
+                    | views::filter( [ &root ]( auto const& e ){ return root != e; } )
+                    | ranges::to< UuidVec >();
 
     if( desc.size() == 1 )
     {
@@ -1574,6 +1609,7 @@ auto fetch_or_create_descendant( Kmap& kmap
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+
     if( auto const desc = fetch_descendant( kmap, root, selected, heading )
       ; desc )
     {
@@ -1586,11 +1622,12 @@ auto fetch_or_create_descendant( Kmap& kmap
                                     , selected
                                     , heading ) );
         
-        rv = fetch_descendant( kmap
-                             , root
-                             , selected
-                             , heading );
+        rv = KMAP_TRY( fetch_descendant( kmap
+                                       , root
+                                       , selected
+                                       , heading ) );
     }
+
     return rv;
 }
 

@@ -66,19 +66,6 @@ auto StatementPreparer::commit_nodes( Kmap& kmap )
 
             db.execute( inserter );
         }
-        {
-            auto gtt = genesis_times::genesis_times{};
-            auto inserter = insert_into( gtt ).columns( gtt.uuid
-                                                      , gtt.unix_time );
-
-            for( auto const& n : nodes_prep_ )
-            {
-                inserter.values.add( gtt.uuid = to_string( n )
-                                   , gtt.unix_time = static_cast< int64_t >( present_time() ) );
-            }
-
-            db.execute( inserter );
-        }
 
         nodes_prep_ = {};
     }
@@ -138,30 +125,30 @@ auto StatementPreparer::commit_children( Kmap& kmap )
 
             db.execute( inserter );
         }
-        {
-            using sqlpp::sqlite3::insert_or_replace_into;
+        // {
+        //     using sqlpp::sqlite3::insert_or_replace_into;
 
-            auto co = child_orderings::child_orderings{};
-            auto inserter = insert_or_replace_into( co ).columns( co.parent_uuid
-                                                                , co.sequence );
+        //     auto co = child_orderings::child_orderings{};
+        //     auto inserter = insert_or_replace_into( co ).columns( co.parent_uuid
+        //                                                         , co.sequence );
 
-            for( auto const& [ pid, cids ] : children_prep_ )
-            {
-                auto const children = fetch_children( pid );
-                auto const ids = children
-                               | views::transform( to_ordering_id )
-                               | to< StringVec >();
-                auto const ordering = ids
-                                    | views::join
-                                    | to< std::string >();
-                auto const spid = to_string( pid );
+        //     for( auto const& [ pid, cids ] : children_prep_ )
+        //     {
+        //         auto const children = fetch_children( pid );
+        //         auto const ids = children
+        //                        | views::transform( to_ordering_id )
+        //                        | to< StringVec >();
+        //         auto const ordering = ids
+        //                             | views::join
+        //                             | to< std::string >();
+        //         auto const spid = to_string( pid );
 
-                inserter.values.add( co.parent_uuid = spid
-                                   , co.sequence = ordering );
-            }
+        //         inserter.values.add( co.parent_uuid = spid
+        //                            , co.sequence = ordering );
+        //     }
 
-            db.execute( inserter );
-        }
+        //     db.execute( inserter );
+        // }
 
         children_prep_ = {};
     }
@@ -374,7 +361,7 @@ auto StatementPreparer::create_child( Uuid const& parent
     return rv;
 }
 
-auto StatementPreparer::delete_node( Uuid const& id )
+auto StatementPreparer::erase_node( Uuid const& id )
     -> void 
 {
     BC_CONTRACT()

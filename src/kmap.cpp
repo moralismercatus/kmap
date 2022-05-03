@@ -5,22 +5,30 @@
  ******************************************************************************/
 #include "kmap.hpp"
 
+#include "attribute.hpp"
 #include "canvas.hpp"
+#include "chrono/timer.hpp"
 #include "cli.hpp"
 #include "cmd.hpp"
+#include "cmd/parser.hpp"
 #include "common.hpp"
 #include "contract.hpp"
 #include "db.hpp"
 #include "db.hpp"
+#include "db/autosave.hpp"
 #include "environment.hpp"
+#include "error/filesystem.hpp"
 #include "error/master.hpp"
 #include "error/network.hpp"
 #include "error/node_manip.hpp"
+#include "event/event.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
 #include "lineage.hpp"
 #include "network.hpp"
+#include "option/option.hpp"
 #include "path.hpp"
+#include "path/node_view.hpp"
 
 #include <boost/filesystem.hpp>
 #include <emscripten.h>
@@ -33,9 +41,11 @@
 #include <range/v3/view/concat.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/drop_last.hpp>
+#include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
+#include <range/v3/view/remove.hpp>
 #include <range/v3/view/remove_if.hpp>
 #include <range/v3/view/replace.hpp>
 #include <range/v3/view/reverse.hpp>
@@ -56,7 +66,12 @@ namespace kmap
 
 Kmap::Kmap()
     : env_{ std::make_unique< Environment >() }
+    , database_{ std::make_unique< Database >() }
     , canvas_{ std::make_unique< Canvas >( *this ) }
+    , event_store_{ std::make_unique< EventStore >( *this ) }
+    , option_store_{ std::make_unique< OptionStore >( *this ) }
+    , timer_{ std::make_unique< chrono::Timer >( *this ) }
+    , autosave_{ std::make_unique< db::Autosave >( *this ) }
 {
     io::print( "in kmap ctor\n" );
     // if( auto const r = reset()
@@ -71,29 +86,89 @@ Kmap::Kmap()
     // }
 }
 
-auto Kmap::set_up_db_root()
-    -> void
+auto Kmap::autosave()
+    -> db::Autosave&
 {
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( autosave_ );
+        })
+    ;
+
+    return *autosave_;
+}
+
+auto Kmap::autosave() const
+    -> db::Autosave const&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( autosave_ );
+        })
+    ;
+
+    return *autosave_;
+}
+
+auto Kmap::timer()
+    -> chrono::Timer&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( timer_ );
+        })
+    ;
+
+    return *timer_;
+}
+
+auto Kmap::timer() const
+    -> chrono::Timer const&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( timer_ );
+        })
+    ;
+
+    return *timer_;
+}
+
+/**
+ * Note: This needs special care to set up vis-a-vis other node creation,
+ *       as it is the only node without a parent.
+ */
+auto Kmap::set_up_db_root()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
     auto const id = root_node_id();
     auto const heading = "root";
     auto const title = format_title( heading );
     auto& db = database();
-    auto nt = nodes::nodes{};
-    auto ht = headings::headings{};
-    auto tt = titles::titles{};
-    auto bt = bodies::bodies{};
 
-    db.execute( insert_into( nt )
-              . set( nt.uuid = to_string( id ) ) );
-    db.execute( insert_into( ht )
-              . set( ht.uuid = to_string( id )
-                   , ht.heading = heading ) );
-    db.execute( insert_into( tt )
-              . set( tt.uuid = to_string( id )
-                   , tt.title = title ) );
-    db.execute( insert_into( bt )
-              . set( bt.uuid = to_string( id )
-                   , bt.body =  "Welcome.\n\nType `:help` for assistance." ) );
+    KMAP_TRY( db.push_node( id ) );
+    KMAP_TRY( db.push_heading( id, heading ) );
+    KMAP_TRY( db.push_title( id, title ) );
+    KMAP_TRY( db.push_body( id, "Welcome.\n\nType `:help` for assistance." ) );
+
+    auto const attrn = KMAP_TRY( create_attr_node( id ) );
+
+    // TODO: Abstract into protected fn shared amongst create_child and this.
+    {
+        auto const gn = gen_uuid();
+
+        KMAP_TRY( create_child_internal( attrn, gn, "genesis", "Genesis" ) );
+        KMAP_TRY( update_body( gn, std::to_string( present_time() ) ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::set_up_nw_root()
@@ -101,14 +176,21 @@ auto Kmap::set_up_nw_root()
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto const id = root_node_id();
-    auto const heading = fetch_heading( id ).value();
-    auto const title = fetch_title( id ).value();
+    auto const heading = KMAP_TRY( fetch_heading( id ) );
+    auto const title = KMAP_TRY( fetch_title( id ) );
     auto& nw = network();
 
-    nw.create_node( id, title );
-    ( void )nw.select_node( id );
+    KMAP_TRY( nw.create_node( id, title ) );
 
-    rv = outcome::success();
+    if( auto const prev = nw.select_node( id )
+      ; !prev && prev.error().ec != error_code::network::no_prev_selection ) // Expecting a return failure b/c initial selection.
+    {
+        rv = KMAP_PROPAGATE_FAILURE( prev );
+    }
+    else
+    {
+        rv = outcome::success();
+    }
 
     return rv;
 }
@@ -143,17 +225,18 @@ auto Kmap::set_ordering_position( Uuid const& id
         std::iter_swap( it
                       , begin( siblings ) + pos );
 
-        reorder_children( fetch_parent( id ).value()
-                        , siblings );
+        reorder_children( fetch_parent( id ).value(), siblings ).value();
     }
 
     return rv;
 }
 
 auto Kmap::update_body( Uuid const& id
-                      , std::string_view const contents )
-    -> void
+                      , std::string const& contents )
+    -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
@@ -161,25 +244,22 @@ auto Kmap::update_body( Uuid const& id
         })
     ;
 
-    using sqlpp::update;
-
-    // TODO: Refactor all instances of this code as a convenience function in Database.
     auto& db = database();
-    auto bt = bodies::bodies{};
 
-    db.execute( update( bt )
-              . set( bt.body = contents )
-              . where( bt.uuid == to_string( resolve( id ) ) ) );
+    KMAP_TRY( db.update_body( id, contents ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::load_state( FsPath const& db_path )
-    -> bool 
+    -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
     auto const full_path = kmap_root_dir / db_path;
-    if( !fs::exists( full_path ) )
-    {
-        return false;
-    }
+
+    KMAP_ENSURE_MSG( fs::exists( full_path ), error_code::common::uncategorized, io::format( "unable to find file {}", full_path.string() ) );
 
     // TODO: Precondition: db_path does not start with kmap_root_dir, as that's appended here.
     env_ = std::make_unique< Environment >( full_path );
@@ -203,12 +283,11 @@ auto Kmap::load_state( FsPath const& db_path )
         {
             auto& nw = network();
 
-            nw.create_node( root_id
-                          , fetch_title( root_id ).value() );
-            nw.select_node( root_id );
+            KMAP_TRY( nw.create_node( root_id, fetch_title( root_id ).value() ) );
+            KMAP_TRY( nw.select_node( root_id ) );
         }
 
-        select_node( root_id );
+        KMAP_TRY( select_node( root_id ) );
         // TODO: post_condition must require root_node_id_ to be valid.
     }
     {
@@ -225,22 +304,33 @@ auto Kmap::load_state( FsPath const& db_path )
                                        . from( at )
                                        . unconditionally() ) )
         {
-            update_aliases( uuid_from_string( c.dst_uuid ).value() );
+            KMAP_TRY( update_aliases( uuid_from_string( c.dst_uuid ).value() ) );
         }
     }
 
-    return true;
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::travel_left()
     -> Result< Uuid >
 {
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const selected = selected_node();
-    auto const parent = KMAP_TRY( fetch_parent( selected ) );
 
-    KMAP_TRY( select_node( parent ) );
+    if( auto const parent = fetch_parent( selected )
+      ; parent )
+    {
+        KMAP_TRY( select_node( parent.value() ) );
+        rv = parent.value();
+    }
+    else
+    {
+        rv = selected;
+    }
 
-    return parent;
+    return rv;
 }
 
 auto Kmap::travel_right()
@@ -257,6 +347,10 @@ auto Kmap::travel_right()
         KMAP_TRY( select_node( dst ) );
         rv = dst;
     }
+    else
+    {
+        rv = selected;
+    }
 
     return rv;
 }
@@ -264,23 +358,41 @@ auto Kmap::travel_right()
 auto Kmap::travel_up()
     -> Result< Uuid >
 {
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const selected = selected_node();
-    auto const above = KMAP_TRY( fetch_above( selected ) );
 
-    KMAP_TRY( select_node( above ) );
+    if( auto const above = fetch_above( selected )
+      ; above )
+    {
+        KMAP_TRY( select_node( above.value() ) );
+        rv = above.value();
+    }
+    else
+    {
+        rv = selected;
+    }
 
-    return above;
+    return rv;
 }
 
 auto Kmap::travel_down()
     -> Result< Uuid >
 {
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const selected = selected_node();
-    auto const below = KMAP_TRY( fetch_below( selected ) );
 
-    KMAP_TRY( select_node( below ) );
+    if( auto const below = fetch_below( selected )
+      ; below )
+    {
+        KMAP_TRY( select_node( below.value() ) );
+        rv = below.value();
+    }
+    else
+    {
+        rv = selected;
+    }
 
-    return below;
+    return rv;
 }
 
 auto Kmap::travel_bottom()
@@ -294,7 +406,7 @@ auto Kmap::travel_bottom()
     {
         auto const children = fetch_children_ordered( parent.value() );
 
-        select_node( children.back() );
+        select_node( children.back() ).value();
 
         rv = children.back();
     }
@@ -313,7 +425,7 @@ auto Kmap::travel_top()
     {
         auto const children = fetch_children_ordered( parent.value() );
 
-        select_node( children.front() );
+        select_node( children.front() ).value();
 
         rv = children.front();
     }
@@ -353,11 +465,11 @@ auto Kmap::database()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( env_ );
+            assert( database_ );
         })
     ;
 
-    return env_->database();
+    return *database_;
 }
 
 auto Kmap::database() const
@@ -366,11 +478,11 @@ auto Kmap::database() const
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( env_ );
+            assert( database_ );
         })
     ;
 
-    return env_->database();
+    return *database_;
 }
 
 auto Kmap::network()
@@ -383,14 +495,10 @@ auto Kmap::network()
         })
     ;
 
-    KMAP_LOG_LINE();
-
     if( !network_ )
     {
-        network_ = std::make_unique< Network >( canvas_->network_pane() );
+        KMAP_TRYE( reset_network() );
     }
-
-    KMAP_LOG_LINE();
 
     return *network_;
 }
@@ -401,8 +509,8 @@ auto Kmap::network() const
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( canvas_ );
-            assert( network_ );
+            BC_ASSERT( canvas_ );
+            BC_ASSERT( network_ );
         })
     ;
 
@@ -423,22 +531,19 @@ auto Kmap::aliases() const
 
 auto Kmap::move_body( Uuid const& src
                     , Uuid const& dst )
-    -> bool
+    -> Result< void >
 {
-    return kmap::move_body( *this
-                          , src
-                          , dst );
+    return kmap::move_body( *this, src, dst );
 }
 
 auto Kmap::move_state( FsPath const& dst )
-    -> bool
+    -> Result< void >
 {
     using boost::system::error_code;
 
-    if( !file_exists( dst ) )
-    {
-        return false;
-    }
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE_MSG( file_exists( dst ), kmap::error_code::filesystem::file_not_found, io::format( "unable to find file {}", dst.string() ) );
 
     auto ec = error_code{};
 
@@ -446,21 +551,20 @@ auto Kmap::move_state( FsPath const& dst )
               , kmap_root_dir / dst
               , ec );
 
-    if( ec )
-    {
-        return false;
-    }
+    KMAP_ENSURE_MSG( !ec, kmap::error_code::filesystem::file_rename_failure, io::format( "unable to rename file {}", dst.string() ) );
 
-    return load_state( dst );
+    KMAP_TRY( load_state( dst ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::copy_body( Uuid const& src
                     , Uuid const& dst )
-    -> bool
+    -> Result< void >
 {
-    return kmap::copy_body( *this
-                          , src
-                          , dst );
+    return kmap::copy_body( *this, src, dst );
 }
 
 auto Kmap::copy_state( FsPath const& dst )
@@ -553,6 +657,45 @@ auto Kmap::root_node_id() const
     ;
 
     return env_->root_node_id();
+}
+
+auto Kmap::event_store()
+    -> EventStore&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( event_store_ );
+        })
+    ;
+
+    return *event_store_;
+}
+
+auto Kmap::option_store()
+    -> OptionStore&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( option_store_ );
+        })
+    ;
+
+    return *option_store_;
+}
+
+auto Kmap::option_store() const
+    -> OptionStore const&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( option_store_ );
+        })
+    ;
+
+    return *option_store_;
 }
 
 auto Kmap::parse_cli( std::string const& input )
@@ -778,7 +921,7 @@ auto Kmap::fetch_above( Uuid const& id ) const
         })
     ;
 
-    KMAP_ENSURE( rv, exists( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     
     if( auto const children = fetch_parent_children_ordered( id )
       ; !children.empty() )
@@ -809,7 +952,7 @@ auto Kmap::fetch_below( Uuid const& id ) const
         })
     ;
 
-    KMAP_ENSURE( rv, exists( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     
     if( auto const children = fetch_parent_children_ordered( id )
       ; !children.empty() )
@@ -844,12 +987,33 @@ auto Kmap::fetch_aliases_to( Uuid const& src ) const
         })
     ;
 
-    auto const aliases = database().fetch_alias_destinations( src );
+    auto const aliases = database().fetch_alias_destinations( src ); // TODO: KMAP_TRY (skipping for convencience).
 
-    rv = aliases
-       | views::transform( [ & ]( auto const& dst ){ return make_alias_id( src 
-                                                                         , dst ); } )
-       | to< std::vector< Uuid > >();
+    if( aliases )
+    {
+        auto const& av = aliases.value();
+
+        rv = av
+           | views::transform( [ & ]( auto const& dst ){ return make_alias_id( src, dst ); } )
+           | to< std::vector< Uuid > >();
+    }
+
+    return rv;
+}
+
+auto Kmap::create_attr_node( Uuid const& parent )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const mn = gen_uuid();
+    auto&& db = database();
+
+    KMAP_TRY( db.push_node( mn ) );
+    KMAP_TRY( db.push_heading( mn, "$" ) );
+    KMAP_TRY( db.push_title( mn, "$" ) );
+    KMAP_TRY( db.push_attr( parent, mn ) );
+
+    rv = mn;
 
     return rv;
 }
@@ -863,45 +1027,35 @@ auto Kmap::create_child( Uuid const& parent
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            // BC_ASSERT( !exists( rv.value() ) );
-        })
         BC_POST([ & ]
         {
             if( rv )
             {
                 BC_ASSERT( exists( rv.value() ) );
-                BC_ASSERT( is_child( parent
-                                   , heading ) );
+                BC_ASSERT( is_child( parent, heading ) );
             }
         })
     ;
 
-    KMAP_ENSURE( rv, is_valid_heading( heading ), error_code::node::invalid_heading );
-    KMAP_ENSURE( rv, database().exists( resolve( parent ) ), error_code::create_node::invalid_parent );
-    KMAP_ENSURE( rv, !exists( child ), error_code::create_node::node_already_exists );
-    KMAP_ENSURE_MSG( rv, !is_child( parent, heading ), error_code::create_node::duplicate_child_heading, fmt::format( "{}:{}", absolute_path_flat( parent ), heading ) );
+    KMAP_ENSURE( is_valid_heading( heading ), error_code::node::invalid_heading );
+    KMAP_ENSURE( database().node_exists( resolve( parent ) ), error_code::create_node::invalid_parent );
+    KMAP_ENSURE( !exists( child ), error_code::create_node::node_already_exists );
+    KMAP_ENSURE_MSG( !is_child( parent, heading ), error_code::create_node::duplicate_child_heading, fmt::format( "{}:{}", absolute_path_flat( parent ), heading ) );
 
-    // TODO: if either db insertion or network insertion fails, must undo the
-    // the other that succeeds.
-    auto& db = database();
-    // auto const& child_path = parent_path / heading;
     auto const rpid = resolve( parent );
 
-    // TODO: Must undo all if one fails.
-    // Note: It's imperative that DB is added to first, as the alias check
-    // relies on this fact when the network calls the update callback routine.
+    KMAP_TRY( create_child_internal( rpid, child, heading, title ) );
+
+
+    if( !attr::is_in_attr_tree( *this, child ) )
     {
-        db.create_node( child
-                      , rpid
-                      , heading
-                      , title );
+        KMAP_TRY( attr::push_genesis( *this, child ) );
+        KMAP_TRY( attr::push_order( *this, parent, child ) );
     }
 
     rv = child;
-    
-    update_aliases( parent );
+
+    KMAP_TRY( update_aliases( parent ) );
 
     return rv;
 }
@@ -928,7 +1082,7 @@ auto Kmap::create_child( Uuid const& parent
         })
     ;
 
-    KMAP_ENSURE( rv, is_valid_heading( heading ), error_code::node::invalid_heading );
+    KMAP_ENSURE( is_valid_heading( heading ), error_code::node::invalid_heading );
 
     rv = create_child( parent
                      , child
@@ -986,6 +1140,25 @@ auto Kmap::create_child( Uuid const& parent
                      , gen_uuid()
                      , heading
                      , title );
+
+    return rv;
+}
+
+auto Kmap::create_child_internal( Uuid const& parent
+                                , Uuid const& child
+                                , Heading const& heading
+                                , Title const& title )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto&& db = database();
+
+    KMAP_TRY( db.push_node( child ) );
+    KMAP_TRY( db.push_heading( child, heading ) );
+    KMAP_TRY( db.push_title( child, title ) );
+    KMAP_TRY( db.push_child( parent, child ) );
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -1065,33 +1238,33 @@ auto Kmap::create_alias( Uuid const& src
 
     auto const rsrc = resolve( src );
     auto const rdst = resolve( dst );
-    auto const alias_id = make_alias_id( rsrc
-                                       , rdst );
+    auto const alias_id = make_alias_id( rsrc, rdst );
 
-    KMAP_ENSURE( rv, exists( rsrc ), error_code::create_alias::src_not_found );
-    KMAP_ENSURE( rv, exists( rdst ), error_code::create_alias::dst_not_found );
-    KMAP_ENSURE( rv, rsrc != rdst, error_code::create_alias::src_equals_dst );
-    KMAP_ENSURE( rv, !is_lineal( rsrc, rdst ), error_code::create_alias::src_ancestor_of_dst );
-    KMAP_ENSURE( rv, !exists( alias_id ), error_code::create_alias::alias_already_exists );
-    KMAP_ENSURE( rv, !is_child( rdst, fetch_heading( rsrc ).value() ), error_code::create_node::duplicate_child_heading );
+    KMAP_ENSURE( exists( rsrc ), error_code::create_alias::src_not_found );
+    KMAP_ENSURE( exists( rdst ), error_code::create_alias::dst_not_found );
+    KMAP_ENSURE( rsrc != rdst, error_code::create_alias::src_equals_dst );
+    KMAP_ENSURE( !is_lineal( rsrc, rdst ), error_code::create_alias::src_ancestor_of_dst );
+    KMAP_ENSURE( !exists( alias_id ), error_code::create_alias::alias_already_exists );
+    KMAP_ENSURE( !is_child( rdst, fetch_heading( rsrc ).value() ), error_code::create_node::duplicate_child_heading );
 
-    auto& db = database();
+    {
+        auto& db = database();
 
-    db.create_alias( rsrc
-                   , rdst );
+        KMAP_TRY( db.create_alias( rsrc, rdst ) );
+
+        KMAP_TRY( attr::push_order( *this, rdst, make_alias_id( rsrc, rdst ) ) );
+    }
+
     aliases_.emplace( alias_id );
-    alias_parents_.emplace( alias_id
-                          , rdst );
-    alias_children_.emplace( rdst
-                           , alias_id );
+    alias_parents_.emplace( alias_id, rdst );
+    alias_children_.emplace( rdst, alias_id );
 
     for( auto const& e : fetch_children( rsrc ) )
     {
-        create_alias_internal( e
-                             , alias_id );
+        create_alias_internal( e, alias_id );
     }
 
-    update_aliases( rdst );
+    KMAP_TRY( update_aliases( rdst ) );
 
     rv = alias_id;
 
@@ -1116,19 +1289,15 @@ auto Kmap::create_alias_internal( Uuid const& src
     ;
 
     auto const rsrc = resolve( src );
-    auto const alias_id = make_alias_id( rsrc
-                                       , dst );
+    auto const alias_id = make_alias_id( rsrc, dst );
 
     aliases_.emplace( alias_id );
-    alias_parents_.emplace( alias_id
-                          , dst );
-    alias_children_.emplace( dst
-                           , alias_id );
+    alias_parents_.emplace( alias_id, dst );
+    alias_children_.emplace( dst, alias_id );
 
     for( auto const& e : fetch_children( rsrc ) )
     {
-        create_alias_internal( e
-                             , alias_id );
+        create_alias_internal( e, alias_id );
     }
 }
 
@@ -1182,24 +1351,25 @@ auto Kmap::create_nodes( std::vector< std::pair< Uuid, std::string > > const& no
            ; ++i )
         {
             auto const child = ids[ i ];
-            auto const parent = [ & ]
-            {
-                auto const it = c_to_p_map.find( child );
+            // auto const parent = [ & ]
+            // {
+            //     auto const it = c_to_p_map.find( child );
 
-                if( it == c_to_p_map.end() )
-                {
-                    fmt::print( "should never reach\n" );
-                }
+            //     if( it == c_to_p_map.end() )
+            //     {
+            //         fmt::print( "should never reach\n" );
+            //     }
 
-                BC_ASSERT( it != c_to_p_map.end() );
+            //     BC_ASSERT( it != c_to_p_map.end() );
 
-                return it->second;
-            }();
+            //     return it->second;
+            // }();
 
-            db.create_node( child
-                          , parent
-                          , format_heading( titles[ i ] )
-                          , titles[ i ] );
+            // db.create_node( child
+            //               , parent
+            //               , format_heading( titles[ i ] )
+            //               , titles[ i ] );
+            KMAP_TRYE( db.push_node( child ) ); // Lose the E.
         }
     }
 }
@@ -1213,10 +1383,11 @@ auto Kmap::store_resource( Uuid const& parent
                          , size_t const& size )
     -> Result< Uuid >
 {
+    KMAP_THROW_EXCEPTION_MSG( "TODO" );
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( database().exists( resolve( parent ) ) ); // TODO: this function should return an outcome rather than fail with precondition.
+            BC_ASSERT( database().node_exists( resolve( parent ) ) ); // TODO: this function should return an outcome rather than fail with precondition.
             BC_ASSERT( data != nullptr );
             BC_ASSERT( size != 0 );
         })
@@ -1237,12 +1408,12 @@ auto Kmap::store_resource( Uuid const& parent
         auto const cr = compress_resource( data
                                          , size );
         auto& db = database();
-        auto orst = original_resource_sizes::original_resource_sizes{};
+        // auto orst = original_resource_sizes::original_resource_sizes{};
         auto rt = resources::resources{};
 
-        db.execute( insert_into( orst )
-                  . set( orst.uuid = shash
-                       , orst.resource_size = size ) );
+        // db.execute( insert_into( orst )
+        //           . set( orst.uuid = shash
+        //                , orst.resource_size = size ) );
         db.execute( insert_into( rt )
                   . set( rt.uuid = shash
                        , rt.resource = std::vector< uint8_t >{ reinterpret_cast< uint8_t const* >( cr.data() )
@@ -1258,28 +1429,23 @@ auto Kmap::reset()
     auto rv = KMAP_MAKE_RESULT( void );
     env_ = std::make_unique< Environment >();
 
-    // TODO: propage errors for following calls:
-    KMAP_LOG_LINE();
-    database().create_tables();
-    KMAP_LOG_LINE();
-    set_up_db_root();
+    KMAP_TRY( reset_database() );
+    KMAP_TRY( set_up_db_root() );
     KMAP_LOG_LINE();
     KMAP_TRY( canvas().reset() );
+    KMAP_LOG_LINE();
+    KMAP_TRY( reset_network() );
     KMAP_LOG_LINE();
     KMAP_TRY( set_up_nw_root() );
     KMAP_LOG_LINE();
     KMAP_TRY( cli().reset_all_preregistered() );
-    KMAP_LOG_LINE();
+    KMAP_TRY( canvas().install_options() );
 
     {
-        KMAP_LOG_LINE();
         KMAP_TRY( select_node( root_node_id() ) );
-        KMAP_LOG_LINE();
         KMAP_TRY( canvas().hide( canvas().editor_pane() ) );
-        KMAP_LOG_LINE();
     }
     {
-        KMAP_LOG_LINE();
         KMAP_TRY( js::eval_void( io::format( R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() ).onkeydown = function( e )
                                                    {{
                                                        let key = e.keyCode ? e.keyCode : e.which;
@@ -1302,7 +1468,6 @@ auto Kmap::reset()
                                                            console.log( 'CLI error: ' + res.error_message() );
                                                        }}
                                                    }};)%%%" ) ) );
-        KMAP_LOG_LINE();
         KMAP_TRY( js::eval_void( io::format( R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() ).onkeydown = function( e )
                                                    {{
                                                        let key = e.keyCode ? e.keyCode : e.which;
@@ -1317,12 +1482,90 @@ auto Kmap::reset()
                                                            e.preventDefault();
                                                        }}
                                                    }};)%%%" ) ) );
-        KMAP_LOG_LINE();
+    }
+
+    // TODO: Why are these here...? Why not call this->event_store()? Or at least option_store_ = make_unique< Timer >( *this )?
+    {
+        KMAP_TRY( event_store().install_defaults() );
+    }
+    {
+        timer_ = std::make_unique< chrono::Timer >( *this );
+
+        KMAP_TRY( timer_->install_default_timers() );
+    }
+    {
+        // Bleh.... so here's the problem with this approach: 
+        //     It doesn't distinguish between close and reload, so every time I reload, the window instead closes.
+        //     In fact, using this method, frankly don't know how to distinguish. Bleh....
+
+        auto& estore = event_store();
+        auto const outlet_script =
+        R"%%%(
+        console.log( '[outlet.confirm_shutdown] Shutdown event triggered.' );
+        console.log( '[outlet.confirm_shutdown] TODO: Here is where the confirmation dialog goes.' );
+        console.log( '[outlet.confirm_shutdown] TODO: Here is where the unsaved changes check goes.' );
+        console.log( '[outlet.confirm_shutdown] Waiting 2 second before proceeding with shutdown, so these console logs show.' );
+        console.log( '[outlet.confirm_shutdown] TODO: Follow-throw disabled to allow reloads. Perform operation again to get effect desired.' );
+        setTimeout(function()
+        {
+            // Returning undefined allows close/shutdown to proceed.
+            window.onbeforeunload = function(e){{ return undefined; }};
+            // window.close(); // TODO: Need to handle reload events as well.
+        }, 2000);
+
+        )%%%";
+
+        KMAP_TRY( estore.install_subject( "kmap" ) );
+        KMAP_TRY( estore.install_verb( "shutdown" ) );
+        KMAP_TRY( estore.install_outlet( "confirm_shutdown"
+                                       , "Ensures deltas are saved if user desires, and if exiting the program is really desired."
+                                       , outlet_script
+                                       , { "subject.kmap", "verb.shutdown" } ) );
+
+        auto const script = 
+            fmt::format(
+                R"%%%( 
+                const requisites = to_VectorString( {} );
+                window.onbeforeunload = function(e){{ kmap.event_store().fire_event( requisites ); e.returnValue = false; return false; }};
+                )%%%"
+                , "[ 'subject.kmap', 'verb.shutdown' ]" );
+        KMAP_TRY( js::eval_void( script ) );
+    }
+    {
+        autosave_ = std::make_unique< db::Autosave >( *this );
+
+        KMAP_TRY( autosave_->initialize() );
+    }
+    {
+        KMAP_TRY( option_store().apply_all() );
     }
 
     rv = outcome::success();
-        KMAP_LOG_LINE();
     
+    return rv;
+}
+
+auto Kmap::reset_database()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    database_ = std::make_unique< Database >();
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Kmap::reset_network()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    network_ = std::make_unique< Network >( canvas_->network_pane() );
+
+    rv = outcome::success();
+
     return rv;
 }
 
@@ -1342,6 +1585,8 @@ auto Kmap::rename( Uuid const& id
         })
     ;
 
+    KMAP_THROW_EXCEPTION_MSG( "TODO: Impl." );
+
     {
         using sqlpp::update;
 
@@ -1359,7 +1604,7 @@ auto Kmap::exists( Uuid const& id ) const
 {
     auto& db = database();
 
-    return db.exists( resolve( id ) );
+    return db.node_exists( resolve( id ) );
 }
 
 auto Kmap::exists( Heading const& heading ) const
@@ -1376,30 +1621,24 @@ auto Kmap::reorder_children( Uuid const& parent
                            , std::vector< Uuid > const& children )
     -> Result< void >
 {
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( parent ) );
-            auto const pchildren = fetch_children( parent );
-            auto const cset = children
-                            | to< UuidSet >();
-            BC_ASSERT( cset == pchildren );
-        })
-    ;
-
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_ENSURE( rv, exists( parent ), error_code::network::invalid_parent );
-    KMAP_ENSURE( rv, fetch_children( parent ) == ( children | to< UuidSet >() ), error_code::network::invalid_parent );
+    KMAP_ENSURE( fetch_children( parent ) == ( children | to< std::set >() ), error_code::network::invalid_ordering );
 
-    auto const order_ids = children
-                         | views::transform( [ & ]( auto const& e ){ return resolve( e ); } )
-                         | views::transform( to_ordering_id )
-                         | to_vector;
-    auto& db = database();
+    auto const osv = children
+                  | views::transform( []( auto const& e ){ return to_string( e ); } )
+                  | to< std::vector >();
+    auto const oss = osv
+                  | views::join( '\n' )
+                  | to< std::string >();
+    auto const ordern = KMAP_TRY( view::root( parent )
+                                | view::attr
+                                | view::child( "order" )
+                                | view::fetch_node( *this ) );
 
-    db.update_child_ordering( parent
-                            , order_ids );
+    // fmt::print( "updating children for parent({}): {}\n", to_string( parent ), oss | views::replace( '\n', '|' ) | to< std::string >() );
+    
+    KMAP_TRY( update_body( ordern, oss ) );
 
     rv = outcome::success();
 
@@ -1419,14 +1658,17 @@ auto Kmap::select_node( Uuid const& id )
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            BC_ASSERT( selected_node() == id );
-            // assert viewport is centered...
-            // assert nw is focused...
-            // assert jump stack is increased...(possibly, depends)
+            if( rv )
+            {
+                BC_ASSERT( selected_node() == id );
+                // assert viewport is centered...
+                // assert nw is focused...
+                // assert jump stack is increased...(possibly, depends)
+            }
         })
     ;
 
-    KMAP_ENSURE( rv, exists( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
 
     auto const prev_selected = selected_node();
     auto& nw = network();
@@ -1440,11 +1682,9 @@ auto Kmap::select_node( Uuid const& id )
             if( auto const pid = fetch_parent( nid )
               ; pid
              && visible_node_set.count( pid.value() ) != 0
-             && !nw.edge_exists( pid.value()
-                               , nid ) )
+             && !nw.edge_exists( pid.value(), nid ) )
             {
-                nw.add_edge( pid.value()
-                           , nid );
+                KMAP_TRYE( nw.add_edge( pid.value(), nid ) );
             }
         };
         auto const to_title = [ & ]( auto const& e )
@@ -1466,7 +1706,7 @@ auto Kmap::select_node( Uuid const& id )
         for( auto const& cid : visible_nodes )
         {
             BC_ASSERT( exists( cid ) );
-            nw.create_node( cid, to_title( cid ) );
+            KMAP_TRY( nw.create_node( cid, to_title( cid ) ) );
             create_edge( cid );
         }
 
@@ -1492,18 +1732,19 @@ auto Kmap::select_node( Uuid const& id )
     KMAP_TRY( nw.change_node_font( id
                                  , get_appropriate_node_font_face( id )
                                  , Color::white ) );
-    nw.select_node( id );
+    if( auto const succ = nw.select_node( id )
+      ; !succ && succ.error().ec != error_code::network::no_prev_selection )
+    {
+        KMAP_ENSURE( succ, succ.error().ec );
+    }
     nw.center_viewport_node( id );
     nw.focus();
     auto id_abs_path = absolute_path_uuid( id );
-    auto breadcrumb = id_abs_path
-                    | views::drop_last( 1 )
-                    | to< UuidVec >();
-    KMAP_LOG_LINE();
-    set_fwd_breadcrumb( to_heading_path_flat( *this, breadcrumb ) );
-    KMAP_LOG_LINE();
+    auto breadcrumb_nodes = id_abs_path
+                          | views::drop_last( 1 )
+                          | to< UuidVec >();
+    KMAP_TRY( canvas().set_breadcrumb( breadcrumb_nodes ) );
     load_preview( id ); // Note: load preview must be after nw.select_node(), as it uses fetch_descendant, which uses selected_node, which must exist!
-    KMAP_LOG_LINE();
 
     rv = prev_selected;
 
@@ -1534,12 +1775,12 @@ auto Kmap::swap_nodes( Uuid const& t1
     ;
 
     // TODO: Can use Boost.Outcome Custom Payload to denote which node is not found.
-    KMAP_ENSURE( rv, exists( t1 ), error_code::node::not_found );
-    KMAP_ENSURE( rv, exists( t2 ), error_code::node::not_found );
-    KMAP_ENSURE( rv, !is_root( t1 ), error_code::node::is_root );
-    KMAP_ENSURE( rv, !is_root( t2 ), error_code::node::is_root );
-    KMAP_ENSURE( rv, !is_lineal( t1, t2 ), error_code::node::is_lineal );
-    KMAP_ENSURE( rv, !is_lineal( t2, t1 ), error_code::node::is_lineal );
+    KMAP_ENSURE( exists( t1 ), error_code::node::not_found );
+    KMAP_ENSURE( exists( t2 ), error_code::node::not_found );
+    KMAP_ENSURE( !is_root( t1 ), error_code::node::is_root );
+    KMAP_ENSURE( !is_root( t2 ), error_code::node::is_root );
+    KMAP_ENSURE( !is_lineal( t1, t2 ), error_code::node::is_lineal );
+    KMAP_ENSURE( !is_lineal( t2, t1 ), error_code::node::is_lineal );
 
     auto const t1_pos = fetch_ordering_position( t1 );
     auto const t2_pos = fetch_ordering_position( t2 );
@@ -1561,35 +1802,42 @@ auto Kmap::swap_nodes( Uuid const& t1
 }
 
 auto Kmap::jump_to( Uuid const& id )
-    -> void
+    -> Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( exists( id ) ); // TODO: this function should return an outcome rather than fail with precondition.
         })
         BC_POST([ & ]
         {
         })
     ;
 
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
+
     auto& js = jump_stack();
     auto const selected = selected_node();
 
-    select_node( id );
+    KMAP_TRY( select_node( id ) );
     js.jump_in( selected );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::select_node( Heading const& heading )
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
-    auto rv = Optional< Uuid >{};
+    auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    if( auto const leaf = fetch_leaf( heading )
-      ; leaf )
+    if( auto const desc = fetch_descendant( heading )
+      ; desc )
     {
-        select_node( *leaf );
-        rv = leaf;
+        KMAP_TRY( select_node( desc.value() ) );
+        rv = desc;
     }
 
     return rv;
@@ -1602,41 +1850,51 @@ auto Kmap::selected_node() const
 }
 
 auto Kmap::load_preview( Uuid const& id )
-    -> void 
+    -> void  // TODO: Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
         {
             BC_ASSERT( exists( id ) ); // TODO: this function should return an outcome rather than fail with precondition.
-            BC_ASSERT( database().fetch_body( resolve( id ) ) ); // TODO: this function should return an outcome rather than fail with precondition.
+            // BC_ASSERT( database().fetch_body( resolve( id ) ) ); // Body is no longer guaranteed to be present.
         })
     ;
 
-    KMAP_LOG_LINE();
     auto& db = database();
-    KMAP_LOG_LINE();
     auto& tv = text_area();
-    KMAP_LOG_LINE();
-    auto const body = *db.fetch_body( resolve( id ) );
+    auto const body = [ & ]
+    {
+        if( auto const b = db.fetch_body( resolve( id ) )
+          ; b )
+        {
+            return b.value();
+        }
+        else
+        {
+            return std::string{};
+        }
+    }();
 
-    KMAP_LOG_LINE();
-    io::print( "loading_preview: {}\n", body );
     tv.show_preview( markdown_to_html( body ) );
-    KMAP_LOG_LINE();
 }
 
 auto Kmap::on_leaving_editor()
-    -> void
+    -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
     auto& tv = text_area();
     auto const contents = tv.editor_contents();
     auto const rid = resolve( selected_node() );
 
-    BC_ASSERT( exists( rid ) );
+    KMAP_ENSURE( exists( rid ), error_code::network::invalid_node );
 
-    database().update_body( rid, contents );
-    canvas().hide( canvas().editor_pane() );
-    select_node( selected_node() ); // Ensure the newly added preview is updated.
+    KMAP_TRY( database().update_body( rid, contents ) );
+    KMAP_TRY( canvas().hide( canvas().editor_pane() ) );
+    KMAP_TRY( select_node( selected_node() ) ); // Ensure the newly added preview is updated.
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::node_fetcher() const
@@ -1665,16 +1923,21 @@ auto Kmap::node_view( Uuid const& root
 }
 
 auto Kmap::focus_network()
-    -> void
+    -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
     auto& nw = network();
 
-    select_node( nw.selected_node() );
+    KMAP_TRY( select_node( nw.selected_node() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::update_heading( Uuid const& id
                          , Heading const& heading )
-    -> void
+    -> Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1683,16 +1946,20 @@ auto Kmap::update_heading( Uuid const& id
         })
     ;
 
+    auto rv = KMAP_MAKE_RESULT( void );
     auto& db = database();
     auto const rid = resolve( id );
 
-    db.update_heading( rid
-                     , heading );
+    KMAP_TRY( db.update_heading( rid, heading ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::update_title( Uuid const& id
                        , Title const& title )
-    -> void
+    -> Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1701,18 +1968,21 @@ auto Kmap::update_title( Uuid const& id
         })
     ;
 
+    auto rv = KMAP_MAKE_RESULT( void );
     auto& db = database();
     auto const rid = resolve( id );
 
-    db.update_title( rid
-                   , title );
+    KMAP_TRY( db.update_title( rid, title ) );
 
     if( auto& nw = network()
       ; nw.exists( rid ) )
     {
-        nw.update_title( rid
-                       , title );
+        nw.update_title( rid, title );
     }
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::update_alias( Uuid const& from
@@ -1730,7 +2000,7 @@ auto Kmap::update_alias( Uuid const& from
     ;
 
     // TODO: Deleting and remaking all does not seem optimal way to update.
-    KMAP_TRY( delete_node( make_alias_id( from, to ) ) );
+    KMAP_TRY( erase_node( make_alias_id( from, to ) ) );
 
     rv = create_alias( from, to );
 
@@ -1741,7 +2011,7 @@ auto Kmap::update_alias( Uuid const& from
 // as stateful, but rather are treated as true references, but that is a great undertaking, so updates will serve in the meantime.
 // TODO: Add test case to check when 'descendant' is an alias. I to fix this by resolving it. I suspect there are other places that suffer the same way.
 auto Kmap::update_aliases( Uuid const& descendant )
-    -> void
+    -> Result< void >
 {
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1750,19 +2020,23 @@ auto Kmap::update_aliases( Uuid const& descendant )
         })
     ;
 
+    auto rv = KMAP_MAKE_RESULT( void );
     auto const rdescendant = resolve( descendant );
 
     for( auto const& id : fetch_aliased_ancestry( rdescendant ) )
     {
         auto const& db = database();
-        auto const dsts = db.fetch_alias_destinations( id );
+        auto const dsts = KMAP_TRY( db.fetch_alias_destinations( id ) );
 
         for( auto const& dst : dsts )
         {
-            update_alias( id
-                        , dst );
+            KMAP_TRY( update_alias( id, dst ) );
         }
     }
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::count_ancestors( Uuid const& node ) const
@@ -2039,123 +2313,104 @@ auto Kmap::resolve( Uuid const& id ) const
 
             assert( pid );
 
-            rv = alias_source( pid.value()
-                             , rv );
+            rv = alias_source( pid.value(), rv );
         }
     }
 
     return rv;
 }
 
-auto Kmap::delete_children( Uuid const& parent )
-    -> Result< void >
-{
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( parent ) );
-        })
-        BC_POST([ & ]
-        {
-            BC_ASSERT( fetch_children( parent ).empty() );
-        })
-    ;
-
-    for( auto const& child : fetch_children( parent ) )
-    {
-        KMAP_TRY( delete_node( child ) );
-    }
-
-    return outcome::success();
-}
-
 // Returns a recommended node to select following the deletion of "id".
 // TODO: Make test case for when node to be deleted is selected, when it's not, and when it's a descendant of the node to be deleted.
-auto Kmap::delete_node( Uuid const& id )
+auto Kmap::erase_node( Uuid const& id )
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-        })
         BC_POST([ & ]
         {
-            BC_ASSERT( !exists( id ) );
+            if( rv )
+            {
+                BC_ASSERT( !exists( id ) );
+            }
         })
     ;
 
-    KMAP_ENSURE( rv, exists( id ), error_code::node::not_found );
-    KMAP_ENSURE( rv, id != root_node_id(), error_code::node::is_root );
-    KMAP_ENSURE( rv, !is_alias( id ) || is_top_alias( id ), error_code::node::is_nontoplevel_alias );
+    KMAP_ENSURE( exists( id ), error_code::node::not_found );
+    KMAP_ENSURE( id != root_node_id(), error_code::node::is_root );
+    KMAP_ENSURE( !is_alias( id ) || is_top_alias( id ), error_code::node::is_nontoplevel_alias );
 
     auto const parent = fetch_parent( id ).value();
     auto const selected = selected_node();
+    auto next_selected = selected;
 
     if( id == selected
      || is_ancestor( id, selected ) )
     {
-        auto const next_sel = KMAP_TRY( fetch_next_as_if_deleted( id ) );
+        auto const next_sel = KMAP_TRY( fetch_next_selected_as_if_erased( id ) );
 
         KMAP_TRY( select_node( next_sel ) );
 
-        rv = next_sel;
+        next_selected = next_sel;
     }
     else
     {
-        rv = selected; // If not deleting selected, just return selected.
+        next_selected = selected; // If not deleting selected, just return selected.
     }
 
-    delete_node_internal( id );
+    KMAP_TRY( erase_node_internal( id ) );
 
     if( !is_alias( id ) )
     {
-        update_aliases( parent );
+        KMAP_TRY( update_aliases( parent ) );
     }
+
+    rv = next_selected;
 
     return rv;
 }
 
-auto Kmap::delete_node_internal( Uuid const& id )
+auto Kmap::erase_node_internal( Uuid const& id )
     -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
+
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            // May be exclusively an alias (and not resolve to an underlying node b/c the node has already been deleted).
-            BC_ASSERT( exists( id ) || is_alias( id ) ); // TODO: This should rather check and return an error.
-            BC_ASSERT( id != root_node_id() );
-        })
         BC_POST([ & ]
         {
-            BC_ASSERT( !exists( id ) );
+            if( rv )
+            {
+                BC_ASSERT( !exists( id ) );
+            }
         })
     ;
 
-    auto rv = KMAP_MAKE_RESULT( void );
-
+    KMAP_ENSURE( exists( id ) || is_alias( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( id != root_node_id(), error_code::network::invalid_node );
     {
         auto& db = database();
 
         // Delete children.
         for( auto const& e : fetch_children( id ) )
         {
-            KMAP_TRY( delete_node_internal( e ) );
+            KMAP_TRY( erase_node_internal( e ) );
         }
         // Delete node.
         if( is_alias( id ) )
         {
-            KMAP_TRY( delete_alias( id ) );
+            KMAP_TRY( erase_alias( id ) );
         }
         else
         {
-            for( auto const& dst : database().fetch_alias_destinations( id ) )
+            for( auto const& dst : KMAP_TRY( database().fetch_alias_destinations( id ) ) )
             {
-                KMAP_TRY( delete_node( make_alias_id( id, dst ) ) );
+                KMAP_TRY( erase_node( make_alias_id( id, dst ) ) );
             }
 
-            db.remove( id );
+            KMAP_TRY( attr::pop_order( *this, KMAP_TRY( fetch_parent( id ) ), id ) );
+
+            db.erase_all( id );
         }
     }
 
@@ -2164,7 +2419,7 @@ auto Kmap::delete_node_internal( Uuid const& id )
     return rv;
 }
 
-auto Kmap::delete_alias( Uuid const& id )
+auto Kmap::erase_alias( Uuid const& id )
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
@@ -2176,31 +2431,32 @@ auto Kmap::delete_alias( Uuid const& id )
         })
         BC_POST([ & ]
         {
-            BC_ASSERT( !is_alias( id ) );
+            if( rv )
+            {
+                BC_ASSERT( !is_alias( id ) );
+            }
         })
     ;
 
-    KMAP_ENSURE_MSG( rv, is_alias( id ), error_code::node::invalid_alias, to_string( id ) );
+    KMAP_ENSURE_MSG( is_alias( id ), error_code::node::invalid_alias, to_string( id ) );
 
-    rv = KMAP_TRY( fetch_next_as_if_deleted( id ) );
+    rv = KMAP_TRY( fetch_next_selected_as_if_erased( id ) );
  
-    auto const dst = fetch_parent( id );
-    BC_ASSERT( dst );
+    auto const dst = KMAP_TRY( fetch_parent( id ) );
 
     if( is_top_alias( id ) ) // Must precede erasing alias from the cache, as it is dependent on it.
     {
         auto const src = resolve( id );
         auto& db = database();
 
-        db.remove_alias( src
-                       , dst.value() );
+        KMAP_TRY( db.erase_alias( src, dst ) );
     }
 
     aliases().erase( id );
     alias_parents_.erase( id );
     alias_children_.erase( [ & ]
     {
-        auto const er = alias_children_.equal_range( dst.value() );
+        auto const er = alias_children_.equal_range( dst );
         BC_ASSERT( er.first != er.second );
         auto r = er.first;
 
@@ -2237,7 +2493,7 @@ auto Kmap::update( Uuid const& id )
     
     // If an alias... update alias.
     // TODO! Implment this!
-    assert( false ); // Use update_subtree? Trouble with updating a node and not it's children is that it may have moved or been deleted!
+    KMAP_THROW_EXCEPTION_MSG( "TODO" ); // Use update_subtree? Trouble with updating a node and not it's children is that it may have moved or been deleted!
 }
 
 auto Kmap::jump_in()
@@ -2248,7 +2504,7 @@ auto Kmap::jump_in()
     if( auto const dst = js.jump_in()
       ; dst )
     {
-        select_node( *dst );
+        KMAP_TRYE( select_node( *dst ) ); // TODO: Lose the E.
     }
 }
 
@@ -2261,7 +2517,7 @@ auto Kmap::jump_out()
     if( auto const dst = js.jump_out()
       ; dst )
     {
-        select_node( *dst );
+        KMAP_TRYE( select_node( *dst ) ); // TODO: lose the E.
         rv = dst;
     }
 
@@ -2280,6 +2536,12 @@ auto Kmap::jump_stack() const
     return jump_stack_;
 }
 
+auto Kmap::root_view() const
+    -> view::Intermediary
+{
+    return view::root( root_node_id() );
+}
+
 // TODO: Should this ensure that if the moved node is the selected node, it updates the selected as well? I believe this is only relevant for the alias case.
 //       In essence, this can invalidate IDs for aliases.
 auto Kmap::move_node( Uuid const& from
@@ -2289,9 +2551,6 @@ auto Kmap::move_node( Uuid const& from
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-        })
         BC_POST([ &
                 , from_alias = is_alias( from ) ]
         {
@@ -2299,19 +2558,18 @@ auto Kmap::move_node( Uuid const& from
             {
                 if( !from_alias )
                 {
-                    BC_ASSERT( is_child( to
-                                       , from ) );
+                    BC_ASSERT( is_child( to, from ) );
                 }
             }
         })
     ;
 
-    KMAP_ENSURE( rv, exists( from ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, exists( to ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, !is_child( to, fetch_heading( from ).value() ), error_code::network::invalid_heading ); // TODO: Replace invalid_heading with duplicate_heading. See create_node::duplicate_child_heading.
-    KMAP_ENSURE( rv, !is_alias( to ), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, from != root_node_id(), error_code::network::invalid_node );
-    KMAP_ENSURE( rv, !is_ancestor( from, to ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( from ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( to ), error_code::network::invalid_node );
+    KMAP_ENSURE( !is_child( to, fetch_heading( from ).value() ), error_code::network::invalid_heading ); // TODO: Replace invalid_heading with duplicate_heading. See create_node::duplicate_child_heading.
+    KMAP_ENSURE( !is_alias( to ), error_code::network::invalid_node );
+    KMAP_ENSURE( from != root_node_id(), error_code::network::invalid_node );
+    KMAP_ENSURE( !is_ancestor( from, to ), error_code::network::invalid_node );
 
     auto const from_parent = fetch_parent( from ).value();
     auto const from_heading = fetch_heading( from ).value();
@@ -2324,7 +2582,7 @@ auto Kmap::move_node( Uuid const& from
     {
         auto const rfrom = resolve( from );
 
-        KMAP_TRY( delete_alias( from ) );
+        KMAP_TRY( erase_alias( from ) );
 
         auto const alias = create_alias( rfrom, to );
 
@@ -2339,10 +2597,8 @@ auto Kmap::move_node( Uuid const& from
         // TODO: It's important to have a fail-safe for this routine. If remove
         // succeeds, but, for some reason, add fails, the remove should revert (or
         // vice-versa), otherwise we're at risk of having a dangling node.
-        db.remove_child( from_parent 
-                       , from );
-        db.add_child( to
-                    , from );
+        db.erase_child( from_parent, from );
+        KMAP_TRY( db.push_child( to, from ) );
 
         rv = to;
     }
@@ -2357,12 +2613,11 @@ auto Kmap::move_node( Uuid const& from
 
         if( nw.exists( from ) )
         {
-            nw.remove_edge( from_parent
-                          , from );
+            KMAP_TRY( nw.remove_edge( from_parent, from ) );
 
             if( nw.exists( to ) )
             {
-                nw.add_edge( to, from );
+                KMAP_TRY( nw.add_edge( to, from ) );
             }
         }
     }
@@ -2512,7 +2767,7 @@ auto Kmap::fetch_parent( Uuid const& root
 {
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::invalid_parent );
 
-    KMAP_ENSURE( rv, is_lineal( root, child ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( is_lineal( root, child ), error_code::network::invalid_lineage );
 
     if( child != root )
     {
@@ -2543,17 +2798,17 @@ auto Kmap::fetch_title( Uuid const& id ) const
     return rv;
 }
 
-auto Kmap::fetch_nodes() const
-    -> UuidUnSet
-{
-    auto const& as = aliases();
-    auto nodes = database().fetch_nodes();
+// auto Kmap::fetch_nodes() const
+//     -> UuidUnSet
+// {
+//     auto const& as = aliases();
+//     auto nodes = database().fetch_nodes();
 
-    nodes.insert( as.begin()
-                , as.end() );
+//     nodes.insert( as.begin()
+//                 , as.end() );
                 
-    return nodes;
-}
+//     return nodes;
+// }
 
 // TODO: This needs some thought about whether to check the heading of 'descendant' with the heading path i.e., if 'descendant' is 'child', and ancestors are 'parent' and 'grandparent', should the heading be 'child.parent.grandparent'? 
 // TODO: I don't think this algorithm safely handles alias parents. Simply assumed that all parents will have valid headings.
@@ -2575,7 +2830,7 @@ auto Kmap::fetch_ancestor( Uuid const& descendant
 
     if( split.size() == 1 )
     {
-        if( db.fetch_heading( *rv ) == heading )
+        if( db.fetch_heading( *rv ).value() == heading )
         {
             return rv;
         }
@@ -2588,7 +2843,7 @@ auto Kmap::fetch_ancestor( Uuid const& descendant
     {
         for( auto const& pheading : split )
         {
-            if( pheading != *db.fetch_heading( rv.value() ) )
+            if( pheading != db.fetch_heading( rv.value() ).value() )
             {
                 rv = nullopt;
                 break;
@@ -2617,7 +2872,7 @@ auto Kmap::fetch_body( Uuid const& id ) const
 
     if( exists( id ) )
     {
-        return *database().fetch_body( resolve( id ) );
+        rv = KMAP_TRY( database().fetch_body( resolve( id ) ) );
     }
     else
     {
@@ -2643,7 +2898,7 @@ auto Kmap::fetch_child( Uuid const& parent
     {
         for( auto const& e : fetch_children( parent ) )
         {
-            if( heading == fetch_heading( e ).value() )
+            if( heading == KMAP_TRY( fetch_heading( e ) ) )
             {
                 rv = e;
 
@@ -2697,7 +2952,7 @@ auto Kmap::fetch_alias_children( Uuid const& parent ) const
 }
 
 auto Kmap::fetch_children( Uuid const& parent ) const
-    -> kmap::UuidSet
+    -> kmap::UuidSet // TODO: There's an argument that this should be Result< UuidSet >. If `parent` doesn't exist, that's more than just `parent` has zero children, it's an input error.
 { 
     auto rv = kmap::UuidSet{};
 
@@ -2713,6 +2968,9 @@ auto Kmap::fetch_children( Uuid const& parent ) const
         })
     ;
 
+    KMAP_ENSURE_EXCEPT( exists( parent ) ); // TODO: Replace with KM_ENSURE( exists( parent ) );
+    KMAP_ENSURE_EXCEPT( fetch_heading( parent ) ); // TODO: Replace with KM_ENSURE( exists( parent ) );
+
     auto const db_children = [ & ]
     {
         if( is_alias( parent ) )
@@ -2723,14 +2981,15 @@ auto Kmap::fetch_children( Uuid const& parent ) const
         {
             auto const& db = database();
 
-            return db.fetch_children( parent );
+            return KMAP_TRYE( db.fetch_children( parent ) );
         }
     }();
     auto const alias_children = fetch_alias_children( parent );
 
-    return views::concat( db_children
-                       , alias_children )
-         | to< kmap::UuidSet >();
+    auto const all = views::concat( db_children
+                                  , alias_children )
+                   | to< kmap::UuidSet >();
+    return all;
 }
 
 auto Kmap::fetch_children( Uuid const& root
@@ -2810,46 +3069,46 @@ auto Kmap::fetch_children_ordered( Uuid const& root
 auto Kmap::fetch_children_ordered( Uuid const& parent ) const
     -> std::vector< Uuid >
 {
-    auto rv = std::vector< Uuid >{};
+    // if parent has $order: use $order
+    // else: find each child's $genesis, order by that.
+    using Map = std::vector< std::pair< Uuid, uint64_t > >;
 
-    BC_CONTRACT()
-        BC_PRE([ & ]
+    // TODO: if is attribute node, sort alphanumerically?
+
+    auto rv = fetch_children( parent ) | to< std::vector >();
+
+    if( rv.empty() )
+    {
+        return rv;
+    }
+
+    // TODO: OK - I think I know what's happening here. fetch_children is returning non-zero children for an alias, but create_alias doesn't update
+    //       (or create) "$order", so we end up with an exception: child but no $order. Solution? Have create.alias update body.
+    auto map = Map{};
+    auto const porder = KMAP_TRYE( view::root( parent )
+                                 | view::attr
+                                 | view::child( "order" )
+                                 | view::fetch_node( *this ) );
+    auto const body = KMAP_TRYE( fetch_body( porder ) );
+    auto id_ordinal_map = std::map< Uuid, uint64_t >{};
+    auto const ids = body
+                   | views::split( '\n' )
+                   | to< std::vector< std::string > >();
+
+    for( auto const [ i, s ] : ids | views::enumerate )
+    {
+        id_ordinal_map.emplace( KMAP_TRYE( to_uuid( s ) ), i );
+    }
+
+    for( auto const& e : rv )
+    {
+        if( !id_ordinal_map.contains( e ) )
         {
-            BC_ASSERT( exists( parent ) ); // TODO: Warranted, or should I just return {}?
-            BC_ASSERT( database().fetch_child_ordering( resolve( parent ) ).size() == fetch_children( parent ).size() );
-        })
-        BC_POST([ & ]
-        {
-            BC_ASSERT( rv.size() == fetch_children( parent ).size() );
-        })
-    ;
+            KMAP_THROW_EXCEPTION_MSG( fmt::format( "failed to find ordering ({}) for child: {}", to_string( parent ), to_string( e ) ) );
+        }
+    }
 
-    auto const& db = database();
-    auto const children = fetch_children( parent );
-    auto const mapped = children
-                        | views::transform( [ & ]( auto const& child )
-                        {
-                            auto const rchild = resolve( child );
-                            auto const order_id = to_ordering_id( rchild );
-
-                            return std::make_pair( order_id
-                                                 , child );
-                        } )
-                        | to_vector;
-    auto const ordered = db.fetch_child_ordering( resolve( parent ) );
-
-    rv = ordered
-       | views::transform( [ & ]( auto const& e )
-       {
-           auto const it = find( mapped
-                               , e
-                               , &std::pair< std::string, Uuid >::first );
-
-           assert( it != mapped.end() );
-
-           return it->second;
-       } )
-       | to< std::vector< Uuid > >();
+    ranges::sort( rv, [ & ]( auto const& lhs, auto const& rhs ){ return id_ordinal_map[ lhs ] < id_ordinal_map[ rhs ]; } );
 
     return rv;
 }
@@ -2861,7 +3120,7 @@ auto Kmap::fetch_heading( Uuid const& id ) const
 
     if( exists( id ) )
     {
-        rv = database().fetch_heading( resolve( id ) ).value();
+        rv = KMAP_TRY( database().fetch_heading( resolve( id ) ) );
     }
     else
     {
@@ -2888,7 +3147,7 @@ auto Kmap::fetch_nearest_ancestor( Uuid const& root
                                        , geometry );
 }
 
-auto Kmap::fetch_next_as_if_deleted( Uuid const& node ) const
+auto Kmap::fetch_next_selected_as_if_erased( Uuid const& node ) const
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
@@ -2926,8 +3185,7 @@ auto Kmap::fetch_visible_nodes_from( Uuid const& id ) const
             {
                 BC_ASSERT( exists( e ) );
             }
-            auto const s = UuidSet{ rv.begin()
-                                  , rv.end() };
+            auto const s = UuidSet{ rv.begin(), rv.end() };
             BC_ASSERT( rv.size() == s.size() );
         })
     ;
@@ -3175,8 +3433,7 @@ auto Kmap::fetch_or_create_leaf( Uuid const& root
 
         if( !cid )
         {
-            cid = create_child( pid
-                              , heading ).value();
+            cid = create_child( pid, heading ).value();
         }
 
         pid = cid.value();
@@ -3220,6 +3477,17 @@ auto Kmap::fetch_or_create_descendant( Heading const& heading )
                                      , heading );
 }
 
+auto Kmap::fetch_attr_node( Uuid const& id ) const
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto&& db = database();
+
+    rv = KMAP_TRY( db.fetch_attr( id ) );
+
+    return rv;
+}
+
 auto Kmap::fetch_genesis_time( Uuid const& id ) const
     -> Optional< uint64_t >
 {
@@ -3232,8 +3500,7 @@ auto Kmap::fetch_ordering_position( Uuid const& node ) const
     auto rv = Optional< uint32_t >{};
     auto const ordering = fetch_parent_children_ordered( node );
     
-    if( auto const it = find( ordering
-                            , node )
+    if( auto const it = find( ordering, node )
       ; it != end( ordering) )
     {
         rv = std::distance( ordering.begin(), it );
@@ -3242,6 +3509,7 @@ auto Kmap::fetch_ordering_position( Uuid const& node ) const
     return rv;
 }
 
+// TODO: This should be gotten from options.
 auto Kmap::get_appropriate_node_font_face( Uuid const& id ) const
     -> std::string
 {
@@ -3270,21 +3538,18 @@ Kmap& Singleton::instance()
 {
     if( !inst_ )
     {
-        KMAP_LOG_LINE();
         try
         {
             inst_ = std::make_unique< Kmap >();
             if( !inst_ )
             {
                 io::print( "failed to intitialize Kmap instance\n" );
-            KMAP_LOG_LINE();
             }
         }
         catch( std::exception& e )
         {
             io::print( "Singleton::instance exception: {}\n", e.what() );
         }
-        KMAP_LOG_LINE();
     }
 
     return *inst_;

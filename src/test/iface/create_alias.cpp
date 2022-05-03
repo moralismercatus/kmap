@@ -12,6 +12,7 @@ namespace utf = boost::unit_test;
 
 namespace kmap::test {
 
+// TODO: I think we don't want this nested under kmap_iface; rather, we want kmap iface to be a dependency (depends_on()) where relevant.
 BOOST_AUTO_TEST_SUITE( kmap_iface )
 BOOST_AUTO_TEST_SUITE( create_alias ) // TODO: This suite should rather be named "alias" alone, as it includes deletion, movement, etc. checks as well.
 
@@ -49,7 +50,7 @@ BOOST_AUTO_TEST_CASE( delete_alias
 
     BOOST_TEST( kmap.create_alias( nodes[ "/1" ]
                                  , nodes[ "/2" ] ) );
-    BOOST_TEST( kmap.delete_node( nodes[ "/2.1" ] ) );
+    BOOST_TEST( kmap.erase_node( nodes[ "/2.1" ] ) );
     BOOST_TEST( !kmap.exists( "/2.1" ) );
     BOOST_TEST( kmap.fetch_children( nodes[ "/2" ] ).empty() );
     BOOST_TEST( kmap.exists( "/1" ) );
@@ -157,7 +158,7 @@ BOOST_AUTO_TEST_CASE( update_alias_delete_child
 
     BOOST_TEST( kmap.create_alias( nodes[ "/1" ]
                                  , nodes[ "/3" ] ) );
-    BOOST_TEST( kmap.delete_node( nodes[ "/1.2" ] ) );
+    BOOST_TEST( kmap.erase_node( nodes[ "/1.2" ] ) );
     BOOST_TEST( !kmap.exists( "/3.1.2" ) );
     BOOST_TEST( kmap.select_node( nodes[ "/3.1" ] ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/3.1" ] );
@@ -176,7 +177,7 @@ BOOST_AUTO_TEST_CASE( update_alias_delete_source
 
     BOOST_TEST( kmap.create_alias( nodes[ "/1" ]
                                  , nodes[ "/2" ] ) );
-    BOOST_TEST( kmap.delete_node( nodes[ "/1" ] ) );
+    BOOST_TEST( kmap.erase_node( nodes[ "/1" ] ) );
     BOOST_TEST( !kmap.exists( "/1" ) );
     BOOST_TEST( !kmap.exists( "/2.1" ) );
     BOOST_TEST( kmap.select_node( nodes[ "/2" ] ) );

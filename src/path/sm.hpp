@@ -9,6 +9,7 @@
 
 #include "../common.hpp"
 #include "../contract.hpp"
+#include "../db.hpp"
 #include "../kmap.hpp"
 #include "../util/sm/logger.hpp"
 
@@ -107,14 +108,14 @@ auto process_token( Driver& driver
     }
 }
 
-class UniquePathDeciderSm
+class UniquePathDeciderSm // TODO: Can't this go in path.cpp? That would save some compilation effort.
 {
 public:
     struct Output
     {
         UuidPath prospect       = {};
         UuidPath disambiguation = {};
-        std::string error_msg   = "unknown error";
+        std::string error_msg   = "unknown error"; // TODO: Change to Result< void >, to propagate known path error codes + messages?
     };
     using OutputPtr = std::shared_ptr< Output >;
 
@@ -143,7 +144,8 @@ public:
             BC_ASSERT( output_ );
             BC_ASSERT( !output_->prospect.empty() );
 
-            return kmap_.fetch_child( output_->prospect.back(), ev.heading ).has_value();
+            auto const rv = kmap_.fetch_child( output_->prospect.back(), ev.heading ).has_value();
+            return rv;
         };
         auto const current_heading_exists = [ & ]( auto const& ev )
         {
@@ -233,9 +235,25 @@ public:
         };
         auto const set_error_msg = [ & ]( auto const& msg )
         {
-            return [ & ]( auto const& ) mutable
+            return [ this, msg ]( auto const& ) mutable
             {
-                output_->error_msg = msg;
+                // auto const& prospect = this->output_->prospect;
+                // if( !prospect.empty() )
+                // {
+                //     if( this->kmap_.fetch_heading( prospect.back() ).has_value() )
+                //     {
+                //         fmt::print( "path sm error: '{}'| last heading: '{}'\n", msg, this->kmap_.fetch_heading( prospect.back() ).value() );
+                //     }
+                //     else
+                //     {
+                //         fmt::print( "path sm error: '{}'| last heading: '{}'\n", msg, "<heading>" );
+                //     }
+                // }
+                // else
+                // {
+                //     fmt::print( "path sm error: prospect.empty\n" );
+                // }
+                this->output_->error_msg = msg;
             };
         };
 
@@ -352,7 +370,7 @@ public:
 
             auto const& db = kmap_.database();
 
-            return db.heading_exists( ev.heading );
+            return db.contains< db::HeadingTable >( ev.heading );
         };
         auto const has_prospect = [ & ]( auto const& ev ) -> bool
         {

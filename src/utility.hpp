@@ -10,7 +10,7 @@
 #include "common.hpp"
 #include "error/node_manip.hpp"
 #include "io.hpp"
-#include "path.hpp"
+// #include "path.hpp"
 #include "stmt_prep.hpp"
 
 #include <boost/timer/timer.hpp>
@@ -29,17 +29,26 @@
 #else
     #define KMAP_PROFILE_SCOPE() ( void )0;
 #endif // KMAP_PROFILE
-#define KMAP_LOG_LINE() fmt::print( "[log.line] {}|{}|{}\n", __func__, __LINE__, FsPath{ __FILE__ }.filename().string() )
+#if KMAP_DEBUG_LOG || 1
+    #define KMAP_LOG_LINE() fmt::print( "[log.line] {}|{}|{}\n", __func__, __LINE__, FsPath{ __FILE__ }.filename().string() )
+#else
+    #define KMAP_LOG_LINE()
+#endif
 
 namespace kmap {
 
 using boost::uuids::to_string;
 // Note: It appears Clang 10 can't handle rollbear::* at this time.
+//       Update: It appears master branch _is_ cooperating with clang now.
 //       In addition, including these in kmap appears to confuse the compiler
 //       when compiling sqlpp11 query statements.
-// using rollbear::any_of;
-// using rollbear::all_of;
-// using rollbear::none_of;
+
+namespace util
+{
+    using rollbear::any_of;
+    using rollbear::all_of;
+    using rollbear::none_of;
+}
 
 class Database;
 
@@ -178,6 +187,9 @@ auto to_uint64( Uuid const& id )
 auto to_uuid( uint64_t const& id )
     -> Uuid;
 [[ nodiscard ]]
+auto to_uuid( std::string const& s )
+    -> Result< Uuid >;
+[[ nodiscard ]]
 auto match_closest( Heading const& unknown
                   , std::vector< Heading > const& knowns )
     -> Heading;
@@ -230,12 +242,12 @@ auto print_stacktrace()
 auto copy_body( Kmap& kmap
               , Uuid const& src
               , Uuid const& dst )
-    -> bool;
+    -> Result< void >;
 [[ nodiscard ]]
 auto move_body( Kmap& kmap
               , Uuid const& src
               , Uuid const& dst )
-    -> bool;
+    -> Result< void >;
 // TODO: There's no reason this shouldn't be a generic template. Nothing specific to UUids.
 [[ nodiscard ]]
 auto select_median_range( std::vector< Uuid > const& range

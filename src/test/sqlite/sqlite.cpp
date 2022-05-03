@@ -16,23 +16,23 @@ namespace kmap::test {
 
 BOOST_AUTO_TEST_SUITE( sqlite3_ts
                      , 
-                     * utf::depends_on( "filesystem" ) )
+                     * utf::depends_on( "filesystem" )
+                     * utf::label( "env" ) )
                       
 BOOST_AUTO_TEST_CASE( open )
 {
     auto const db_path = "/kmap/db_is_working.db";
-    auto cfg = sql::connection_config{};
-    cfg.path_to_database = db_path;
-    cfg.flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    auto const flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
     ::sqlite3* sqlite;
     {
-        auto const rc = sqlite3_open_v2( cfg.path_to_database.c_str()
+        auto const rc = sqlite3_open_v2( db_path
                                        , &sqlite
-                                       , cfg.flags
-                                       , cfg.vfs.empty() ? nullptr : cfg.vfs.c_str() );
+                                       , flags
+                                       , nullptr );
 
         BOOST_TEST( rc == SQLITE_OK );
     }
+
     {
         auto const rc = sqlite3_close( sqlite );
 

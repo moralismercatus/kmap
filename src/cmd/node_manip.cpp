@@ -27,15 +27,12 @@ auto create_child( Kmap& kmap
                  , Heading const& heading )
     -> Result< std::string >
 {
-    if( !kmap.is_child( parent
-                      , heading ) )
+    if( !kmap.is_child( parent, heading ) )
     { 
-        auto const cid = kmap.create_child( parent
-                                          , heading );
+        auto const cid = KMAP_TRY( kmap.create_child( parent, heading ) );
 
-        kmap.update_title( cid.value()
-                         , title );
-        KMAP_TRY( kmap.select_node( cid.value() ) );
+        KMAP_TRY( kmap.update_title( cid, title ) );
+        KMAP_TRY( kmap.select_node( cid ) );
 
         return fmt::format( "added: {}", heading );
     }
@@ -464,7 +461,7 @@ let rv = kmap.success( 'no children' );
 const selected = kmap.selected_node();
 const children = kmap.fetch_children( selected );
 
-rv = kmap.delete_children( selected )
+rv = kmap.delete_children( selected );
 
 if( rv.has_value() )
 {
@@ -701,7 +698,7 @@ if( dst.has_value() )
     {
         kmap.select_node( dst.value() );
 
-        rv = kmap.success( 'move body succeeced' );
+        rv = kmap.success( 'move body succeeded' );
     }
     else
     {
@@ -1000,6 +997,8 @@ let rv = null;
 const selected = kmap.selected_node();
 
 rv = kmap.sort_children( selected );
+
+kmap.select_node( selected ); // Refresh graph.
 
 return rv;
 ```)%%%";

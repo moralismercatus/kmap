@@ -16,9 +16,7 @@ BOOST_AUTO_TEST_SUITE( cli )
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( parse_raw )
 /******************************************************************************/
-BOOST_AUTO_TEST_SUITE( project
-                     ,
-                     * utf::disabled() ) // TODO: Re-enable test suite. Temporary disabled until reassessment of feature.
+BOOST_AUTO_TEST_SUITE( project )
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( uncategorized )
 
@@ -116,7 +114,7 @@ BOOST_AUTO_TEST_CASE( close_project
 
     BOOST_TEST( cli.parse_raw( ":close.project" )  );
 
-    kmap.update_body( nodes[ "/projects.open.inactive.1" ], "content" );
+    BOOST_TEST( !kmap.update_body( nodes[ "/projects.open.inactive.1" ], "content" ).has_error() );
 
     BOOST_TEST( cli.parse_raw( ":close.project" ) );
     BOOST_TEST( kmap.exists( "/projects.closed.1" ) );
@@ -161,7 +159,7 @@ BOOST_AUTO_TEST_CASE( create
 
     create_lineages( "projects.open.inactive.cat" );
 
-    kmap.select_node( "projects.open.inactive.cat" );
+    BOOST_TEST( kmap.select_node( "projects.open.inactive.cat" ) );
 
     BOOST_TEST( cli.parse_raw( ":create.project 1" ) );
 
@@ -190,7 +188,7 @@ BOOST_AUTO_TEST_CASE( create_task
 
     create_lineages( "projects.open.inactive.cat" );
 
-    kmap.select_node( "projects.open.inactive.cat" );
+    BOOST_TEST( kmap.select_node( "projects.open.inactive.cat" ) );
 
     BOOST_TEST( cli.parse_raw( ":create.project 1" )  );
     BOOST_TEST( kmap.exists( nodes[ "/projects.open.inactive.cat.1" ] ) );
@@ -217,11 +215,11 @@ BOOST_AUTO_TEST_CASE( close_project
 
     create_lineages( "projects.open.inactive.cat" );
 
-    kmap.select_node( "projects.open.inactive.cat" );
+    BOOST_TEST( kmap.select_node( "projects.open.inactive.cat" ) );
 
     BOOST_TEST( cli.parse_raw( ":create.project 1" ) );
     BOOST_TEST( cli.parse_raw( ":close.project" ) );
-    kmap.update_body( nodes[ "/projects.open.inactive.cat.1" ], "content" );
+    BOOST_TEST( !kmap.update_body( nodes[ "/projects.open.inactive.cat.1" ], "content" ).has_error() );
     BOOST_TEST( cli.parse_raw( ":close.project" ) );
     BOOST_TEST( kmap.exists( "/projects.closed.cat.1" ) );
     BOOST_TEST( kmap.selected_node() == nodes[ "/projects.closed.cat.1" ] );

@@ -9,8 +9,6 @@
 
 #include "common.hpp"
 #include "utility.hpp"
-#include "db.hpp"
-#include "network.hpp"
 
 #include <boost/circular_buffer.hpp>
 

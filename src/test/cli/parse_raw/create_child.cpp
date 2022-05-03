@@ -25,9 +25,9 @@ BOOST_AUTO_TEST_CASE( create_child
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
 
-    kmap.select_node( kmap.root_node_id() );
+    BOOST_TEST( kmap.select_node( kmap.root_node_id() ) );
     BOOST_TEST( cli.parse_raw( ":create.child 1" ) );
-    kmap.select_node( kmap.root_node_id() );
+    BOOST_TEST( kmap.select_node( kmap.root_node_id() ) );
     BOOST_TEST( cli.parse_raw( ":create.child 1" ) );
 }
 
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE( create_sibling
 
     BOOST_TEST( cli.parse_raw( ":create.sibling 1" ) );
 
-    kmap.select_node( nodes[ "/1" ] );
+    BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
 
     BOOST_TEST( cli.parse_raw( ":create.sibling 2" ) );
     BOOST_TEST( cli.parse_raw( ":create.sibling 2" ) );

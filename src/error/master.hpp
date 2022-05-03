@@ -8,6 +8,18 @@
 #ifndef KMAP_EC_MASTER_HPP
 #define KMAP_EC_MASTER_HPP
 
+#if KMAP_DEBUG
+    #define KMAP_LOG_EXCEPTION
+    #define KMAP_DISABLE_EXCEPTION_LOG_SCOPED() auto const disable_exception_log = kmap::log::ScopedDisabler{ kmap::log::flag::log_exception }
+#else
+    #define KMAP_DISABLE_EXCEPTION_LOG_SCOPED() (void)0;
+#endif // kmap::log
+
+#define KMAP_THROW_EXCEPTION_MSG( msg ) \
+    ({ \
+        kmap::log_exception( ( msg ), __PRETTY_FUNCTION__, __FILE__, __LINE__ ); \
+        throw std::runtime_error( ( msg ) ); \
+    })
 // TODO: Replace macros with std::source_location. This can be done by creating a default
 //       argument KMAP_MAKE_RESULT( T >( boost::system::error_code const& ec = common::uncategorized, std::source_location const& = std::source_location::current() )
 // TODO: Once std::source_location becomes available, exchange all macros for functions.
@@ -30,8 +42,7 @@
         res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
         res.as_failure(); \
     })
-// TODO: Remove 'rv', I don't believe it's used.
-#define KMAP_ENSURE_MSG( rv, pred, ec, msg ) \
+#define KMAP_ENSURE_MSG( pred, ec, msg ) \
     { \
         auto&& res = ( pred ); \
         if( !( res ) ) \
@@ -41,7 +52,7 @@
             } \
         } \
     }
-#define KMAP_ENSURE( rv, pred, ec ) KMAP_ENSURE_MSG( ( rv ), ( pred ), ( ec ), "" )
+#define KMAP_ENSURE( pred, ec ) KMAP_ENSURE_MSG( ( pred ), ( ec ), "" )
 // Inspired by BOOST_OUTCOME_TRYX, with the addition of appending to the stack.
 #define KMAP_TRY( ... ) \
     ({ \
@@ -55,12 +66,26 @@
         } \
         BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
     })
-
-#define KMAP_THROW_EXCEPTION_MSG( msg ) \
+// Throw exception on failure.
+#define KMAP_TRYE( ... ) \
     ({ \
-        fmt::print( stderr, "exception:\n\tmessage: {}\n\tfunction: {}\n\tfile: {}\nline: {}\n", ( msg ), __PRETTY_FUNCTION__, __FILE__, __LINE__ ); \
-        throw std::runtime_error( ( msg ) ); \
+        auto&& res = ( __VA_ARGS__ ); \
+        if( BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
+            ; \
+        else \
+        { \
+            res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
+            KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) ); \
+        } \
+        BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
     })
+#define KMAP_ENSURE_EXCEPT( pred ) \
+    { \
+        if( !( pred ) ) \
+        { \
+            KMAP_THROW_EXCEPTION_MSG( #pred ); \
+        } \
+    }
 
 #include <boost/outcome.hpp>
 #include <boost/system/error_code.hpp>
@@ -76,6 +101,42 @@
 
 namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
 
+#if KMAP_DEBUG
+namespace kmap::log
+{
+    namespace flag // Allows dynamic switch.
+    {
+        inline auto log_exception = true;
+    }
+
+    struct ScopedDisabler
+    {
+        bool& flag_;
+        bool prev_value;
+        ScopedDisabler( bool& flag ) : flag_{ flag }, prev_value{ flag } { flag_ = false; }
+        ~ScopedDisabler(){ flag_ = prev_value; }
+    };
+}
+#endif // kmap::log
+
+namespace kmap {
+
+inline
+auto log_exception( std::string const& msg
+                  , std::string const& fn
+                  , std::string const& file
+                  , uint64_t const& line )
+    -> void
+{
+#ifdef KMAP_LOG_EXCEPTION
+    if( kmap::log::flag::log_exception )
+    {
+        fmt::print( stderr, "exception:\n\tmessage: {}\n\tfunction: {}\n\tfile: {}\nline: {}\n", msg, fn, file, line );
+    }
+#endif
+}
+
+}
 namespace kmap::error_code {
 
 // TODO: Replace StackElement with std::source_location
@@ -103,6 +164,7 @@ using Result = outcome::result< T
 enum class common
 {
     uncategorized = 1 // 0 should never be an error.
+,   data_already_exists
 ,   data_not_found
 ,   conversion_failed
 ,   invalid_numeric
@@ -141,7 +203,7 @@ auto to_string( Payload const& sp )
 {
     std::stringstream ss;
 
-    ss << fmt::format( "cateogory: {}\n"
+    ss << fmt::format( "category: {}\n"
                        "item: {}\n"
                        "result stack:\n"
                      , sp.ec.category().name()
@@ -149,7 +211,7 @@ auto to_string( Payload const& sp )
 
     for( auto const& e : sp.stack )
     {
-        ss << fmt::format( "\tmessage:{}\n{}|{}|{}\n"
+        ss << fmt::format( "\tmessage: {}\n{}|{}|{}\n"
                          , e.message
                          , e.line
                          , e.function
@@ -163,7 +225,12 @@ inline
 auto outcome_throw_as_system_error_with_payload( Payload payload )
     -> void
 {
-    fmt::print( stderr, "{}\n", to_string( payload ) );
+#if KMAP_DEBUG
+    if( kmap::log::flag::log_exception )
+    {
+        fmt::print( stderr, "{}\n", to_string( payload ) );
+    }
+#endif
 
     KMAP_THROW_EXCEPTION_MSG( to_string( payload ) );
 }
@@ -194,6 +261,7 @@ public:
         switch ( static_cast< common >( c ) )
         {
         case common::uncategorized: return "uncategorized";
+        case common::data_already_exists: return "data already exists";
         case common::data_not_found: return "data not found";
         case common::conversion_failed: return "conversion failed";
         case common::invalid_numeric: return "invalid numeric";

@@ -25,7 +25,7 @@ UniquePathDeciderSm::UniquePathDeciderSm( Kmap const& kmap
     , root_{ root }
     , output_{ output }
 {
-    BC_ASSERT( output_ );
+    KMAP_ENSURE_EXCEPT( output_ );
 
     output_->prospect = decltype( output_->prospect ){ start };
 }

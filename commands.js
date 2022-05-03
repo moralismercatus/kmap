@@ -13,7 +13,8 @@ var registration_arguments =
 
 var registration_commands =
 [
-    "check_state"
+    "apply_options"
+,   "check_state"
 ,   "close_project"
 ,   "copy_body_from"
 ,   "copy_body_to"
@@ -56,6 +57,8 @@ var registration_commands =
 ,   "reveal_pane"
 ,   "rotate_pane"
 ,   "run_unit_tests"
+,   "save"
+,   "save_state_as"
 ,   "select_bookmark"
 ,   "select_daily_log"
 ,   "sort_children"

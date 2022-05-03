@@ -102,14 +102,11 @@ auto add_tag( Kmap& kmap )
             if( kmap.is_child( target
                               , "tags" ) )
             {
-                return *kmap.database()
-                            .fetch_child( "tags"
-                                        , target );
+                return kmap.fetch_child( target, "tags" ).value(); // TODO: Handle failure case.
             }
             else
             {
-                return kmap.create_child( target
-                                        , "tags" ).value();
+                return kmap.create_child( target, "tags" ).value(); // TODO: Handle failure case.
             }
         }();
 

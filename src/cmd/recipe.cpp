@@ -153,7 +153,7 @@ auto convert_to_multistep_recipe( Kmap& kmap
           ; body
          && body.value().empty() )
         {
-            KMAP_TRY( kmap.delete_node( single_step.value() ) );
+            KMAP_TRY( kmap.erase_node( single_step.value() ) );
             KMAP_TRY( kmap.create_child( recipe, "steps" ) );
         }
     }
@@ -274,7 +274,7 @@ auto create_recipe( Kmap& kmap )
         if( auto const cid = create_recipe( kmap, heading )
           ; cid )
         {
-            kmap.update_title( cid.value(), title );
+            KMAP_TRY( kmap.update_title( cid.value(), title ) );
             KMAP_TRY( kmap.select_node( cid.value() ) );
       
             return fmt::format( "{} added to {}"
@@ -311,8 +311,7 @@ auto create_step( Kmap& kmap )
                                          , heading )
           ; step )
         {
-            kmap.update_title( step.value()
-                             , title );
+            KMAP_TRY( kmap.update_title( step.value(), title ) );
             KMAP_TRY( kmap.select_node( step.value() ) );
 
             return fmt::format( "created recipe step" );

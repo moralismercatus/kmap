@@ -42,7 +42,7 @@ struct Code : x3::position_tagged
 namespace kmap::cmd::parser {
 
 auto parse_body_code( std::string_view const raw )
-    -> Optional< cmd::ast::Code >;
+    -> Result< cmd::ast::Code >;
 
 } // namespace kmap::cmd::parser
 

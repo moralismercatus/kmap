@@ -141,11 +141,9 @@ auto execute_javascript( Uuid const& node
 
     KMAP_TRY( js::publish_function( fn_name, { "args" }, fn_body ) );
 
-    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "{}( to_VectorString( [{}] ) );"
+    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "return {}( to_VectorString( [{}] ) );"
                                                                          , fn_name
                                                                          , csep ) ) );
-
-    KMAP_LOG_LINE();
 
     return rv;
 }
@@ -162,7 +160,7 @@ auto execute_javascript( Uuid const& node
                                     , format_heading( to_string( node ) ) );
     KMAP_TRY( js::publish_function( fn_name, { "arg" }, fn_body ) );
     io::print( "executing: {}\n", io::format( "{}( '{}' );", fn_name, arg )  );
-    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "{}( '{}' );", fn_name, arg ) ) );
+    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "return {}( '{}' );", fn_name, arg ) ) );
 
     return rv;
 }
@@ -181,37 +179,27 @@ auto execute_body( Kmap& kmap
         })
     ;
 
-    if( auto const body = kmap.fetch_body( node )
-      ; body )
-    {
-        if( auto const code = parser::parse_body_code( body.value() )
-          ; code )
-        {
-            boost::apply_visitor( [ & ]( auto const& e )
-            {
-                using T = std::decay_t< decltype( e ) >;
+    auto const body = KMAP_TRY( kmap.fetch_body( node ) );
+    auto const code = KMAP_TRY( parser::parse_body_code( body ) );
 
-                if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
-                {
-                    rv = execute_kscript( kmap, e.code );
-                }
-                else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                {
-                    rv = execute_javascript( node, e.code, args );
-                }
-                else
-                {
-                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                }
-            }
-            , *code );
-        }
-        else
-        {
-            // TODO: set error_code appropriately.
-            io::print( stderr, "parse_body_code failed\n" );
-        }
-    }
+    boost::apply_visitor( [ & ]( auto const& e )
+                        {
+                            using T = std::decay_t< decltype( e ) >;
+
+                            if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                            {
+                                rv = execute_kscript( kmap, e.code );
+                            }
+                            else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+                            {
+                                rv = execute_javascript( node, e.code, args );
+                            }
+                            else
+                            {
+                                static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                            }
+                        }
+                        , code );
     
     return rv;
 }
@@ -223,34 +211,29 @@ auto evaluate_guard( Kmap& kmap
 {
     auto rv = KMAP_MAKE_RESULT( std::string );
 
-    if( auto const body = kmap.fetch_body( guard_node )
-      ; body )
-    {
-        if( auto const code = cmd::parser::parse_body_code( body.value() )
-          ; code )
-        {
-            boost::apply_visitor( [ & ]( auto const& e )
-            {
-                using T = std::decay_t< decltype( e ) >;
+    auto const body = KMAP_TRY( kmap.fetch_body( guard_node ) );
+    auto const code = KMAP_TRY( cmd::parser::parse_body_code( body ) );
 
-                if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
-                {
-                    rv = "kscript is not supported in a guard node";
-                }
-                else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                {
-                    rv = execute_javascript( guard_node
-                                           , e.code
-                                           , arg );
-                }
-                else
-                {
-                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                }
-            }
-            , *code );
-        }
-    }
+    boost::apply_visitor( [ & ]( auto const& e )
+                        {
+                            using T = std::decay_t< decltype( e ) >;
+
+                            if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                            {
+                                rv = "kscript is not supported in a guard node";
+                            }
+                            else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+                            {
+                                rv = execute_javascript( guard_node
+                                                        , e.code
+                                                        , arg );
+                            }
+                            else
+                            {
+                                static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                            }
+                        }
+                        , code );
 
     return rv;
 }
@@ -261,54 +244,48 @@ auto evaluate_completer( Kmap& kmap
     -> Result< StringVec >
 {
     auto rv = KMAP_MAKE_RESULT( StringVec );
+    auto const body = KMAP_TRY( kmap.fetch_body( completer_node ) );
+    auto const code = KMAP_TRY( cmd::parser::parse_body_code( body ) );
 
-    if( auto const body = kmap.fetch_body( completer_node )
-      ; body )
+    boost::apply_visitor( [ & ]( auto const& e )
     {
-        if( auto const code = cmd::parser::parse_body_code( body.value() )
-          ; code )
+        using T = std::decay_t< decltype( e ) >;
+
+        if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
         {
-            boost::apply_visitor( [ & ]( auto const& e )
+            rv = KMAP_MAKE_ERROR( error_code::command::kscript_unsupported );
+        }
+        else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+        {
+            auto const fn_name = fmt::format( "fn_{}", format_heading( to_string( completer_node ) ) );
+
+            if( auto const fn_created = js::publish_function( fn_name, { "arg" }, e.code )
+                ; fn_created )
             {
-                using T = std::decay_t< decltype( e ) >;
-
-                if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                if( auto const crv = js::call< StringVec >( fn_name, arg )
+                    ; crv )
                 {
-                    rv = KMAP_MAKE_ERROR( error_code::command::kscript_unsupported );
-                }
-                else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                {
-                    auto const fn_name = fmt::format( "fn_{}", format_heading( to_string( completer_node ) ) );
-
-                    if( auto const fn_created = js::publish_function( fn_name, { "arg" }, e.code )
-                      ; fn_created )
-                    {
-                        if( auto const crv = js::call< StringVec >( fn_name, arg )
-                          ; crv )
-                        {
-                            rv = crv.value();
-                        }
-                        else
-                        {
-                            EM_ASM
-                            (
-                                throw "Unknown type returned from guard function; expected kmap.VectorString";
-                            );
-                        }
-                    }
-                    else
-                    {
-                        rv = KMAP_MAKE_ERROR( error_code::command::fn_publication_failed );
-                    }
+                    rv = crv.value();
                 }
                 else
                 {
-                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                    EM_ASM
+                    (
+                        throw "Unknown type returned from guard function; expected kmap.VectorString";
+                    );
                 }
             }
-            , *code );
+            else
+            {
+                rv = KMAP_MAKE_ERROR( error_code::command::fn_publication_failed );
+            }
+        }
+        else
+        {
+            static_assert( always_false< T >::value, "non-exhaustive visitor!" );
         }
     }
+    , code );
 
     return rv;
 }
@@ -475,7 +452,7 @@ auto fetch_params_ordered( Kmap& kmap
 {
     auto rv = KMAP_MAKE_RESULT( UuidVec );
 
-    KMAP_ENSURE( rv, kmap.exists( cmd_id ), error_code::network::invalid_node );
+    KMAP_ENSURE( kmap.exists( cmd_id ), error_code::network::invalid_node );
 
     auto params = UuidVec{};
     auto const children = kmap.fetch_children_ordered( cmd_id, "argument" );
@@ -484,7 +461,7 @@ auto fetch_params_ordered( Kmap& kmap
     {
         auto const param = kmap.fetch_children( child );
 
-        KMAP_ENSURE( rv, param.size() == 1, error_code::command::invalid_arg );
+        KMAP_ENSURE( param.size() == 1, error_code::command::invalid_arg );
 
         params.emplace_back( *param.begin() );
     }

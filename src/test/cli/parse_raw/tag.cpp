@@ -16,14 +16,12 @@ BOOST_AUTO_TEST_SUITE( cli )
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( parse_raw )
 /******************************************************************************/
-BOOST_AUTO_TEST_SUITE( tag
-                     ,
-                     * utf::disabled() ) // TODO: Re-enable test suite. Temporary disabled until reassessment of feature.
+BOOST_AUTO_TEST_SUITE( tag )
 /******************************************************************************/
 BOOST_AUTO_TEST_CASE( misc 
                     , 
                     * utf::depends_on( "kmap_iface" ) 
-                    * utf::depends_on( "network" )
+                    // * utf::depends_on( "network" )
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();

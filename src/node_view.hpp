@@ -40,4 +40,4 @@ private:
 
 } // namespace kmap
 
-#endif // KMAP_NODE_FETCHER_HPP
+#endif // KMAP_NODE_VIEW_HPP

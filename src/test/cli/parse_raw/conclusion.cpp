@@ -16,9 +16,7 @@ BOOST_AUTO_TEST_SUITE( cli )
 /******************************************************************************/
 BOOST_AUTO_TEST_SUITE( parse_raw )
 /******************************************************************************/
-BOOST_AUTO_TEST_SUITE( conclusion
-                     ,
-                     * utf::disabled() )
+BOOST_AUTO_TEST_SUITE( conclusion )
 
 BOOST_AUTO_TEST_CASE( create
                     , 
@@ -104,7 +102,7 @@ BOOST_AUTO_TEST_CASE( create_in_category
     BOOST_TEST_REQUIRE( kmap.selected_node() == nodes[ "/conclusions.category.3" ] );
     BOOST_TEST_REQUIRE( cli.parse_raw( ":create.objection 4" ) );
 
-    kmap.select_node( "/conclusions.category.3.premises" );
+    BOOST_TEST( kmap.select_node( "/conclusions.category.3.premises" ) );
 }
 
 BOOST_AUTO_TEST_SUITE_END( /* conclusion */)

@@ -17,10 +17,11 @@ namespace kmap::error_code
 enum class canvas
 {
     success = 0
-,   subdiv_already_exists
-,   invalid_parent 
 ,   conflicts
+,   invalid_pane
+,   invalid_parent 
 ,   invalid_subdiv
+,   subdiv_already_exists
 };
 
 enum class command 
@@ -117,10 +118,11 @@ public:
         switch ( static_cast< canvas >( c ) )
         {
         case canvas::success: return "success";
-        case canvas::subdiv_already_exists: return "subdivision already exists";
-        case canvas::invalid_parent: return "invalid parent";
         case canvas::conflicts: return "subdivision conflicts with existing subdivision";
+        case canvas::invalid_pane: return "invalid pane";
+        case canvas::invalid_parent: return "invalid parent";
         case canvas::invalid_subdiv: return "invalid subdivision";
+        case canvas::subdiv_already_exists: return "subdivision already exists";
         }
     }
 };

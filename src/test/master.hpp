@@ -7,8 +7,17 @@
 #ifndef KMAP_TEST_MASTER_HPP
 #define KMAP_TEST_MASTER_HPP
 
+// Assumes REQUIRE halts flow on failure.
+#define REQUIRE_TRY( ... ) \
+    ({ \
+        auto&& res = ( __VA_ARGS__ ); \
+        REQUIRE( succ( res ) ); \
+        res.value(); \
+    })
+
 #include "../kmap.hpp"
 #include "../cli.hpp"
+#include "util/concepts.hpp"
 
 #include <boost/test/unit_test.hpp>
 
@@ -19,7 +28,29 @@ namespace kmap {
 
 class Kmap;
 
-auto run_unit_tests( /*std::vector< std::string > const& args*/ )
+template< concepts::Boolean T >
+auto succ( T const& t
+         , const char* file = __builtin_FILE() /* TODO: replace with std::source_location */
+         , unsigned line = __builtin_LINE() /* TODO: replace with std::source_location */ )
+{
+    if constexpr( requires{ t.error(); } )
+    {
+        if( !t )
+        {
+            fmt::print( stderr, "Expected Result 'success' at {}:{}:\n{}\n", file, line, to_string( t.error() ) );
+        }
+    }
+    return static_cast< bool >( t );
+}
+template< concepts::Boolean T >
+auto fail( T const& t )
+{
+    return !static_cast< bool >( t );
+}
+
+auto run_pre_env_unit_tests()
+    -> int;
+auto run_unit_tests( std::vector< std::string > const& args )
     -> int;
 
 namespace test {

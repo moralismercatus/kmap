@@ -3,6 +3,12 @@ Knowledge Map
 
 ## Prerequisites
 ```bash
+sudo apt install build-essential
+sudo apt install libgdk-pixbuf2.0-dev
+sudo apt install libgtk3.0-cil-dev
+sudo apt install libnss3-dev
+sudo apt install libtool
+sudo apt install tcl
 git clone https://github.com/moralismercatus/kmap.git
 cd kmap
 npm install

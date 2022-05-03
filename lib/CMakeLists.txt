@@ -50,10 +50,12 @@ ExternalProject_Add(
 
     GIT_REPOSITORY
         https://github.com/fmtlib/fmt.git
+    GIT_TAG
+        8.1.1
     CMAKE_ARGS
         -DBUILD_SHARED_LIBS=FALSE
         -DFMT_TEST=FALSE
-        -DCMAKE_CXX_COMPILER=emcc
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_COMPILER_WORKS=1
         -DCMAKE_CXX_FLAGS="-std=c++14"
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
@@ -81,8 +83,9 @@ ExternalProject_Add(
         https://github.com/Neargye/magic_enum.git
     CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
-        -DCMAKE_CXX_COMPILER=emcc
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_COMPILER_WORKS=1
+        -DMAGIC_ENUM_OPT_BUILD_TESTS=OFF
     UPDATE_COMMAND ""
     INSTALL_COMMAND ""
 )
@@ -102,7 +105,8 @@ ExternalProject_Add(
      && make keywordhash.h lemon mksourceid -j   
     BUILD_COMMAND 
         emconfigure ./configure --enable-static --enable-releasemode
-     && make -j
+        "CFLAGS=-s ERROR_ON_UNDEFINED_SYMBOLS=0"
+     && make libsqlite3.la -j
     BUILD_IN_SOURCE 1
     INSTALL_COMMAND 
         emranlib ${CMAKE_BINARY_DIR}/lib/sqlite3-prefix/src/sqlite3/.libs/libsqlite3.a
@@ -118,10 +122,10 @@ ExternalProject_Add(
     CMAKE_ARGS
         -DHinnantDate_ROOT_DIR=${CMAKE_BINARY_DIR}/lib/date-prefix/src/date/include
         -DENABLE_TESTS=FALSE
-        -DCMAKE_CXX_COMPILER=emcc
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_COMPILER_WORKS=1
         -DCMAKE_CXX_FLAGS="-std=c++14"
-        -DCMAKE_C_COMPILER=emcc
+        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
         -DCMAKE_C_COMPILER_WORKS=1
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
     GIT_TAG
@@ -140,17 +144,17 @@ ExternalProject_Add(
 
     GIT_REPOSITORY
         https://github.com/rbock/sqlpp11-connector-sqlite3.git
+    GIT_TAG
+        master
     CMAKE_ARGS
         -DSQLPP11_INCLUDE_DIR=${CMAKE_BINARY_DIR}/lib/sqlpp11-prefix/src/sqlpp11/include
         -DHinnantDate_ROOT_DIR=${CMAKE_BINARY_DIR}/lib/date-prefix/src/date/include
         -DSQLite3_LIBRARY=/usr/lib/x86_64-linux-gnu/libsqlite3.so.0 # Only used to bypass config check. Real defs will be in LLVM BC.
         -DSQLite3_INCLUDE_DIR=${CMAKE_BINARY_DIR}/lib/sqlite3-prefix/src/sqlite3
-        -DENABLE_TESTS=Off
-        -DCMAKE_CXX_COMPILER=emcc
+        -DBUILD_TESTING=FALSE
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_FLAGS="-std=c++17"
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
-    GIT_TAG
-        master
     UPDATE_COMMAND ""
     INSTALL_COMMAND emranlib src/libsqlpp11-connector-sqlite3.a
                  && ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/lib/sqlpp11-connector-sqlite3-proj-prefix/src/sqlpp11-connector-sqlite3-proj-build/src/libsqlpp11-connector-sqlite3.a ${CMAKE_BINARY_DIR}/lib/libsqlpp11-connector-sqlite3.bc
@@ -193,6 +197,24 @@ ExternalProject_Add(
 )
 
 ExternalProject_Add(
+    cryptopp
+
+    GIT_REPOSITORY
+        https://github.com/weidai11/cryptopp.git
+    GIT_SUBMODULES ""
+    UPDATE_COMMAND ""
+    CONFIGURE_COMMAND ""
+    BUILD_IN_SOURCE 1
+    BUILD_COMMAND 
+        CC=emcc CXX=emcc make libcryptopp.a -j16
+    INSTALL_COMMAND
+		${CMAKE_COMMAND} -E copy
+            ${CMAKE_BINARY_DIR}/lib/cryptopp-prefix/src/cryptopp/libcryptopp.a
+            ${CMAKE_BINARY_DIR}/lib/libcryptopp.bc
+     && emranlib ${CMAKE_BINARY_DIR}/lib/libcryptopp.bc
+)
+
+ExternalProject_Add(
     zlib
 
     GIT_REPOSITORY
@@ -214,7 +236,7 @@ ExternalProject_Add(
     dry_comparisons 
 
     GIT_REPOSITORY https://github.com/rollbear/dry-comparisons.git
-    GIT_TAG drier
+    GIT_TAG master
     GIT_SUBMODULES ""
     UPDATE_COMMAND ""
     CONFIGURE_COMMAND ""
@@ -222,12 +244,15 @@ ExternalProject_Add(
     INSTALL_COMMAND ""
 )
 
+# TODO: Remove. The decoding that XED provides should be part of a plugin, not core KMAP.
 ExternalProject_Add(
     xed 
 
     BUILD_IN_SOURCE 1
     GIT_REPOSITORY
         https://github.com/intelxed/xed.git 
+    GIT_TAG
+        main
     CONFIGURE_COMMAND 
         git clone https://github.com/intelxed/mbuild.git ../mbuild
     BUILD_COMMAND 
@@ -242,4 +267,18 @@ ExternalProject_Add(
             ${CMAKE_BINARY_DIR}/lib/xed-prefix/src/xed/obj/libxed-ild.a
             ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
      && emranlib ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
+)
+
+ExternalProject_Add(
+    catch2
+
+    GIT_REPOSITORY
+        https://github.com/catchorg/Catch2.git
+    GIT_TAG
+        devel
+    UPDATE_COMMAND ""
+    CMAKE_ARGS
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
+    INSTALL_COMMAND emranlib ${CMAKE_BINARY_DIR}/lib/libCatch2.a
 )

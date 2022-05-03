@@ -7,9 +7,12 @@
 #include "cmd.hpp"
 #include "common.hpp"
 #include "contract.hpp"
+#include "error/network.hpp"
+#include "filesystem.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
+#include "test/master.hpp"
 #include "utility.hpp"
 
 #include <emscripten.h>
@@ -18,10 +21,10 @@
 #include <range/v3/view/enumerate.hpp>
 #include <sqlpp11/sqlpp11.h>
 #include <sqlpp11/ppgen.h>
-#include <sqlpp11//sqlite3/sqlite3.h>
-#include <sqlpp11//sqlite3/connection.h>
+#include <sqlpp11/sqlite3/sqlite3.h>
+#include <sqlpp11/sqlite3/connection.h>
 
-#include <boost/stacktrace.hpp>
+// #include <boost/stacktrace.hpp> // Note: Until emscrption supports libunwind, use print_stacktrace() which uses JS's stack trace dump. Works well.
 #include <sstream>
 
 #include <fstream>
@@ -52,56 +55,43 @@ auto init_js_syntax_error_handler()
                                 };)%%%" );
 }
 
-auto init_ems_nodefs()
-    -> void
-{
-#ifndef NODERAWFS
-    EM_ASM({
-        let rd = UTF8ToString( $0 );
-        FS.mkdir( rd );
-        FS.mount( NODEFS
-                , { root: "." }
-                , rd );
+// auto init_ems_nodefs()
+//     -> void
+// {
+// #ifndef NODERAWFS
+//     EM_ASM({
+//         let rd = UTF8ToString( $0 );
+//         FS.mkdir( rd );
+//         FS.mount( NODEFS
+//                 , { root: "." }
+//                 , rd );
 
-    }
-    , kmap_root_dir.string().c_str() );
-#else
-    #error Unsupported
-#endif // NODERAWFS
-}
+//     }
+//     , kmap_root_dir.string().c_str() );
+// #else
+//     #error Unsupported
+// #endif // NODERAWFS
+// }
 
 auto init_kmap()
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
-
+    auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
-    
-    val::global().call< val >( "eval"
-                             , std::string{ "global.kmap = Module;" } );
 
-    if( auto const res = val::global().call< val >( "eval"
-                                                  , std::string{ "kmap != null" } ) // TODO: Figure out how to make it so kmap can't be reassigned.
-      ; res.as< bool >() )
-    {
-        fmt::print( "kmap module initialized\n" );
-    }
-    else
-    {
-        fmt::print( stderr, "Unable to initialize kmap module\n" );
-    }
+    // TODO: Why isn't this working?
+    // KMAP_ENSURE_MSG( !js::is_global_kmap_null(), error_code::network::invalid_instance, "expected JS kmap to be non-null" );
 
-    if( auto const res = kmap.reset()
-      ; !res )
-    {
-        KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) );
-    }
+    KMAP_TRY( kmap.reset() );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto register_arguments()
     -> void
 {
-    KMAP_LOG_LINE();
     for( auto const& arg : vecFromJSArray< std::string >( val::global( "registration_arguments" ) ) )
     {
         if( auto const& succ = js::eval_void( fmt::format( "Module.register_arg_{}();", arg ) )
@@ -112,14 +102,12 @@ auto register_arguments()
                       , arg );
         }
     }
-    KMAP_LOG_LINE();
 }
 
 // TODO: Prereq: kmap is initialized.
 auto register_commands()
     -> void
 {
-    KMAP_LOG_LINE();
     for( auto const& cmd : vecFromJSArray< std::string >( val::global( "registration_commands" ) ) )
     {
         if( auto const& succ = js::eval_void( fmt::format( "Module.register_cmd_{}();", cmd ) )
@@ -130,7 +118,6 @@ auto register_commands()
                       , cmd );
         }
     }
-    KMAP_LOG_LINE();
 }
 
 auto reset_registrations()
@@ -139,33 +126,32 @@ auto reset_registrations()
     auto& kmap = Singleton::instance();
     auto& cli = kmap.cli();
 
-KMAP_LOG_LINE();
     if( auto const r = kmap.cli().reset_all_preregistered()
       ; !r )
     {
         KMAP_THROW_EXCEPTION_MSG( to_string( r.error() ) );
     }
-KMAP_LOG_LINE();
     // Legacy commands... TODO: Remove all when legacy are transitioned to new method.
     for( auto const& c : cmd::make_core_commands( kmap ) )
     {
         cli.register_command( c );
     }
-KMAP_LOG_LINE();
 }
 
 auto focus_network()
-    -> void
+    -> Result< void >
 {
-KMAP_LOG_LINE();
+    auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
 
-KMAP_LOG_LINE();
-    kmap.select_node( kmap.root_node_id() );
-KMAP_LOG_LINE();
+    KMAP_TRY( kmap.select_node( kmap.root_node_id() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
-auto set_window_title()
+auto set_window_title() // TODO: Move definition to canvas? Basically, elsewhere.
     -> Result< void >
 {
 #if KMAP_DEBUG
@@ -181,14 +167,13 @@ auto initialize()
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_TRY( init_js_syntax_error_handler() );
-    init_ems_nodefs();
     configure_terminate();
     configure_contract_failure_handlers();
-    init_kmap();
+    KMAP_TRY( init_kmap() );
     register_arguments();
     register_commands();
     reset_registrations();
-    focus_network();
+    KMAP_TRY( focus_network() );
     KMAP_TRY( set_window_title() );
 
     {
@@ -218,6 +203,23 @@ auto main( int argc
 {
     try
     {
+        init_ems_nodefs();
+        js::set_global_kmap( Singleton::instance() );
+
+#if KMAP_TEST_PRE_ENV 
+        if( auto const res = run_pre_env_unit_tests()
+          ; res == 0 )
+        {
+            fmt::print( "[log][test] Pre-environment test succeeded\n" );
+        }
+        else
+        {
+            fmt::print( stderr, "[error][test] Pre-environment test failed!\n" );
+
+            return -1;
+        }
+#endif // KMAP_TEST_PRE_ENV
+
         if( auto const res = initialize()
           ; !res )
         {

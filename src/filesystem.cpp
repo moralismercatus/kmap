@@ -8,6 +8,7 @@
 #include "utility.hpp"
 
 #include <boost/filesystem.hpp>
+#include <emscripten.h>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/range/operations.hpp>
 #include <range/v3/view/transform.hpp>
@@ -50,4 +51,22 @@ auto stream_size( std::istream& fs )
     return size;
 }
 
-} // namespace
+auto init_ems_nodefs()
+    -> void
+{
+#ifndef NODERAWFS
+    EM_ASM({
+        let rd = UTF8ToString( $0 );
+        FS.mkdir( rd );
+        FS.mount( NODEFS
+                , { root: "." }
+                , rd );
+
+    }
+    , kmap_root_dir.string().c_str() );
+#else
+    #error Unsupported
+#endif // NODERAWFS
+}
+
+} // namespace kmap
