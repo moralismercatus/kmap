@@ -2039,60 +2039,6 @@ auto Kmap::update_aliases( Uuid const& descendant )
     return rv;
 }
 
-auto Kmap::count_ancestors( Uuid const& node ) const
-   -> uint32_t
-{
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( node ) );
-            BC_ASSERT( node == root_node_id()
-                    || fetch_parent( node ) );
-        })
-    ;
-
-    auto rv = uint32_t{ 1 };
-    auto parent = fetch_parent( node );
-
-    while( parent )
-    {
-        ++rv;
-
-        parent = fetch_parent( parent.value() );
-    }
-
-    return rv;
-}
-
-auto Kmap::count_descendants( Uuid const& root ) const
-   -> uint32_t
-{
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( root ) );
-        })
-    ;
-
-    auto const& children = fetch_children( root );
-
-    if( children.empty() )
-    {
-        return 0;
-    }
-    else
-    {
-        auto rv = uint32_t{};
-
-        for( auto const& c : children )
-        {
-            rv += 1 + count_descendants( c );
-        }
-
-        return rv;
-    }
-}
-
 // TODO: impl. body belongs in path.cpp
 auto Kmap::distance( Uuid const& ancestor
                    , Uuid const& descendant ) const
@@ -2140,9 +2086,8 @@ auto Kmap::color_node( Uuid const& id
 auto Kmap::color_node( Uuid const& id )
    -> void
 {
-    auto const card = count_ancestors( id );
-    BC_ASSERT( card > 0 );
-    auto const color = color_level_map[ ( card - 1 ) % color_level_map.size() ];
+    auto const card = view::root( id ) | view::ancestor | view::count( *this );
+    auto const color = color_level_map[ ( card ) % color_level_map.size() ];
 
     color_node( id
               , color );
@@ -2651,7 +2596,7 @@ auto Kmap::fetch_aliased_ancestry( Uuid const& id ) const
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            BC_ASSERT( rv.size() <= count_ancestors( id ) );
+            BC_ASSERT( rv.size() <= ( view::root( id ) | view::ancestor | view::count( *this ) ) );
         })
     ;
 

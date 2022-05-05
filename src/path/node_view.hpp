@@ -248,9 +248,9 @@ struct Single
 // Result Operations
 struct Count
 {
-    Kmap& kmap;
+    Kmap const& kmap;
 
-    Count( Kmap& km ) : kmap{ km } {}
+    Count( Kmap const& km ) : kmap{ km } {}
 };
 struct Create
 {
@@ -325,7 +325,7 @@ auto const single = Single{};
 // Post-Result Operations
 auto const to_single = ToSingle{};
 
-auto count( Kmap& kmap ) -> Count;
+auto count( Kmap const& kmap ) -> Count;
  // TODO: A bit more on the linguistic debate. "lineage" doesn't roll quite like "node".
  //       Regardless, the fact that all other ops use the singular to represent 1+ (child, alias, attr, erase_node, etc.) means this represents something of a
  //       departure from the norm. I understand the desire: to differentiate a single node returned from multiple. It's a very convenient distiction,

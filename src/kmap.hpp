@@ -219,13 +219,6 @@ public:
     auto create_alias( Uuid const& src
                      , Uuid const& dst )
         -> Result< Uuid >;
-    [[ nodiscard ]]
-    auto count_ancestors( Uuid const& node ) const
-        -> uint32_t;
-    // TODO [cleanu]: Replace with node_view counterpart.
-    [[ nodiscard ]]
-    auto count_descendants( Uuid const& root ) const
-        -> uint32_t;
     auto create_nodes( std::vector< std::pair< Uuid, std::string > > const& nodes // TODO: Replace with PreparedStatement class?
                      , std::vector< std::pair< Uuid, Uuid > > const& edges )
         -> void; // TODO: Should return bool to indicate succ/fail.

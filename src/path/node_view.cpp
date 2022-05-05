@@ -26,7 +26,7 @@
 
 namespace kmap::view {
 
-auto count( Kmap& kmap )
+auto count( Kmap const& kmap )
     -> Count
 {
     return Count( kmap );

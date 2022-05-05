@@ -479,7 +479,7 @@ auto count_ancestors( Uuid const& node )
 {
     auto const& kmap = Singleton::instance();
     
-    return kmap::Result< uint32_t >{ kmap.count_ancestors( node ) };
+    return kmap::Result< uint32_t >{ view::root( node ) | view::ancestor | view::count( kmap )  };
 }
 
 auto count_descendants( Uuid const& node )
@@ -487,7 +487,7 @@ auto count_descendants( Uuid const& node )
 {
     auto const& kmap = Singleton::instance();
 
-    return kmap::Result< uint32_t >{ kmap.count_descendants( node ) };
+    return kmap::Result< uint32_t >{ view::root( node ) | view::desc | view::count( kmap ) };
 }
 
 auto fetch_body( Uuid const& node )
