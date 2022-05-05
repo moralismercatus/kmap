@@ -172,7 +172,6 @@ add_dependencies( emcc.index.html
                   fmtlib
                   openssl 
                   range
-                  sqlpp11-connector-sqlite3-proj
                   xed
 				  zlib )
 
@@ -186,7 +185,6 @@ target_link_libraries( emcc.index.html
                       ${CMAKE_BINARY_DIR}/lib/libboost_unit_test_framework.bc
                       ${CMAKE_BINARY_DIR}/lib/libcrypto.bc
                       ${CMAKE_BINARY_DIR}/lib/libfmt.bc
-                      ${CMAKE_BINARY_DIR}/lib/libsqlpp11-connector-sqlite3.bc 
                       ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
                       ${CMAKE_BINARY_DIR}/lib/libxed.bc
                       ${CMAKE_BINARY_DIR}/lib/libz.bc

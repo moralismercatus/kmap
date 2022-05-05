@@ -33,18 +33,19 @@
 // #include <boost/interprocess/mapped_region.hpp>
 //#include <boost/optional/optional_io.hpp>
 
-#include <string>
-#include <variant>
-#include <sstream>
-#include <unordered_map>
-#include <set>
-#include <iostream>
-#include <stdio.h>
-// #include <unistd.h>
-#include <sys/types.h>
-// #include <sys/mman.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <fstream>
+#include <iostream>
+#include <set>
+#include <sstream>
+#include <stdio.h>
+#include <string>
+#include <sys/types.h>
+#include <unordered_map>
+#include <variant>
+// #include <sys/mman.h>
+// #include <unistd.h>
 
 using namespace ranges;
 namespace fs = boost::filesystem;
@@ -256,8 +257,7 @@ namespace parser::dotlang
     { 
         auto rv = boost::optional< ast::dotlang::Dot >{};
 
-        if( auto ifs = fs::ifstream{ fp
-                                   , std::ios::binary }
+        if( auto ifs = std::ifstream{ fp.string(), std::ios::binary }
           ; ifs.good() )
         {
             auto buffer = std::vector< char >{};

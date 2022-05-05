@@ -86,6 +86,7 @@ ExternalProject_Add(
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_COMPILER_WORKS=1
         -DMAGIC_ENUM_OPT_BUILD_TESTS=OFF
+        -DMAGIC_ENUM_OPT_BUILD_EXAMPLES=OFF
     UPDATE_COMMAND ""
     INSTALL_COMMAND ""
 )
@@ -129,42 +130,15 @@ ExternalProject_Add(
         -DCMAKE_C_COMPILER_WORKS=1
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
     GIT_TAG
-        develop
-    PATCH_COMMAND
-        git apply ${CMAKE_SOURCE_DIR}/patch/sqlpp11.patch
+        main
+    # PATCH_COMMAND
+    #     git apply ${CMAKE_SOURCE_DIR}/patch/sqlpp11.patch
     UPDATE_COMMAND ""
 )
 
 add_dependencies( sqlpp11
                   boost
                   date )
-
-ExternalProject_Add(
-    sqlpp11-connector-sqlite3-proj
-
-    GIT_REPOSITORY
-        https://github.com/rbock/sqlpp11-connector-sqlite3.git
-    GIT_TAG
-        master
-    CMAKE_ARGS
-        -DSQLPP11_INCLUDE_DIR=${CMAKE_BINARY_DIR}/lib/sqlpp11-prefix/src/sqlpp11/include
-        -DHinnantDate_ROOT_DIR=${CMAKE_BINARY_DIR}/lib/date-prefix/src/date/include
-        -DSQLite3_LIBRARY=/usr/lib/x86_64-linux-gnu/libsqlite3.so.0 # Only used to bypass config check. Real defs will be in LLVM BC.
-        -DSQLite3_INCLUDE_DIR=${CMAKE_BINARY_DIR}/lib/sqlite3-prefix/src/sqlite3
-        -DBUILD_TESTING=FALSE
-        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-        -DCMAKE_CXX_FLAGS="-std=c++17"
-        -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
-    UPDATE_COMMAND ""
-    INSTALL_COMMAND emranlib src/libsqlpp11-connector-sqlite3.a
-                 && ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/lib/sqlpp11-connector-sqlite3-proj-prefix/src/sqlpp11-connector-sqlite3-proj-build/src/libsqlpp11-connector-sqlite3.a ${CMAKE_BINARY_DIR}/lib/libsqlpp11-connector-sqlite3.bc
-                 && ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/lib/sqlpp11-connector-sqlite3-proj-prefix/src/sqlpp11-connector-sqlite3-proj/include/sqlpp11/sqlite3 ${CMAKE_BINARY_DIR}/include/sqlpp11/sqlite3
-)
-
-add_dependencies( sqlpp11-connector-sqlite3-proj
-                  sqlpp11
-                  date
-                  sqlite3 )
 
 ExternalProject_Add(
     sml
@@ -275,10 +249,9 @@ ExternalProject_Add(
     GIT_REPOSITORY
         https://github.com/catchorg/Catch2.git
     GIT_TAG
-        devel
+        v3.0.0-preview5
     UPDATE_COMMAND ""
     CMAKE_ARGS
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
-    INSTALL_COMMAND emranlib ${CMAKE_BINARY_DIR}/lib/libCatch2.a
 )
