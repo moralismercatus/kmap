@@ -70,11 +70,12 @@ auto Autosave::install_event_outlet( std::string const& unit )
 R"%%%(
 kmap.autosave().interval();
 )%%%";
+    auto const leaf = Transition::Leaf{ .requisites = { "subject.chrono.timer", "verb.intervaled", fmt::format( "object.chrono.{}", unit ) }
+                                      , .description = "Saves deltas to disk every minute"
+                                      , .action = action };
 
-    KMAP_TRY( estore.install_outlet( "autosave"
-                                   , "Saves deltas to disk every minute"
-                                   , action
-                                   , { "subject.chrono.timer", "verb.intervaled", fmt::format( "object.chrono.{}", unit ) } ) );
+
+    KMAP_TRY( estore.install_outlet( "autosave", leaf ) );
 
     rv = outcome::success();
 

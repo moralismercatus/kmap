@@ -15,11 +15,13 @@ using namespace kmap;
 
 SCENARIO( "network testing", "[network][env]" )
 {
+    auto& kmap = Singleton::instance();
+
     GIVEN( "blank network" )
     {
         auto const nw_container_uuid = Uuid{};
         REQUIRE( succ( js::create_html_canvas( to_string( nw_container_uuid ) ) ) ); 
-        auto nw = Network{ nw_container_uuid };
+        auto nw = Network{ kmap, nw_container_uuid };
         auto const root_id = gen_uuid();
         auto const root_title = "Root";
 
@@ -53,7 +55,7 @@ SCENARIO( "network testing", "[network][env]" )
     {
         auto const nw_container_uuid = Uuid{};
         REQUIRE( succ( js::create_html_canvas( to_string( nw_container_uuid ) ) ) ); 
-        auto nw = Network{ nw_container_uuid };
+        auto nw = Network{ kmap, nw_container_uuid };
         auto const root_id = gen_uuid();
         auto const root_title = "Root";
 

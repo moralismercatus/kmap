@@ -971,6 +971,22 @@ auto Parent::operator()( Kmap const& kmap
     return rv;
 }
 
+// TODO: Can I actually define sibling directly in terms of existing operators? That is, without having to create the Struct Sibling?
+//       Just: auto const sibling = view::parent | view::child( view::none_of( <node> ) );
+//       I suppose the <node> is the kicker, as to why I can't.
+//       ...Unless I introduce a "placeholder_node" concept in which the real node value gets substituted appropriately...
+auto Sibling::operator()( Kmap const& kmap
+                        , Uuid const& node ) const
+    -> UuidSet
+{
+    KMAP_THROW_EXCEPTION_MSG( "TODO" );
+    // TODO: Requires view::none_of( uuid ) support.
+    // return view::root( node )
+    //      | view::parent
+    //      | view::child( view::none_of( node ) )
+    //      | view::to_node_set( kmap );
+}
+
 auto operator|( Intermediary const& i
               , Alias const& op )
     -> Intermediary
@@ -1084,6 +1100,17 @@ auto operator|( Intermediary const& i
 
 auto operator|( Intermediary const& i
               , Parent const& op )
+    -> Intermediary
+{
+    auto rv = i;
+
+    rv.op_chain.emplace_back( op );
+
+    return rv;
+}
+
+auto operator|( Intermediary const& i
+              , Sibling const& op )
     -> Intermediary
 {
     auto rv = i;

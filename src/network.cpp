@@ -8,8 +8,10 @@
 #include "contract.hpp"
 #include "db.hpp"
 #include "error/network.hpp"
+#include "event/event.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
+#include "kmap.hpp"
 #include "utility.hpp"
 
 #include <emscripten.h>
@@ -42,15 +44,15 @@ auto operator<<( std::ostream& os
     return os;
 }
 
-Network::Network( Uuid const& container )
-   : js_nw_{ std::make_shared< val >( val::global().call< val >( "new_network", container ) ) } // TODO: There's some way to invoke a ctor directly without a wrapper, but can't figure it out.
+Network::Network( Kmap& kmap
+                , Uuid const& container )
+   : kmap_{ kmap }
+   , js_nw_{ std::make_shared< val >( val::global().call< val >( "new_network", container ) ) } // TODO: There's some way to invoke a ctor directly without a wrapper, but can't figure it out.
 {
     if( js_nw_->isNull() )
     {
         KMAP_THROW_EXCEPTION_MSG( "failed to initialize Network" );
     }
-
-    // install_events();
 }
 
 Network::~Network()
@@ -59,6 +61,8 @@ Network::~Network()
     {
         js_nw_->call< val >( "destroy_network" );
     }
+
+    uninstall_events();
 }
 
 auto Network::create_node( Uuid const& id
@@ -506,6 +510,88 @@ auto Network::install_keydown_handler()
     auto rv = KMAP_MAKE_RESULT( void );
     
     KMAP_TRY( js::call< val >( *js_nw_, "install_keydown_handler" ) );
+
+    return rv;
+}
+
+auto Network::install_events()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& estore = kmap_.event_store();
+
+    KTRY( estore.install_subject( "network" ) );
+    KTRY( estore.install_verb( "depressed" ) );
+    KTRY( estore.install_object( "keyboard.key.arrowdown" ) );
+    KTRY( estore.install_object( "keyboard.key.arrowleft" ) );
+    KTRY( estore.install_object( "keyboard.key.arrowright" ) );
+    KTRY( estore.install_object( "keyboard.key.arrowup" ) );
+    KTRY( estore.install_object( "keyboard.key.c" ) );
+    KTRY( estore.install_object( "keyboard.key.ctrl" ) );
+    KTRY( estore.install_object( "keyboard.key.e" ) );
+    KTRY( estore.install_object( "keyboard.key.g" ) );
+    KTRY( estore.install_object( "keyboard.key.h" ) );
+    KTRY( estore.install_object( "keyboard.key.i" ) );
+    KTRY( estore.install_object( "keyboard.key.j" ) );
+    KTRY( estore.install_object( "keyboard.key.k" ) );
+    KTRY( estore.install_object( "keyboard.key.l" ) );
+    KTRY( estore.install_object( "keyboard.key.o" ) );
+    KTRY( estore.install_object( "keyboard.key.v" ) );
+
+    KTRY( estore.install_outlet( "network.travel_left"
+                               , Transition::Branch{ Transition{ .heading = "h"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_left();)%%%" } }
+                                                   , Transition{ .heading = "arrowleft"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowleft" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_left();)%%%" } } } ) );
+    KTRY( estore.install_outlet( "network.travel_down"
+                               , Transition::Branch{ Transition{ .heading = "j"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.j" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_down();)%%%" } }
+                                                   , Transition{ .heading = "arrowdown"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowdown" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_down();)%%%" } } } ) );
+    KTRY( estore.install_outlet( "network.travel_up"
+                               , Transition::Branch{ Transition{ .heading = "k"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.k" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_up();)%%%" } }
+                                                   , Transition{ .heading = "arrowup"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowup" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_up();)%%%" } } } ) );
+    KTRY( estore.install_outlet( "network.travel_right"
+                               , Transition::Branch{ Transition{ .heading = "l"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.l" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_right();)%%%" } }
+                                                   , Transition{ .heading = "arrowright"
+                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowright" }
+                                                                                         , .description = "travel to parent node"
+                                                                                         , .action = R"%%%(kmap.travel_right();)%%%" } } } ) );
+
+    rv = outcome::success();
+    
+    return rv;
+}
+
+auto Network::uninstall_events()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& estore = kmap_.event_store();
+
+    KTRY( estore.uninstall_outlet( "network.travel_left" ) );
+    KTRY( estore.uninstall_outlet( "network.travel_down" ) );
+    KTRY( estore.uninstall_outlet( "network.travel_up" ) );
+    KTRY( estore.uninstall_outlet( "network.travel_right" ) );
+
+    rv = outcome::success();
 
     return rv;
 }

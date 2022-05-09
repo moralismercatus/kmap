@@ -34,6 +34,7 @@ struct all_of
     //       Why? So we can, e.g., use view::child( view::all_of( other_view ) ), or view::child( view::all_of( id_set ) ) just as we would with headings.
     //       Some code that could otherwise be quite straight-forward is awkwardly awaiting this support.
     //       Will require substantial rework, as each operator handles "data", as set< string >, differently.
+    //       std::set< std::variant< std::string, Uuid, Intermediate, PlaceholderNode(?) > >
     std::set< std::string > data;
 };
 struct any_of
@@ -75,6 +76,7 @@ struct Desc;
 struct DirectDesc;
 struct Leaf;
 struct Parent;
+struct Sibling;
 struct Single;
 
 using OperatorVariant = std::variant< Alias
@@ -85,6 +87,7 @@ using OperatorVariant = std::variant< Alias
                                     , DirectDesc
                                     , Leaf
                                     , Parent
+                                    , Sibling
                                     , Single >;
 
 struct Intermediary
@@ -238,10 +241,20 @@ struct Parent
 
     SelectionVariant selection;
 };
+struct Sibling
+{
+    Sibling() = default;
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    auto operator()() {};
+};
 struct Single
 {
     Single() = default;
 
+    auto operator()( SelectionVariant const& sel ) {};
     auto operator()() {};
 };
 
@@ -320,6 +333,7 @@ auto const desc = Desc{};
 auto const direct_desc = DirectDesc{};
 auto const leaf = Leaf{};
 auto const parent = Parent{};
+auto const sibling = Sibling{};
 auto const single = Single{};
 
 // Post-Result Operations
@@ -355,6 +369,7 @@ auto operator|( Intermediary const& i, Desc const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, DirectDesc const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Leaf const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Parent const& op ) -> Intermediary;
+auto operator|( Intermediary const& i, Sibling const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Single const& op ) -> Intermediary;
 // Result Operations
 auto operator|( Intermediary const& i, CreateNode const& op ) -> Result< UuidSet >;

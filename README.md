@@ -12,20 +12,36 @@ sudo apt install tcl
 git clone https://github.com/moralismercatus/kmap.git
 cd kmap
 npm install
-npm run postinstall
 ```
 Ensure Emscripten's emcc is accessible via your $PATH.
 
 ## Building - Linux
->Note: Replace all instances of 'debug' with 'release' (case-respective) for release build.
+>Note: Replace all instances of 'Debug' with 'Release' (case-respective) for release build.
 ```bash
 cd ..
-mkdir kmap-debug
-cd kmap-debug
+mkdir kmap-Debug
+cd kmap-Debug
 CC=emcc CXX=emcc cmake -DCMAKE_BUILD_TYPE=Debug ../kmap
 make -j
 cd ../kmap 
 ```
+
+### Visual Studio Code Set Up
+
+1. Install CMake Extension
+1. Open "Settings": `>Preferences: Open Settings (JSON)`
+    >Add following to settings.json:
+    ```json
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/../kmap-${buildType}",
+    "cmake.generator": "Unix Makefiles",
+    "cmake.emscriptenSearchDirs": [ "/<emsdk_repo>" ],
+    "cmake.environment": {
+        "PATH": "${env:PATH}:/<emsdk_repo>/upstream/emscripten"
+    },
+    ```
+1. Open kmap folder in vscode
+1. Set "kit" to "Emscription": `>CMake: Select a Kit`
 
 ## Building - Windows
 Use WSL + Linux instructions.

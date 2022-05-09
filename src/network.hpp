@@ -22,6 +22,8 @@ namespace emscripten
 
 namespace kmap {
 
+class Kmap;
+
 struct Position2D
 {
     int32_t x = {};
@@ -38,10 +40,12 @@ auto operator<<( std::ostream&, Position2D const& )
  */
 class Network
 {
+    Kmap& kmap_;
     std::shared_ptr< emscripten::val > js_nw_; // TODO: Use unique_ptr. Again, some reason destructor and fwd decl don't seem to work with unique_ptr.
 
 public:
-    Network( Uuid const& container );
+    Network( Kmap& kmap
+           , Uuid const& container );
     Network( Network const& ) = delete;
     Network( Network&& ) = default;
     ~Network();
@@ -80,6 +84,10 @@ public:
     auto focus()
         -> void;
     auto install_keydown_handler()
+        -> Result< void >;
+    auto install_events()
+        -> Result< void >;
+    auto uninstall_events()
         -> Result< void >;
     [[ nodiscard ]]
     auto nodes() const

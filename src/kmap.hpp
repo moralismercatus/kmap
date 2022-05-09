@@ -123,11 +123,11 @@ public:
     auto absolute_path_uuid( Lineal const& node ) const
         -> UuidPath;
     [[ nodiscard ]]
-    auto absolute_path_uuid( Uuid const& node ) const
+    auto absolute_path_uuid( Uuid const& node ) const // view::root( node ) | view::absolute_path( kmap ) | view::to_single
         -> UuidPath;
     [[ nodiscard ]]
     auto absolute_path( Uuid const& root
-                      , Uuid const& id ) const
+                      , Uuid const& id ) const // view::root( node ) | view::absolute_path( kmap ) | view::to_single | view::to_path
         -> HeadingPath;
     [[ nodiscard ]]
     auto absolute_path( Uuid const& id ) const
@@ -370,7 +370,7 @@ public:
     auto fetch_parent_children_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
     [[ nodiscard ]]
-    auto fetch_siblings( Uuid const& id ) const
+    auto fetch_siblings( Uuid const& id ) const // TODO [cleanup]: view::root( id ) | view::sibling | view::to_node_set( kmap ); // view::sibling => view::root( id ) | view::parent | view::child( view::none_of( id ) )
         -> kmap::UuidSet;
     [[ nodiscard ]]
     auto fetch_siblings_ordered( Uuid const& id ) const
@@ -381,7 +381,7 @@ public:
     [[ nodiscard ]]
     auto fetch_siblings_inclusive_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
-    // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::child | view::to_node_set( kmap ) | view::by_ordering( kmap )?
+    // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::child | view::fetch_node( kmap ) | view::to_ordered
     [[ nodiscard ]]
     auto fetch_children_ordered( Uuid const& root
                                , Heading const& path ) const
@@ -409,13 +409,13 @@ public:
     // auto fetch_nodes() const
     //     -> UuidUnSet;
     [[ nodiscard ]]
-    auto descendant_leaves( Uuid const& root ) const
+    auto descendant_leaves( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::desc | view::leaf | view::to_node_set
         -> std::vector< Uuid >;
     [[ nodiscard ]]
-    auto descendant_ipaths( Uuid const& root ) const
+    auto descendant_ipaths( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::desc | view::to_path | view::reverse
         -> std::vector< HeadingPath >;
     [[ nodiscard ]]
-    auto descendant_paths( Uuid const& root ) const
+    auto descendant_paths( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::desc | view::to_path
         -> std::vector< HeadingPath >;
     [[ nodiscard ]]
     auto fetch_leaf( Uuid const& root // TODO: Rename to fetch_descendant? Reason being that a "leaf" refers to a terminal node in the tree. This is not necessarily the case with this function.

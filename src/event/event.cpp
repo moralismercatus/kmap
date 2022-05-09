@@ -30,6 +30,7 @@ auto EventStore::install_defaults()
     // }
     // object.canvas.network
     // object.
+    // What this does: setTimeout( fn(){ kmap.fire_event( "clear.keyboard.keys" ) } )
 
     rv = outcome::success();
 
@@ -173,44 +174,158 @@ auto EventStore::install_source( Heading const& heading
 }
 #endif //
 
+// Will require a state machine to be maintained inside Event, for each outlet, designating the current state.
+// I imagine that something of a timer needs to be set to clear outlet states when a option-specified time passes.
+// That is, Event gets a key event. Event needs to then register a timer. The timer then fires, then is unregistered.
+// Question is, can I manage all of this. I'm thinking I may need to manually make transitions that reset state when timer expires.
+// I don't like the manual aspect, but may be only feasible way.
+// So, basically, Event sets an outlet for _any_ key*, depressed event. It's action is to register a timer that fires a reset event on expiration.
+// The reset (key) event handler/outlet then de-registers the timer. (I think there is a one-off timer, right? This could probably be used in lieu of de-register outlet).
+// Now, there are two options here:
+// 1. Manually require a timeout transition for each key outlet.
+// 1. Somehow embed the notion that key transitions can timeout into Event, or some other mechanism.
+//    Hmm.. perhaps: an outlet for the key.timeout event that traverses the all outlets looking for key requisites, and resets them automatically.
+//    That does seem like a more... scalable approach. The one downside is a loss of flexibility. Could it be that there is a key outlet that we want never
+//    to timeout? Not that I can think of, but if so, this would obviate it, and the system would need to be redone.
+
 auto EventStore::install_outlet( std::string const& heading
-                               , std::string const& desc
-                               , std::string const& action 
-                               , std::set< std::string > const& requisites )
-    -> Result< Uuid >
+                               , Transition::Type const& transtype )
+    -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const action_body = fmt::format( "```javascript\n{}\n```", action );
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const eroot = event_root();
+    auto const oroot = KMAP_TRY( view::root( eroot )
+                               | view::child( "outlet" )
+                               | view::desc( fmt::format( ".{}", heading ) )
+                               | view::create_node( kmap_ )
+                               | view::to_single );
+    auto const vres = std::visit( [ & ]( auto const& arg ) -> Result< void >
+                                  {
+                                      using T = std::decay_t< decltype( arg ) >;
+
+                                      auto rv = KMAP_MAKE_RESULT( void );
+
+                                      if constexpr( std::is_same_v< T, Transition::Leaf > )
+                                      {
+                                          KMAP_TRY( install_outlet_leaf( oroot, arg ) );
+
+                                          rv = outcome::success();
+                                      }
+                                      else if constexpr( std::is_same_v< T, Transition::Branch > )
+                                      {
+                                          for( auto const& new_trans : arg )
+                                          {
+                                              KMAP_TRY( install_outlet_transition( oroot, new_trans ) );
+                                          }
+
+                                          rv = outcome::success();
+                                      }
+                                      else
+                                      {
+                                          static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                      }
+
+                                      return rv;
+                                  }
+                                , transtype );
+
+    if( !vres )
+    {
+        rv = KMAP_PROPAGATE_FAILURE( vres );
+    }
+    else
+    {
+        rv = outcome::success();
+    }
+
+    return rv;
+}
+
+auto EventStore::install_outlet_transition( Uuid const& root
+                                          , Transition const& transition )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const transdest = KMAP_TRY( view::root( root )
+                                   | view::child( "transition" )
+                                   | view::child( transition.heading )
+                                   | view::create_node( kmap_ )
+                                   | view::to_single );
+    auto const vres = std::visit( [ & ]( auto const& arg ) -> Result< void >
+                                  {
+                                      using T = std::decay_t< decltype( arg ) >;
+
+                                      auto rv = KMAP_MAKE_RESULT( void );
+
+                                      if constexpr( std::is_same_v< T, Transition::Leaf > )
+                                      {
+                                          KMAP_TRY( install_outlet_leaf( transdest, arg ) );
+
+                                          rv = outcome::success();
+                                      }
+                                      else if constexpr( std::is_same_v< T, Transition::Branch > )
+                                      {
+                                          for( auto const& new_trans : arg )
+                                          {
+                                            KMAP_TRY( install_outlet_transition( transdest, new_trans ) );
+                                          }
+
+                                          rv = outcome::success();
+                                      }
+                                      else
+                                      {
+                                          static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                      }
+
+                                      return rv;
+                                  }
+                                , transition.type );
+
+    if( !vres )
+    {
+        rv = KMAP_PROPAGATE_FAILURE( vres );
+    }
+    else
+    {
+        rv = outcome::success();
+    }
+
+    return rv;
+}
+
+auto EventStore::install_outlet_leaf( Uuid const& root 
+                                    , Transition::Leaf const& leaf )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    auto const action_body = fmt::format( "```javascript\n{}\n```", leaf.action );
 
     KMAP_ENSURE( cmd::parser::parse_body_code( action_body ), error_code::parser::parse_failed );
 
-    auto const eroot = event_root();
-    auto const vr = view::root( eroot )
-                  | view::child( "outlet" )
-                  | view::desc( fmt::format( ".{}", heading ) );
-    auto const descn  = KMAP_TRY( vr 
+    auto const descn  = KMAP_TRY( view::root( root )
                                 | view::child( "description" ) 
                                 | view::single
                                 | view::create_node( kmap_ )
                                 | view::to_single );
-    auto const actionn = KMAP_TRY( vr 
+    auto const actionn = KMAP_TRY( view::root( root )
                                  | view::child( "action" ) 
                                  | view::single
                                  | view::create_node( kmap_ )
                                  | view::to_single );
 
-    KMAP_TRY( kmap_.update_body( descn, desc ) );
+    KMAP_TRY( kmap_.update_body( descn, leaf.description ) );
     KMAP_TRY( kmap_.update_body( actionn, action_body ) );
 
-    for( auto const& e : requisites )
+    for( auto const& e : leaf.requisites )
     {
-        KMAP_TRY( vr
+        KMAP_TRY( view::root( root )
                 | view::child( "requisite" ) 
-                | view::alias( view::root( eroot ) | view::desc( e ) ) 
+                | view::alias( view::root( event_root() ) | view::desc( e ) ) 
                 | view::create_node( kmap_ ) );
     }
 
-    rv = KMAP_TRY( vr | view::fetch_node( kmap_ ) );
+    rv = outcome::success();
 
     return rv;
 }
@@ -224,6 +339,8 @@ auto EventStore::uninstall_outlet( std::string const& heading )
     KMAP_TRY( view::root( eroot )
             | view::direct_desc( heading )
             | view::erase_node( kmap_ ) );
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -276,10 +393,6 @@ auto EventStore::execute_body( Uuid const& node )
 auto EventStore::fire_event( std::set< std::string > const& requisites )
     -> Result< void >
 {
-    // for( auto const& e : requisites )
-    // {
-    //     fmt::print( "\trequisite: {}\n", e );
-    // }
     auto rv = KMAP_MAKE_RESULT( void );
     auto const ver = view::root( event_root() );
     auto const alias_reqs = ver | view::direct_desc( view::all_of( requisites ) );
@@ -308,5 +421,3 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
 }
 
 } // namespace kmap
-
-

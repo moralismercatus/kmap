@@ -13,8 +13,22 @@
 #include <set>
 #include <string_view>
 
-namespace kmap
+namespace kmap {
+
+struct Transition
 {
+    using Branch = std::vector< Transition >;
+    struct Leaf
+    {
+        std::set< std::string > requisites;
+        std::string description;
+        std::string action;
+    };
+    using Type = std::variant< Branch, Leaf >;
+
+    std::string heading;
+    Type type;
+};
 
 class EventStore
 {
@@ -35,10 +49,11 @@ public:
     auto install_subject( Heading const& heading )
         -> Result< Uuid >;
     auto install_outlet( std::string const& heading
-                       , std::string const& desc
-                       , std::string const& action 
-                       , std::set< std::string > const& requisites ) // List of actions and objects that activate this outlet.
-        -> Result< Uuid >;
+                       , Transition::Type const& transtype ) 
+        -> Result< void >;
+    auto install_outlet_transition( Uuid const& root
+                                  , Transition const& transition )
+        -> Result< void >;
     auto uninstall_outlet( std::string const& heading )
         -> Result< void >;
 
@@ -50,6 +65,11 @@ public:
     auto execute_body( Uuid const& node )
         -> Result< void >;
     auto fire_event( std::set< std::string > const& requisites )
+        -> Result< void >;
+
+protected:
+    auto install_outlet_leaf( Uuid const& root 
+                            , Transition::Leaf const& leaf )
         -> Result< void >;
 
 private:

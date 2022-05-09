@@ -86,6 +86,7 @@
             KMAP_THROW_EXCEPTION_MSG( #pred ); \
         } \
     }
+#define KTRY( ... ) KMAP_TRY( __VA_ARGS__ )
 
 #include <boost/outcome.hpp>
 #include <boost/system/error_code.hpp>

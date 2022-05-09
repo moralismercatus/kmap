@@ -1435,6 +1435,7 @@ auto Kmap::reset()
     KMAP_TRY( canvas().reset() );
     KMAP_LOG_LINE();
     KMAP_TRY( reset_network() );
+    KMAP_TRY( network_->install_events() );
     KMAP_LOG_LINE();
     KMAP_TRY( set_up_nw_root() );
     KMAP_LOG_LINE();
@@ -1518,9 +1519,9 @@ auto Kmap::reset()
         KMAP_TRY( estore.install_subject( "kmap" ) );
         KMAP_TRY( estore.install_verb( "shutdown" ) );
         KMAP_TRY( estore.install_outlet( "confirm_shutdown"
-                                       , "Ensures deltas are saved if user desires, and if exiting the program is really desired."
-                                       , outlet_script
-                                       , { "subject.kmap", "verb.shutdown" } ) );
+                                       , Transition::Leaf{ .requisites = { "subject.kmap", "verb.shutdown" }
+                                                         , .description = "Ensures deltas are saved if user desires, and if exiting the program is really desired."
+                                                         , .action = outlet_script } ) );
 
         auto const script = 
             fmt::format(
@@ -1562,7 +1563,7 @@ auto Kmap::reset_network()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    network_ = std::make_unique< Network >( canvas_->network_pane() );
+    network_ = std::make_unique< Network >( *this, canvas_->network_pane() );
 
     rv = outcome::success();
 
