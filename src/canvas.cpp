@@ -182,8 +182,12 @@ auto Canvas::install_options()
                                 , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
     KMAP_TRY( opt.install_option( "canvas.preview.scrollbar"
                                 , "Specify scroll bar."
-                                , "\"scroll\""
+                                , "\"auto\""
                                 , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
+    KMAP_TRY( opt.install_option( "canvas.preview.whitespace_wrap"
+                                , "Specify scroll behavior."
+                                , "\"nowrap\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
     // Editor
     KMAP_TRY( opt.install_option( "canvas.editor.background.color"
                                 , "Sets the background color for the editor pane."
@@ -198,9 +202,13 @@ auto Canvas::install_options()
                                 , "\"large\""
                                 , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
     KMAP_TRY( opt.install_option( "canvas.editor.scrollbar"
-                                , "Specify scroll bar."
-                                , "\"scroll\""
+                                , "Specify scroll behavior."
+                                , "\"auto\""
                                 , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
+    KMAP_TRY( opt.install_option( "canvas.editor.whitespace_wrap"
+                                , "Specify scroll behavior."
+                                , "\"nowrap\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
     // CLI
     KMAP_TRY( opt.install_option( "canvas.cli.background.color"
                                 , "Sets the background color for the cli pane."
@@ -1197,6 +1205,12 @@ auto Canvas::completion_overlay() const
     -> Uuid
 {
     return completion_overlay_uuid;
+}
+
+auto Canvas::canvas_pane() const
+    -> Uuid
+{
+    return util_canvas_uuid;
 }
 
 auto Canvas::cli_pane() const

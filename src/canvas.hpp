@@ -207,6 +207,9 @@ public:
     auto breadcrumb_table_pane() const
         -> Uuid;
     [[ nodiscard ]]
+    auto canvas_pane() const
+        -> Uuid;
+    [[ nodiscard ]]
     auto completion_overlay() const
         -> Uuid;
     [[ nodiscard ]]

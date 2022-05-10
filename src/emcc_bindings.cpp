@@ -179,6 +179,7 @@ struct Canvas
 
     auto breadcrumb_pane() const -> Uuid { return kmap_.canvas().breadcrumb_pane(); } 
     auto breadcrumb_table_pane() const -> Uuid { return kmap_.canvas().breadcrumb_table_pane(); } 
+    auto canvas_pane() const -> Uuid { return kmap_.canvas().canvas_pane(); } 
     auto cli_pane() const -> Uuid { return kmap_.canvas().cli_pane(); } 
     auto completion_overlay() const -> Uuid { return kmap_.canvas().completion_overlay(); }
     auto editor_pane() const -> Uuid { return kmap_.canvas().editor_pane(); } 
@@ -1177,6 +1178,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     class_< kmap::binding::Canvas >( "Canvas" )
         .function( "breadcrumb_pane", &kmap::binding::Canvas::breadcrumb_pane )
         .function( "breadcrumb_table_pane", &kmap::binding::Canvas::breadcrumb_table_pane )
+        .function( "canvas_pane", &kmap::binding::Canvas::canvas_pane )
         .function( "cli_pane", &kmap::binding::Canvas::cli_pane )
         .function( "complete_path", &kmap::binding::Canvas::complete_path )
         .function( "completion_overlay", &kmap::binding::Canvas::completion_overlay )
