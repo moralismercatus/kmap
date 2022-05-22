@@ -6,8 +6,9 @@
 #include "attribute.hpp"
 
 #include "contract.hpp"
-#include "kmap.hpp"
+#include "db.hpp"
 #include "error/network.hpp"
+#include "kmap.hpp"
 #include "path/node_view.hpp"
 #include "utility.hpp"
 
@@ -24,13 +25,22 @@ using namespace ranges;
 
 namespace kmap::attr {
 
-auto is_in_attr_tree( Kmap const& kmap
-                    , Uuid const& node )
+auto is_attr( Kmap const& kmap
+            , Uuid const& node )
     -> bool
 {
-    return view::root( node )
-         | view::ancestor( "$" ) // TODO: Can't I do something like view::ancestor( view::attr ); composable?
-         | view::exists( kmap );
+    return kmap.database().attr_exists( node );
+}
+
+/// Returns whether 'node' is a descendant of an attribute node.
+auto is_in_attr_tree( Kmap const& kmap
+                 , Uuid const& node )
+    -> bool
+{
+    return is_attr( kmap, node )
+        || ( view::make( node )
+           | view::ancestor( "$" ) // TODO: Can't I do something like view::ancestor( view::attr ); composable?
+           | view::exists( kmap ) );
 }
 
 auto is_in_order( Kmap const& kmap
@@ -40,7 +50,7 @@ auto is_in_order( Kmap const& kmap
 {
     auto rv = false;
 
-    if( auto const ordern = view::root( parent )
+    if( auto const ordern = view::make( parent )
                           | view::attr
                           | view::child( "order" )
                           | view::fetch_node( kmap ) )
@@ -74,7 +84,7 @@ auto push_genesis( Kmap& kmap
         })
     ;
 
-    auto const genesisn = KMAP_TRY( view::root( node )
+    auto const genesisn = KMAP_TRY( view::make( node )
                                   | view::attr
                                   | view::child( "genesis" )
                                   | view::create_node( kmap )
@@ -106,7 +116,7 @@ auto push_order( Kmap& kmap
 
     KMAP_ENSURE( !is_in_order( kmap, parent, child ), error_code::network::attribute );
 
-    auto const ordern = KMAP_TRY( view::root( parent )
+    auto const ordern = KMAP_TRY( view::make( parent )
                                 | view::attr
                                 | view::child( "order" )
                                 | view::fetch_or_create_node( kmap ) );
@@ -151,7 +161,7 @@ auto pop_order( Kmap& kmap
 
     KMAP_ENSURE( is_in_order( kmap, parent, child ), error_code::network::attribute );
 
-    auto const pordern = KMAP_TRY( view::root( parent )
+    auto const pordern = KMAP_TRY( view::make( parent )
                                  | view::attr
                                  | view::child( "order" )
                                  | view::fetch_node( kmap ) );

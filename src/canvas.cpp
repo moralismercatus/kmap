@@ -127,9 +127,9 @@ auto Canvas::install_events()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+    #if 0
     auto& estore = kmap_.event_store();
 
-    #if 0
     KMAP_TRY( estore.install_subject( "keyboard.key.c" ) );
     KMAP_TRY( estore.install_verb( "depressed" ) );
     KMAP_TRY( estore.install_object( "network" ) );
@@ -422,7 +422,9 @@ auto Canvas::subdivide( Uuid const& parent_pane
     KMAP_ENSURE( is_pane( parent_pane ), error_code::canvas::invalid_subdiv );
     KMAP_ENSURE( is_valid_heading( heading ), error_code::network::invalid_heading );
 
-    auto const parent_pane_subdivn = kmap_.node_view( parent_pane )[ "/subdivision" ];
+    auto const parent_pane_subdivn = KTRY( view::make( parent_pane )
+                                         | view::child( "subdivision" )
+                                         | view::fetch_node( kmap_ ) );
 
     rv = create_subdivision( parent_pane_subdivn
                            , heading
@@ -988,7 +990,7 @@ auto Canvas::delete_subdivisions( Uuid const& pane )
 
     KMAP_ENSURE( is_pane( pane ), error_code::canvas::invalid_pane );
 
-    for( auto const children = view::root( pane )
+    for( auto const children = view::make( pane )
                              | view::child( "subdivision" )
                              | view::child
                              | view::to_node_set( kmap_ )
@@ -1130,13 +1132,13 @@ auto Canvas::fetch_subdivisions( Uuid const& pane )
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( view::root( pane ) | view::desc( "subdivision" ) | view::exists( kmap_ ) );
+            BC_ASSERT( view::make( pane ) | view::desc( "subdivision" ) | view::exists( kmap_ ) );
         })
     ;
 
     KMAP_ENSURE( is_pane( pane ), error_code::canvas::invalid_pane );
 
-    rv = view::root( pane )
+    rv = view::make( pane )
        | view::child( "subdivision" )
        | view::child
        | view::to_node_set( kmap_ );

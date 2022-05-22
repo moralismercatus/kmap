@@ -903,6 +903,16 @@ auto Database::node_exists( Uuid const& id ) const
           || cache_.contains_delta< db::NodeTable >( id ) );
 }
 
+auto Database::attr_exists( Uuid const& id ) const
+    -> bool
+{
+    auto const key = db::Child{ id };
+
+    return !cache_.contains_erased_delta< db::AttributeTable >( key )
+        && ( cache_.contains_cached< db::AttributeTable >( key )
+          || cache_.contains_delta< db::AttributeTable >( key ) );
+}
+
 auto Database::alias_exists( Uuid const& src
                            , Uuid const& dst ) const
     -> bool

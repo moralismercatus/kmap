@@ -16,6 +16,7 @@
 #include <range/v3/range/conversion.hpp>
 
 using namespace kmap;
+using namespace kmap::test;
 
 SCENARIO( "node_view view::exists", "[path][node_view]" )
 {
@@ -28,15 +29,15 @@ SCENARIO( "node_view view::exists", "[path][node_view]" )
     {
         THEN( "root node exists" )
         {
-            REQUIRE( view::root( root ) | view::exists( kmap ) );
+            REQUIRE( view::make( root ) | view::exists( kmap ) );
         }
         THEN( "non-root does not exist" )
         {
-            REQUIRE( !( view::root( gen_uuid() ) | view::exists( kmap ) ) );
+            REQUIRE( !( view::make( gen_uuid() ) | view::exists( kmap ) ) );
         }
         THEN( "child of root doesn't exist" )
         {
-            REQUIRE( !( view::root( root ) | view::child | view::exists( kmap ) ) );
+            REQUIRE( !( view::make( root ) | view::child | view::exists( kmap ) ) );
         }
     }
 }
@@ -57,7 +58,7 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
 
         WHEN( "view::alias( Uuid ) is used to create an alias" )
         {
-            auto const a1 = view::root( root )
+            auto const a1 = view::make( root )
                           | view::child( "1" )
                           | view::alias( c2 )
                           | view::single
@@ -80,9 +81,9 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
         }
         WHEN( "view::alias( Intermediary ) is used to create an alias" )
         {
-            auto const a1 = view::root( root )
+            auto const a1 = view::make( root )
                           | view::child( "1" )
-                          | view::alias( view::root( root )
+                          | view::alias( view::make( root )
                                        | view::child( "2" ) )
                           | view::single
                           | view::create_node( kmap )
@@ -116,7 +117,7 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
 
             THEN( "unspecified view::alias finds" )
             {
-                auto const v = view::root( root )
+                auto const v = view::make( root )
                              | view::child( "1" )
                              | view::alias;
                 REQUIRE( succ( v | view::fetch_node( kmap ) ) );
@@ -125,7 +126,7 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             }
             THEN( "specified view::alias finds" )
             {
-                auto const v = view::root( root )
+                auto const v = view::make( root )
                              | view::child( "1" )
                              | view::alias( "2" );
 
@@ -135,9 +136,9 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             }
             THEN( "nested view::alias finds" )
             {
-                auto const v = view::root( root )
+                auto const v = view::make( root )
                              | view::child( "1" )
-                             | view::alias( view::root( root )
+                             | view::alias( view::make( root )
                                           | view::child( "2" ) );
 
                 REQUIRE( succ( v | view::fetch_node( kmap ) ) );
@@ -165,9 +166,8 @@ SCENARIO( "node_view view::desc", "[path][node_view]" )
 
     GIVEN( "single descendant" )
     {
-        auto const c1r = kmap.create_child( root, "1" ); REQUIRE( succ( c1r ) );
-        auto const c1 = c1r.value();
-        auto const vr = view::root( root );
+        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const vr = view::make( root );
 
         WHEN( "no selection specifier" )
         {
@@ -236,7 +236,7 @@ SCENARIO( "node_view view::desc", "[path][node_view]" )
     }
     GIVEN( "/event.[object,verb,subject,outlet]" )
     {
-        auto const ver = view::root( kmap.root_node_id() )
+        auto const ver = view::make( kmap.root_node_id() )
                        | view::child( "event" );
 
         REQUIRE( succ( ver
@@ -301,7 +301,28 @@ SCENARIO( "node_view view::desc", "[path][node_view]" )
     }
 }
 
-SCENARIO( "node_view view::unique", "[path][node_view]" )
+SCENARIO( "node_view view::create_node", "[path][node_view]" )
+{
+    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+
+    auto& kmap = kmap::Singleton::instance();
+    auto const root = kmap.root_node_id();
+
+    GIVEN( "root" )
+    {
+        WHEN( "create view::desc" )
+        {
+            REQUIRE( fail( view::make( root )
+                         | view::desc( "1" ) // Some "decendant" isn't specific enough for node creation.
+                         | view::create_node( kmap ) ) );
+            REQUIRE_RES( view::make( root )
+                       | view::desc( ".1" )
+                       | view::create_node( kmap ) );
+        }
+    }
+}
+
+SCENARIO( "node_view view::single", "[path][node_view]" )
 {
     KMAP_BLANK_STATE_FIXTURE_SCOPED();
 
@@ -310,12 +331,12 @@ SCENARIO( "node_view view::unique", "[path][node_view]" )
 
     GIVEN( "ambiguous 'charlie'" )
     {
-        REQUIRE( succ( view::root( root )
+        REQUIRE( succ( view::make( root )
                      | view::direct_desc( "victor.charlie" ) 
                      | view::single
                      | view::create_node( kmap )
                      | view::to_single ) );
-        REQUIRE( succ( view::root( root )
+        REQUIRE( succ( view::make( root )
                      | view::direct_desc( "delta.charlie" ) 
                      | view::single
                      | view::create_node( kmap )
@@ -323,7 +344,7 @@ SCENARIO( "node_view view::unique", "[path][node_view]" )
 
         WHEN( "fetching unique on ambiguous 'charlie'" )
         {
-            auto const v = view::root( root )
+            auto const v = view::make( root )
                          | view::desc( "charlie" )
                          | view::single;
 
@@ -333,7 +354,7 @@ SCENARIO( "node_view view::unique", "[path][node_view]" )
         }
         WHEN( "fetching unique on disambiguated 'charlie'" )
         {
-            auto const v = view::root( root )
+            auto const v = view::make( root )
                          | view::direct_desc( "delta.charlie" )
                          | view::single;
 
@@ -341,10 +362,10 @@ SCENARIO( "node_view view::unique", "[path][node_view]" )
             REQUIRE( succ( v | view::fetch_node( kmap ) ) );
         }
 
-        REQUIRE( succ( view::root( root )
+        REQUIRE( succ( view::make( root )
                      | view::direct_desc( "victor.charlie" ) 
                      | view::erase_node( kmap ) ) );
-        REQUIRE( succ( view::root( root )
+        REQUIRE( succ( view::make( root )
                      | view::direct_desc( "delta.charlie" ) 
                      | view::erase_node( kmap ) ) );
     }
@@ -364,12 +385,12 @@ SCENARIO( "node_view view::erase", "[path][node_view]" )
 
         WHEN( "siblings erased" )
         {
-            REQUIRE( succ( view::root( root ) | view::child | view::erase_node( kmap ) ) );
+            REQUIRE( succ( view::make( root ) | view::child | view::erase_node( kmap ) ) );
 
             THEN( "siblings don't exist" )
             {
-                REQUIRE( !( view::root( c1 ) | view::exists( kmap ) ) );
-                REQUIRE( !( view::root( c2 ) | view::exists( kmap ) ) );
+                REQUIRE( !( view::make( c1 ) | view::exists( kmap ) ) );
+                REQUIRE( !( view::make( c2 ) | view::exists( kmap ) ) );
             }
 
             WHEN( "child is created" )
@@ -378,7 +399,7 @@ SCENARIO( "node_view view::erase", "[path][node_view]" )
 
                 THEN( "child exists" )
                 {
-                    REQUIRE( view::root( c3 ) | view::exists( kmap ) );
+                    REQUIRE( view::make( c3 ) | view::exists( kmap ) );
                 }
                 THEN( "child is ordered" )
                 {
@@ -424,7 +445,7 @@ BOOST_AUTO_TEST_CASE( misc
 
     // Children of root
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::child
                         | view::to_node_set( kmap );
         
@@ -432,7 +453,7 @@ BOOST_AUTO_TEST_CASE( misc
     }
     // All but root
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::desc
                         | view::to_node_set (kmap );
         
@@ -440,7 +461,7 @@ BOOST_AUTO_TEST_CASE( misc
     }
     // All children of root desc who have children
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::desc
                         | view::child
                         | view::to_node_set( kmap );
@@ -449,7 +470,7 @@ BOOST_AUTO_TEST_CASE( misc
     }
     // All Desc "1"
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::desc( "1"s )
                         | view::to_node_set( kmap );
         
@@ -457,7 +478,7 @@ BOOST_AUTO_TEST_CASE( misc
     }
     // All Desc "1", "3"
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::desc( view::any_of( "1", "3" ) )
                         | view::to_node_set( kmap );
         
@@ -465,7 +486,7 @@ BOOST_AUTO_TEST_CASE( misc
     }
     // None Desc "1", "3"
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::desc( view::none_of( "1", "3" ) )
                         | view::to_node_set( kmap );
         
@@ -473,7 +494,7 @@ BOOST_AUTO_TEST_CASE( misc
     }
     // Desc of "test" is "1.2"
     {
-        auto const intm = view::root( root )
+        auto const intm = view::make( root )
                         | view::desc( "1.2" ) // So, when treating Heading <=> HeadingPath, does this still function as expected?
                         | view::to_node_set( kmap );
         

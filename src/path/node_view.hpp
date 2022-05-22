@@ -75,7 +75,9 @@ struct Child;
 struct Desc;
 struct DirectDesc;
 struct Leaf;
+struct RLineage;
 struct Parent;
+struct Resolve;
 struct Sibling;
 struct Single;
 
@@ -86,14 +88,16 @@ using OperatorVariant = std::variant< Alias
                                     , Desc
                                     , DirectDesc
                                     , Leaf
+                                    , RLineage
                                     , Parent
+                                    , Resolve
                                     , Sibling
                                     , Single >;
 
 struct Intermediary
 {
     std::vector< OperatorVariant > op_chain;
-    Uuid root = {};
+    UuidSet root = {};
 };
 
 using SelectionVariant = std::variant< char const* // TODO: To consolidate std::string and char const*, and own the char*, consider making SelectionVariant a struct with ctor with variant as a member.
@@ -116,7 +120,7 @@ auto operator==( SelectionVariant const& lhs
 struct Ancestor
 {
     Ancestor() = default;
-    Ancestor( SelectionVariant const& sel ) : selection{ sel } {}
+    explicit Ancestor( SelectionVariant const& sel ) : selection{ sel } {}
 
     auto operator()() const {}
     auto operator()( SelectionVariant const& sel ) const { return Ancestor{ sel }; }
@@ -136,7 +140,7 @@ struct Alias
     std::optional< SelectionVariant > selection = std::nullopt;
 
     Alias() = default;
-    Alias( SelectionVariant const& sel ) : selection{ sel } {}
+    explicit Alias( SelectionVariant const& sel ) : selection{ sel } {}
 
     auto operator()() const {}
     auto operator()( SelectionVariant const& sel ) const { return Alias{ sel }; }
@@ -165,7 +169,7 @@ struct Attr
 struct Child
 {
     Child() = default;
-    Child( SelectionVariant const& sel ) : selection{ sel } {}
+    explicit Child( SelectionVariant const& sel ) : selection{ sel } {}
 
     auto operator()() const {}
     auto operator()( SelectionVariant const& sel ) const { return Child{ sel }; }
@@ -182,7 +186,7 @@ struct Child
 struct Desc
 {
     Desc() = default;
-    Desc( SelectionVariant const& sel ) : selection{ sel } {}
+    explicit Desc( SelectionVariant const& sel ) : selection{ sel } {}
 
     auto operator()() const {}
     auto operator()( SelectionVariant const& sel ) const { return Desc{ sel }; }
@@ -201,7 +205,7 @@ struct Desc
 struct DirectDesc
 {
     DirectDesc() = default;
-    DirectDesc( SelectionVariant const& sel ) : selection{ sel } {}
+    explicit DirectDesc( SelectionVariant const& sel ) : selection{ sel } {}
 
     auto operator()() const {}
     auto operator()( SelectionVariant const& sel ) const { return DirectDesc{ sel }; }
@@ -229,6 +233,19 @@ struct Leaf
 
     SelectionVariant selection;
 };
+struct RLineage
+{
+    RLineage() = default;
+    explicit RLineage( Uuid const& leafn ) : leaf{ leafn } {};
+
+    auto operator()() {};
+    auto operator()( Uuid const& leafn ) const { return RLineage{ leafn }; }; // TODO: Rather, SelectionVariant?
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    Uuid leaf;
+};
 struct Parent
 {
     Parent() = default;
@@ -241,9 +258,20 @@ struct Parent
 
     SelectionVariant selection;
 };
+struct Resolve
+{
+    Resolve() = default;
+
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    auto operator()() {};
+};
 struct Sibling
 {
     Sibling() = default;
+
     auto operator()( Kmap const& kmap
                    , Uuid const& node ) const
         -> UuidSet;
@@ -303,6 +331,14 @@ struct FetchOrCreateNode
 {
     Kmap& kmap;
 };
+struct ToAbsPath
+{
+    Kmap const& kmap;
+
+    ToAbsPath( Kmap const& km ) : kmap{ km } {}
+
+    auto operator()() {};
+};
 struct ToHeadingSet
 {
     Kmap const& kmap;
@@ -332,7 +368,9 @@ auto const child = Child{};
 auto const desc = Desc{};
 auto const direct_desc = DirectDesc{};
 auto const leaf = Leaf{};
+auto const rlineage = RLineage{}; // TODO: "Lineage" doesn't specify direction. It assumes ascending, but why not descending? A "lineage" can go both ways. Perhaps l_lineage, r_lineage? (left,right/asc/desc?)
 auto const parent = Parent{};
+auto const resolve = Resolve{};
 auto const sibling = Sibling{};
 auto const single = Single{};
 
@@ -351,10 +389,12 @@ auto erase_node( Kmap& kmap ) -> EraseNode;
 auto exists( Kmap const& kmap ) -> Exists;
 auto fetch_or_create_node( Kmap& kmap ) -> FetchOrCreateNode;
 auto fetch_node( Kmap const& kmap ) -> FetchNode;
+auto to_abs_path( Kmap const& kmap ) -> ToAbsPath;
 auto to_heading_set( Kmap const& kmap ) -> ToHeadingSet;
 auto to_node_set( Kmap const& kmap ) -> ToNodeSet;
 
-auto root( Uuid const& n ) -> Intermediary;
+auto make( Uuid const& n ) -> Intermediary;
+auto make( UuidSet const& n ) -> Intermediary;
 
 // template< typename Range >
 // auto fetch_unique( Kmap const& kmap ) -> FetchUnique;
@@ -368,7 +408,9 @@ auto operator|( Intermediary const& i, Count const& op ) -> uint32_t;
 auto operator|( Intermediary const& i, Desc const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, DirectDesc const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Leaf const& op ) -> Intermediary;
+auto operator|( Intermediary const& i, RLineage const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Parent const& op ) -> Intermediary;
+auto operator|( Intermediary const& i, Resolve const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Sibling const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Single const& op ) -> Intermediary;
 // Result Operations
@@ -408,6 +450,32 @@ auto operator|( Result< RT > const& result, ToSingle const& tso )
 
     return rv;
 }
+template< concepts::Range RT >
+auto operator|( Result< RT > const& result, ToAbsPath const& op )
+    -> Result< UuidVec >
+{
+    auto rv = KMAP_MAKE_RESULT( UuidVec );
+
+    if( result )
+    {
+        auto const& value = result.value();
+
+        if( value.size() == 1 )
+        {
+            rv = KMAP_TRYE( absolute_path( op.kmap, value.back() ) );
+        }
+        else
+        {
+            rv = KMAP_MAKE_ERROR( error_code::network::ambiguous_path );
+        }
+    }
+    else
+    {
+        rv = KMAP_PROPAGATE_FAILURE( result );
+    }
+
+    return rv;
+}
 
 auto operator<<( Child const& op
                , flag const& flag )
@@ -418,7 +486,21 @@ auto create_lineages( Kmap& kmap
                     , OperatorVariant const& op)
     -> Result< UuidSet >;
 
-
 } // namespace kmap::view
+
+namespace kmap::view::act {
+
+// TODO: "actions" go here. No more view::create_node, but now act::create_node( kmap ).
+//       Actions are what take the recipe (lazy) and act upon it; put it into motion.
+//       Particularly useful for name reuse e.g., view::alias( view::count( 3 ) ) v. view::alias | act::count.
+// auto count( Kmap const& kmap ) -> Count;
+
+} // namespace kmap::act
+
+namespace kmap
+{
+    namespace act = kmap::view::act;
+}
+
 
 #endif // KMAP_PATH_NODE_VIEW_HPP

@@ -929,28 +929,12 @@ auto xor_ids( Uuid const& lhs
     return rv;
 }
 
-auto make_alias_id( Uuid const& alias_src
-                  , Uuid const& alias_dst )
-    -> Uuid
-{
-    return xor_ids( alias_src
-                  , alias_dst );
-}
-
 auto make_edge_id( Uuid const& from
                  , Uuid const& to )
     -> Uuid
 {
     return xor_ids( from
                   , to );
-}
-
-auto alias_source( Uuid const& parent
-                 , Uuid const& alias )
-    -> Uuid
-{
-    return xor_ids( parent
-                  , alias );
 }
 
 auto url_to_heading( std::string const url )
@@ -1127,6 +1111,28 @@ auto print_stacktrace()
     {
         console.log( stackTrace() );
     } );
+}
+
+auto print_tree( Kmap const& kmap
+               , Uuid const& root )
+    -> Result< void >
+{
+    if( kmap.is_top_alias( root ) )
+    {
+        fmt::print( "{}[{}]\n", kmap.absolute_path_flat( root ), kmap.absolute_path_flat( kmap.resolve( root ) ) );
+    }
+    else
+    {
+        fmt::print( "{}\n", kmap.absolute_path_flat( root ) );
+    }
+
+    for( auto const children = kmap.fetch_children_ordered( root )
+       ; auto const& child : children )
+    {
+        KMAP_TRY( print_tree( kmap, child ) );
+    }
+
+    return outcome::success();
 }
 
 auto copy_body( Kmap& kmap
@@ -1422,6 +1428,21 @@ auto is_direct_descendant( Kmap const& kmap
     }
 
     return rv;
+}
+
+auto is_ordered( Kmap const& kmap
+               , Uuid const& former 
+               , Uuid const& latter )
+    -> bool
+{
+    if( kmap.are_siblings( former, latter ) )
+    {
+        return KTRYE( kmap.fetch_ordering_position( former ) ) < KTRYE( kmap.fetch_ordering_position( latter ) );
+    }
+    else
+    {
+        return kmap.distance( kmap.root_node_id(), former ) < kmap.distance( kmap.root_node_id(), latter );
+    }
 }
 
 } // namespace kmap

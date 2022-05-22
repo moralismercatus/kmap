@@ -89,6 +89,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
     auto operator()()
     {
         using namespace boost::sml;
+        using boost::sml::event;
     
         /* States */
         auto Start = state< class Start >;
@@ -668,6 +669,27 @@ auto tokenize_path( std::string const& raw )
     rv = raw
        | views::tokenize( rgx )
        | to< StringVec >();
+
+    return rv;
+}
+
+auto absolute_path( Kmap const& kmap
+                  , Uuid const& desc )
+    -> Result< UuidVec >
+{
+    auto rv = KMAP_MAKE_RESULT( UuidVec );
+    auto nv = UuidVec{ desc };
+
+    auto n = desc;
+
+    while( n != kmap.root_node_id() )
+    {
+        n = KTRY( kmap.fetch_parent( n ) );
+
+        nv.emplace_back( n );
+    }
+
+    rv = nv | views::reverse | ranges::to< UuidVec >();
 
     return rv;
 }
@@ -1266,6 +1288,13 @@ auto is_ancestor( Kmap const& kmap
 {
     return ancestor != descendant
         && is_lineal( kmap, ancestor, descendant );
+}
+
+auto is_leaf( Kmap const& kmap
+            , Uuid const& node )
+    -> bool
+{
+    return kmap.fetch_children( node ).empty();
 }
 
 auto is_lineal( Kmap const& kmap

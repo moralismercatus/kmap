@@ -302,7 +302,7 @@ public:
         else
         {
             // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
-            KMAP_THROW_EXCEPTION_MSG( "cache decider ended in invalid state" );
+            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state: {}", output->error_msg ) );
         }
 
         rv = outcome::success();
@@ -384,7 +384,7 @@ public:
         else
         {
             // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
-            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state", output->error_msg ) );
+            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state: {}", output->error_msg ) );
         }
 
         rv = outcome::success();

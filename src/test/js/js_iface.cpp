@@ -5,10 +5,12 @@
  ******************************************************************************/
 #include "../master.hpp"
 #include "js_iface.hpp"
+#include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 using namespace kmap;
+using namespace kmap::test;
 
 SCENARIO( "testing eval operations" )
 {

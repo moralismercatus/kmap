@@ -48,6 +48,9 @@ namespace util
     using rollbear::any_of;
     using rollbear::all_of;
     using rollbear::none_of;
+
+    template< typename... Ts > struct Dispatch : Ts... { using Ts::operator()...; };
+    template< typename... Ts > Dispatch( Ts... ) -> Dispatch< Ts... >; // Deducation guide.
 }
 
 class Database;
@@ -201,16 +204,8 @@ auto xor_ids( Uuid const& lhs
             , Uuid const& rhs )
     -> Uuid;
 [[ nodiscard ]]
-auto make_alias_id( Uuid const& alias_src
-                  , Uuid const& alias_dst )
-    -> Uuid;
-[[ nodiscard ]]
 auto make_edge_id( Uuid const& from
                  , Uuid const& to )
-    -> Uuid;
-[[ nodiscard ]]
-auto alias_source( Uuid const& parent 
-                 , Uuid const& alias )
     -> Uuid;
 [[ nodiscard ]]
 auto url_to_heading( std::string const url )
@@ -238,6 +233,9 @@ auto merge_ranges( std::set< uint64_t > const& values )
     -> std::set< std::pair< uint64_t, uint64_t > >;
 auto print_stacktrace()
     -> void;
+auto print_tree( Kmap const& kmap
+               , Uuid const& root )
+    -> Result< void >;
 [[ nodiscard ]]
 auto copy_body( Kmap& kmap
               , Uuid const& src
@@ -301,6 +299,10 @@ auto flatten( HeadingPath const& path )
 auto is_direct_descendant( Kmap const& kmap
                          , Uuid const& root
                          , Heading const& lineage )
+    -> bool;
+auto is_ordered( Kmap const& kmap
+               , Uuid const& former 
+               , Uuid const& latter )
     -> bool;
 template< typename Target, typename... Args >
 auto make( Args&&... args )

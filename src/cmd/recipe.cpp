@@ -64,20 +64,41 @@ auto fetch_parent_recipe( Kmap const& kmap
                         , Uuid const& id )
     -> Result< Uuid > 
 {
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
     BC_CONTRACT()
-        BC_PRE([ & ]
+        BC_POST([ & ]
         {
-            BC_ASSERT( kmap.exists( id ) );
         })
     ;
 
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KMAP_ENSURE( kmap.exist( id ), error_code::network::invalid_node );
+
+    // auto const rroot = KMAP_TRY( fetch_recipes_root( kmap ) );
+    
+    // A little tricky to figure out the recipe to reproduce this using node_view.
+    // Requires (1) "first of"/"nearest to", and (2) ancestor between two points that has child( any_of( "step"", "steps" ) )
+    // rv = KTRY( view::root( view::root( rroot ) | view::lineage( id ) | view::to_node_set( kmap ) )
+    //          | view::ancestor( view::any_of( "step", "steps" ) )
+    //          | view::fetch_node( kmap_ ) );
+    // rv = KTRY( view::root( id )
+    //          | view::lineage( rroot )
+    //          | view::ancestor( view::any_of( "step", "steps" ) )
+    //          | view::fetch_node( kmap_ ) );
+    // This version has all properties except (1).
+    // rv = KTRY( view::root( id )
+    //          | view::lineage( rroot )
+    //          | view::child( view::any_of( "step", "steps" ) )
+    //          | view::parent
+    //          | view::to_node_set( kmap_ )
+    //          | view::order_by( ...distance_from_id...? )
+    //          | view::fetch_tail );
 
     auto const recipe_root = KMAP_TRY( fetch_recipes_root( kmap ) );
+
     rv = kmap.fetch_nearest_ancestor( recipe_root
                                     , id
                                     , std::regex{ "step|steps" } );
-
     return rv;
 }
 

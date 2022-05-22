@@ -8,10 +8,11 @@
 #include "contract.hpp"
 #include "db.hpp"
 #include "error/network.hpp"
-#include "event/event.hpp"
+#include "event/event_clerk.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
+#include "option/option.hpp"
 #include "utility.hpp"
 
 #include <emscripten.h>
@@ -47,6 +48,7 @@ auto operator<<( std::ostream& os
 Network::Network( Kmap& kmap
                 , Uuid const& container )
    : kmap_{ kmap }
+   , eclerk_{ kmap.event_store() }
    , js_nw_{ std::make_shared< val >( val::global().call< val >( "new_network", container ) ) } // TODO: There's some way to invoke a ctor directly without a wrapper, but can't figure it out.
 {
     if( js_nw_->isNull() )
@@ -61,8 +63,6 @@ Network::~Network()
     {
         js_nw_->call< val >( "destroy_network" );
     }
-
-    uninstall_events();
 }
 
 auto Network::create_node( Uuid const& id
@@ -504,12 +504,30 @@ auto Network::focus()
     js_nw_->call< val >( "focus_network" );
 }
 
-auto Network::install_keydown_handler()
+auto Network::viewport_scale() const
+    -> float
+{
+    return js_nw_->call< float >( "viewport_scale" );
+}
+
+auto Network::install_default_options()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+    auto& ostore = kmap_.option_store();
     
-    KMAP_TRY( js::call< val >( *js_nw_, "install_keydown_handler" ) );
+    {
+        auto const script = 
+R"%%%(
+kmap.network().scale_viewport( option_value ).throw_on_error();
+)%%%";
+        KMAP_TRY( ostore.install_option( "network.viewport_scale"
+                                       , "Sets network's viewport scale after resize"
+                                       , "1.0"
+                                       , script ) );
+    }
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -518,81 +536,101 @@ auto Network::install_events()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
-    auto& estore = kmap_.event_store();
 
-    KTRY( estore.install_subject( "network" ) );
-    KTRY( estore.install_verb( "depressed" ) );
-    KTRY( estore.install_object( "keyboard.key.arrowdown" ) );
-    KTRY( estore.install_object( "keyboard.key.arrowleft" ) );
-    KTRY( estore.install_object( "keyboard.key.arrowright" ) );
-    KTRY( estore.install_object( "keyboard.key.arrowup" ) );
-    KTRY( estore.install_object( "keyboard.key.c" ) );
-    KTRY( estore.install_object( "keyboard.key.ctrl" ) );
-    KTRY( estore.install_object( "keyboard.key.e" ) );
-    KTRY( estore.install_object( "keyboard.key.g" ) );
-    KTRY( estore.install_object( "keyboard.key.h" ) );
-    KTRY( estore.install_object( "keyboard.key.i" ) );
-    KTRY( estore.install_object( "keyboard.key.j" ) );
-    KTRY( estore.install_object( "keyboard.key.k" ) );
-    KTRY( estore.install_object( "keyboard.key.l" ) );
-    KTRY( estore.install_object( "keyboard.key.o" ) );
-    KTRY( estore.install_object( "keyboard.key.v" ) );
+    KTRY( eclerk_.install_subject( "network" ) );
+    KTRY( eclerk_.install_subject( "network" ) );
+    KTRY( eclerk_.install_verb( "depressed" ) );
+    KTRY( eclerk_.install_verb( "raised" ) );
+    KTRY( eclerk_.install_verb( "scaled" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.arrowdown" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.arrowleft" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.arrowright" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.arrowup" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.c" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.ctrl" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.e" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.esc" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.g" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.h" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.i" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.j" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.k" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.l" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.o" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.shift" ) );
+    KTRY( eclerk_.install_object( "keyboard.key.v" ) );
+    KTRY( eclerk_.install_object( "viewport" ) );
 
-    KTRY( estore.install_outlet( "network.travel_left"
-                               , Transition::Branch{ Transition{ .heading = "h"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_left();)%%%" } }
-                                                   , Transition{ .heading = "arrowleft"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowleft" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_left();)%%%" } } } ) );
-    KTRY( estore.install_outlet( "network.travel_down"
-                               , Transition::Branch{ Transition{ .heading = "j"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.j" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_down();)%%%" } }
-                                                   , Transition{ .heading = "arrowdown"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowdown" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_down();)%%%" } } } ) );
-    KTRY( estore.install_outlet( "network.travel_up"
-                               , Transition::Branch{ Transition{ .heading = "k"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.k" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_up();)%%%" } }
-                                                   , Transition{ .heading = "arrowup"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowup" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_up();)%%%" } } } ) );
-    KTRY( estore.install_outlet( "network.travel_right"
-                               , Transition::Branch{ Transition{ .heading = "l"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.l" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_right();)%%%" } }
-                                                   , Transition{ .heading = "arrowright"
-                                                               , .type = Transition::Leaf{ .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowright" }
-                                                                                         , .description = "travel to parent node"
-                                                                                         , .action = R"%%%(kmap.travel_right();)%%%" } } } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_left.h"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_left();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_left.arrowleft"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowleft" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_left();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_down.j"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.j" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_down();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_down.arrowdown"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowdown" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_down();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_up.k"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.k" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_up();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_up.arrowup"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowup" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_up();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_right.l"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.l" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_right();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_right.arrowright"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowright" }
+                                      , .description = "travel to parent node"
+                                      , .action = R"%%%(kmap.travel_right();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Branch{ .heading = "network.travel_bottom"
+                                        , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.shift" }
+                                        , .transitions = { Leaf{ .heading = "g"
+                                                               , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                                               , .description = "travel to bottom sibling."
+                                                               , .action = R"%%%(kmap.travel_bottom();)%%%" }
+                                                         , Leaf{ .heading = "unshift"
+                                                               , .requisites = { "subject.network", "verb.raised", "object.keyboard.key.shift" }
+                                                               , .description = "travel to bottom sibling."
+                                                               , .action = R"%%%(/*Do nothing; Allow reset transition.*/)%%%" } } } ) );
+    KTRY( eclerk_.install_outlet( Branch{ .heading = "network.travel_top"
+                                        , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                        , .transitions = { Leaf{ .heading = "g"
+                                                               , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                                               , .description = "travel to top sibling."
+                                                               , .action = R"%%%(kmap.travel_top();)%%%" } } } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.open_editor"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.e" }
+                                      , .description = "open editor"
+                                      , .action = R"%%%(kmap.parse_cli( ':edit.body' );)%%%" } ) ); // TODO: Replace parse_cli(...) with KScript{ "edit.body" }?
+    // TODO: "leave_editor" belongs in editor, not here. Once "open_editor" occurs, control is handed to editor, no longer in network's domain.
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.leave_editor.esc"
+                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.esc" }
+                                      , .description = "leave editor mode."
+                                      , .action = R"%%%(kmap.leave_editor();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Branch{ .heading = "network.leave_editor.ctrl"
+                                        , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.ctrl" }
+                                        , .transitions = { Leaf{ .heading = "c"
+                                                               , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.c" }
+                                                               , .description = "leave editor mode."
+                                                               , .action = R"%%%(kmap.leave_editor();)%%%" } } } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.update_viewport_scale"
+                                      , .requisites = { "subject.network", "verb.scaled", "object.viewport" }
+                                      , .description = "updates network viewport scale option value"
+                                      , .action = R"%%%(kmap.option_store().update_value( 'network.viewport_scale', kmap.network().viewport_scale() ).throw_on_error();)%%%" } ) );
 
     rv = outcome::success();
     
-    return rv;
-}
-
-auto Network::uninstall_events()
-    -> Result< void >
-{
-    auto rv = KMAP_MAKE_RESULT( void );
-    auto& estore = kmap_.event_store();
-
-    KTRY( estore.uninstall_outlet( "network.travel_left" ) );
-    KTRY( estore.uninstall_outlet( "network.travel_down" ) );
-    KTRY( estore.uninstall_outlet( "network.travel_up" ) );
-    KTRY( estore.uninstall_outlet( "network.travel_right" ) );
-
-    rv = outcome::success();
-
     return rv;
 }
 
@@ -679,6 +717,18 @@ auto Network::is_child( Uuid parent
 {
     return 0 != count_if( child_titles( parent )
                         , [ &child ]( auto const& e ){ return e == child; } );
+}
+
+auto Network::scale_viewport( float const scale )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    js_nw_->call< val >( "scale_viewport", scale );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Network::to_titles( UuidPath const& path ) const

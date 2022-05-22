@@ -78,7 +78,7 @@ auto process_search_results( Kmap& kmap
     -> Result< std::string >
 {
     auto sorted_matches = matching_nodes;
-    auto const count_ancestors = [ &kmap ]( auto const& node ){ return view::root( node ) | view::ancestor | view::count( kmap ); };
+    auto const count_ancestors = [ &kmap ]( auto const& node ){ return view::make( node ) | view::ancestor | view::count( kmap ); };
 
     sorted_matches |= actions::sort( [ & ]( auto const& lhs
                                           , auto const& rhs ) { return count_ancestors( lhs ) < count_ancestors( rhs ); } );
@@ -115,7 +115,7 @@ auto process_search_results( Kmap& kmap
         auto const details = fmt::format( "Path: `{}`<br>iPath: `{}`<br>distance from root: {}"
                                         , kmap.absolute_path_flat( id )
                                         , kmap.absolute_ipath_flat( id )
-                                        , view::root( id ) | view::ancestor | view::count( kmap ) );
+                                        , view::make( id ) | view::ancestor | view::count( kmap ) );
 
         KMAP_TRY( kmap.update_body( iid.value(), details ) );
 

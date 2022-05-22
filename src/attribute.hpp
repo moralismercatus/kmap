@@ -16,8 +16,14 @@ namespace kmap
 
 namespace kmap::attr {
 
-auto is_in_attr_tree( Kmap const& kmap
+auto fetch_attr_node( Kmap const& kmap
                     , Uuid const& node )
+    -> bool;
+auto is_attr( Kmap const& kmap
+            , Uuid const& node )
+    -> bool;
+auto is_in_attr_tree( Kmap const& kmap
+                 , Uuid const& node )
     -> bool;
 auto is_in_order( Kmap const& kmap
                 , Uuid const& parent

@@ -39,17 +39,20 @@ class Network
                                 , shapeProperties: { interpolation: false }
                                 , widthConstraint: { minimum: 200
                                                     , maximum: 200 } } };
-            this.network = new vis.Network( container
-                                          , data
-                                          , options );
+
+            this.network = new vis.Network( container, data, options );
             
+            // Presumably it's safe to register these event handlers before the event system is set up, so long as they don't fire prior to its set up.
             this.network.canvas.frame.onkeydown = network_onkeydown;
+            this.network.canvas.frame.onkeyup = network_onkeyup;
+            this.network.on( 'zoom', function( ev ){ kmap.event_store().fire_event( to_VectorString( [ 'subject.network', 'verb.scaled', 'object.viewport' ] ) ).throw_on_error(); } );
             this.network.on( 'deselectNode', network_on_deselect_node_event( this ) );
             this.network.on( 'selectNode', network_on_select_node_event( this ) );
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -66,6 +69,7 @@ class Network
         catch( err )
         {
             console.log( String( err ) );
+            throw err;
         }
     }
 
@@ -89,7 +93,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -97,19 +102,7 @@ class Network
     {
         try
         {
-            {
-                // Note:
-                //   This is a bit of a hack. Even with `autoResize: true`, it appears that there is a delay as to when the redraw happens, or race condition.
-                //   In any case, when a canvas change occurs, followed by a call to this (director or e.g., through select_node), the network may not have yet been
-                //   redrawn; thus, force the redraw here.
-                // TODO:
-                //   It would be more appropriate to disable `autoResize`, and use the `window.onresize` callback to dispatch to kmap's event handler - which, of course,
-                //   the Network would register a callback on resize that manually forces `this.network.redraw()`. Presumably, there wouldn't be the same race condition that this is meant to fix.
-                //   We want to pull the zoom scale from a setting, but what if the user changes zoom? I could have an option.network.zoom.[default|present] to store and pull from the last.
-                //   Of course, will require event handler on zoom for visjs network.
-                this.set_zoom( 1.0 );
-                this.redraw();
-            }
+            this.redraw();
 
             let pos = this.network.getPositions( [ node_id ] )[ node_id ];
 
@@ -118,7 +111,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -137,7 +131,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -149,7 +144,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -167,7 +163,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -187,7 +184,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -211,7 +209,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -225,7 +224,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -247,7 +247,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -259,7 +260,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -272,6 +274,7 @@ class Network
         catch( err )
         {
             console.log( String( err ) );
+            throw err;
         }
     }
 
@@ -283,7 +286,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -297,7 +301,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -309,7 +314,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -323,7 +329,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -335,7 +342,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -347,7 +355,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -359,7 +368,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -371,7 +381,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -383,7 +394,7 @@ class Network
             this.network.body.data.edges.forEach( function( e )
             {
                 if( e.from == nid
-                || e.to == nid )
+                 || e.to == nid )
                 {
                     this.network.body.data.edges.remove( e.id );
                 }
@@ -391,7 +402,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -405,7 +417,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -420,7 +433,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
     
@@ -439,19 +453,33 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
-    set_zoom( zoom_scale )
+    scale_viewport( zoom_scale )
     {
         try
         {
-            this.network.moveTo( { scale: zoom_scale } )
+            this.network.moveTo( { scale: zoom_scale } );
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
+        }
+    }
+    viewport_scale()
+    {
+        try
+        {
+            return this.network.getScale();
+        }
+        catch( err )
+        {
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -463,7 +491,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 
@@ -477,7 +506,8 @@ class Network
         }
         catch( err )
         {
-            console.log( String( err ) );
+            console.error( String( err ) );
+            throw err;
         }
     }
 }
@@ -494,7 +524,8 @@ function new_network( container_id )
     }
     catch( err )
     {
-        console.log( String( err ) );
+        console.error( String( err ) );
+        throw err;
     }
 }
 
@@ -518,7 +549,8 @@ let network_on_deselect_node_event = function( network )
     }
     catch( err )
     {
-        console.log( String( err ) );
+        console.error( String( err ) );
+        throw err;
     }
 };
 
@@ -541,89 +573,83 @@ let network_on_select_node_event = function( network )
     }
     catch( err )
     {
-        console.log( String( err ) );
+        console.error( String( err ) );
+        throw err;
     }
 };
 
 function network_onkeydown( e )
 {
-    try
+    if( e.type !== "keydown" )
     {
-        let key = e.keyCode ? e.keyCode : e.which;
-        let is_ctrl = !!e.ctrlKey;
-        let is_shift = !!e.shiftKey;
-
-        switch ( key )
-        {
-            case 69: // e
-            {
-                kmap.parse_cli( ':edit.body' );
-                e.preventDefault();
-                break;
-            }
-            case 72: // h
-            case 37: // left-arrow
-            {
-                kmap.travel_left().throw_on_error();
-                e.preventDefault();
-                break;
-            }
-            case 74: // j
-            case 40: // down-arrow
-            {
-                kmap.travel_down().throw_on_error();
-                e.preventDefault();
-                break;
-            }
-            case 75: // k
-            case 38: // up-arrow
-            {
-                kmap.travel_up().throw_on_error();
-                e.preventDefault();
-                break;
-            }
-            case 76: // l
-            case 39: // right-arrow
-            {
-                kmap.travel_right().throw_on_error();
-                e.preventDefault();
-                break;
-            }
-            case 73: // i
-            {
-                if( is_ctrl )
-                {
-                    console.log( 'ctrl+i' );
-                    kmap.jump_in();
-                }
-                break;
-            }
-            case 79: // o
-            {
-                if( is_ctrl )
-                {
-                    console.log( 'ctrl+o' );
-                    kmap.jump_out();
-                }
-                break;
-            }
-            case 86: // v
-            {
-                kmap.view_body();
-                e.preventDefault();
-                break;
-            }
-            case 71: // g
-            {
-                if( is_shift ) // G
-                {
-                    kmap.travel_bottom().throw_on_error();
-                }
-            }
-        }
+        const err_msg = "expected 'keydown': " + e.type;
+        console.error( err_msg );
+        throw err_msg;
     }
-    catch( err )
+
+    const mnemonic = e.key.toLowerCase();
+    const valid_keys =
+        [ 
+          'arrowdown'
+        , 'arrowleft'
+        , 'arrowright'
+        , 'arrowup'
+        , 'c'
+        , 'ctrl'
+        , 'e'
+        , 'esc'
+        , 'g'
+        , 'h'
+        , 'i'
+        , 'j'
+        , 'k'
+        , 'l'
+        , 'o'
+        , 'shift'
+        , 'v'
+        ]
+
+    if( valid_keys.includes( mnemonic) )
     {
-        console.log( String( err ) );
+        kmap.event_store().fire_event( to_VectorString( [ 'subject.network', 'verb.depressed', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
+        e.preventDefault();
+    }
+}
+
+function network_onkeyup( e )
+{
+    if( e.type !== "keyup" )
+    {
+        const err_msg = "expected 'keyup': " + e.type;
+        console.error( err_msg );
+        throw err_msg;
+    }
+
+    const mnemonic = e.key.toLowerCase();
+    const valid_keys =
+        [ 
+          'arrowdown'
+        , 'arrowleft'
+        , 'arrowright'
+        , 'arrowup'
+        , 'c'
+        , 'ctrl'
+        , 'e'
+        , 'esc'
+        , 'g'
+        , 'h'
+        , 'i'
+        , 'j'
+        , 'k'
+        , 'l'
+        , 'o'
+        , 'shift'
+        , 'v'
+        ]
+
+    if( valid_keys.includes( mnemonic) )
+    {
+        kmap.event_store().fire_event( to_VectorString( [ 'subject.network', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
+        e.preventDefault();
     }
 }

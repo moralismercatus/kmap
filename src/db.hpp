@@ -255,6 +255,8 @@ public:
     // TODO: I think all these "exists" "is" utilities can be replaced with template< Table, Key > contains( auto const& key ):
     auto node_exists( Uuid const& id ) const
         -> bool;
+    auto attr_exists( Uuid const& id ) const
+        -> bool;
     auto alias_exists( Uuid const& src
                      , Uuid const& dst ) const
         -> bool;

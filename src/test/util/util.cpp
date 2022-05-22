@@ -7,11 +7,13 @@
 #include "../master.hpp"
 #include "common.hpp"
 #include "error/master.hpp"
+#include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 namespace utf = boost::unit_test;
 using namespace kmap;
+using namespace kmap::test;
 
 SCENARIO( "test kmap::Result" )
 {

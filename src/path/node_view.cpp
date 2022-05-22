@@ -11,7 +11,9 @@
 #include "kmap.hpp"
 #include "lineage.hpp"
 #include "path.hpp"
+#include "test/util.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/all_of.hpp>
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/algorithm/count_if.hpp>
@@ -23,6 +25,8 @@
 #include <range/v3/view/transform.hpp>
 
 #include <vector>
+
+using namespace kmap::test;
 
 namespace kmap::view {
 
@@ -60,6 +64,12 @@ auto fetch_node( Kmap const& kmap )
     -> FetchNode
 {
     return FetchNode{ kmap };
+}
+
+auto to_abs_path( Kmap const& kmap )
+    -> ToAbsPath
+{
+    return ToAbsPath{ kmap };
 }
 
 auto to_heading_set( Kmap const& kmap )
@@ -192,6 +202,7 @@ auto operator==( SelectionVariant const& lhs
 }
 
 // TODO: Shouldn't this return Result< UuidSet >, or is an empty set accounted for as a failed match by the caller?
+// TODO: Redundancy with `operator==(SelectionVariant, Heading)?` Cannot this replace operator==?
 auto match( Kmap const& kmap
           , UuidSet const& lhs
           , SelectionVariant const& rhs )
@@ -308,10 +319,16 @@ auto match( Kmap const& kmap
 //     return nodes.cend();
 // }
 
-auto root( Uuid const& n ) // TODO: Rename to view::make_root()?
+auto make( Uuid const& n ) // TODO: Rename to view::make_root()?
     -> Intermediary
 {
-    return Intermediary{ {}, n };
+    return Intermediary{ {}, { n } };
+}
+
+auto make( UuidSet const& ns )
+    -> Intermediary
+{
+    return Intermediary{ {}, ns };
 }
 
 auto Alias::operator()( Kmap const& kmap
@@ -345,7 +362,7 @@ auto Alias::operator()( Kmap const& kmap
 
 auto Alias::create( Kmap& kmap
                   , Uuid const& parent ) const
-    -> Result< UuidSet > // TODO: I fear only solution is is to make this Result< UuidSet >, as Intermediary returns a node set. This will be true for all `::create`s.
+    -> Result< UuidSet >
 {
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
@@ -417,7 +434,7 @@ auto Ancestor::operator()( Kmap const& kmap
     {
         if( selection )
         {
-            return selection.value() == KMAP_TRYE( kmap.fetch_heading( n ) );
+            return !match( kmap, { n }, selection.value() ).empty();
         }
         else
         {
@@ -930,11 +947,11 @@ auto DirectDesc::create( Kmap& kmap
 
         if( std::holds_alternative< char const* >( sv ) )
         {
-            rv = KMAP_TRY( kmap.create_descendants( root, fmt::format( ".{}", std::get< char const* >( sv ) ) ) ).back();
+            rv = KMAP_TRY( kmap.create_descendants( root, root, fmt::format( ".{}", std::get< char const* >( sv ) ) ) ).back();
         }
         else if( std::holds_alternative< std::string >( sv ) )
         {
-            rv = KMAP_TRY( kmap.create_descendants( root, fmt::format( ".{}", std::get< std::string >( sv ) ) ) ).back();
+            rv = KMAP_TRY( kmap.create_descendants( root, root, fmt::format( ".{}", std::get< std::string >( sv ) ) ) ).back();
         }
         // TODO: Others?
     }
@@ -956,6 +973,96 @@ auto Leaf::operator()( Kmap const& kmap
     return rv;
 }
 
+auto RLineage::operator()( Kmap const& kmap
+                         , Uuid const& node ) const
+    -> UuidSet
+{
+    auto rv = UuidSet{};
+    auto const is_ancestor = view::make( leaf )
+                           | view::ancestor( node )
+                           | view::exists( kmap );
+
+    if( node == leaf || is_ancestor )
+    {
+        rv.emplace( leaf );
+        rv.emplace( node );
+
+        for( decltype( kmap.fetch_parent( leaf ) ) anc = leaf
+           ; anc && anc.value() != node
+           ; anc = kmap.fetch_parent( anc.value() ) )
+        {
+            rv.emplace( anc.value() );
+        }
+    }
+
+    return rv;
+}
+
+SCENARIO( "view::rlineage basics", "[node_view][lineage]" )
+{
+    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto const root = kmap.root_node_id();
+
+    GIVEN( "root" )
+    {
+        THEN( "root-to-root lineage exists" )
+        {
+            REQUIRE(( view::make( root ) | view::rlineage( root ) | view::exists( kmap ) ));
+        }
+        THEN( "root-to-invalid-node lineage doesn't exists" )
+        {
+            REQUIRE( !( view::make( root ) | view::rlineage( gen_uuid() ) | view::exists( kmap ) ) );
+        }
+
+        WHEN( "root has child ")
+        {
+            auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+
+            THEN( "root-to-child lineage exists" )
+            {
+                REQUIRE(( view::make( root ) | view::rlineage( c1 ) | view::exists( kmap ) ));
+            }
+        }
+    }
+    GIVEN( "root, child, and grandchild" )
+    {
+        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const c11 = REQUIRE_TRY( kmap.create_child( c1, "1" ) );
+
+        THEN( "root-to-child lineage exists" )
+        {
+            auto const v = view::make( root ) | view::rlineage( c1 );
+            REQUIRE(( v | view::exists( kmap ) ));
+            REQUIRE(( ( v | view::to_node_set( kmap ) ) == UuidSet{ root, c1 } ));
+        }
+        THEN( "root-to-grandchild lineage exists" )
+        {
+            auto const v = view::make( root ) | view::rlineage( c11 );
+            REQUIRE(( v | view::exists( kmap ) ));
+            REQUIRE(( ( v | view::to_node_set( kmap ) ) == UuidSet{ root, c1, c11 } ));
+        }
+        THEN( "child-to-grandchild lineage exists" )
+        {
+            auto const v = view::make( c1 ) | view::rlineage( c11 );
+            REQUIRE(( v | view::exists( kmap ) ));
+            REQUIRE(( ( v | view::to_node_set( kmap ) ) == UuidSet{ c1, c11 } ));
+        }
+        THEN( "grandchild-to-child lineage does NOT exists" )
+        {
+            REQUIRE( !( view::make( c11 ) | view::rlineage( c1 ) | view::exists( kmap ) ) );
+        }
+        THEN( "grandchild-to-root lineage does NOT exists" )
+        {
+            REQUIRE( !( view::make( c11 ) | view::rlineage( root ) | view::exists( kmap ) ) );
+        }
+    }
+    GIVEN( "multibranch tree" )
+    {
+    }
+}
+
 auto Parent::operator()( Kmap const& kmap
                        , Uuid const& node ) const
     -> UuidSet
@@ -971,6 +1078,13 @@ auto Parent::operator()( Kmap const& kmap
     return rv;
 }
 
+auto Resolve::operator()( Kmap const& kmap
+                        , Uuid const& node ) const
+    -> UuidSet
+{
+    return { kmap.resolve( node ) };
+}
+
 // TODO: Can I actually define sibling directly in terms of existing operators? That is, without having to create the Struct Sibling?
 //       Just: auto const sibling = view::parent | view::child( view::none_of( <node> ) );
 //       I suppose the <node> is the kicker, as to why I can't.
@@ -981,7 +1095,7 @@ auto Sibling::operator()( Kmap const& kmap
 {
     KMAP_THROW_EXCEPTION_MSG( "TODO" );
     // TODO: Requires view::none_of( uuid ) support.
-    // return view::root( node )
+    // return view::make( node )
     //      | view::parent
     //      | view::child( view::none_of( node ) )
     //      | view::to_node_set( kmap );
@@ -1099,7 +1213,29 @@ auto operator|( Intermediary const& i
 }
 
 auto operator|( Intermediary const& i
+              , RLineage const& op )
+    -> Intermediary
+{
+    auto rv = i;
+
+    rv.op_chain.emplace_back( op );
+
+    return rv;
+}
+
+auto operator|( Intermediary const& i
               , Parent const& op )
+    -> Intermediary
+{
+    auto rv = i;
+
+    rv.op_chain.emplace_back( op );
+
+    return rv;
+}
+
+auto operator|( Intermediary const& i
+              , Resolve const& op )
     -> Intermediary
 {
     auto rv = i;
@@ -1135,7 +1271,7 @@ auto operator|( Intermediary const& i
               , ToNodeSet const& tns_op )
     -> UuidSet
 {
-    auto rv = UuidSet{ i.root };
+    auto rv = i.root;
 
     for( auto const& op : i.op_chain )
     {
@@ -1208,7 +1344,7 @@ auto operator|( Intermediary const& i
     KMAP_ENSURE( !i.op_chain.empty(), error_code::network::invalid_path );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto ns = UuidSet{ i.root };
+    auto ns = i.root;
 
     for( auto const& op : i.op_chain
                         | ranges::views::drop_last( 1 ) )
@@ -1281,7 +1417,7 @@ auto operator|( Intermediary const& i
     KMAP_ENSURE( !i.op_chain.empty(), error_code::network::invalid_path );
 
     auto rv = KMAP_MAKE_RESULT( UuidSet );
-    auto ns = UuidSet{ i.root };
+    auto ns = i.root;
 
     for( auto const& op : i.op_chain
                         | ranges::views::drop_last( 1 ) )
@@ -1431,7 +1567,7 @@ auto operator|( Intermediary const& i
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto ns = UuidSet{ i.root };
+    auto ns = i.root;
 
     for( auto const& op : i.op_chain )
     {

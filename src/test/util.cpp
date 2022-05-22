@@ -35,7 +35,7 @@ BlankStateFixture::BlankStateFixture( std::string const& curr_file
     }
     catch( std::exception const& e )
     {
-        fmt::print( stderr, "Fixture failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+        fmt::print( stderr, "Fixture ctor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
         std::cerr << e.what() << '\n';
         throw;
     }
@@ -58,7 +58,7 @@ BlankStateFixture::~BlankStateFixture()
     }
     catch( std::exception const& e )
     {
-        fmt::print( stderr, "Fixture failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+        fmt::print( stderr, "Fixture dtor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
         std::cerr << e.what() << '\n';
         std::terminate();
     }
@@ -79,7 +79,7 @@ SaveToDiskFixture::SaveToDiskFixture( Database& d
     }
     catch( std::exception const& e )
     {
-        fmt::print( stderr, "Fixture failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+        fmt::print( stderr, "Fixture ctor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
         std::cerr << e.what() << '\n';
         throw;
     }
@@ -93,7 +93,7 @@ SaveToDiskFixture::~SaveToDiskFixture()
     }
     catch( std::exception const& e )
     {
-        fmt::print( stderr, "Fixture failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+        fmt::print( stderr, "Fixture dtor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
         std::cerr << e.what() << '\n';
         std::terminate();
     }

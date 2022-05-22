@@ -10,28 +10,43 @@
 #include "common.hpp"
 #include "kmap.hpp"
 
+#include <memory>
 #include <set>
 #include <string_view>
 
-namespace kmap {
+namespace kmap { // TODO: kmap::event?
 
-struct Transition
+// TODO: Leaf::heading, but Branch::
+struct Leaf;
+struct Branch;
+using Transition = std::variant< Leaf, Branch >;
+struct Leaf
 {
-    using Branch = std::vector< Transition >;
-    struct Leaf
-    {
-        std::set< std::string > requisites;
-        std::string description;
-        std::string action;
-    };
-    using Type = std::variant< Branch, Leaf >;
-
     std::string heading;
-    Type type;
+    std::set< std::string > requisites;
+    std::string description;
+    std::string action;
+};
+struct Branch
+{
+    std::string heading;
+    std::set< std::string > requisites;
+    std::vector< Transition > transitions;
 };
 
 class EventStore
 {
+    Kmap& kmap_;
+    struct TransitionState
+    {
+        UuidSet active;
+    };
+    // So, how this works is as follows:
+    // Every outlet part of an outlet tree gets placed into this map, and all point to the same shared_ptr.
+    // Only the active state gets acted upon.
+    using TransitionMap = std::map< Uuid, std::shared_ptr< TransitionState > >;
+    TransitionMap transition_states_;
+
 public:
     EventStore( Kmap& kmap );
 
@@ -39,6 +54,11 @@ public:
         -> Uuid;
     auto event_root() const
         -> Result< Uuid >;
+    
+    auto fetch_outlet_base( Uuid const& node )
+        -> Result< Uuid >;
+    auto fetch_outlet_tree( Uuid const& outlet )
+        -> Result< UuidSet >;
 
     auto install_defaults()
         -> Result< void >;
@@ -48,13 +68,39 @@ public:
         -> Result< Uuid >;
     auto install_subject( Heading const& heading )
         -> Result< Uuid >;
-    auto install_outlet( std::string const& heading
-                       , Transition::Type const& transtype ) 
-        -> Result< void >;
+    // auto install_outlet( std::string const& prefix_path
+    //                    , Transition const& transition ) 
+    //     -> Result< Uuid >;
+    auto install_outlet( Leaf const& leaf ) 
+        -> Result< Uuid >;
+    auto install_outlet( Branch const& branch ) 
+        -> Result< Uuid >;
     auto install_outlet_transition( Uuid const& root
                                   , Transition const& transition )
+        -> Result< Uuid >;
+    auto is_active_outlet( Uuid const& outlet )
+        -> bool;
+    auto is_outlet( Uuid const& node )
+        -> bool;
+    auto uninstall_subject( std::string const& heading )
+        -> Result< void >;
+    auto uninstall_subject( Uuid const& node )
+        -> Result< void >;
+    auto uninstall_verb( std::string const& heading )
+        -> Result< void >;
+    auto uninstall_verb( Uuid const& node )
+        -> Result< void >;
+    auto uninstall_object( std::string const& heading )
+        -> Result< void >;
+    auto uninstall_object( Uuid const& node )
         -> Result< void >;
     auto uninstall_outlet( std::string const& heading )
+        -> Result< void >;
+    auto uninstall_outlet( Uuid const& node )
+        -> Result< void >;
+    auto uninstall_outlet_transition( std::string const& heading )
+        -> Result< void >;
+    auto uninstall_outlet_transition( Uuid const& node )
         -> Result< void >;
 
     auto action( std::string const& heading )
@@ -67,13 +113,20 @@ public:
     auto fire_event( std::set< std::string > const& requisites )
         -> Result< void >;
 
-protected:
-    auto install_outlet_leaf( Uuid const& root 
-                            , Transition::Leaf const& leaf )
+    auto reset_transitions( std::set< std::string > const& requisites )
         -> Result< void >;
 
-private:
-    Kmap& kmap_;
+protected:
+    auto fire_event_internal( std::set< std::string > const& requisites )
+        -> Result< void >;
+    auto install_outlet_internal( Uuid const& root 
+                                , Leaf const& leaf )
+        -> Result< void >;
+    auto install_outlet_internal( Uuid const& root 
+                                , Branch const& leaf )
+        -> Result< void >;
+    auto reset_transition_states( Uuid const& outlet )
+        -> Result< void >;
 };
 
 namespace event

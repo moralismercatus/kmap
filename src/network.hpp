@@ -9,6 +9,7 @@
 
 #include "common.hpp"
 #include "utility.hpp"
+#include "event/event_clerk.hpp"
 
 #include <ostream>
 #include <string>
@@ -41,6 +42,7 @@ auto operator<<( std::ostream&, Position2D const& )
 class Network
 {
     Kmap& kmap_;
+    event::EventClerk eclerk_;
     std::shared_ptr< emscripten::val > js_nw_; // TODO: Use unique_ptr. Again, some reason destructor and fwd decl don't seem to work with unique_ptr.
 
 public:
@@ -81,13 +83,13 @@ public:
     [[ nodiscard ]]
     auto fetch_position( Uuid const& id ) const
         -> Result< Position2D >;
+    auto viewport_scale() const
+        -> float;
     auto focus()
         -> void;
-    auto install_keydown_handler()
+    auto install_default_options()
         -> Result< void >;
     auto install_events()
-        -> Result< void >;
-    auto uninstall_events()
         -> Result< void >;
     [[ nodiscard ]]
     auto nodes() const
@@ -148,6 +150,8 @@ public:
     auto siblings_inclusive( Uuid const& id ) const
         -> std::tuple< std::vector< Uuid >
                      , uint32_t >;
+    auto scale_viewport( float const scale )
+        -> Result< void >;
     auto to_titles( UuidPath const& path ) const
         -> StringVec;
 

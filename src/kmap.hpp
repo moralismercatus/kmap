@@ -7,10 +7,10 @@
 #ifndef KMAP_KMAP_HPP
 #define KMAP_KMAP_HPP
 
+#include "alias.hpp"
 #include "common.hpp"
 #include "jump_stack.hpp"
 #include "node_fetcher.hpp"
-#include "node_view.hpp"
 #include "path/node_view.hpp"
 #include "text_area.hpp"
 #include "utility.hpp"
@@ -44,14 +44,6 @@ namespace db
 class Kmap
 {
 public:
-    using Aliases = UuidUnSet;
-    using AliasParents = std::unordered_map< Uuid
-                                           , Uuid
-                                           , boost::hash< Uuid > >;
-    using AliasChildren = std::unordered_multimap< Uuid
-                                                 , Uuid
-                                                 , boost::hash< Uuid > >;
-
     Kmap();
     Kmap( Kmap const& ) = delete;
     Kmap operator=( Kmap const& ) = delete;
@@ -84,10 +76,10 @@ public:
         -> Network const&;
     [[ nodiscard ]]
     auto aliases()
-        -> Aliases&;
+        -> AliasSet&;
     [[ nodiscard ]]
     auto aliases() const
-        -> Aliases const&;
+        -> AliasSet const&;
     [[ nodiscard ]]
     auto canvas()
         -> Canvas&;
@@ -123,11 +115,11 @@ public:
     auto absolute_path_uuid( Lineal const& node ) const
         -> UuidPath;
     [[ nodiscard ]]
-    auto absolute_path_uuid( Uuid const& node ) const // view::root( node ) | view::absolute_path( kmap ) | view::to_single
+    auto absolute_path_uuid( Uuid const& node ) const // view::make( node ) | view::absolute_path( kmap ) | view::to_single
         -> UuidPath;
     [[ nodiscard ]]
     auto absolute_path( Uuid const& root
-                      , Uuid const& id ) const // view::root( node ) | view::absolute_path( kmap ) | view::to_single | view::to_path
+                      , Uuid const& id ) const // view::make( node ) | view::absolute_path( kmap ) | view::to_single | view::to_path
         -> HeadingPath;
     [[ nodiscard ]]
     auto absolute_path( Uuid const& id ) const
@@ -370,7 +362,7 @@ public:
     auto fetch_parent_children_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
     [[ nodiscard ]]
-    auto fetch_siblings( Uuid const& id ) const // TODO [cleanup]: view::root( id ) | view::sibling | view::to_node_set( kmap ); // view::sibling => view::root( id ) | view::parent | view::child( view::none_of( id ) )
+    auto fetch_siblings( Uuid const& id ) const // TODO [cleanup]: view::make( id ) | view::sibling | view::to_node_set( kmap ); // view::sibling => view::make( id ) | view::parent | view::child( view::none_of( id ) )
         -> kmap::UuidSet;
     [[ nodiscard ]]
     auto fetch_siblings_ordered( Uuid const& id ) const
@@ -381,7 +373,7 @@ public:
     [[ nodiscard ]]
     auto fetch_siblings_inclusive_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
-    // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::child | view::fetch_node( kmap ) | view::to_ordered
+    // TODO [cleanup]: Deprecate in favor of view::make( root ) | view::child | view::fetch_node( kmap ) | view::to_ordered
     [[ nodiscard ]]
     auto fetch_children_ordered( Uuid const& root
                                , Heading const& path ) const
@@ -409,13 +401,13 @@ public:
     // auto fetch_nodes() const
     //     -> UuidUnSet;
     [[ nodiscard ]]
-    auto descendant_leaves( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::desc | view::leaf | view::to_node_set
+    auto descendant_leaves( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::make( root ) | view::desc | view::leaf | view::to_node_set
         -> std::vector< Uuid >;
     [[ nodiscard ]]
-    auto descendant_ipaths( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::desc | view::to_path | view::reverse
+    auto descendant_ipaths( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::make( root ) | view::desc | view::to_path | view::reverse
         -> std::vector< HeadingPath >;
     [[ nodiscard ]]
-    auto descendant_paths( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::root( root ) | view::desc | view::to_path
+    auto descendant_paths( Uuid const& root ) const // TODO [cleanup]: Deprecate in favor of view::make( root ) | view::desc | view::to_path
         -> std::vector< HeadingPath >;
     [[ nodiscard ]]
     auto fetch_leaf( Uuid const& root // TODO: Rename to fetch_descendant? Reason being that a "leaf" refers to a terminal node in the tree. This is not necessarily the case with this function.
@@ -467,7 +459,7 @@ public:
         -> Optional< Uuid >;
     [[ nodiscard ]]
     auto fetch_ordering_position( Uuid const& node ) const
-        -> Optional< uint32_t >;
+        -> Result< uint32_t >;
     [[ nodiscard ]]
     auto fetch_aliased_ancestry( Uuid const& id ) const
         -> std::vector< Uuid >;
@@ -475,6 +467,9 @@ public:
     [[ nodiscard ]]
     auto are_siblings( Uuid const& n1 // TODO: Replace with initializer_list to allow for arbitrary number of nodes?
                      , Uuid const& n2 ) const
+        -> bool;
+    [[ nodiscard ]]
+    auto has_alias( Uuid const& node ) const
         -> bool;
     [[ nodiscard ]]
     auto has_descendant( Uuid const& ancestor 
@@ -519,17 +514,17 @@ public:
     auto is_lineal( Uuid const& ancestor
                   , Heading const& descendant ) const
         -> bool;
-    // TODO [cleanup]: Can be replaced by node_view: view::root( root ) | view::desc( node ) | view::exists( kmap )
+    // TODO [cleanup]: Can be replaced by node_view: view::make( root ) | view::desc( node ) | view::exists( kmap )
     [[ nodiscard ]]
     auto is_in_tree( Uuid const& root
                    , Uuid const& node ) const
         -> bool;
-    // TODO [cleanup]: Can be replaced by node_view: view::root( ancestor ) | view::direct_desc( path ) | view::exists( kmap )
+    // TODO [cleanup]: Can be replaced by node_view: view::make( ancestor ) | view::direct_desc( path ) | view::exists( kmap )
     [[ nodiscard ]]
     auto is_direct_descendant( Uuid const& ancestor
                              , Heading const& path ) const
         -> bool;
-    // TODO [cleanup]: Can be replaced by node_view: view::root( root ) | view::ancestor( node ) | view::exists( kmap )
+    // TODO [cleanup]: Can be replaced by node_view: view::make( root ) | view::ancestor( node ) | view::exists( kmap )
     [[ nodiscard ]]
     auto is_ancestor( Uuid const& root
                     , Uuid const& node ) const
@@ -564,22 +559,17 @@ public:
         -> Uuid;
     auto erase_node( Uuid const& id )
         -> Result< Uuid >;
-    auto erase_alias( Uuid const& id )
+    auto erase_alias( Uuid const& id ) // TODO: Rename to erase_internal_alias - more precise, and simply use erase_node. If it must be an alias, use is_alias(); erase_node().
+        -> Result< Uuid >;
+    auto erase_aliases_to( Uuid const& id )
+        -> Result< void >;
+    auto erase_attr( Uuid const& id )
         -> Result< Uuid >;
     auto update( Uuid const& id )
         -> void;
     [[ nodiscard ]]
     auto node_fetcher() const
         -> NodeFetcher;
-    [[ nodiscard ]]
-    auto node_view() const
-        -> NodeView;
-    [[ nodiscard ]]
-    auto node_view( Uuid const& root ) const
-        -> NodeView;
-    auto node_view( Uuid const& root
-                  , Uuid const& selected ) const
-        -> NodeView;
     [[ nodiscard ]]
     auto fetch_attr_node( Uuid const& id ) const
         -> Result< Uuid >;
@@ -606,10 +596,12 @@ protected:
                               , Heading const& heading
                               , Title const& title )
         -> kmap::Result< void >;
-    auto create_alias_internal( Uuid const& src
+    auto create_internal_alias( Uuid const& src
                               , Uuid const& dst )
-        -> void;
+        -> Result< Uuid >;
     auto erase_node_internal( Uuid const& id )
+        -> Result< void >;
+    auto erase_node_leaf( Uuid const& id )
         -> Result< void >;
     [[ nodiscard ]]
     auto is_child_internal( Uuid const& parent
@@ -633,9 +625,8 @@ private:
     std::unique_ptr< db::Autosave > autosave_ = {}; // pimpl.
     JumpStack jump_stack_ = {}; // TODO: Rather belongs in Environment, as it's tied to the kmap instance.
     // TODO: Refactor alias functionality into e.g., AliasStore.
-    Aliases aliases_ = {};
-    AliasParents alias_parents_ = {}; // Parents of alias children.
-    AliasChildren alias_children_ = {}; // Alias children of parents.
+    AliasSet alias_set_ = {};
+    AliasChildSet alias_child_set_ = {};
 };
 
 class Singleton

@@ -50,6 +50,10 @@ auto init_js_syntax_error_handler()
                                                   , 'Column: ' + columnNo
                                                   , 'Error object: ' + JSON.stringify( error ) ];
                                     console.log( message.join( '\n' ) );
+                                    if( is_cpp_exception( error ) )
+                                    {
+                                        kmap.print_std_exception( error );
+                                    }
                                     alert( message.join( '\n' ) );
                                     return true;
                                 };)%%%" );
@@ -155,9 +159,9 @@ auto set_window_title() // TODO: Move definition to canvas? Basically, elsewhere
     -> Result< void >
 {
 #if KMAP_DEBUG
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.1", "D" ) );
+    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.1", "Debug" ) );
 #else
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.1", "R" ) );
+    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.1", "Release" ) );
 #endif // KMAP_DEBUG
 }
 
@@ -174,7 +178,6 @@ auto initialize()
     register_commands();
     reset_registrations();
     KMAP_TRY( focus_network() );
-    KMAP_TRY( set_window_title() );
 
     {
         // TODO:
@@ -203,6 +206,7 @@ auto main( int argc
 {
     try
     {
+        KMAP_TRYE( set_window_title() );
         init_ems_nodefs();
         js::set_global_kmap( Singleton::instance() );
 

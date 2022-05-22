@@ -102,6 +102,7 @@ auto run_pre_env_unit_tests()
     -> int
 {
     {
+        // Use -# [#<file>] without extension to unit test particular file.
         char const* targv[] = { "kmap" 
                               , "--durations=yes"
                               , "--verbosity=high" };

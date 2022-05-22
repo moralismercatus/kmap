@@ -4,9 +4,9 @@
   "description": "Knowledge Map",
   "main": "main.js",
   "scripts": {
-    "start": "ln -sf ../kmap-debug/bin/emcc.* . && electron main.js",
-    "debug": "ln -sf ../kmap-debug/bin/emcc.* . && electron main.js",
-    "release": "ln -sf ../kmap-release/bin/emcc.* . && electron main.js",
+    "start": "ln -sf ../kmap-Debug/bin/emcc.* . && electron main.js",
+    "debug": "ln -sf ../kmap-Debug/bin/emcc.* . && electron main.js",
+    "release": "ln -sf ../kmap-Release/bin/emcc.* . && electron main.js",
     "package": "electron-packager . --platform=win32 --arch=x64 --no-prune --ignore=\\.vscode --ignore=build --ignore=tags"
   },
   "repository": {

@@ -22,6 +22,8 @@ public:
 
     auto apply( Uuid const& option )
         -> Result< void >;
+    auto apply( std::string const& path )
+        -> Result< void >;
     auto apply_all()
         -> Result< void >;
     auto option_root()
@@ -31,6 +33,9 @@ public:
                        , std::string const& value 
                        , std::string const& action  )
         -> Result< Uuid >;
+    auto update_value( Heading const& heading
+                     , std::string const& value )
+        -> Result< void >;
 
 private:
     Kmap& kmap_;

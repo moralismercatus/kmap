@@ -8,14 +8,15 @@
 #include "../common.hpp"
 #include "../contract.hpp"
 #include "../emcc_bindings.hpp"
-#include "../error/network.hpp"
 #include "../error/master.hpp"
+#include "../error/network.hpp"
 #include "../io.hpp"
 #include "../io.hpp"
 #include "../js_iface.hpp"
 #include "../kmap.hpp"
 #include "../path.hpp"
 #include "parser.hpp"
+#include "path/node_view.hpp"
 #include "script.hpp"
 
 #include <emscripten.h>
@@ -342,7 +343,8 @@ auto fetch_args( Kmap& kmap
         })
     ;
 
-    auto const arg_nodes = kmap.fetch_children_ordered( kmap.node_view( cmd_id )[ "/argument" ] );
+    auto const arg_node = KTRY( view::make( cmd_id ) | view::child( "argument" ) | view::fetch_node( kmap ) );
+    auto const arg_nodes = kmap.fetch_children_ordered( arg_node );
 
     if( auto const args_root = kmap.fetch_descendant( "/meta.setting.argument" ) // TODO: Eventually, this check should be superfluous when this node is made immutable.
       ; args_root )
@@ -361,7 +363,7 @@ auto fetch_args( Kmap& kmap
             }
             else
             {
-                auto const unconditional = kmap.node_view( args_root.value() )[ "/unconditional" ]; // TODO: Can't assume user didn't delete this node, at present time.
+                auto const unconditional = KTRY( view::make( args_root.value() ) | view::child( "unconditional" ) | view::fetch_node( kmap ) );
                 auto validated_args = StringVec{}; // TODO: Is this even of use?
 
                 for( auto const [ index, sarg ] : split_args | views::enumerate )
@@ -390,8 +392,9 @@ auto fetch_args( Kmap& kmap
                             }
                             else
                             {
-                                auto const arg_view = kmap.node_view( arg_node );
-                                auto const validity_check = arg_view[ "/guard" ];
+                                auto const validity_check = KTRY( view::make( arg_node )
+                                                                | view::child( "guard" )
+                                                                | view::fetch_node( kmap ) );
 
                                 if( auto const arg_res = evaluate_guard( kmap, validity_check, sarg | to< std::string >() )
                                   ; !arg_res )
@@ -488,7 +491,9 @@ auto execute_command( Kmap& kmap
     if( is_particular_command( kmap, cmd_id ) ) 
     {
         auto const args = KMAP_TRY( fetch_args( kmap, cmd_id, arg ) );
-        auto const action = kmap.node_view( cmd_id )[ "/action" ];
+        auto const action = KTRY( view::make( cmd_id )
+                                | view::child( "action" )
+                                | view::fetch_node( kmap ) );
 
          rv = KMAP_TRY( execute_body( kmap, action, args ) );
     }

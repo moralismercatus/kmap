@@ -18,6 +18,7 @@ namespace fs = boost::filesystem;
 namespace utf = boost::unit_test;
 using namespace kmap;
 using namespace kmap::db;
+using namespace kmap::test;
 
 SCENARIO( "DB basics manipulated", "[db]" )
 {

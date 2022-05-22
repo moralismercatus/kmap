@@ -5,11 +5,13 @@
  ******************************************************************************/
 #include "../../db/cache.hpp"
 #include "../master.hpp"
+#include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 using namespace kmap;
 using namespace kmap::db;
+using namespace kmap::test;
 
 SCENARIO( "cache is manipulated", "[cache]" )
 {

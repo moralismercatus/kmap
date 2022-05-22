@@ -28,9 +28,10 @@ OptionStore::OptionStore( Kmap& kmap )
 auto OptionStore::option_root()
     -> Uuid
 {
-    return KMAP_TRYE( kmap_.fetch_or_create_descendant( "/meta.setting.option" ) );
+    return KMAP_TRYE( kmap_.fetch_or_create_descendant( kmap_.root_node_id(), kmap_.root_node_id(), "/meta.setting.option" ) );
 }
 
+// TODO: Should install_option() reject pre-existing headings, to avoid copy-paste mistakes, and use update_option() instead?
 auto OptionStore::install_option( Heading const& heading
                                 , std::string const& descr
                                 , std::string const& value 
@@ -38,11 +39,14 @@ auto OptionStore::install_option( Heading const& heading
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    KMAP_ENSURE( js::lint( action ), error_code::js::lint_failed );
+
     auto const action_body = fmt::format( "```javascript\n{}\n```", action );
 
     KMAP_ENSURE( cmd::parser::parse_body_code( action_body ), error_code::parser::parse_failed );
 
-    auto const vopt = view::root( option_root() )
+    auto const vopt = view::make( option_root() )
                     | view::direct_desc( heading );
 
     KMAP_TRY( kmap_.update_body( KMAP_TRY( vopt | view::direct_desc( "description" ) | view::fetch_or_create_node( kmap_ ) )
@@ -53,6 +57,23 @@ auto OptionStore::install_option( Heading const& heading
                                , action_body ) );
 
     rv = KMAP_TRY( vopt | view::fetch_node( kmap_ ) );
+
+    return rv;
+}
+
+auto OptionStore::update_value( Heading const& heading
+                              , std::string const& value )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const action = KTRY( view::make( option_root() )
+                            | view::direct_desc( heading )
+                            | view::child( "value" )
+                            | view::fetch_node( kmap_ ) );
+
+    KTRY( kmap_.update_body( action, value ) );
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -99,12 +120,27 @@ auto OptionStore::apply( Uuid const& option )
     return rv;
 }
 
+auto OptionStore::apply( std::string const& path )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const target = KTRY( view::make( option_root() ) 
+                            | view::direct_desc( path )
+                            | view::fetch_node( kmap_ ) );
+
+    KTRY( apply( target ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto OptionStore::apply_all()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto const root = option_root();
-    auto const options = view::root( root )
+    auto const options = view::make( root )
                        | view::desc
                        | view::child( view::all_of( "description", "action" ) ) // Select nodes when children ("description", "action")
                        | view::parent
@@ -128,7 +164,7 @@ return kmap.success( 'success' );
 ```)%%%";
 auto const action_code =
 R"%%%(```javascript
-kmap.apply_options();
+kmap.option_store().apply_all();
 
 return kmap.success( 'all options applied' );
 ```)%%%";

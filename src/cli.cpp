@@ -470,7 +470,9 @@ auto Cli::complete_command( std::string const& scmd
              && params.value().size() >= args.size() )
             {
                 auto const tcarg = args.back();
-                auto const completer = kmap_.node_view( params.value()[ args.size() - 1 ] )[ "/completion" ];
+                auto const completer = KTRYE( view::make( params.value()[ args.size() - 1 ] )
+                                            | view::child( "completion" )
+                                            | view::fetch_node( kmap_ ) );
                 auto const possible_completions = cmd::evaluate_completer( kmap_
                                                                          , completer
                                                                          , tcarg );
@@ -960,22 +962,25 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
                                                , "description"
                                                , "argument"
                                                , "action" );
-    auto const nodes = kmap_.node_view( cmd );
+    auto const vcmd = view::make( cmd );
+    auto const descn = KTRY( vcmd | view::child( "description" ) | view::fetch_node( kmap_ ) );
     
     KMAP_TRY( kmap_.update_body( cmd, prereg.guard.code ) );
-    KMAP_TRY( kmap_.update_body( nodes[ "/description" ], prereg.description ) );
+    KMAP_TRY( kmap_.update_body( descn, prereg.description ) );
 
     for( auto const& arg : prereg.arguments )
     {
+        auto const argn = KTRY( vcmd | view::child( "argument" ) | view::fetch_node( kmap_ ) );
         auto const arg_src = KMAP_TRY( kmap_.fetch_descendant( fmt::format( "/meta.setting.argument.{}"
                                                                           , arg.argument_alias ) ) );
-        auto const arg_dst = KMAP_TRY( kmap_.create_child( nodes[ "/argument" ], arg.heading ) );
+        auto const arg_dst = KMAP_TRY( kmap_.create_child( argn, arg.heading ) );
 
         KMAP_TRY( kmap_.update_body( arg_dst, arg.description ) );
         KMAP_TRY( kmap_.create_alias( arg_src, arg_dst ) );
     }
 
-    KMAP_TRY( kmap_.update_body( nodes[ "/action" ], prereg.action ) );
+    auto const actn = KTRY( vcmd | view::child( "action" ) | view::fetch_node( kmap_ ) );
+    KMAP_TRY( kmap_.update_body( actn, prereg.action ) );
 
     rv = cmd;
 

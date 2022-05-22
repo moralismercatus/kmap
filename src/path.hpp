@@ -34,6 +34,9 @@ auto operator<( CompletionNode const& lhs
 using CompletionNodeSet = std::set< CompletionNode >;
 
 [[ nodiscard ]]
+auto absolute_path( Kmap const& kmap
+                  , Uuid const& desc )
+    -> Result< UuidVec >;
 auto complete_any( Kmap const& kmap
                  , Uuid const& root
                  , std::string const& heading )
@@ -136,6 +139,10 @@ auto is_absolute( Heading const& heading )
 auto is_ancestor( Kmap const& kmap
                 , Uuid const& ancestor
                 , Uuid const& descendant )
+    -> bool;
+[[ nodiscard ]]
+auto is_leaf( Kmap const& kmap
+            , Uuid const& node )
     -> bool;
 [[ nodiscard ]]
 auto is_lineal( Kmap const& kmap

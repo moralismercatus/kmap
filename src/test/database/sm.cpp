@@ -6,12 +6,14 @@
 #include "../../db/cache.hpp"
 #include "../../db/sm.hpp"
 #include "../master.hpp"
+#include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 using namespace kmap;
 using namespace kmap::db;
 using namespace kmap::db::sm;
+using namespace kmap::test;
 namespace bsm = boost::sml;
 
 SCENARIO( "unqiue lhs table sm is manipulated", "[db][cache][sm][ulhs_table]" )

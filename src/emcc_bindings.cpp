@@ -304,10 +304,15 @@ struct Network
         kmap_.network().center_viewport_node( node );
     }
 
-    auto install_keydown_handler()
+    auto scale_viewport( float const scale )
         -> binding::Result< void >
     {
-        return kmap_.network().install_keydown_handler();
+        return kmap_.network().scale_viewport( scale );
+    }
+    auto viewport_scale()
+        -> float
+    {
+        return kmap_.network().viewport_scale();
     }
 
     auto underlying_js_network()
@@ -317,6 +322,35 @@ struct Network
     }
 
     Kmap& kmap_;
+};
+
+struct OptionStore
+{
+    Kmap& kmap_;
+
+    OptionStore( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto apply( std::string const& path )
+        -> binding::Result< void >
+    {
+        return kmap_.option_store().apply( path );
+    }
+
+    auto apply_all()
+        -> binding::Result< void >
+    {
+        return kmap_.option_store().apply_all();
+    }
+
+    auto update_value( std::string const& path
+                     , float const& value )
+        -> binding::Result< void >
+    {
+        return kmap_.option_store().update_value( path, fmt::format( "{:.2f}", value ) );
+    }
 };
 
 struct TextArea
@@ -369,14 +403,6 @@ auto autosave()
     -> binding::Autosave
 {
     return Autosave{ Singleton::instance() };
-}
-
-auto apply_options()
-    -> binding::Result< void >
-{
-    auto opt = OptionStore{ Singleton::instance() };
-
-    return opt.apply_all();
 }
 
 auto canvas()
@@ -480,7 +506,7 @@ auto count_ancestors( Uuid const& node )
 {
     auto const& kmap = Singleton::instance();
     
-    return kmap::Result< uint32_t >{ view::root( node ) | view::ancestor | view::count( kmap )  };
+    return kmap::Result< uint32_t >{ view::make( node ) | view::ancestor | view::count( kmap )  };
 }
 
 auto count_descendants( Uuid const& node )
@@ -488,7 +514,7 @@ auto count_descendants( Uuid const& node )
 {
     auto const& kmap = Singleton::instance();
 
-    return kmap::Result< uint32_t >{ view::root( node ) | view::desc | view::count( kmap ) };
+    return kmap::Result< uint32_t >{ view::make( node ) | view::desc | view::count( kmap ) };
 }
 
 auto fetch_body( Uuid const& node )
@@ -591,7 +617,7 @@ auto delete_children( Uuid const& parent )
     -> binding::Result< std::string > // TODO: Why is this returning std::string? Think it should be void.
 {
     auto& kmap = Singleton::instance();
-    auto const res = view::root( parent )
+    auto const res = view::make( parent )
                    | view::child 
                    | view::erase_node( kmap );
     
@@ -815,6 +841,14 @@ auto on_leaving_editor()
     auto& kmap = Singleton::instance();
     
     return kmap.on_leaving_editor();
+}
+
+auto option_store()
+    -> binding::OptionStore
+{
+    auto& kmap = Singleton::instance();
+
+    return binding::OptionStore{ kmap };
 }
 
 auto parse_cli( std::string const& input )
@@ -1093,7 +1127,6 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     // function( "edit_body", &kmap::binding::edit_body );
     // function( "fetch_nodes", &kmap::binding::fetch_nodes ); // This fetches one or more nodes.
     function( "autosave", &kmap::binding::autosave );
-    function( "apply_options", &kmap::binding::apply_options );
     function( "canvas", &kmap::binding::canvas );
     function( "cli", &kmap::binding::cli );
     function( "complete_child_heading", &kmap::binding::complete_child_heading );
@@ -1142,6 +1175,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "move_node", &kmap::binding::move_node );
     function( "network", &kmap::binding::network );
     function( "on_leaving_editor", &kmap::binding::on_leaving_editor );
+    function( "option_store", &kmap::binding::option_store );
     function( "parse_cli", &kmap::binding::parse_cli );
     function( "present_time", &kmap::binding::present_time );
     function( "std_exception_to_string", &kmap::binding::std_exception_to_string );
@@ -1218,8 +1252,14 @@ EMSCRIPTEN_BINDINGS( kmap_module )
         ;
     class_< kmap::binding::Network >( "Network" )
         .function( "center_viewport_node", &kmap::binding::Network::center_viewport_node )
-        .function( "install_keydown_handler", &kmap::binding::Network::install_keydown_handler )
+        .function( "scale_viewport", &kmap::binding::Network::scale_viewport )
+        .function( "viewport_scale", &kmap::binding::Network::viewport_scale )
         .function( "underlying_js_network", &kmap::binding::Network::underlying_js_network )
+        ;
+    class_< kmap::binding::OptionStore >( "OptionStore" )
+        .function( "apply", &kmap::binding::OptionStore::apply )
+        .function( "apply_all", &kmap::binding::OptionStore::apply_all )
+        .function( "update_value", &kmap::binding::OptionStore::update_value )
         ;
     class_< kmap::binding::TextArea >( "TextArea" )
         .function( "focus_editor", &kmap::binding::TextArea::focus_editor )

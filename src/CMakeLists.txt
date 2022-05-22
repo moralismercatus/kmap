@@ -69,6 +69,7 @@ add_link_options( -sALLOW_MEMORY_GROWTH=1
 endif()
 
 add_executable( emcc.index.html
+                alias.cpp alias.hpp
                 arg.cpp arg.hpp
                 attribute.cpp attribute.hpp
                 backend/basic_network.cpp backend/basic_network.hpp
@@ -109,6 +110,7 @@ add_executable( emcc.index.html
                 emcc_bindings.cpp
                 environment.cpp environment.hpp
                 event/event.cpp event/event.hpp
+                event/event_clerk.cpp event/event_clerk.hpp
                 filesystem.cpp filesystem.hpp
                 js_iface.cpp
                 jump_stack.cpp
@@ -116,9 +118,10 @@ add_executable( emcc.index.html
                 lineage.cpp
                 network.cpp network.hpp
                 node_fetcher.cpp
-                node_view.cpp
                 option/option.cpp
                 path.cpp
+                path/act/front.cpp path/act/front.hpp
+                path/act/order.cpp path/act/order.hpp
                 path/node_view.cpp path/node_view.hpp
                 path/sm.cpp
                 stmt_prep.cpp

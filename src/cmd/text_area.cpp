@@ -53,6 +53,7 @@ canvas.reveal( ta_pane ).throw_on_error();
 canvas.reveal( editor_pane ).throw_on_error();
 canvas.reveal( preview_pane ).throw_on_error();
 kmap.network().center_viewport_node( selected ); // Ensure after canvas changes that network still centered.
+kmap.option_store().apply( "network.viewport_scale" );
 canvas.focus( editor_pane );
 
 // Remove existing listeners before adding new.
@@ -75,6 +76,7 @@ ep_elem.addEventListener( 'focusout', function()
     canvas.rebase( ta_pane, old_ta_base ).throw_on_error();
     kmap.on_leaving_editor();
     kmap.network().center_viewport_node( selected ); // Ensure after canvas changes that network still centered.
+    kmap.option_store().apply( "network.viewport_scale" );
 } );
 
 rv = kmap.success( 'editor opened' );

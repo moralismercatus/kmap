@@ -21,7 +21,6 @@ BOOST_AUTO_TEST_CASE( /*kmap_test/kmap_iface*/travel
     // TODO: This should include checks that jump_stack is not being moved. As part of the travel spec., jump_stack is not supposed to be influenced.
     auto& kmap = Singleton::instance();
     auto& nw = kmap.network();
-    auto const view = kmap.node_view();
 
     create_lineages( "new_root.a"
                    , "new_root.a.a_a"
@@ -36,7 +35,7 @@ BOOST_AUTO_TEST_CASE( /*kmap_test/kmap_iface*/travel
                    , "new_root.c.c_b"
                    , "new_root.c.c_c" );
 
-    auto const new_root = view[ "new_root" ];
+    auto const new_root = KTRYE( kmap.fetch_child( kmap.root_node_id(), "new_root" ) );
 
     BOOST_TEST( kmap.select_node( new_root ) );
 

@@ -29,8 +29,11 @@
 #include "option/option.hpp"
 #include "path.hpp"
 #include "path/node_view.hpp"
+#include "test/master.hpp"
+#include "test/util.hpp"
 
 #include <boost/filesystem.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <range/v3/action/join.hpp>
 #include <range/v3/action/reverse.hpp>
@@ -58,11 +61,11 @@
 #include <set>
 #include <vector>
 
-using namespace ranges;
 namespace fs = boost::filesystem;
+using namespace kmap::test;
+using namespace ranges;
 
-namespace kmap
-{
+namespace kmap {
 
 Kmap::Kmap()
     : env_{ std::make_unique< Environment >() }
@@ -210,7 +213,8 @@ auto Kmap::set_ordering_position( Uuid const& id
         {
             if( rv )
             {
-                BC_ASSERT( fetch_ordering_position( id ) == pos );
+                BC_ASSERT( fetch_ordering_position( id ) );
+                BC_ASSERT( fetch_ordering_position( id ).value() == pos );
             }
         })
     ;
@@ -297,8 +301,8 @@ auto Kmap::load_state( FsPath const& db_path )
                                        . from( at )
                                        . unconditionally() ) )
         {
-            create_alias_internal( uuid_from_string( c.src_uuid ).value()
-                                 , uuid_from_string( c.dst_uuid ).value() );
+            KTRY( create_internal_alias( uuid_from_string( c.src_uuid ).value()
+                                       , uuid_from_string( c.dst_uuid ).value() ) );
         }
         for( auto const& c : db.execute( select( all_of( at ) )
                                        . from( at )
@@ -518,15 +522,15 @@ auto Kmap::network() const
 }
 
 auto Kmap::aliases()
-    -> Aliases&
+    -> AliasSet&
 {
-    return aliases_;
+    return alias_set_;
 }
 
 auto Kmap::aliases() const
-    -> Aliases const&
+    -> AliasSet const&
 {
-    return aliases_;
+    return alias_set_;
 }
 
 auto Kmap::move_body( Uuid const& src
@@ -969,11 +973,8 @@ auto Kmap::fetch_below( Uuid const& id ) const
     return rv;
 }
 
-// TODO: I'm not sure that this routine does what it purports. Well, depending on definitions.
-//       If an "alias" is just the first "pointer" node, then this purportment is true. 
-//       If it's a subsequent node from the "pointer"/top-level-alias, then it's false.
 auto Kmap::fetch_aliases_to( Uuid const& src ) const
-    -> std::vector< Uuid >
+    -> std::vector< Uuid > // TODO: Result< UuidSet > instead?
 {
     auto rv = std::vector< Uuid >{};
 
@@ -987,15 +988,14 @@ auto Kmap::fetch_aliases_to( Uuid const& src ) const
         })
     ;
 
-    auto const aliases = database().fetch_alias_destinations( src ); // TODO: KMAP_TRY (skipping for convencience).
-
-    if( aliases )
+    auto const& av = alias_set_.get< AliasItem::src_type >();
+    auto const er = av.equal_range( AliasItem::src_type{ src } );
+    
+    for( auto it = er.first
+       ; it != er.second
+       ; ++it )
     {
-        auto const& av = aliases.value();
-
-        rv = av
-           | views::transform( [ & ]( auto const& dst ){ return make_alias_id( src, dst ); } )
-           | to< std::vector< Uuid > >();
+        rv.emplace_back( it->alias() );
     }
 
     return rv;
@@ -1027,12 +1027,22 @@ auto Kmap::create_child( Uuid const& parent
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( !attr::is_in_order( *this, parent, child ) );
+        })
         BC_POST([ & ]
         {
             if( rv )
             {
                 BC_ASSERT( exists( rv.value() ) );
                 BC_ASSERT( is_child( parent, heading ) );
+
+                if( !attr::is_in_attr_tree( *this, child ) )
+                {
+                    BC_ASSERT( attr::is_in_order( *this, parent, child ) );
+                    // TODO: BC_ASSERT( attr::has_genesis( *this, child ) ); 
+                }
             }
         })
     ;
@@ -1047,15 +1057,15 @@ auto Kmap::create_child( Uuid const& parent
     KMAP_TRY( create_child_internal( rpid, child, heading, title ) );
 
 
-    if( !attr::is_in_attr_tree( *this, child ) )
+    if( !attr::is_in_attr_tree( *this, child ) ) // TODO: What is the purpose of this check? And what's with it's name? Something feels half-baked about this...
     {
         KMAP_TRY( attr::push_genesis( *this, child ) );
         KMAP_TRY( attr::push_order( *this, parent, child ) );
     }
 
-    rv = child;
-
     KMAP_TRY( update_aliases( parent ) );
+
+    rv = child;
 
     return rv;
 }
@@ -1222,16 +1232,33 @@ auto Kmap::create_alias( Uuid const& src
     BC_CONTRACT()
         BC_PRE([ & ]
         {
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
         })
         BC_POST([ & ]
         {
-            auto const asize = aliases_.size();
-            BC_ASSERT( asize == alias_children_.size()
-                    && asize == alias_parents_.size() );
-            
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
+
             if( rv )
             {
                 BC_ASSERT( exists( rv.value() ) );
+
+                {
+                    auto const& av = alias_child_set_.get< AliasChildItem::child_type >();
+
+                    for( auto const& item : av )
+                    {
+                        BC_ASSERT( is_alias( item.child().value() ) );
+                    }
+                }
+                {
+                    auto const src_cnt = view::make( src )
+                                       | view::desc 
+                                       | view::count( *this );
+                    auto const rv_cnt = view::make( rv.value() )
+                                      | view::desc
+                                      | view::count( *this );
+                    BC_ASSERT( src_cnt == rv_cnt );
+                }
             }
         })
     ;
@@ -1240,65 +1267,79 @@ auto Kmap::create_alias( Uuid const& src
     auto const rdst = resolve( dst );
     auto const alias_id = make_alias_id( rsrc, rdst );
 
+    KMAP_ENSURE( src != root_node_id(), error_code::network::invalid_node );
     KMAP_ENSURE( exists( rsrc ), error_code::create_alias::src_not_found );
     KMAP_ENSURE( exists( rdst ), error_code::create_alias::dst_not_found );
     KMAP_ENSURE( rsrc != rdst, error_code::create_alias::src_equals_dst );
     KMAP_ENSURE( !is_lineal( rsrc, rdst ), error_code::create_alias::src_ancestor_of_dst );
     KMAP_ENSURE( !exists( alias_id ), error_code::create_alias::alias_already_exists );
     KMAP_ENSURE( !is_child( rdst, fetch_heading( rsrc ).value() ), error_code::create_node::duplicate_child_heading );
+    KMAP_ENSURE( !is_child( rdst, rsrc ), error_code::network::invalid_node );
 
     {
         auto& db = database();
 
         KMAP_TRY( db.create_alias( rsrc, rdst ) );
 
-        KMAP_TRY( attr::push_order( *this, rdst, make_alias_id( rsrc, rdst ) ) );
+        KMAP_TRY( attr::push_order( *this, rdst, rsrc ) ); // Resolve src ID gets placed in ordering, rather than the alias ID.
     }
 
-    aliases_.emplace( alias_id );
-    alias_parents_.emplace( alias_id, rdst );
-    alias_children_.emplace( rdst, alias_id );
+    KMAP_ENSURE( alias_set_.emplace( AliasItem{ AliasItem::src_type{ rsrc }, AliasItem::dst_type{ rdst } } ).second, error_code::network::invalid_node );
+    KMAP_ENSURE( alias_child_set_.emplace( AliasChildItem{ AliasChildItem::parent_type{ rdst }, AliasChildItem::child_type{ alias_id } } ).second, error_code::network::invalid_node );
 
     for( auto const& e : fetch_children( rsrc ) )
     {
-        create_alias_internal( e, alias_id );
+        KTRY( create_internal_alias( e, alias_id ) );
     }
-
-    KMAP_TRY( update_aliases( rdst ) );
 
     rv = alias_id;
 
     return { rv };
 }
 
-auto Kmap::create_alias_internal( Uuid const& src
+auto Kmap::create_internal_alias( Uuid const& src
                                 , Uuid const& dst )
-    -> void
+    -> Result< Uuid >
 {
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( exists( resolve( src ) ) ); // TODO: this function should return an outcome rather than fail with precondition.
-            BC_ASSERT( exists( dst ) ); // TODO: this function should return an outcome rather than fail with precondition.
-            BC_ASSERT( alias_children_.size() == alias_parents_.size() );
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
         })
         BC_POST([ & ]
         {
-            BC_ASSERT( alias_children_.size() == alias_parents_.size() );
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
         })
     ;
 
+    KMAP_ENSURE( exists( resolve( src ) ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( dst ), error_code::network::invalid_node );
+
     auto const rsrc = resolve( src );
     auto const alias_id = make_alias_id( rsrc, dst );
+    auto const alias_item = AliasItem{ AliasItem::src_type{ rsrc }, AliasItem::dst_type{ dst } };
+    auto const ires =  alias_set_.emplace( alias_item ); 
+    
+    KMAP_ENSURE( ires.second, error_code::network::invalid_node );
 
-    aliases_.emplace( alias_id );
-    alias_parents_.emplace( alias_id, dst );
-    alias_children_.emplace( dst, alias_id );
+    auto const aci = AliasChildItem{ AliasChildItem::parent_type{ dst }
+                                   , AliasChildItem::child_type{ alias_id } };
+                                   
+    KMAP_ENSURE( alias_child_set_.emplace( aci ).second, error_code::network::invalid_node );
+
+
+    BC_ASSERT( ires.first->alias() == alias_id );
 
     for( auto const& e : fetch_children( rsrc ) )
     {
-        create_alias_internal( e, alias_id );
+        KTRY( create_internal_alias( e, alias_id ) );
     }
+
+    rv = alias_id;
+
+    return rv;
 }
 
 // TODO: This should make certain pre and post conditions (and return failure & undo if not met)
@@ -1435,6 +1476,7 @@ auto Kmap::reset()
     KMAP_TRY( canvas().reset() );
     KMAP_LOG_LINE();
     KMAP_TRY( reset_network() );
+    KMAP_TRY( network_->install_default_options() );
     KMAP_TRY( network_->install_events() );
     KMAP_LOG_LINE();
     KMAP_TRY( set_up_nw_root() );
@@ -1499,6 +1541,7 @@ auto Kmap::reset()
         //     It doesn't distinguish between close and reload, so every time I reload, the window instead closes.
         //     In fact, using this method, frankly don't know how to distinguish. Bleh....
 
+#if 0 // Temporarily disabling. Possibly updating Electron caused difference in onbeforeunload behavior.
         auto& estore = event_store();
         auto const outlet_script =
         R"%%%(
@@ -1531,6 +1574,7 @@ auto Kmap::reset()
                 )%%%"
                 , "[ 'subject.kmap', 'verb.shutdown' ]" );
         KMAP_TRY( js::eval_void( script ) );
+    #endif // 0
     }
     {
         autosave_ = std::make_unique< db::Autosave >( *this );
@@ -1632,7 +1676,7 @@ auto Kmap::reorder_children( Uuid const& parent
     auto const oss = osv
                   | views::join( '\n' )
                   | to< std::string >();
-    auto const ordern = KMAP_TRY( view::root( parent )
+    auto const ordern = KMAP_TRY( view::make( parent )
                                 | view::attr
                                 | view::child( "order" )
                                 | view::fetch_node( *this ) );
@@ -1739,6 +1783,7 @@ auto Kmap::select_node( Uuid const& id )
         KMAP_ENSURE( succ, succ.error().ec );
     }
     nw.center_viewport_node( id );
+    KTRY( option_store().apply( "network.viewport_scale" ) );
     nw.focus();
     auto id_abs_path = absolute_path_uuid( id );
     auto breadcrumb_nodes = id_abs_path
@@ -1769,8 +1814,8 @@ auto Kmap::swap_nodes( Uuid const& t1
             {
                 BC_ASSERT( is_child( t1_parent->value(), t2 ) );
                 BC_ASSERT( is_child( t2_parent->value(), t1 ) );
-                BC_ASSERT( *t1_pos == fetch_ordering_position( t2 ) );
-                BC_ASSERT( *t2_pos == fetch_ordering_position( t1 ) );
+                BC_ASSERT( t1_pos->value() == fetch_ordering_position( t2 ).value() );
+                BC_ASSERT( t2_pos->value() == fetch_ordering_position( t1 ).value() );
             }
         })
     ;
@@ -1783,8 +1828,8 @@ auto Kmap::swap_nodes( Uuid const& t1
     KMAP_ENSURE( !is_lineal( t1, t2 ), error_code::node::is_lineal );
     KMAP_ENSURE( !is_lineal( t2, t1 ), error_code::node::is_lineal );
 
-    auto const t1_pos = fetch_ordering_position( t1 );
-    auto const t2_pos = fetch_ordering_position( t2 );
+    auto const t1_pos = KTRY( fetch_ordering_position( t1 ) );
+    auto const t2_pos = KTRY( fetch_ordering_position( t2 ) );
     auto const t1_parent = fetch_parent( t1 ).value();
     auto const t2_parent = fetch_parent( t2 ).value();
 
@@ -1794,8 +1839,8 @@ auto Kmap::swap_nodes( Uuid const& t1
         KMAP_TRY( move_node( t2, t1_parent ) );
     }
 
-    set_ordering_position( t1, *t2_pos ); 
-    set_ordering_position( t2, *t1_pos ); 
+    set_ordering_position( t1, t2_pos ); 
+    set_ordering_position( t2, t1_pos ); 
 
     rv = std::pair{ t2, t1 };
 
@@ -1904,25 +1949,6 @@ auto Kmap::node_fetcher() const
     return NodeFetcher{ *this };
 }
 
-auto Kmap::node_view() const
-    -> NodeView
-{
-    return node_view( root_node_id() );
-}
-
-auto Kmap::node_view( Uuid const& root ) const
-    -> NodeView
-{
-    return NodeView{ *this, root };
-}
-
-auto Kmap::node_view( Uuid const& root
-                    , Uuid const& selected ) const // TODO: Replace root, selected with "Lineage", to enforce constraint that root is ancestor of selected.
-    -> NodeView
-{
-    return NodeView{ *this, make< Lineal >( *this, root, selected ).value() };
-}
-
 auto Kmap::focus_network()
     -> Result< void >
 {
@@ -2000,7 +2026,14 @@ auto Kmap::update_alias( Uuid const& from
         })
     ;
 
+    KMAP_THROW_EXCEPTION_MSG( "shouldn't call" );
+
     // TODO: Deleting and remaking all does not seem optimal way to update.
+    // TODO: This may actually be a problematic way of updating the alias. Why not just check if it exists, and if not, create it?
+    //       Reason: The cache SM has a property that an entry shouldn't be recreated in the same flush cycle. I believe I did this as a sanity check,
+    //       i.e., if node X is created, erased, and deleted within the same cache cycle, surely something has gone wrong, right?
+    //       Well, IDK. Some Uuids are static/hardcoded, so if they get recreated... Likewise, this case, where an alias is erased => recreated on update.
+    //       Whether that sanity check should be there or not, I'd rather keep it, if possible, for sanity.
     KMAP_TRY( erase_node( make_alias_id( from, to ) ) );
 
     rv = create_alias( from, to );
@@ -2087,7 +2120,7 @@ auto Kmap::color_node( Uuid const& id
 auto Kmap::color_node( Uuid const& id )
    -> void
 {
-    auto const card = view::root( id ) | view::ancestor | view::count( *this );
+    auto const card = view::make( id ) | view::ancestor | view::count( *this );
     auto const color = color_level_map[ ( card ) % color_level_map.size() ];
 
     color_node( id
@@ -2142,14 +2175,30 @@ auto Kmap::is_child_internal( Uuid const& parent
 auto Kmap::is_alias( Uuid const& id ) const
     -> bool
 {
-    return aliases_.count( id ) != 0;
+    auto rv = false;
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( exists( id ) ); // Should never have an alias that doesn't exist as a node.
+            }
+        })
+    ;
+
+    auto const& av = alias_set_.get< AliasItem::alias_type >();
+
+    rv = av.contains( id );
+
+    return rv;
 }
 
 auto Kmap::is_alias( Uuid const& src
                    , Uuid const& dst ) const
     -> bool
 {
-    return database().alias_exists( src, dst );
+    return is_alias( make_alias_id( src, dst ) );
 }
 
 // TODO: Better named "is_root_alias"? To be consistent?
@@ -2239,27 +2288,25 @@ auto Kmap::resolve( Uuid const& id ) const
         BC_POST([ & ]
         {
             BC_ASSERT( !is_alias( rv ) );
+
+            if( is_alias( id ) )
+            {
+                BC_ASSERT( exists( id ) );
+                BC_ASSERT( exists( rv ) );
+            }
         })
     ;
 
-    if( !is_alias( id ) )
-    {
-        rv = id;
-    }
-    else
-    {
-        rv = id;
+    rv = id;
 
-        // TODO: Is it possible for an alias to point to another alias? If the
-        // create_alias() function always resolves its ids, it would seem not -
-        // which would make this while check superfluous.
-        while( is_alias( rv ) )
+    if( is_alias( id ) )
+    {
+        auto const& av = alias_set_.get< AliasItem::alias_type >();
+        
+        if( auto const it = av.find( id )
+          ; it != av.end() )
         {
-            auto const pid = fetch_parent( rv );
-
-            assert( pid );
-
-            rv = alias_source( pid.value(), rv );
+            rv = it->src().value();
         }
     }
 
@@ -2278,7 +2325,13 @@ auto Kmap::erase_node( Uuid const& id )
         {
             if( rv )
             {
-                BC_ASSERT( !exists( id ) );
+                BC_ASSERT( !exists( id ) ); 
+
+                if( auto const p = fetch_parent( id )
+                  ; p )
+                {
+                    BC_ASSERT( !attr::is_in_order( *this, p.value(), id ) );
+                }
             }
         })
     ;
@@ -2287,7 +2340,8 @@ auto Kmap::erase_node( Uuid const& id )
     KMAP_ENSURE( id != root_node_id(), error_code::node::is_root );
     KMAP_ENSURE( !is_alias( id ) || is_top_alias( id ), error_code::node::is_nontoplevel_alias );
 
-    auto const parent = fetch_parent( id ).value();
+    // TODO: fire_event( { "map", "verb.pre", "verb.erased", "node" }, std::any< payload:id >? ) // after checks, but before anything is done? Or before checks, in case handler modifies something?
+
     auto const selected = selected_node();
     auto next_selected = selected;
 
@@ -2307,11 +2361,6 @@ auto Kmap::erase_node( Uuid const& id )
 
     KMAP_TRY( erase_node_internal( id ) );
 
-    if( !is_alias( id ) )
-    {
-        KMAP_TRY( update_aliases( parent ) );
-    }
-
     rv = next_selected;
 
     return rv;
@@ -2328,20 +2377,65 @@ auto Kmap::erase_node_internal( Uuid const& id )
             if( rv )
             {
                 BC_ASSERT( !exists( id ) );
+
+                if( auto const p = fetch_parent( id )
+                  ; p )
+                {
+                    BC_ASSERT( !attr::is_in_order( *this, p.value(), id ) );
+                }
             }
         })
     ;
 
-    KMAP_ENSURE( exists( id ) || is_alias( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( !attr::is_in_attr_tree( *this, id ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != root_node_id(), error_code::network::invalid_node );
+
+    // Delete children.
+    for( auto const& children = fetch_children_ordered( id )
+        ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
+    {
+        KMAP_TRY( erase_node_internal( e ) );
+    }
+
+    KTRY( erase_node_leaf( id ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Kmap::erase_node_leaf( Uuid const& id )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( !exists( id ) );
+
+                if( auto const p = fetch_parent( id )
+                  ; p )
+                {
+                    BC_ASSERT( !attr::is_in_order( *this, p.value(), id ) );
+                }
+            }
+        })
+    ;
+
+    KMAP_ENSURE( !attr::is_in_attr_tree( *this, id ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( id != root_node_id(), error_code::network::invalid_node );
+    KMAP_ENSURE( is_leaf( *this, id ), error_code::network::invalid_node );
+
+    auto const parent = KTRY( fetch_parent( id ) );
+
     {
         auto& db = database();
 
-        // Delete children.
-        for( auto const& e : fetch_children( id ) )
-        {
-            KMAP_TRY( erase_node_internal( e ) );
-        }
         // Delete node.
         if( is_alias( id ) )
         {
@@ -2349,12 +2443,19 @@ auto Kmap::erase_node_internal( Uuid const& id )
         }
         else
         {
-            for( auto const& dst : KMAP_TRY( database().fetch_alias_destinations( id ) ) )
+            if( has_alias( id ) )
             {
-                KMAP_TRY( erase_node( make_alias_id( id, dst ) ) );
+                KTRY( erase_aliases_to( id ) );
             }
 
-            KMAP_TRY( attr::pop_order( *this, KMAP_TRY( fetch_parent( id ) ), id ) );
+            KMAP_TRY( attr::pop_order( *this, parent, id ) );
+
+            // TODO: What does this get us vs. erase_all, and why both called?
+            if( auto const at = fetch_attr_node( id )
+              ; at )
+            {
+                KMAP_TRY( erase_attr( at.value() ) );
+            }
 
             db.erase_all( id );
         }
@@ -2374,20 +2475,26 @@ auto Kmap::erase_alias( Uuid const& id )
         BC_PRE([ & ]
         {
             BC_ASSERT( id != root_node_id() );
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
         })
-        BC_POST([ & ]
+        BC_POST([ &
+                , prev_as_size = BC_OLDOF( alias_set_.size() )
+                , prev_acs_size = BC_OLDOF( alias_child_set_.size() ) ]
         {
             if( rv )
             {
                 BC_ASSERT( !is_alias( id ) );
+                BC_ASSERT( !exists( id ) );
+                BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
+                BC_ASSERT( alias_set_.size() + 1 == *prev_as_size );
+                BC_ASSERT( alias_child_set_.size() + 1 == *prev_acs_size );
             }
         })
     ;
 
     KMAP_ENSURE_MSG( is_alias( id ), error_code::node::invalid_alias, to_string( id ) );
 
-    rv = KMAP_TRY( fetch_next_selected_as_if_erased( id ) );
- 
+    auto const next_sel = KMAP_TRY( fetch_next_selected_as_if_erased( id ) );
     auto const dst = KMAP_TRY( fetch_parent( id ) );
 
     if( is_top_alias( id ) ) // Must precede erasing alias from the cache, as it is dependent on it.
@@ -2396,33 +2503,110 @@ auto Kmap::erase_alias( Uuid const& id )
         auto& db = database();
 
         KMAP_TRY( db.erase_alias( src, dst ) );
+
+        KMAP_TRY( attr::pop_order( *this, KMAP_TRY( fetch_parent( id ) ), resolve( id ) ) ); // Resolved src is in order, rather than alias ID.
     }
 
-    aliases().erase( id );
-    alias_parents_.erase( id );
-    alias_children_.erase( [ & ]
     {
-        auto const er = alias_children_.equal_range( dst );
-        BC_ASSERT( er.first != er.second );
-        auto r = er.first;
+        auto&& av = alias_set_.get< AliasItem::alias_type >();
+        auto const it = av.find( id );
 
-        for( auto it = er.first
-           ; it != er.second
-           ; ++it )
-        {
-            if( it->second == id )
-            {
-                r = it;
-                break;
-            }
-        }
+        BC_ASSERT( it != av.end() );
 
-        return r;
-    }() );
+        av.erase( it );
+    }
+    {
+        auto&& av = alias_child_set_.get< AliasChildItem::child_type >();
+        auto const er = av.equal_range( AliasChildItem::child_type{ id } );
+
+        av.erase( er.first, er.second );
+    }
+    {
+        auto&& av = alias_child_set_.get< AliasChildItem::parent_type >();
+        auto const er = av.equal_range( AliasChildItem::parent_type{ id } );
+
+        av.erase( er.first, er.second );
+    }
+
+    rv = next_sel;
 
     return rv;
 }
 
+auto Kmap::erase_aliases_to( Uuid const& node )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            BC_ASSERT( !has_alias( node ) );
+        })
+    ;
+
+    auto const rnode = resolve( node );
+    auto nodes = std::vector< Uuid >{};
+    auto const& av = alias_set_.get< AliasItem::src_type >();
+    auto const er = av.equal_range( AliasItem::src_type{ rnode } );
+    
+    for( auto it = er.first
+       ; it != er.second
+       ; ++it )
+    {
+        nodes.emplace_back( it->alias() );
+    }
+    for( auto const& n : nodes )
+    {
+        KTRY( erase_alias( n ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Kmap::erase_attr( Uuid const& id )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( !attr::is_in_attr_tree( *this, id ) );
+            }
+        })
+    ;
+
+    KMAP_ENSURE_MSG( attr::is_in_attr_tree( *this, id ), error_code::network::invalid_node, to_string( id ) );
+    
+    for( auto const& child : fetch_children( id ) )
+    {
+        KMAP_TRY( erase_attr( child ) );
+    }
+
+    auto& db = database();
+    auto const parent = KMAP_TRY( [ & ]
+    {
+        if( attr::is_attr( *this, id ) )
+        {
+            return db.fetch_attr_owner( id );
+        }
+        else
+        {
+            return fetch_parent( id );
+        }
+    }() );
+
+    database().erase_all( id );
+
+    rv = parent;
+
+    return rv;
+}
 /// Call this after a change in the tree has occurred.
 auto Kmap::update( Uuid const& id )
     -> void
@@ -2485,7 +2669,7 @@ auto Kmap::jump_stack() const
 auto Kmap::root_view() const
     -> view::Intermediary
 {
-    return view::root( root_node_id() );
+    return view::make( root_node_id() );
 }
 
 // TODO: Should this ensure that if the moved node is the selected node, it updates the selected as well? I believe this is only relevant for the alias case.
@@ -2597,7 +2781,7 @@ auto Kmap::fetch_aliased_ancestry( Uuid const& id ) const
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            BC_ASSERT( rv.size() <= ( view::root( id ) | view::ancestor | view::count( *this ) ) );
+            BC_ASSERT( rv.size() <= ( view::make( id ) | view::ancestor | view::count( *this ) ) );
         })
     ;
 
@@ -2645,6 +2829,84 @@ auto Kmap::are_siblings( Uuid const& n1
     }
 
     return false;
+}
+
+auto Kmap::has_alias( Uuid const& node ) const
+    -> bool
+{
+    auto rv = false;
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( exists( node ) );
+                BC_ASSERT( !is_alias( node ) );
+            }
+        })
+    ;
+    // Every alias has a child_type entry (up to roots/topmost, where the parent is the real/dst node).
+    auto const& av = alias_set_.get< AliasItem::src_type >();
+
+    rv = av.contains( AliasItem::src_type{ node } );
+
+    return rv;
+}
+
+SCENARIO( "aliased node has_alias()" )
+{
+    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto const root = kmap.root_node_id();
+
+    GIVEN( "two children" )
+    {
+        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( kmap.create_child( root, "2" ) );
+
+        WHEN( "second aliases the first" )
+        {
+            auto const a21 = REQUIRE_TRY( kmap.create_alias( c1, c2 ) );
+
+            THEN( "first has_alias" )
+            {
+                REQUIRE( kmap.has_alias( c1 ) );
+            }
+            THEN( "alias itself doesn't has_alias()" )
+            {
+                REQUIRE( !kmap.has_alias( a21 ) );
+            }
+        }
+    }
+    GIVEN( "multiple descendants" )
+    {
+        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const c11 = REQUIRE_TRY( kmap.create_child( c1, "1" ) );
+        auto const c111 = REQUIRE_TRY( kmap.create_child( c11, "1" ) );
+        auto const c2 = REQUIRE_TRY( kmap.create_child( root, "2" ) );
+
+        WHEN( "second aliases the first" )
+        {
+            auto const a21 = REQUIRE_TRY( kmap.create_alias( c1, c2 ) );
+            auto const a211 = REQUIRE_TRY( kmap.fetch_child( a21, "1" ) );
+            auto const a2111 = REQUIRE_TRY( kmap.fetch_child( a211, "1" ) );
+
+            THEN( "first descs has_alias" )
+            {
+                REQUIRE( kmap.has_alias( c1 ) );
+                REQUIRE( kmap.has_alias( c11 ) );
+                REQUIRE( kmap.has_alias( c111 ) );
+            }
+            THEN( "aliases themselves don't has_alias()" )
+            {
+                REQUIRE( !kmap.has_alias( a21 ) );
+                REQUIRE( !kmap.has_alias( a211 ) );
+                REQUIRE( !kmap.has_alias( a2111 ) );
+            }
+        }
+    }
 }
 
 auto Kmap::has_descendant( Uuid const& ancestor 
@@ -2701,7 +2963,12 @@ auto Kmap::fetch_parent( Uuid const& child ) const
     }
     else if( is_alias( child ) )
     {
-        rv = alias_parents_.find( child )->second;
+        auto const& av = alias_child_set_.get< AliasChildItem::child_type >();
+        auto const er = av.equal_range( AliasChildItem::child_type{ child } ); // TODO: equal_range, BC_ASSERT size == 1?
+
+        BC_ASSERT( std::distance( er.first, er.second ) == 1 );
+
+        rv = er.first->parent().value();
     }
 
     return rv;
@@ -2868,30 +3135,24 @@ auto Kmap::fetch_alias_children( Uuid const& parent ) const
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            if( alias_children_.size() != alias_parents_.size()  )
-            {
-                fmt::print( "alias_chilren:{} != alias_parents:{}\n", alias_children_.size(), alias_parents_.size() );
-                for( auto ac : alias_children_ )
-                {
-                    fmt::print( "ac: {}:{}\n", to_string( ac.first ), fetch_heading( ac.first ).value() );
-                }
-            }
-            BC_ASSERT( alias_children_.size() == alias_parents_.size() );
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
 
             for( auto const& e : rv )
             {
                 BC_ASSERT( is_alias( e ) );
+                BC_ASSERT( exists( e ) );
             }
         })
     ;
 
-    auto const er = alias_children_.equal_range( parent );
+    auto const& av = alias_child_set_.get< AliasChildItem::parent_type >();
+    auto const er = av.equal_range( AliasChildItem::parent_type{ parent } );
 
     for( auto it = er.first
        ; it != er.second
        ; ++it )
     {
-        rv.emplace_back( it->second );
+        rv.emplace_back( it->child().value() );
     }
 
     return rv;
@@ -2905,7 +3166,7 @@ auto Kmap::fetch_children( Uuid const& parent ) const
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            BC_ASSERT( alias_children_.size() == alias_parents_.size() );
+            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
 
             for( auto const& e : rv )
             {
@@ -2932,8 +3193,7 @@ auto Kmap::fetch_children( Uuid const& parent ) const
     }();
     auto const alias_children = fetch_alias_children( parent );
 
-    auto const all = views::concat( db_children
-                                  , alias_children )
+    auto const all = views::concat( db_children, alias_children )
                    | to< kmap::UuidSet >();
     return all;
 }
@@ -3015,6 +3275,7 @@ auto Kmap::fetch_children_ordered( Uuid const& root
 auto Kmap::fetch_children_ordered( Uuid const& parent ) const
     -> std::vector< Uuid >
 {
+    // TODO:
     // if parent has $order: use $order
     // else: find each child's $genesis, order by that.
     using Map = std::vector< std::pair< Uuid, uint64_t > >;
@@ -3028,10 +3289,9 @@ auto Kmap::fetch_children_ordered( Uuid const& parent ) const
         return rv;
     }
 
-    // TODO: OK - I think I know what's happening here. fetch_children is returning non-zero children for an alias, but create_alias doesn't update
-    //       (or create) "$order", so we end up with an exception: child but no $order. Solution? Have create.alias update body.
     auto map = Map{};
-    auto const porder = KMAP_TRYE( view::root( parent )
+    auto const porder = KMAP_TRYE( view::make( parent )
+                                 | view::resolve
                                  | view::attr
                                  | view::child( "order" )
                                  | view::fetch_node( *this ) );
@@ -3045,16 +3305,16 @@ auto Kmap::fetch_children_ordered( Uuid const& parent ) const
     {
         id_ordinal_map.emplace( KMAP_TRYE( to_uuid( s ) ), i );
     }
-
+    
     for( auto const& e : rv )
     {
-        if( !id_ordinal_map.contains( e ) )
+        if( !id_ordinal_map.contains( resolve( e ) ) )
         {
             KMAP_THROW_EXCEPTION_MSG( fmt::format( "failed to find ordering ({}) for child: {}", to_string( parent ), to_string( e ) ) );
         }
     }
 
-    ranges::sort( rv, [ & ]( auto const& lhs, auto const& rhs ){ return id_ordinal_map[ lhs ] < id_ordinal_map[ rhs ]; } );
+    ranges::sort( rv, [ & ]( auto const& lhs, auto const& rhs ){ return id_ordinal_map[ resolve( lhs ) ] < id_ordinal_map[ resolve( rhs ) ]; } );
 
     return rv;
 }
@@ -3429,7 +3689,7 @@ auto Kmap::fetch_attr_node( Uuid const& id ) const
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto&& db = database();
 
-    rv = KMAP_TRY( db.fetch_attr( id ) );
+    rv = KMAP_TRY( db.fetch_attr( resolve( id ) ) ); // TODO: resolve( id ) is under debate. Should resolving aliases be done implicitly, or required explicitly? Here, it is implicit.
 
     return rv;
 }
@@ -3441,9 +3701,9 @@ auto Kmap::fetch_genesis_time( Uuid const& id ) const
 }
 
 auto Kmap::fetch_ordering_position( Uuid const& node ) const
-    -> Optional< uint32_t >
+    -> Result< uint32_t >
 {
-    auto rv = Optional< uint32_t >{};
+    auto rv = KMAP_MAKE_RESULT( uint32_t );
     auto const ordering = fetch_parent_children_ordered( node );
     
     if( auto const it = find( ordering, node )
