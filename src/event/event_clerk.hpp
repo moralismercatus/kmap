@@ -17,14 +17,14 @@ namespace kmap::event {
 
 struct EventClerk
 {
-    EventStore& estore;
+    Kmap& kmap;
     std::vector< Uuid > subjects = {};
     std::vector< Uuid > verbs = {};
     std::vector< Uuid > objects = {};
     std::vector< Uuid > outlets = {};
     std::vector< Uuid > outlet_transitions = {};
 
-    EventClerk( EventStore& event_store );
+    EventClerk( Kmap& km );
     ~EventClerk();
 
     auto install_subject( Heading const& heading )

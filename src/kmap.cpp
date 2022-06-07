@@ -14,13 +14,13 @@
 #include "common.hpp"
 #include "contract.hpp"
 #include "db.hpp"
-#include "db.hpp"
 #include "db/autosave.hpp"
 #include "environment.hpp"
 #include "error/filesystem.hpp"
 #include "error/master.hpp"
 #include "error/network.hpp"
 #include "error/node_manip.hpp"
+#include "error/result.hpp"
 #include "event/event.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
@@ -28,6 +28,7 @@
 #include "network.hpp"
 #include "option/option.hpp"
 #include "path.hpp"
+#include "path/act/value_or.hpp"
 #include "path/node_view.hpp"
 #include "test/master.hpp"
 #include "test/util.hpp"
@@ -68,25 +69,8 @@ using namespace ranges;
 namespace kmap {
 
 Kmap::Kmap()
-    : env_{ std::make_unique< Environment >() }
-    , database_{ std::make_unique< Database >() }
-    , canvas_{ std::make_unique< Canvas >( *this ) }
-    , event_store_{ std::make_unique< EventStore >( *this ) }
-    , option_store_{ std::make_unique< OptionStore >( *this ) }
-    , timer_{ std::make_unique< chrono::Timer >( *this ) }
-    , autosave_{ std::make_unique< db::Autosave >( *this ) }
 {
     io::print( "in kmap ctor\n" );
-    // if( auto const r = reset()
-    //   ; !r )
-    // {
-    //     KMAP_THROW_EXCEPTION_MSG( to_string( r.error() ) );
-    // }
-
-    // for( auto const& c : cmd::make_core_commands( *this ) )
-    // {
-    //     cli_->register_command( c );
-    // }
 }
 
 auto Kmap::autosave()
@@ -183,8 +167,9 @@ auto Kmap::set_up_nw_root()
     auto const title = KMAP_TRY( fetch_title( id ) );
     auto& nw = network();
 
-    KMAP_TRY( nw.create_node( id, title ) );
+    KTRY( nw.create_node( id, title ) );
 
+    // TODO: If expecting no previous selection, why not require this error result?
     if( auto const prev = nw.select_node( id )
       ; !prev && prev.error().ec != error_code::network::no_prev_selection ) // Expecting a return failure b/c initial selection.
     {
@@ -495,14 +480,10 @@ auto Kmap::network()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            assert( canvas_ );
+            BC_ASSERT( canvas_ );
+            BC_ASSERT( network_ );
         })
     ;
-
-    if( !network_ )
-    {
-        KMAP_TRYE( reset_network() );
-    }
 
     return *network_;
 }
@@ -1464,28 +1445,92 @@ auto Kmap::store_resource( Uuid const& parent
     return hash;
 }
 
-auto Kmap::reset()
+auto Kmap::init_database()
+    -> void
+{
+    database_ = std::make_unique< Database >();
+}
+
+auto Kmap::init_canvas()
+    -> void
+{
+    canvas_ = std::make_unique< Canvas >( *this );
+}
+
+auto Kmap::init_event_store()
+    -> void
+{
+    event_store_ = std::make_unique< EventStore >( *this );
+}
+
+auto Kmap::init_option_store()
+    -> void
+{
+    option_store_ = std::make_unique< OptionStore >( *this );
+}
+
+auto Kmap::init_network()
+    -> void
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( canvas_ );
+        })
+    ;
+
+    network_ = std::make_unique< Network >( *this, canvas_->network_pane() );
+}
+
+auto Kmap::init_root_node()
+    -> void
+{
+    // TODO: Misleading, as it resets Environment, but as, ATM, Environment only manages root, I'm giving it a temporary pass.
+    env_ = std::make_unique< Environment >();
+    // Selected node always starts with root.
+    selected_node_ = root_node_id();
+}
+
+auto Kmap::initialize()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+
     env_ = std::make_unique< Environment >();
 
-    KMAP_TRY( reset_database() );
-    KMAP_TRY( set_up_db_root() );
+    init_database();
+    KTRY( set_up_db_root() );
     KMAP_LOG_LINE();
-    KMAP_TRY( canvas().reset() );
-    KMAP_LOG_LINE();
-    KMAP_TRY( reset_network() );
-    KMAP_TRY( network_->install_default_options() );
-    KMAP_TRY( network_->install_events() );
-    KMAP_LOG_LINE();
-    KMAP_TRY( set_up_nw_root() );
-    KMAP_LOG_LINE();
-    KMAP_TRY( cli().reset_all_preregistered() );
-    KMAP_TRY( canvas().install_options() );
+
+    selected_node_ = root_node_id();
+
+    init_option_store();
 
     {
-        KMAP_TRY( select_node( root_node_id() ) );
+        event_store_ = std::make_unique< EventStore >( *this );
+        auto& estore = event_store();
+
+        KTRY( estore.install_subject( "kmap" ) );
+        KTRY( estore.install_verb( "selected" ) );
+        KTRY( estore.install_object( "node" ) );
+    }
+
+    init_canvas();
+    KTRY( canvas().reset() );
+    KMAP_LOG_LINE();
+
+    network_ = std::make_unique< Network >( *this, canvas_->network_pane() );
+    KTRY( network_->install_default_options() );
+    KTRY( network_->install_default_events() );
+    KMAP_LOG_LINE();
+    KTRY( set_up_nw_root() );
+
+    KMAP_LOG_LINE();
+    KTRY( cli().reset_all_preregistered() );
+
+    KTRY( canvas().install_options() );
+
+    {
         KMAP_TRY( canvas().hide( canvas().editor_pane() ) );
     }
     {
@@ -1585,33 +1630,68 @@ auto Kmap::reset()
         KMAP_TRY( option_store().apply_all() );
     }
 
+    KTRY( select_node( root_node_id() ) );
+
     rv = outcome::success();
     
     return rv;
 }
 
-auto Kmap::reset_database()
-    -> Result< void >
+auto Kmap::clear()
+    -> void
 {
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    database_ = std::make_unique< Database >();
-
-    rv = outcome::success();
-
-    return rv;
+    KMAP_LOG_LINE();
+    // TODO: Rather than maintaining a list of reset_*s, why not place all of these in Environment, in their dependent order, and thereby just reset env,
+    //       and get the reset for free of all these?
+    clear_autosave();
+    clear_timer();
+    clear_network();
+    clear_canvas();
+    clear_event_store();
+    clear_option_store();
+    clear_database();
 }
 
-auto Kmap::reset_network()
-    -> Result< void >
+auto Kmap::clear_autosave()
+    -> void
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    autosave_ = nullptr;
+}
 
-    network_ = std::make_unique< Network >( *this, canvas_->network_pane() );
+auto Kmap::clear_canvas()
+    -> void
+{
+    canvas_ = nullptr;
+}
 
-    rv = outcome::success();
+auto Kmap::clear_database()
+    -> void
+{
+    database_ = nullptr;
+}
 
-    return rv;
+auto Kmap::clear_event_store()
+    -> void
+{
+    event_store_ = nullptr;
+}
+
+auto Kmap::clear_network()
+    -> void
+{
+    network_ = nullptr;
+}
+
+auto Kmap::clear_option_store()
+    -> void
+{
+    option_store_ = nullptr;
+}
+
+auto Kmap::clear_timer()
+    -> void
+{
+    timer_ = nullptr;
 }
 
 auto Kmap::rename( Uuid const& id
@@ -1698,7 +1778,7 @@ auto Kmap::select_node( Uuid const& id )
 {
     KMAP_PROFILE_SCOPE();
 
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto rv = error::make_result< Uuid >( *this, id );
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -1716,81 +1796,19 @@ auto Kmap::select_node( Uuid const& id )
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
 
     auto const prev_selected = selected_node();
-    auto& nw = network();
+    selected_node_ = id;
 
-    {
-        auto const visible_nodes = fetch_visible_nodes_from( id );
-        auto const visible_node_set = UuidSet{ visible_nodes.begin()
-                                             , visible_nodes.end() };
-        auto create_edge = [ & ]( auto const& nid )
-        {
-            if( auto const pid = fetch_parent( nid )
-              ; pid
-             && visible_node_set.count( pid.value() ) != 0
-             && !nw.edge_exists( pid.value(), nid ) )
-            {
-                KMAP_TRYE( nw.add_edge( pid.value(), nid ) );
-            }
-        };
-        auto const to_title = [ & ]( auto const& e )
-        {
-            auto const title = fetch_title( resolve( e ) );
-            BC_ASSERT( title );
-            auto const child_count = fetch_children( e ).size();
+    KTRY( event_store().fire_event( { "subject.kmap", "verb.selected", "object.node" } ) );
 
-            return fmt::format( "{} ({})"
-                              , title.value()
-                              , child_count );
-        };
+    // Remainder of this goes in Network...
 
-        // This is an efficient hack. It appears recent versions of visjs will render hierarchy based on node chronology
-        // So, to get around this, all nodes are deleted for each movement. Then, recreated, in order.
-        nw.remove_nodes();
-
-        // Must be created in order, to work correctly with visjs's hierarchy mechanism.
-        for( auto const& cid : visible_nodes )
-        {
-            BC_ASSERT( exists( cid ) );
-            KMAP_TRY( nw.create_node( cid, to_title( cid ) ) );
-            create_edge( cid );
-        }
-
-        // Revert previous selected node to unselected color.
-        if( visible_node_set.contains( prev_selected ) )
-        {
-            nw.color_node_background( prev_selected
-                                    , Color::white );
-        }
-
-        for( auto const& e : visible_nodes )
-        {
-            color_node( e ); 
-
-            KMAP_TRY( nw.change_node_font( e 
-                                         , get_appropriate_node_font_face( e )
-                                         , Color::black ) );
-        }
-    }
-
-    nw.color_node_background( id
-                            , Color::black );
-    KMAP_TRY( nw.change_node_font( id
-                                 , get_appropriate_node_font_face( id )
-                                 , Color::white ) );
-    if( auto const succ = nw.select_node( id )
-      ; !succ && succ.error().ec != error_code::network::no_prev_selection )
-    {
-        KMAP_ENSURE( succ, succ.error().ec );
-    }
-    nw.center_viewport_node( id );
-    KTRY( option_store().apply( "network.viewport_scale" ) );
-    nw.focus();
+    // TODO: breadcrumb should have its own handler listening for the fired event.
     auto id_abs_path = absolute_path_uuid( id );
     auto breadcrumb_nodes = id_abs_path
                           | views::drop_last( 1 )
                           | to< UuidVec >();
-    KMAP_TRY( canvas().set_breadcrumb( breadcrumb_nodes ) );
-    load_preview( id ); // Note: load preview must be after nw.select_node(), as it uses fetch_descendant, which uses selected_node, which must exist!
+    KTRY( canvas().set_breadcrumb( breadcrumb_nodes ) );
+    KTRY( load_preview( id ) ); // Note: load preview must be after nw.select_node(), as it uses fetch_descendant, which uses selected_node, which must exist!
 
     rv = prev_selected;
 
@@ -1892,36 +1910,43 @@ auto Kmap::select_node( Heading const& heading )
 auto Kmap::selected_node() const
     -> Uuid
 {
-    return network().selected_node();
-}
-
-auto Kmap::load_preview( Uuid const& id )
-    -> void  // TODO: Result< void >
-{
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( exists( id ) ); // TODO: this function should return an outcome rather than fail with precondition.
-            // BC_ASSERT( database().fetch_body( resolve( id ) ) ); // Body is no longer guaranteed to be present.
+            BC_ASSERT( selected_node_ != Uuid{ 0 } );
+        })
+        BC_POST([ & ]
+        {
+            BC_ASSERT( selected_node_ != Uuid{ 0 } );
         })
     ;
 
+    return selected_node_;
+}
+
+auto Kmap::load_preview( Uuid const& id )
+    -> Result< void >
+{
+    auto rv = error::make_result< void >( *this, id );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            // TODO
+        })
+    ;
+
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
+
     auto& db = database();
     auto& tv = text_area();
-    auto const body = [ & ]
-    {
-        if( auto const b = db.fetch_body( resolve( id ) )
-          ; b )
-        {
-            return b.value();
-        }
-        else
-        {
-            return std::string{};
-        }
-    }();
+    auto const body = db.fetch_body( resolve( id ) ) | act::value_or( std::string{} );
 
-    tv.show_preview( markdown_to_html( body ) );
+    KTRY( tv.show_preview( markdown_to_html( body ) ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Kmap::on_leaving_editor()
@@ -2105,37 +2130,6 @@ auto Kmap::distance( Uuid const& ancestor
     }
 
     return rv;
-}
-
-auto Kmap::color_node( Uuid const& id
-                     , Color const& color )
-   -> void
-{
-    auto& nw = network();
-
-    nw.color_node_border( id
-                        , color );
-}
-
-auto Kmap::color_node( Uuid const& id )
-   -> void
-{
-    auto const card = view::make( id ) | view::ancestor | view::count( *this );
-    auto const color = color_level_map[ ( card ) % color_level_map.size() ];
-
-    color_node( id
-              , color );
-}
-
-auto Kmap::color_all_visible_nodes()
-    -> void
-{
-    auto const& nw = network();
-
-    for( auto const& n : nw.nodes() )
-    {
-        color_node( n );
-    }
 }
 
 auto Kmap::is_child_internal( Uuid const& parent
@@ -2336,7 +2330,7 @@ auto Kmap::erase_node( Uuid const& id )
         })
     ;
 
-    KMAP_ENSURE( exists( id ), error_code::node::not_found );
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != root_node_id(), error_code::node::is_root );
     KMAP_ENSURE( !is_alias( id ) || is_top_alias( id ), error_code::node::is_nontoplevel_alias );
 
@@ -2856,7 +2850,7 @@ auto Kmap::has_alias( Uuid const& node ) const
 
 SCENARIO( "aliased node has_alias()" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_DATABASE_ROOT_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
     auto const root = kmap.root_node_id();
@@ -3710,31 +3704,6 @@ auto Kmap::fetch_ordering_position( Uuid const& node ) const
       ; it != end( ordering) )
     {
         rv = std::distance( ordering.begin(), it );
-    }
-
-    return rv;
-}
-
-// TODO: This should be gotten from options.
-auto Kmap::get_appropriate_node_font_face( Uuid const& id ) const
-    -> std::string
-{
-    auto rv = std::string{};
-
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( id ) );
-        })
-    ;
-
-    if( is_top_alias( id ) )
-    {
-        rv = "ariel";
-    }
-    else
-    {
-        rv = "verdana";
     }
 
     return rv;

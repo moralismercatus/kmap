@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "utility.hpp"
 #include "event/event_clerk.hpp"
+#include "option/option_clerk.hpp"
 
 #include <ostream>
 #include <string>
@@ -42,6 +43,7 @@ auto operator<<( std::ostream&, Position2D const& )
 class Network
 {
     Kmap& kmap_;
+    option::OptionClerk oclerk_;
     event::EventClerk eclerk_;
     std::shared_ptr< emscripten::val > js_nw_; // TODO: Use unique_ptr. Again, some reason destructor and fwd decl don't seem to work with unique_ptr.
 
@@ -61,6 +63,11 @@ public:
     [[ nodiscard ]]
     auto children( Uuid const& parent ) const
         -> std::vector< Uuid >;
+    auto color_node( Uuid const& id
+                   , Color const& color )
+        -> void;
+    auto color_node( Uuid const& id )
+        -> void;
     [[ maybe_unused ]]
     auto create_node( Uuid const& id
                     , Title const& label )
@@ -87,9 +94,12 @@ public:
         -> float;
     auto focus()
         -> void;
+    [[ nodiscard ]]
+    auto get_appropriate_node_font_face( Uuid const& id ) const // TODO: Should be from option?
+        -> std::string;
     auto install_default_options()
         -> Result< void >;
-    auto install_events()
+    auto install_default_events()
         -> Result< void >;
     [[ nodiscard ]]
     auto nodes() const
@@ -97,7 +107,7 @@ public:
     [[ nodiscard ]]
     auto position( Uuid const& id ) const
         -> Position2D;
-    auto remove( Uuid const& id )
+    auto erase_node( Uuid const& id )
         -> Result< void >;
     auto remove_nodes()
         -> void;

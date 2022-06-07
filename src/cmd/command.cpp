@@ -19,6 +19,7 @@
 #include "path/node_view.hpp"
 #include "script.hpp"
 
+#include <boost/algorithm/string/replace.hpp>
 #include <emscripten.h>
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -132,7 +133,7 @@ auto execute_javascript( Uuid const& node
     auto const fn_name = fmt::format( "fn_{}"
                                     , format_heading( to_string( node ) ) );
     auto const stringed = args
-                        | views::transform( []( auto const& arg ){ return io::format( "'{}'", arg ); } )
+                        | views::transform( []( auto const& arg ){ return io::format( "'{}'", boost::replace_all_copy( arg, "'", "\\'" ) ); } )
                         | to< StringVec >();
     auto const csep = stringed
                     | views::join( ',' )
@@ -225,9 +226,11 @@ auto evaluate_guard( Kmap& kmap
                             }
                             else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                             {
+                                auto const escaped_arg = boost::replace_all_copy( arg, "'", "\\'" );
+
                                 rv = execute_javascript( guard_node
-                                                        , e.code
-                                                        , arg );
+                                                       , e.code
+                                                       , escaped_arg );
                             }
                             else
                             {
@@ -399,11 +402,7 @@ auto fetch_args( Kmap& kmap
                                 if( auto const arg_res = evaluate_guard( kmap, validity_check, sarg | to< std::string >() )
                                   ; !arg_res )
                                 {
-                                    rv = KMAP_MAKE_ERROR( error_code::command::invalid_arg );
-
-                                    // TODO: need to provide error info in payload of why guard failed.
-                                    io::print( "argument guard failed: {}\n"
-                                             , index );
+                                    rv = KMAP_MAKE_ERROR_MSG( error_code::command::invalid_arg,  to_string( arg_res.error() ) );
 
                                     break;
                                 }

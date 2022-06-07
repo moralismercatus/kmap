@@ -61,6 +61,47 @@ auto OptionStore::install_option( Heading const& heading
     return rv;
 }
 
+auto OptionStore::is_option( Uuid const& option )
+    -> bool
+{
+    auto const in_tree = view::make( option ) 
+                       | view::ancestor( option_root() )
+                       | view::exists( kmap_ );
+    auto const has_structure = ( view::make( option )
+                               | view::child( view::all_of( "description", "value", "action" ) )
+                               | view::count( kmap_ ) ) == 3;
+
+    return in_tree && has_structure;
+}
+
+auto OptionStore::uninstall_option( Heading const& heading )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const node = KTRY( view::make( option_root() )
+                          | view::direct_desc( heading )
+                          | view::fetch_node( kmap_ ) );
+
+    KTRY( uninstall_option( node ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto OptionStore::uninstall_option( Uuid const& option )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE( kmap_.exists( option ), error_code::network::invalid_node );
+    KMAP_ENSURE( is_option( option ), error_code::network::invalid_node );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto OptionStore::update_value( Heading const& heading
                               , std::string const& value )
     -> Result< void >
@@ -83,9 +124,8 @@ auto OptionStore::apply( Uuid const& option )
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    // TODO: KMAP_ENSURE( is_option( opt ) );
+    KMAP_ENSURE( is_option( option ), error_code::network::invalid_node );
 
-    io::print( "Option found: {}\n", kmap_.absolute_path_flat( option ) );
     // auto const action = KMAP_TRY( view::make_view( kmap_, option ) | view::child( "action" ) | view::try_to_single );
     auto const action = KMAP_TRY( kmap_.fetch_child( option, "action" ) );
     // auto const action_body = KMAP_TRY( action.fetch_body() );

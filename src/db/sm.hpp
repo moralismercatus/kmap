@@ -61,6 +61,7 @@ namespace sm::state
     // Exposed States.
     class CacheExists {};
     class CreateDelta {};
+    class ClearDelta {};
     class EraseDelta {};
     class DeltaExists {};
     class Error {};
@@ -72,6 +73,7 @@ namespace sm::state
     {
         inline auto const CacheExists = boost::sml::state< sm::state::CacheExists >;
         inline auto const CreateDelta = boost::sml::state< sm::state::CreateDelta >;
+        inline auto const ClearDelta = boost::sml::state< sm::state::ClearDelta >;
         inline auto const EraseDelta = boost::sml::state< sm::state::EraseDelta >;
         inline auto const DeltaExists = boost::sml::state< sm::state::DeltaExists >;
         inline auto const Error = boost::sml::state< sm::state::Error >;
@@ -117,6 +119,24 @@ public:
             auto const cv = fetch_cached( cache_, ev.table, ev.key );
 
             return cv && ( cv.value() == ev.value ); 
+        };
+        auto const delta_created = [ & ]( auto const& ev )
+        {
+            auto rv = false;
+
+            if( auto const dsr = fetch_deltas( cache_, ev.table, ev.key )
+              ; dsr )
+            {
+                auto const& ds = dsr.value();
+                auto const pred = []( auto const& e )
+                {
+                    return e.action == DeltaType::created;
+                };
+
+                rv = ranges::find_if( ds, pred ) != ds.end();
+            }
+
+            return rv;
         };
         auto const delta_deleted = [ & ]( auto const& ev )
         {
@@ -193,6 +213,7 @@ public:
         ,   DeltaExists + push [ delta_matches ]   = Nop
         ,   DeltaExists + push                     = UpdateDelta
         ,   DeltaExists + erase [ delta_deleted ]  = err( "cache item previously deleted" ) // Treating as an error, but `delete <id>, create <id>` isn't logically impossible, but unexpected. Subject to change if such behavior is desirable.
+        ,   DeltaExists + erase [ delta_created ]  = ClearDelta
         ,   DeltaExists + erase                    = EraseDelta
         ,   DeltaExists + any                      = Error  
         ,   DeltaExists + unexpected               = Error  
@@ -214,6 +235,10 @@ public:
         ,   EraseDelta + erase / set_done                        = EraseDelta
         ,   EraseDelta + any                                     = Error  
         ,   EraseDelta + unexpected                              = Error  
+
+        ,   ClearDelta + erase / set_done                        = ClearDelta
+        ,   ClearDelta + any                                     = Error  
+        ,   ClearDelta + unexpected                              = Error  
 
         ,   Nop + push       / set_done = Nop 
         ,   Nop + any                   = Error  

@@ -421,6 +421,12 @@ public:
 
                 KMAP_TRY( table.update( ukey, update_fn ) );
             }
+            else if( decider->is( boost::sml::state< sm::state::ClearDelta > ) )
+            {
+                auto&& table = std::get< Table >( cache_tables_ );
+
+                KMAP_TRY( table.erase( ukey ) );
+            }
             else
             {
                 // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
@@ -475,6 +481,12 @@ public:
             };
 
             KMAP_TRY( table.update( ukey, update_fn ) );
+        }
+        else if( decider->is( boost::sml::state< sm::state::ClearDelta > ) )
+        {
+            auto&& table = std::get< Table >( cache_tables_ );
+
+            KMAP_TRY( table.erase( typename Table::unique_key_type{ left, right } ) );
         }
         else
         {

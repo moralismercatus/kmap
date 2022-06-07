@@ -177,6 +177,10 @@ auto to_string( Color const& c )
 auto to_string( bool const b )
     -> std::string;
 [[ nodiscard ]]
+auto to_string_elaborated( Kmap const& kmap
+                         , Uuid const node )
+    -> std::string;
+[[ nodiscard ]]
 auto to_uint64( std::string const& s )
     -> Result< uint64_t >;
 [[ nodiscard ]]

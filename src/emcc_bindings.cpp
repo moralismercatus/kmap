@@ -278,6 +278,11 @@ struct EventStore
     {
         return kmap_.event_store().fire_event( requisites | ranges::to< std::set >() );
     }
+    auto reset_transitions( std::vector< std::string > const& requisites )
+        -> Result< void >
+    {
+        return kmap_.event_store().reset_transitions( requisites | ranges::to< std::set >() );
+    }
 };
 
 struct JumpStack
@@ -304,11 +309,18 @@ struct Network
         kmap_.network().center_viewport_node( node );
     }
 
+    auto select_node( Uuid const& node )
+        -> binding::Result< Uuid >
+    {
+        return kmap_.network().select_node( node );
+    }
+
     auto scale_viewport( float const scale )
         -> binding::Result< void >
     {
         return kmap_.network().scale_viewport( scale );
     }
+
     auto viewport_scale()
         -> float
     {
@@ -1246,6 +1258,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
         ;
     class_< kmap::binding::EventStore >( "EventStore" )
         .function( "fire_event", &kmap::binding::EventStore::fire_event )
+        .function( "reset_transitions", &kmap::binding::EventStore::reset_transitions )
         ;
     class_< kmap::binding::JumpStack >( "JumpStack" )
         .function( "jump_in", &kmap::binding::JumpStack::jump_in )
@@ -1253,8 +1266,9 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     class_< kmap::binding::Network >( "Network" )
         .function( "center_viewport_node", &kmap::binding::Network::center_viewport_node )
         .function( "scale_viewport", &kmap::binding::Network::scale_viewport )
-        .function( "viewport_scale", &kmap::binding::Network::viewport_scale )
+        .function( "select_node", &kmap::binding::Network::select_node )
         .function( "underlying_js_network", &kmap::binding::Network::underlying_js_network )
+        .function( "viewport_scale", &kmap::binding::Network::viewport_scale )
         ;
     class_< kmap::binding::OptionStore >( "OptionStore" )
         .function( "apply", &kmap::binding::OptionStore::apply )

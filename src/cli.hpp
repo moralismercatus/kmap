@@ -15,8 +15,16 @@
 #include <map>
 #include <string>
 
-namespace kmap
-{
+namespace kmap {
+
+class Kmap;
+
+auto reset_registrations( Kmap& kmap )
+    -> void;
+auto register_commands()
+    -> void;
+auto register_arguments()
+    -> void;
 
 // TODO: Probably worth replacing with Boost.Outcome and "custom payloads" for adding additional contextual information about the failure. See Custom Payloads section in the doc.
 

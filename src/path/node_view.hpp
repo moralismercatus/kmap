@@ -109,6 +109,9 @@ using SelectionVariant = std::variant< char const* // TODO: To consolidate std::
                                      , Intermediary
                                      , Uuid >;
 
+auto to_string( SelectionVariant const& sel )
+    -> std::string;
+
 auto operator==( SelectionVariant const& lhs
                , Heading const& rhs )
     -> bool;
@@ -119,6 +122,8 @@ auto operator==( SelectionVariant const& lhs
 // Intermediate Operations
 struct Ancestor
 {
+    std::optional< SelectionVariant > selection = std::nullopt;
+
     Ancestor() = default;
     explicit Ancestor( SelectionVariant const& sel ) : selection{ sel } {}
 
@@ -132,8 +137,8 @@ struct Ancestor
     auto create( Kmap& kmap
                , Uuid const& root ) const
         -> Result< Uuid >;
-
-    std::optional< SelectionVariant > selection = std::nullopt;
+    auto to_string() const
+        -> std::string;
 };
 struct Alias
 {
@@ -151,6 +156,8 @@ struct Alias
     auto create( Kmap& kmap
                , Uuid const& parent ) const
         -> Result< UuidSet >;
+    auto to_string() const
+        -> std::string;
 };
 struct Attr
 {
@@ -165,6 +172,8 @@ struct Attr
     auto create( Kmap& kmap
                , Uuid const& parent ) const
         -> Result< Uuid >;
+    auto to_string() const
+        -> std::string;
 };
 struct Child
 {
@@ -180,6 +189,8 @@ struct Child
     auto create( Kmap& kmap
                , Uuid const& parent ) const
         -> Result< UuidSet >;
+    auto to_string() const
+        -> std::string;
 
     std::optional< SelectionVariant > selection = std::nullopt;
 };
@@ -199,11 +210,15 @@ struct Desc
     auto create( Kmap& kmap
                , Uuid const& root ) const
         -> Result< Uuid >;
+    auto to_string() const
+        -> std::string;
 
     std::optional< SelectionVariant > selection = std::nullopt;
 };
 struct DirectDesc
 {
+    std::optional< SelectionVariant > selection = std::nullopt;
+
     DirectDesc() = default;
     explicit DirectDesc( SelectionVariant const& sel ) : selection{ sel } {}
 
@@ -218,11 +233,13 @@ struct DirectDesc
     auto create( Kmap& kmap
                , Uuid const& root ) const
         -> Result< Uuid >;
-
-    std::optional< SelectionVariant > selection = std::nullopt;
+    auto to_string() const
+        -> std::string;
 };
 struct Leaf
 {
+    std::optional< SelectionVariant > selection = std::nullopt;
+
     Leaf() = default;
 
     auto operator()() {};
@@ -231,10 +248,13 @@ struct Leaf
                    , Uuid const& node ) const
         -> UuidSet;
 
-    SelectionVariant selection;
+    auto to_string() const
+        -> std::string;
 };
 struct RLineage
 {
+    Uuid leaf;
+
     RLineage() = default;
     explicit RLineage( Uuid const& leafn ) : leaf{ leafn } {};
 
@@ -244,10 +264,13 @@ struct RLineage
                    , Uuid const& node ) const
         -> UuidSet;
 
-    Uuid leaf;
+    auto to_string() const
+        -> std::string;
 };
 struct Parent
 {
+    std::optional< SelectionVariant > selection = std::nullopt;
+
     Parent() = default;
 
     auto operator()() {};
@@ -256,7 +279,8 @@ struct Parent
                    , Uuid const& node ) const
         -> UuidSet;
 
-    SelectionVariant selection;
+    auto to_string() const
+        -> std::string;
 };
 struct Resolve
 {
@@ -267,6 +291,9 @@ struct Resolve
         -> UuidSet;
 
     auto operator()() {};
+
+    auto to_string() const
+        -> std::string;
 };
 struct Sibling
 {
@@ -277,6 +304,9 @@ struct Sibling
         -> UuidSet;
 
     auto operator()() {};
+
+    auto to_string() const
+        -> std::string;
 };
 struct Single
 {
@@ -284,6 +314,9 @@ struct Single
 
     auto operator()( SelectionVariant const& sel ) {};
     auto operator()() {};
+
+    auto to_string() const
+        -> std::string;
 };
 
 // Result Operations

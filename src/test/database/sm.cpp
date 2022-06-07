@@ -105,7 +105,7 @@ SCENARIO( "unqiue lhs table sm is manipulated", "[db][cache][sm][ulhs_table]" )
 
             THEN( "erase delta" )
             {
-                REQUIRE( decider->is( bsm::state< state::EraseDelta > ) );
+                REQUIRE( decider->is( bsm::state< state::ClearDelta > ) );
             }
         }
     }

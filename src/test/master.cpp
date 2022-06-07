@@ -31,7 +31,7 @@ namespace kmap::test {
 
 ResetInstanceFixture::ResetInstanceFixture()
 {
-    if( auto const res = Singleton::instance().reset()
+    if( auto const res = Singleton::instance().initialize()
       ; !res )
     {
         KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) );

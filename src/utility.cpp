@@ -11,6 +11,7 @@
 #include "error/node_manip.hpp"
 #include "io.hpp"
 #include "kmap.hpp"
+#include "path/act/value_or.hpp"
 
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/filesystem.hpp>
@@ -49,6 +50,7 @@
 #include <string>
 #include <vector>
 
+using namespace kmap::error;
 using namespace ranges;
 namespace fs = boost::filesystem;
 
@@ -524,8 +526,7 @@ auto is_valid_heading_path( std::string const& path )
             || c == '/'; // root
     };
 
-    return end( path ) == find_if_not( path
-                                     , is_valid );
+    return end( path ) == find_if_not( path, is_valid );
 }
 
 auto format_title( Heading const& heading )
@@ -624,6 +625,27 @@ auto to_string( bool const b )
     {
         return "true";
     }
+}
+
+auto to_string_elaborated( Kmap const& kmap
+                         , Uuid const node )
+    -> std::string
+{
+    auto const sid = to_string( node );
+    auto const heading = kmap.fetch_heading( node ) | act::value_or( std::string{ "n/a" } );
+    auto const path = [ & ] -> std::string
+    { 
+        if( kmap.exists( node ) )
+        {
+            return kmap.absolute_path_flat( node );
+        }
+        else
+        {
+            return "n/a";
+        }
+    }();
+
+    return fmt::format( "[ id: '{}', h: '{}', p: '{}' ]", sid, heading, path );
 }
 
 auto to_uint64( std::string const& s

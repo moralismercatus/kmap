@@ -8,7 +8,6 @@
 #define KMAP_EVENT_EVENT_HPP
 
 #include "common.hpp"
-#include "kmap.hpp"
 
 #include <memory>
 #include <set>
@@ -16,7 +15,8 @@
 
 namespace kmap { // TODO: kmap::event?
 
-// TODO: Leaf::heading, but Branch::
+class Kmap;
+
 struct Leaf;
 struct Branch;
 using Transition = std::variant< Leaf, Branch >;
@@ -58,6 +58,8 @@ public:
     auto fetch_outlet_base( Uuid const& node )
         -> Result< Uuid >;
     auto fetch_outlet_tree( Uuid const& outlet )
+        -> Result< UuidSet >;
+    auto fetch_matching_outlets( std::set< std::string > const& requisites )
         -> Result< UuidSet >;
 
     auto install_defaults()
@@ -113,6 +115,8 @@ public:
     auto fire_event( std::set< std::string > const& requisites )
         -> Result< void >;
 
+    auto reset_transitions( Uuid const& outlet )
+        -> Result< void >;
     auto reset_transitions( std::set< std::string > const& requisites )
         -> Result< void >;
 
@@ -124,8 +128,6 @@ protected:
         -> Result< void >;
     auto install_outlet_internal( Uuid const& root 
                                 , Branch const& leaf )
-        -> Result< void >;
-    auto reset_transition_states( Uuid const& outlet )
         -> Result< void >;
 };
 

@@ -26,7 +26,7 @@ enum class network
 ,   invalid_node 
 ,   invalid_ordering
 ,   invalid_parent
-,   invalid_path
+,   invalid_path // Ambiguity between this and invalid_node. Yes, a node that isn't found at syntactically valid path X is "invalid", but the path is still a "valid" path.
 ,   invalid_root
 ,   no_prev_selection
 };
@@ -70,7 +70,7 @@ public:
         case network::invalid_node: return "invalid node";
         case network::invalid_ordering: return "invalid ordering";
         case network::invalid_parent: return "invalid parent";
-        case network::invalid_path: return "invalid path";
+        case network::invalid_path: return "invalid path; path syntax not valid";
         case network::invalid_root: return "invalid root";
         case network::no_prev_selection: return "no previous node selected";
         }

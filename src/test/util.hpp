@@ -53,6 +53,36 @@ struct BlankStateFixture
 	~BlankStateFixture();
 };
 
+struct CommandFixture
+{
+	std::string file;
+	uint32_t line;
+
+	CommandFixture( std::string const& curr_file 
+	              , uint32_t const curr_line );
+    ~CommandFixture();
+};
+
+struct DatabaseRootFixture
+{
+	std::string file;
+	uint32_t line;
+
+	DatabaseRootFixture( std::string const &curr_file
+	                   , uint32_t const curr_line );
+	~DatabaseRootFixture();
+};
+
+struct EventFixture
+{
+	std::string file;
+	uint32_t line;
+
+	EventFixture( std::string const& curr_file 
+	            , uint32_t const curr_line );
+	~EventFixture();
+};
+
 struct SaveToDiskFixture
 {
     boost::filesystem::path file_path;
@@ -68,7 +98,10 @@ struct SaveToDiskFixture
 
 } // namespace kmap::test
 
-#define KMAP_BLANK_STATE_FIXTURE_SCOPED() kmap::test::BlankStateFixture blank_state_fixture{ __FILE__, __LINE__}
+#define KMAP_BLANK_STATE_FIXTURE_SCOPED() kmap::test::BlankStateFixture blank_state_fixture{ __FILE__, __LINE__ }
+#define KMAP_DATABASE_ROOT_FIXTURE_SCOPED() kmap::test::DatabaseRootFixture database_root_fixture{ __FILE__, __LINE__ }
+#define KMAP_COMMAND_FIXTURE_SCOPED() kmap::test::CommandFixture command_fixture{ __FILE__, __LINE__ }
+#define KMAP_EVENT_FIXTURE_SCOPED() kmap::test::EventFixture event_fixture{ __FILE__, __LINE__ }
 #define KMAP_INIT_DISK_DB_FIXTURE_SCOPED( db ) kmap::test::SaveToDiskFixture save_to_disk_fixture{ ( db ), __FILE__, __LINE__ }
 
 #endif // KMAP_TEST_UTIL_HPP

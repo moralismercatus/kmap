@@ -6,6 +6,7 @@
 #include "text_area.hpp"
 
 #include "canvas.hpp"
+#include "error/result.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
@@ -73,15 +74,27 @@ auto TextArea::editor_contents()
 }
 
 auto TextArea::hide_editor()
-    -> void
+    -> Result< void >
 {
-    kmap_.canvas().hide( kmap_.canvas().editor_pane() ).value();
+    auto rv = error::make_result< void >();
+
+    KTRY( kmap_.canvas().hide( kmap_.canvas().editor_pane() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto TextArea::show_editor()
-    -> void
+    -> Result< void >
 {
-    kmap_.canvas().reveal( kmap_.canvas().editor_pane() ).value();
+    auto rv = error::make_result< void >();
+
+    KTRY( kmap_.canvas().reveal( kmap_.canvas().editor_pane() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto TextArea::rebase_pane( float const base )
@@ -111,10 +124,11 @@ auto TextArea::rebase_preview_pane( float const base )
 }
 
 auto TextArea::show_preview( std::string const& text )
-    -> void
+    -> Result< void >
 {
     using emscripten::val;
 
+    auto rv = error::make_result< void >();
     auto& canvas = kmap_.canvas();
 
     val::global().call< val >( "write_preview", text );
@@ -122,13 +136,23 @@ auto TextArea::show_preview( std::string const& text )
     //                          , to_string( canvas.preview_pane() )
     //                          , text ) );
 
-    canvas.reveal( canvas.preview_pane() ).value();
+    KTRY( canvas.reveal( canvas.preview_pane() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto TextArea::hide_preview()
-    -> void
+    -> Result< void >
 {
-    kmap_.canvas().hide( kmap_.canvas().preview_pane() ).value();
+    auto rv = error::make_result< void >();
+
+    KTRY( kmap_.canvas().hide( kmap_.canvas().preview_pane() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto TextArea::resize_preview( std::string const& attr )

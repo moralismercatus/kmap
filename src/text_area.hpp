@@ -31,9 +31,9 @@ public:
     auto editor_contents()
         -> std::string;
     auto hide_editor()
-        -> void;
+        -> Result< void >;
     auto show_editor()
-        -> void;
+        -> Result< void >;
     auto rebase_pane( float const base )
         -> void;
     auto rebase_preview_pane( float const base )
@@ -41,9 +41,9 @@ public:
     auto rebase_editor_pane( float const base )
         -> void;
     auto show_preview( std::string const& text )
-        -> void;
+        -> Result< void >;
     auto hide_preview()
-        -> void;
+        -> Result< void >;
     auto resize_preview( std::string const& attr )
         -> void;
     auto update_pane()

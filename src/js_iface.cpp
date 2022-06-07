@@ -27,7 +27,7 @@ auto create_html_canvas( std::string const& id )
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_ENSURE( !element_exists( id ), error_code::js::invalid_element );
+    KMAP_ENSURE( !element_exists( id ), error_code::js::element_already_exists );
 
     KMAP_TRY( js::eval_void( io::format( "let canvas = document.createElement( 'canvas' );"
                                          "canvas.id = '{}';"

@@ -77,69 +77,19 @@ auto init_js_syntax_error_handler()
 // #endif // NODERAWFS
 // }
 
-auto init_kmap()
+auto init_kmap( Kmap& kmap )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
-    auto& kmap = Singleton::instance();
 
     // TODO: Why isn't this working?
     // KMAP_ENSURE_MSG( !js::is_global_kmap_null(), error_code::network::invalid_instance, "expected JS kmap to be non-null" );
 
-    KMAP_TRY( kmap.reset() );
+    KMAP_TRY( kmap.initialize() );
 
     rv = outcome::success();
 
     return rv;
-}
-
-auto register_arguments()
-    -> void
-{
-    for( auto const& arg : vecFromJSArray< std::string >( val::global( "registration_arguments" ) ) )
-    {
-        if( auto const& succ = js::eval_void( fmt::format( "Module.register_arg_{}();", arg ) )
-          ; !succ )
-        {
-            fmt::print( stderr
-                      , "failed to register {}\n"
-                      , arg );
-        }
-    }
-}
-
-// TODO: Prereq: kmap is initialized.
-auto register_commands()
-    -> void
-{
-    for( auto const& cmd : vecFromJSArray< std::string >( val::global( "registration_commands" ) ) )
-    {
-        if( auto const& succ = js::eval_void( fmt::format( "Module.register_cmd_{}();", cmd ) )
-          ; !succ )
-        {
-            fmt::print( stderr
-                      , "failed to register {}\n"
-                      , cmd );
-        }
-    }
-}
-
-auto reset_registrations()
-    -> void
-{
-    auto& kmap = Singleton::instance();
-    auto& cli = kmap.cli();
-
-    if( auto const r = kmap.cli().reset_all_preregistered()
-      ; !r )
-    {
-        KMAP_THROW_EXCEPTION_MSG( to_string( r.error() ) );
-    }
-    // Legacy commands... TODO: Remove all when legacy are transitioned to new method.
-    for( auto const& c : cmd::make_core_commands( kmap ) )
-    {
-        cli.register_command( c );
-    }
 }
 
 auto focus_network()
@@ -159,9 +109,9 @@ auto set_window_title() // TODO: Move definition to canvas? Basically, elsewhere
     -> Result< void >
 {
 #if KMAP_DEBUG
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.1", "Debug" ) );
+    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "Debug" ) );
 #else
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.1", "Release" ) );
+    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "Release" ) );
 #endif // KMAP_DEBUG
 }
 
@@ -169,14 +119,15 @@ auto initialize()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+    auto& kmap = Singleton::instance();
 
     KMAP_TRY( init_js_syntax_error_handler() );
     configure_terminate();
     configure_contract_failure_handlers();
-    KMAP_TRY( init_kmap() );
+    KMAP_TRY( init_kmap( kmap ) );
     register_arguments();
     register_commands();
-    reset_registrations();
+    reset_registrations( kmap );
     KMAP_TRY( focus_network() );
 
     {

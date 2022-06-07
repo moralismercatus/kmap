@@ -16,6 +16,7 @@ enum class js
 {
     success = 0
 ,   eval_failed
+,   element_already_exists 
 ,   invalid_element
 ,   js_exception
 ,   lint_failed
@@ -50,8 +51,9 @@ public:
         {
         case js::success: return "success";
         case js::eval_failed: return "eval failed";
-        case js::invalid_element: return "invalid_element";
-        case js::js_exception: return "js_exception";
+        case js::element_already_exists: return "element already exists";
+        case js::invalid_element: return "invalid element";
+        case js::js_exception: return "js exception";
         case js::lint_failed: return "linting failed";
         }
     }

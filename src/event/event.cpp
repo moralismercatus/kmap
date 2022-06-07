@@ -9,6 +9,7 @@
 #include "error/network.hpp"
 #include "error/parser.hpp"
 #include "js_iface.hpp"
+#include "kmap.hpp"
 #include "path/act/front.hpp"
 #include "path/act/order.hpp"
 #include "path/act/push.hpp"
@@ -16,6 +17,8 @@
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <range/v3/algorithm/all_of.hpp>
+#include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/join.hpp>
@@ -199,7 +202,7 @@ auto EventStore::install_outlet( Leaf const& leaf )
                                | view::to_single );
 
     KTRY( install_outlet_internal( oroot, leaf ) );
-    KTRY( reset_transition_states( oroot ) );
+    KTRY( reset_transitions( oroot ) );
 
     rv = oroot;
 
@@ -208,7 +211,7 @@ auto EventStore::install_outlet( Leaf const& leaf )
 
 SCENARIO( "install_outlet", "[event]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_EVENT_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
 
@@ -250,7 +253,7 @@ auto EventStore::install_outlet( Branch const& branch )
                                | view::to_single );
 
     KTRY( install_outlet_internal( oroot, branch ) );
-    KTRY( reset_transition_states( oroot ) );
+    KTRY( reset_transitions( oroot ) );
 
     rv = oroot;
 
@@ -631,7 +634,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
         // Ensure all found outlets have corresponding transition states.
         if( !transition_states_.contains( outlet ) )
         {
-            KTRY( reset_transition_states( outlet ) );
+            KTRY( reset_transitions( outlet ) );
         }
         if( is_active_outlet( outlet ) )
         {
@@ -641,7 +644,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
               ; actionn )
             {
                 KTRY( execute_body( actionn.value() ) );
-                KTRY( reset_transition_states( outlet ) ); // Controversial. Not sure if I want the design to reset after executing an action, but permissible for now.
+                KTRY( reset_transitions( outlet ) ); // Controversial. Not sure if I want the design to reset after executing an action, but permissible for now.
 
                 executed = KTRY( fetch_outlet_tree( outlet ) );
             }
@@ -674,7 +677,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
 
 SCENARIO( "EventStore::fire_event", "[event]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_EVENT_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
     auto& estore = kmap.event_store();
@@ -698,7 +701,7 @@ SCENARIO( "EventStore::fire_event", "[event]" )
             REQUIRE(( view::make( kmap.root_node_id() ) | view::child( "1_victor" ) | view::exists( kmap ) ));
         }
     }
-    GIVEN( "two level outlet identical requisites" )
+    GIVEN( "two level outlet with identical requisites" )
     {
         REQUIRE_RES( estore.install_subject( "victor" ) );
         REQUIRE_RES( estore.install_verb( "charlie" ) );
@@ -764,7 +767,7 @@ SCENARIO( "EventStore::fire_event", "[event]" )
             }
         }
     }
-    GIVEN( "two level outlet different requisites" )
+    GIVEN( "two level outlet with different requisites" )
     {
         REQUIRE_RES( estore.install_subject( "victor" ) );
         REQUIRE_RES( estore.install_verb( "charlie" ) );
@@ -854,7 +857,7 @@ auto EventStore::is_outlet( Uuid const& node )
          | view::exists( kmap_ );
 }
 
-auto EventStore::reset_transition_states( Uuid const& outlet )
+auto EventStore::reset_transitions( Uuid const& outlet )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
@@ -869,7 +872,6 @@ auto EventStore::reset_transition_states( Uuid const& outlet )
         })
     ;
 
-    // print_tree( kmap_, outlet );
     KMAP_ENSURE( is_outlet( outlet ), error_code::network::invalid_node );
 
     auto const ofront = KTRY( fetch_outlet_base( outlet ) );
@@ -887,6 +889,215 @@ auto EventStore::reset_transition_states( Uuid const& outlet )
     rv = outcome::success();
     
     return rv;
+}
+
+SCENARIO( "EventStore::reset_transitions( Uuid )", "[event]" )
+{
+    KMAP_EVENT_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto& estore = kmap.event_store();
+
+    GIVEN( "one (very) depressed key" )
+    {
+        REQUIRE_RES( estore.install_subject( "network" ) );
+        REQUIRE_RES( estore.install_verb( "depressed" ) );
+        REQUIRE_RES( estore.install_object( "keyboard.key.g" ) );
+        REQUIRE_RES( estore.install_outlet( Branch{ .heading = "network.g"
+                                                  , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                                  , .transitions = { Leaf{ .heading = "g"
+                                                                         , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                                                         , .description = "travel to top sibling."
+                                                                         , .action = R"%%%(/*do nothing*/)%%%" } } } ) );
+
+        auto const branchn = REQUIRE_TRY( view::make( estore.event_root() )
+                                        | view::direct_desc( "outlet.network.g" )
+                                        | view::fetch_node( kmap ) );
+        auto const leafn = REQUIRE_TRY( view::make( estore.event_root() )
+                                      | view::direct_desc( "outlet.network.g.g" )
+                                      | view::fetch_node( kmap ) );
+
+        REQUIRE( estore.is_active_outlet( branchn ) );
+        REQUIRE( !estore.is_active_outlet( leafn ) );
+
+        WHEN( "reset branch node transitions" )
+        {
+            REQUIRE_RES( estore.reset_transitions( branchn ) );
+
+            THEN( "transitions unchanged" )
+            {
+                REQUIRE( estore.is_active_outlet( branchn ) );
+                REQUIRE( !estore.is_active_outlet( leafn ) );
+            }
+        }
+        WHEN( "reset leaf node transitions" )
+        {
+            REQUIRE_RES( estore.reset_transitions( leafn ) );
+
+            THEN( "transitions unchanged" )
+            {
+                REQUIRE( estore.is_active_outlet( branchn ) );
+                REQUIRE( !estore.is_active_outlet( leafn ) );
+            }
+        }
+        WHEN( "transition occurs" )
+        {
+            REQUIRE_RES( estore.fire_event( { "subject.network", "verb.depressed", "object.keyboard.key.g" } ) );
+
+            THEN( "transitioned from branch to leaf" )
+            {
+                REQUIRE( !estore.is_active_outlet( branchn ) );
+                REQUIRE( estore.is_active_outlet( leafn ) );
+            }
+
+            WHEN( "reset branch node transitions" )
+            {
+                REQUIRE_RES( estore.reset_transitions( branchn ) );
+
+                THEN( "transitions reset" )
+                {
+                    REQUIRE( estore.is_active_outlet( branchn ) );
+                    REQUIRE( !estore.is_active_outlet( leafn ) );
+                }
+            }
+            WHEN( "reset leaf node transitions" )
+            {
+                REQUIRE_RES( estore.reset_transitions( leafn ) );
+
+                THEN( "transitions reset" )
+                {
+                    REQUIRE( estore.is_active_outlet( branchn ) );
+                    REQUIRE( !estore.is_active_outlet( leafn ) );
+                }
+            }
+        }
+    }
+}
+
+auto EventStore::reset_transitions( std::set< std::string > const& requisites )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                // TODO: outlet tree all points to same transition state.
+            }
+        })
+    ;
+
+    auto matches = UuidSet{};
+    auto const req_ns = view::make( event_root() )
+                      | view::direct_desc( view::all_of( requisites ) )
+                      | view::to_node_set( kmap_ );
+    auto const outlet_ns = view::make( event_root() )
+                         | view::desc
+                         | view::child( "requisite" )
+                         | view::parent
+                         | view::to_node_set( kmap_ );
+
+    for( auto const& outlet : outlet_ns )
+    {
+        auto const oreqs = view::make( outlet )
+                         | view::child( "requisite" )
+                         | view::child
+                         | view::resolve
+                         | view::to_node_set( kmap_);
+        auto const pred = [ & ]( auto const& oreq )
+        {
+            // TODO: Unit test, of course, but also, I think we can do the same for fire_event, but in the other direction:
+            //       is_lineal( oreq, tret );
+            // Matches descendants as well e.g.:
+            //     reset_transitions( { "subject.keyboard.key" } )
+            //     matches:
+            //         outlet.<T>.requisite.key[subject.keyboard.key]
+            //         outlet.<T>.requisite.key[subject.keyboard.key.g]
+            //     but not:
+            //         outlet.<T>.requisite.key[subject.keyboard]
+            return ranges::any_of( req_ns, [ & ]( auto const& treq ){ return kmap_.is_lineal( treq, oreq ); } );
+        };
+
+        // Match all `outlet.requisite`s to provided requisites.
+        if( ranges::all_of( oreqs, pred ) )
+        {
+            matches.emplace( outlet );
+        }
+    }
+
+    for( auto const& match : matches )
+    {
+        KTRY( reset_transitions( match ) );
+    }
+
+    rv = outcome::success();
+    
+    return rv;
+}
+
+SCENARIO( "EventStore::reset_transitions( requisites )", "[event]" )
+{
+    KMAP_EVENT_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto& estore = kmap.event_store();
+
+    GIVEN( "one (very) depressed key" )
+    {
+        REQUIRE_RES( estore.install_subject( "network" ) );
+        REQUIRE_RES( estore.install_verb( "depressed" ) );
+        REQUIRE_RES( estore.install_object( "keyboard.key.g" ) );
+        REQUIRE_RES( estore.install_outlet( Branch{ .heading = "network.g"
+                                                  , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                                  , .transitions = { Leaf{ .heading = "g"
+                                                                         , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
+                                                                         , .description = "travel to top sibling."
+                                                                         , .action = R"%%%(/*do nothing*/)%%%" } } } ) );
+
+        auto const branchn = REQUIRE_TRY( view::make( estore.event_root() )
+                                        | view::direct_desc( "outlet.network.g" )
+                                        | view::fetch_node( kmap ) );
+        auto const leafn = REQUIRE_TRY( view::make( estore.event_root() )
+                                      | view::direct_desc( "outlet.network.g.g" )
+                                      | view::fetch_node( kmap ) );
+
+        REQUIRE( estore.is_active_outlet( branchn ) );
+        REQUIRE( !estore.is_active_outlet( leafn ) );
+
+        WHEN( "reset transitions" )
+        {
+            REQUIRE_RES( estore.reset_transitions( { "subject.network", "verb.depressed", "object.keyboard.key" } ) );
+
+            THEN( "active state remains unchanged" )
+            {
+                REQUIRE( estore.is_active_outlet( branchn ) );
+                REQUIRE( !estore.is_active_outlet( leafn ) );
+            }
+        }
+        WHEN( "transition occurs" )
+        {
+            REQUIRE_RES( estore.fire_event( { "subject.network", "verb.depressed", "object.keyboard.key.g" } ) );
+
+            THEN( "transitioned from branch to leaf" )
+            {
+                REQUIRE( !estore.is_active_outlet( branchn ) );
+                REQUIRE( estore.is_active_outlet( leafn ) );
+            }
+
+            WHEN( "reset transitions" )
+            {
+                REQUIRE_RES( estore.reset_transitions( { "subject.network", "verb.depressed", "object.keyboard.key" } ) );
+
+                THEN( "transitons reset" )
+                {
+                    REQUIRE( estore.is_active_outlet( branchn ) );
+                    REQUIRE( !estore.is_active_outlet( leafn ) );
+                }
+            }
+        }
+    }
 }
 
 } // namespace kmap

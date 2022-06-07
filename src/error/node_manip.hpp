@@ -54,7 +54,7 @@ enum class create_node
 ,   duplicate_child_heading
 };
 
-enum class node // TODO: In process of wrapping my head around Boost.Outcome. It seems there's overlap between "node" and "ceate_node". Look into this.
+enum class node // TODO: It seems there's overlap (redundancy) between "node", "create_node", and "network". Look into this.
 {
     success = 0
 ,   not_found

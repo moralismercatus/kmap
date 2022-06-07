@@ -43,6 +43,22 @@ namespace db
 
 class Kmap
 {
+    std::unique_ptr< Environment > env_; // pimpl.
+    std::unique_ptr< Database > database_; // pimpl.
+    std::unique_ptr< Canvas > canvas_; // pimpl.
+    std::unique_ptr< Network > network_; // pimpl.
+    std::unique_ptr< Cli > cli_; // pimpl.
+    std::unique_ptr< TextArea > text_area_ = {}; // pimpl.
+    std::unique_ptr< EventStore > event_store_ = {}; // pimpl.
+    std::unique_ptr< OptionStore > option_store_ = {}; // pimpl.
+    std::unique_ptr< chrono::Timer > timer_ = {}; // pimpl.
+    std::unique_ptr< db::Autosave > autosave_ = {}; // pimpl.
+    Uuid selected_node_ = Uuid{ 0 };
+    JumpStack jump_stack_ = {}; // TODO: Rather belongs in Environment, as it's tied to the kmap instance.
+    // TODO: Refactor alias functionality into e.g., AliasStore.
+    AliasSet alias_set_ = {};
+    AliasChildSet alias_child_set_ = {};
+
 public:
     Kmap();
     Kmap( Kmap const& ) = delete;
@@ -266,12 +282,36 @@ public:
         -> Uuid;
     auto travel_up()
         -> Result< Uuid >;
-    auto reset()
+    auto initialize()
         -> Result< void >;
-    auto reset_database()
-        -> Result< void >;
-    auto reset_network()
-        -> Result< void >;
+    auto init_canvas()
+        -> void;
+    auto init_database()
+        -> void;
+    auto init_event_store()
+        -> void;
+    auto init_option_store()
+        -> void;
+    auto init_network()
+        -> void;
+    auto init_root_node()
+        -> void;
+    auto clear()
+        -> void;
+    auto clear_autosave()
+        -> void;
+    auto clear_canvas()
+        -> void;
+    auto clear_database()
+        -> void;
+    auto clear_event_store()
+        -> void;
+    auto clear_network()
+        -> void;
+    auto clear_option_store()
+        -> void;
+    auto clear_timer()
+        -> void;
     auto rename( Uuid const& id
                , Heading const& heading )
         -> void;
@@ -301,7 +341,7 @@ public:
     auto selected_node() const
         -> Uuid;
     auto load_preview( Uuid const& id )
-        -> void;
+        -> Result< void >;
     auto on_leaving_editor()
         -> Result< void >;
     auto focus_network()
@@ -317,14 +357,6 @@ public:
         -> Result< Uuid >;
     auto update_aliases( Uuid const& descendant )
         -> Result< void >;
-    // TODO: Belongs in Network, instead?
-    auto color_node( Uuid const& id
-                   , Color const& color )
-        -> void;
-    auto color_node( Uuid const& id )
-        -> void;
-    auto color_all_visible_nodes()
-        -> void;
     [[ nodiscard ]]
     auto fetch_ancestor( Uuid const& descendant
                        , InvertedHeading const& heading ) const
@@ -581,9 +613,6 @@ public:
     auto fetch_genesis_time( Uuid const& id ) const
         -> Optional< uint64_t >; // TODO: Result< uint64_t >
     [[ nodiscard ]]
-    auto get_appropriate_node_font_face( Uuid const& id ) const
-        -> std::string;
-    [[ nodiscard ]]
     auto timer()
         -> chrono::Timer&;
     [[ nodiscard ]]
@@ -611,22 +640,6 @@ protected:
     auto is_child_internal( Uuid const& parent
                           , Heading const& id ) const
         -> bool;
-
-private:
-    std::unique_ptr< Environment > env_; // pimpl.
-    std::unique_ptr< Database > database_; // pimpl.
-    std::unique_ptr< Canvas > canvas_; // pimpl.
-    std::unique_ptr< Network > network_; // pimpl.
-    std::unique_ptr< Cli > cli_; // pimpl.
-    std::unique_ptr< TextArea > text_area_ = {}; // pimpl.
-    std::unique_ptr< EventStore > event_store_ = {}; // pimpl.
-    std::unique_ptr< OptionStore > option_store_ = {}; // pimpl.
-    std::unique_ptr< chrono::Timer > timer_ = {}; // pimpl.
-    std::unique_ptr< db::Autosave > autosave_ = {}; // pimpl.
-    JumpStack jump_stack_ = {}; // TODO: Rather belongs in Environment, as it's tied to the kmap instance.
-    // TODO: Refactor alias functionality into e.g., AliasStore.
-    AliasSet alias_set_ = {};
-    AliasChildSet alias_child_set_ = {};
 };
 
 class Singleton

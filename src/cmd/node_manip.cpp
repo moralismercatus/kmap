@@ -12,7 +12,9 @@
 #include "../kmap.hpp"
 #include "../utility.hpp"
 #include "command.hpp"
+#include "test/util.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/find.hpp>
 #include <range/v3/view/transform.hpp>
@@ -295,6 +297,56 @@ REGISTER_COMMAND
 ,   guard
 ,   action
 );
+
+SCENARIO( "create.alias", "[cmd][create.alias]" )
+{
+    GIVEN( "commands initialized" )
+    {
+        KMAP_COMMAND_FIXTURE_SCOPED();
+
+        auto& kmap = Singleton::instance();
+        auto const root = kmap.root_node_id();
+
+        REQUIRE( kmap.exists( "/meta.setting.command.create.alias" ) );
+
+        GIVEN( "nodes: /1.2, /2.1.2" )
+        {
+            REQUIRE_RES( view::make( root ) 
+                       | view::direct_desc( "1.2" )
+                       | view::create_node( kmap ) );
+            REQUIRE_RES( view::make( root ) 
+                       | view::direct_desc( "2.1.2" )
+                       | view::create_node( kmap ) );
+
+            GIVEN( "select_node( '/1.2' )" )
+            {
+                // TODO: Can I figure out a way to attach "rv" to "ensure", KTRY? Such that meta-info could be transmitted along with return.
+                //       It's desirable, but tough. Without manually attaching "rv" to each call, and having a separate macro.
+                //       I could do something round about and have rv push to a global, thread-safe, singleton, it's meta info, that ensure/try pulls in...
+                //       But maybe going through the effort to import rv meta info isn't the right way anyway... which would mean placing meta info in rv in the first place
+                //       would only make sense in the limited circumstances where rv is returned without assignment.
+                REQUIRE_RES( kmap.select_node( "/1.2" ) );
+
+                WHEN( "create.alias /2.1.2" )
+                {
+                    REQUIRE_RES( kmap.cli().parse_raw( ":create.alias /2.1.2" ) );
+
+                    THEN( "alias /1.2.2[/2.1.2] exists" )
+                    {
+                        auto const dst = REQUIRE_TRY( kmap.fetch_descendant( "/1.2.2" ) );
+                        auto const src = REQUIRE_TRY( kmap.fetch_descendant( "/2.1.2" ) );
+
+                        REQUIRE( kmap.resolve( dst ) == src );
+                    }
+                }
+                WHEN( "create.alias 2'1'2" )
+                {
+                    REQUIRE_RES( kmap.cli().parse_raw( ":create.alias 2'1'2" ) );
+                }
+            }
+        }
+    }
+}
 
 } // namespace create_alias_def
 

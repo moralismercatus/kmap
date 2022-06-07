@@ -64,9 +64,6 @@ auto operator<<( std::ostream& lhs
     -> std::ostream&;
 
 [[ nodiscard ]]
-auto fetch_canvas_root( Kmap& kmap )
-    -> Result< Uuid >;
-[[ nodiscard ]]
 auto fetch_overlay_root( Kmap& kmap )
     -> Result< Uuid >;
 [[ nodiscard ]]
@@ -80,12 +77,24 @@ auto fetch_subdiv_root( Kmap& kmap )
  */
 class Canvas
 {
+    Kmap& kmap_;
+    uint32_t next_tabindex_ = 0; // tabIndex enables divs to be focus-able, so give each an increment.
+    std::vector< Uuid > canvas_element_stack_ = {};
+    std::optional< Uuid > canvas_root_ = {};
+
 public:
     Canvas( Kmap& kmap );
+    ~Canvas();
 
     [[ nodiscard ]]
     auto complete_path( std::string const& path )
         -> StringVec;
+    auto create_html_canvas( Uuid const& id )
+        -> Result< void >;
+    auto create_html_child_element( std::string const& elem_type
+                                  , Uuid const& parent_id
+                                  , Uuid const& child_id )
+        -> Result< void >;
     auto create_overlay( Uuid const& id
                        , std::string const& heading
                        , std::string const& elem_type )
@@ -111,6 +120,8 @@ public:
     [[ nodiscard ]]
     auto expand_path( std::string const& path )
         -> std::string;
+    auto fetch_canvas_root()
+        -> Result< Uuid >;
     [[ nodiscard ]]
     auto fetch_pane( std::string const& path )
         -> Result< Uuid >;
@@ -241,10 +252,6 @@ protected:
     auto reorient_internal( Uuid const& pane
                  , Orientation const& orientation )
         -> Result< void >;
-
-private:
-    Kmap& kmap_;
-    uint32_t next_tabindex_ = 0; // tabIndex enables divs to be focus-able, so give each an increment.
 };
 
 // exists( std::string_view const div ) 

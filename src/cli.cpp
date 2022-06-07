@@ -7,6 +7,7 @@
 
 #include "canvas.hpp"
 #include "cli/parser.hpp"
+#include "cmd.hpp"
 #include "cmd/command.hpp"
 #include "cmd/parser.hpp"
 #include "cmd/select_node.hpp"
@@ -43,8 +44,63 @@
 using namespace ranges;
 using namespace std::string_literals;
 
-namespace kmap
+namespace kmap {
+
+auto reset_registrations( Kmap& kmap )
+    -> void
 {
+    using emscripten::val;
+
+    auto& cli = kmap.cli();
+
+    if( auto const r = kmap.cli().reset_all_preregistered()
+      ; !r )
+    {
+        KMAP_THROW_EXCEPTION_MSG( to_string( r.error() ) );
+    }
+    // Legacy commands... TODO: Remove all when legacy are transitioned to new method.
+    for( auto const& c : cmd::make_core_commands( kmap ) )
+    {
+        cli.register_command( c );
+    }
+}
+
+// TODO: Prereq: kmap is initialized.
+auto register_commands()
+    -> void
+{
+    using emscripten::val;
+    using emscripten::vecFromJSArray;
+
+    for( auto const& cmd : vecFromJSArray< std::string >( val::global( "registration_commands" ) ) )
+    {
+        if( auto const& succ = js::eval_void( fmt::format( "Module.register_cmd_{}();", cmd ) )
+          ; !succ )
+        {
+            fmt::print( stderr
+                      , "failed to register {}\n"
+                      , cmd );
+        }
+    }
+}
+
+auto register_arguments()
+    -> void
+{
+    using emscripten::val;
+    using emscripten::vecFromJSArray;
+
+    for( auto const& arg : vecFromJSArray< std::string >( val::global( "registration_arguments" ) ) )
+    {
+        if( auto const& succ = js::eval_void( fmt::format( "Module.register_arg_{}();", arg ) )
+          ; !succ )
+        {
+            fmt::print( stderr
+                      , "failed to register {}\n"
+                      , arg );
+        }
+    }
+}
 
 Cli::Cli( Kmap& kmap )
     : kmap_{ kmap }
@@ -610,7 +666,7 @@ auto Cli::clear_input()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( to_string( kmap_.canvas().cli_pane() ).c_str() ).isUndefined() );
+            BC_ASSERT( js::exists( kmap_.canvas().cli_pane() ) );
         })
     ;
 

@@ -14,6 +14,8 @@
 #include "test/master.hpp"
 #include "test/util.hpp"
 
+#include <boost/hana/ext/std/tuple.hpp>
+#include <boost/hana/for_each.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace kmap;
@@ -21,9 +23,10 @@ using namespace kmap::test;
 
 SCENARIO( "autosave" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMMAND_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
+
     auto& db = kmap.database();
     auto& estore = kmap.event_store();
     auto& ostore = kmap.option_store();
@@ -49,10 +52,28 @@ SCENARIO( "autosave" )
         REQUIRE( succ( ostore.apply_all() ) );
         REQUIRE( succ( estore.fire_event( { "subject.chrono.timer", "verb.intervaled", "object.chrono.minute" } ) ) );
 
+        WHEN( "nothing flushed to disk" )
+        {
+            THEN( "no erase deltas in database" )
+            {
+                auto const& cache = db.cache();
+                auto const proc_table = [ & ]( auto const& table )
+                {
+                    for( auto const& t_item : table )
+                    {
+                        REQUIRE( 0 == ranges::count_if( t_item.delta_items, []( auto const& e ){ return e.action == db::DeltaType::erased; } ) );
+                    }
+                };
+
+                boost::hana::for_each( cache.tables(), proc_table );
+            }
+        }
+
         WHEN( "save to disk" )
         {
             KMAP_INIT_DISK_DB_FIXTURE_SCOPED( db );
 
+    fmt::print( "desc_count: {}\n", view::make( kmap.root_node_id() ) | view::desc | view::count( kmap ) );
             REQUIRE( succ( db.flush_delta_to_disk() ) );
 
             THEN( "root title exists in disk db" )

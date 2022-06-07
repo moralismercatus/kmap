@@ -11,6 +11,7 @@
 #include "kmap.hpp"
 #include "lineage.hpp"
 #include "path.hpp"
+#include "path/act/to_string.hpp"
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -281,6 +282,51 @@ auto match( Kmap const& kmap
     return rv;
 }
 
+auto to_string( SelectionVariant const& sel )
+    -> std::string
+{
+    return std::visit( []( auto const& arg ) -> std::string
+                       {
+                           using T = std::decay_t< decltype( arg ) >;
+
+                           if constexpr( std::is_same_v< T, char const* >
+                                      || std::is_same_v< T, std::string > )
+                           {
+                               return fmt::format( "'{}'", arg );
+                           }
+                           else if constexpr( std::is_same_v< T, all_of > )
+                           {
+                               return "all_of( TODO )";
+                           }
+                           else if constexpr( std::is_same_v< T, any_of > )
+                           {
+                               return "any_of( TODO )";
+                           }
+                           else if constexpr( std::is_same_v< T, none_of > )
+                           {
+                               return "none_of( TODO )";
+                           }
+                           else if constexpr( std::is_same_v< T, exactly > )
+                           {
+                               return "exactly( TODO )";
+                           }
+                           else if constexpr( std::is_same_v< T, Intermediary > )
+                           {
+                               return arg | act::to_string;
+                           }
+                           else if constexpr( std::is_same_v< T, Uuid > )
+                           {
+                               return kmap::to_string( arg );
+                           }
+                           else
+                           {
+                               static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                           }
+                       }
+                     , sel );
+}
+
+
 // Select all leaves: make_view( kmap, option_node ) | desc | leaf
 // Select all Option type nodes: make_view( kmap, option_node ) | desc | child( all_of( "description", any_of( "action", "value" ) ) );
 // auto Intermediary::begin()
@@ -425,6 +471,19 @@ auto Alias::create( Kmap& kmap
     return rv;
 }
 
+auto Alias::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "alias( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "alias";
+    }
+}
+
 auto Ancestor::operator()( Kmap const& kmap
                          , Uuid const& node ) const
     -> UuidSet
@@ -458,6 +517,19 @@ auto Ancestor::operator()( Kmap const& kmap
     return rv;
 }
 
+auto Ancestor::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "ancestor( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "ancestor";
+    }
+}
+
 auto Attr::operator()( Kmap const& kmap
                      , Uuid const& node ) const
     -> UuidSet
@@ -482,6 +554,12 @@ auto Attr::create( Kmap& kmap
     rv = KMAP_TRY( kmap.create_attr_node( parent ) );
 
     return rv;
+}
+
+auto Attr::to_string() const
+    -> std::string
+{
+    return "attr";
 }
 
 auto Child::operator()( Kmap const& kmap
@@ -577,6 +655,19 @@ auto Child::create( Kmap& kmap
     }
 
     return rv;
+}
+
+auto Child::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "child( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "child";
+    }
 }
 
 auto Desc::operator()( Kmap const& kmap
@@ -764,6 +855,19 @@ auto Desc::create( Kmap& kmap
     }
 
     return rv;
+}
+
+auto Desc::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "desc( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "desc";
+    }
 }
 
 auto DirectDesc::operator()( Kmap const& kmap
@@ -959,6 +1063,19 @@ auto DirectDesc::create( Kmap& kmap
     return rv;
 }
 
+auto DirectDesc::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "direct_desc( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "direct_desc";
+    }
+}
+
 auto Leaf::operator()( Kmap const& kmap
                      , Uuid const& node ) const
     -> UuidSet
@@ -971,6 +1088,19 @@ auto Leaf::operator()( Kmap const& kmap
     }
 
     return rv;
+}
+
+auto Leaf::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "leaf( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "leaf";
+    }
 }
 
 auto RLineage::operator()( Kmap const& kmap
@@ -1000,7 +1130,7 @@ auto RLineage::operator()( Kmap const& kmap
 
 SCENARIO( "view::rlineage basics", "[node_view][lineage]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_DATABASE_ROOT_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
     auto const root = kmap.root_node_id();
@@ -1060,7 +1190,14 @@ SCENARIO( "view::rlineage basics", "[node_view][lineage]" )
     }
     GIVEN( "multibranch tree" )
     {
+        // TODO
     }
+}
+
+auto RLineage::to_string() const
+    -> std::string
+{
+    return fmt::format( "rlineage( {} )", kmap::to_string( leaf ) );
 }
 
 auto Parent::operator()( Kmap const& kmap
@@ -1078,11 +1215,30 @@ auto Parent::operator()( Kmap const& kmap
     return rv;
 }
 
+auto Parent::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "parent( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "parent";
+    }
+}
+
 auto Resolve::operator()( Kmap const& kmap
                         , Uuid const& node ) const
     -> UuidSet
 {
     return { kmap.resolve( node ) };
+}
+
+auto Resolve::to_string() const
+    -> std::string
+{
+    return "resolve";
 }
 
 // TODO: Can I actually define sibling directly in terms of existing operators? That is, without having to create the Struct Sibling?
@@ -1099,6 +1255,18 @@ auto Sibling::operator()( Kmap const& kmap
     //      | view::parent
     //      | view::child( view::none_of( node ) )
     //      | view::to_node_set( kmap );
+}
+
+auto Sibling::to_string() const
+    -> std::string
+{
+    return "sibling";
+}
+
+auto Single::to_string() const
+    -> std::string
+{
+    return "single";
 }
 
 auto operator|( Intermediary const& i
@@ -1325,11 +1493,11 @@ auto operator|( Intermediary const& i
     }
     else if( ns.size() > 1 )
     {
-        rv = KMAP_MAKE_ERROR( error_code::network::ambiguous_path );
+        rv = KMAP_MAKE_ERROR_MSG( error_code::network::ambiguous_path, i | act::to_string );
     }
     else // size == 0
     {
-        rv = KMAP_MAKE_ERROR( error_code::network::invalid_path );
+        rv = KMAP_MAKE_ERROR_MSG( error_code::network::invalid_node, i | act::to_string );
     }
 
     return rv;
@@ -1402,7 +1570,7 @@ auto operator|( Intermediary const& i
     }
     else // size == 0
     {
-        rv = KMAP_MAKE_ERROR( error_code::network::invalid_path );
+        rv = KMAP_MAKE_ERROR( error_code::network::invalid_node );
         // TODO: undo.... requires nested undo, no?
     }
 
@@ -1480,7 +1648,7 @@ auto operator|( Intermediary const& i
 
     if( ns.size() == 0 )
     {
-        rv = KMAP_MAKE_ERROR( error_code::network::invalid_path );
+        rv = KMAP_MAKE_ERROR( error_code::network::invalid_node );
         // TODO: undo.... requires nested undo, no?
     }
 
@@ -1650,7 +1818,7 @@ auto operator|( Intermediary const& i
     }
     else // size == 0
     {
-        rv = KMAP_MAKE_ERROR( error_code::network::invalid_path );
+        rv = KMAP_MAKE_ERROR( error_code::network::invalid_node );
         // TODO: undo.... requires nested undo, no?
     }
 

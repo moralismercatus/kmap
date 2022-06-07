@@ -15,16 +15,68 @@
 using namespace kmap;
 using namespace kmap::test;
 
+struct NetworkFixture
+{
+	std::string file;
+	uint32_t line;
+
+    NetworkFixture( std::string const& curr_file = __builtin_FILE()
+                  , uint32_t const curr_line = __builtin_LINE() )
+        : file{ curr_file }
+        , line{ curr_line }
+    {
+        try
+        {
+            auto& kmap = Singleton::instance();
+
+            kmap.init_root_node();
+            kmap.init_database();
+            KTRYE( kmap.set_up_db_root() );
+            kmap.init_option_store();
+            kmap.init_event_store();
+            kmap.init_canvas();
+            KTRYE( kmap.canvas().reset() );
+        }
+        catch( std::exception const& e )
+        {
+            fmt::print( stderr, "Fixture ctor failed: {}|{}\n", file, line );
+            std::cerr << e.what() << '\n';
+            throw;
+        }
+    }
+    ~NetworkFixture()
+    {
+        try
+        {
+            auto& kmap = Singleton::instance();
+
+            kmap.init_root_node();
+            kmap.clear_canvas();
+            kmap.clear_event_store();
+            kmap.clear_option_store();
+            kmap.clear_database();
+        }
+        catch( std::exception const& e )
+        {
+            fmt::print( stderr, "Fixture dtor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+            std::cerr << e.what() << '\n';
+            std::terminate();
+        }
+    }
+};
+
 SCENARIO( "network testing", "[network][env]" )
 {
     auto& kmap = Singleton::instance();
+    KMAP_LOG_LINE();
+    NetworkFixture network_fixture{};
+    KMAP_LOG_LINE();
+    auto nw = Network{ kmap, kmap.canvas().network_pane() };
+    KMAP_LOG_LINE();
 
     GIVEN( "blank network" )
     {
-        auto const nw_container_uuid = Uuid{};
-        REQUIRE( succ( js::create_html_canvas( to_string( nw_container_uuid ) ) ) ); 
-        auto nw = Network{ kmap, nw_container_uuid };
-        auto const root_id = gen_uuid();
+        auto const root_id = kmap.root_node_id();
         auto const root_title = "Root";
 
         WHEN( "create initial node" )
@@ -48,16 +100,13 @@ SCENARIO( "network testing", "[network][env]" )
             {
                 REQUIRE( fail( nw.fetch_parent( root_id ) ) );
             }
+
+            REQUIRE_RES( nw.erase_node( root_id ) );
         }
 
-        REQUIRE( succ( nw.remove( root_id ) ) );
-        REQUIRE( succ( js::erase_child_element( to_string( nw_container_uuid ) ) ) );
     }
     GIVEN( "root node" )
     {
-        auto const nw_container_uuid = Uuid{};
-        REQUIRE( succ( js::create_html_canvas( to_string( nw_container_uuid ) ) ) ); 
-        auto nw = Network{ kmap, nw_container_uuid };
         auto const root_id = gen_uuid();
         auto const root_title = "Root";
 
@@ -84,13 +133,12 @@ SCENARIO( "network testing", "[network][env]" )
             }
 
             REQUIRE( succ( nw.remove_edge( root_id, child_id ) ) );
-            REQUIRE( succ( nw.remove( child_id ) ) );
-            REQUIRE( succ( nw.remove( root_id ) ) );
+            REQUIRE( succ( nw.erase_node( child_id ) ) );
+            REQUIRE( succ( nw.erase_node( root_id ) ) );
         }
 
         REQUIRE( succ( nw.create_node( root_id, root_title ) ) );
-        REQUIRE( succ( nw.remove( root_id ) ) );
-        REQUIRE( succ( js::erase_child_element( to_string( nw_container_uuid ) ) ) );
+        REQUIRE( succ( nw.erase_node( root_id ) ) );
     }
 }
 

@@ -109,7 +109,7 @@ auto new_state( Kmap& kmap )
         ;
 
         // TODO: check for unsaved attributes... e.g., text buffers.
-        KMAP_TRY( kmap.reset() );
+        KMAP_TRY( kmap.initialize() );
 
         if( args.size() == 1 )
         {

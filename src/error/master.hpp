@@ -75,7 +75,7 @@
         else \
         { \
             res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
-            KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) ); \
+            KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) ); \
         } \
         BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
     })

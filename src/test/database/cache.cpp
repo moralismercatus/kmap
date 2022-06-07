@@ -55,8 +55,8 @@ SCENARIO( "cache is manipulated", "[cache]" )
 
             THEN( "table no longer contains entry" )
             {
-                REQUIRE( cache.contains< NodeTable >( n1 ) ); // Still contained with erase delta.
-                REQUIRE( cache.contains_delta< NodeTable >( n1 ) ); // Still contained with erase delta.
+                REQUIRE( !cache.contains< NodeTable >( n1 ) ); // No flush to disk, so clear from table.
+                REQUIRE( !cache.contains_delta< NodeTable >( n1 ) ); // No flush to disk, so clear from table.
                 REQUIRE( !cache.contains_cached< NodeTable >( n1 ) );
             }
         }
@@ -163,10 +163,10 @@ SCENARIO( "cache is manipulated", "[cache]" )
             {
                 REQUIRE( succ( cache.erase< AliasTable >( Src{ n2 }, Dst{ n1 } ) ) );
 
-                REQUIRE( cache.contains< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-                REQUIRE( cache.contains_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) ); // "Erased" delta is still a delta.
+                REQUIRE( !cache.contains< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+                REQUIRE( !cache.contains_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
                 REQUIRE( !cache.contains_cached< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-                REQUIRE( cache.contains_erased_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+                REQUIRE( !cache.contains_erased_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
             }
         }
     }

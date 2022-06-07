@@ -17,7 +17,7 @@ using namespace kmap::test;
 
 SCENARIO( "event manipulation", "[event]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_EVENT_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
     auto& estore = kmap.event_store();
@@ -69,7 +69,7 @@ SCENARIO( "event manipulation", "[event]" )
 
 SCENARIO( "objects fire in ascension", "[event]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_EVENT_FIXTURE_SCOPED();
 
     auto& kmap = Singleton::instance();
     auto& estore = kmap.event_store();

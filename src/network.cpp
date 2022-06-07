@@ -48,7 +48,8 @@ auto operator<<( std::ostream& os
 Network::Network( Kmap& kmap
                 , Uuid const& container )
    : kmap_{ kmap }
-   , eclerk_{ kmap.event_store() }
+   , oclerk_{ kmap }
+   , eclerk_{ kmap }
    , js_nw_{ std::make_shared< val >( val::global().call< val >( "new_network", container ) ) } // TODO: There's some way to invoke a ctor directly without a wrapper, but can't figure it out.
 {
     if( js_nw_->isNull() )
@@ -270,24 +271,87 @@ auto Network::select_node( Uuid const& id )
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( exists( id ) );
+            BC_ASSERT( kmap_.exists( id ) );
         })
         BC_POST([ & ]
         {
-            BC_ASSERT( id == selected_node() );
-            BC_ASSERT( !rv || exists( rv.value() ) );
+            if( rv )
+            {
+                BC_ASSERT( id == selected_node() );
+                BC_ASSERT( exists( rv.value() ) );
+            }
         })
     ;
 
-    if( auto const prev = js::call< val >( *js_nw_, "selected_node_id" )
-      ; prev )
+    auto prev_sel = js::call< val >( *js_nw_, "selected_node_id" );
+    auto const visible_nodes = kmap_.fetch_visible_nodes_from( id );
+    auto const visible_node_set = UuidSet{ visible_nodes.begin(), visible_nodes.end() };
+    auto create_edge = [ & ]( auto const& nid )
     {
-        auto const pid = prev.value().as< std::string >();
+        if( auto const pid = kmap_.fetch_parent( nid )
+          ; pid
+         && visible_node_set.count( pid.value() ) != 0
+         && !edge_exists( pid.value(), nid ) )
+        {
+            KTRYE( add_edge( pid.value(), nid ) );
+        }
+    };
+    auto const to_title = [ & ]( auto const& e )
+    {
+        auto const title = KTRYE( kmap_.fetch_title( e ) );
+        auto const child_count = kmap_.fetch_children( e ).size();
 
-        rv = uuid_from_string( pid ).value();
+        return fmt::format( "{} ({})"
+                          , title
+                          , child_count );
+    };
+
+    // This is an inefficient hack. It appears recent versions of visjs will render hierarchy based on node chronology
+    // So, to get around this, all nodes are deleted for each movement. Then, recreated, in order.
+    remove_nodes();
+
+    // Must be created in order, to work correctly with visjs's hierarchy mechanism.
+    for( auto const& cid : visible_nodes )
+    {
+        BC_ASSERT( kmap_.exists( cid ) );
+        KMAP_TRY( create_node( cid, to_title( cid ) ) );
+        create_edge( cid );
+    }
+
+    // TODO: Think this is only necessary when we're not clearing all nodes each selection.
+    // Revert previous selected node to unselected color.
+    // if( visible_node_set.contains( prev_selected ) )
+    // {
+    //     color_node_background( prev_selected, Color::white );
+    // }
+
+    for( auto const& e : visible_nodes )
+    {
+        color_node( e ); 
+
+        KMAP_TRY( change_node_font( e, get_appropriate_node_font_face( e ), Color::black ) );
     }
 
     KMAP_TRY( js::call< val >( *js_nw_, "select_node", to_string( id ) ) );
+
+    color_node_background( id, Color::black );
+    KTRY( change_node_font( id, get_appropriate_node_font_face( id ), Color::white ) );
+    center_viewport_node( id );
+
+    if( auto r = kmap_.option_store().apply( "network.viewport_scale" )
+      ; !r && r.error().ec != error_code::network::invalid_node ) // TODO: Bit of a hack: when select_node() called before option set up, or after it's destroyed.
+    {
+        KTRY( r );
+    }
+
+    focus();
+
+    if( prev_sel )
+    {
+        auto const pid = prev_sel.value().as< std::string >();
+
+        rv = uuid_from_string( pid );
+    }
 
     return rv;
 }
@@ -344,6 +408,22 @@ auto Network::children( Uuid const& parent ) const
     return tv
          | views::transform( []( auto const& e ){ return uuid_from_string( e ).value(); } )
          | to_vector;
+}
+
+auto Network::color_node( Uuid const& id
+                     , Color const& color )
+   -> void
+{
+    color_node_border( id, color );
+}
+
+auto Network::color_node( Uuid const& id )
+   -> void
+{
+    auto const card = view::make( id ) | view::ancestor | view::count( kmap_ );
+    auto const color = color_level_map[ ( card ) % color_level_map.size() ];
+
+    color_node( id, color );
 }
 
 auto Network::child_titles( Uuid const& parent ) const
@@ -504,6 +584,31 @@ auto Network::focus()
     js_nw_->call< val >( "focus_network" );
 }
 
+// TODO: This should be gotten from options.
+auto Network::get_appropriate_node_font_face( Uuid const& id ) const
+    -> std::string
+{
+    auto rv = std::string{};
+
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( exists( id ) );
+        })
+    ;
+
+    if( kmap_.is_top_alias( id ) )
+    {
+        rv = "ariel";
+    }
+    else
+    {
+        rv = "verdana";
+    }
+
+    return rv;
+}
+
 auto Network::viewport_scale() const
     -> float
 {
@@ -514,34 +619,55 @@ auto Network::install_default_options()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
-    auto& ostore = kmap_.option_store();
     
     {
         auto const script = 
 R"%%%(
 kmap.network().scale_viewport( option_value ).throw_on_error();
 )%%%";
-        KMAP_TRY( ostore.install_option( "network.viewport_scale"
-                                       , "Sets network's viewport scale after resize"
-                                       , "1.0"
-                                       , script ) );
+        KMAP_TRY( oclerk_.install_option( "network.viewport_scale"
+                                        , "Sets network's viewport scale after resize"
+                                        , "1.0"
+                                        , script ) );
+    } 
+    { // TODO: Too generic to belong in Network, but placing here for convenience.
+        // TODO: This is ok, it works, but it shouldn't apply to shift/alt/ctrl. They should be exceptions.
+        //       How best to communicate these exceptions? For one, there is the regex solution: "object.keyboard.key.[^shift|alt|ctrl]" (or something similar).
+        //       The trouble with this is that it doesn't represent valid path syntax. Also, not the biggest fan of regex syntax.
+        //       _An_ option would be to use the HeadingPath class that uses variant< std::string, std::regex > as components of the path.
+        //       Similarly, variant< std::string, node_view::Intermediary > could perform the function well, where Intermediary describes:
+        //       `view::direct_desc( "object.keyboard" ) | view::child( view::none_of( "shift", "alt", "ctrl" ) )`;
+        //       And reset_transitions() understands that the Intermediary needs to be placed at the RHS  e.g., `view::make( event_root ) | path`.
+        //       Of course... I can't use view_node concepts from JS at this time. Bleh...
+        auto const script = 
+R"%%%(
+const fn = function(){ kmap.event_store().reset_transitions( to_VectorString( [ 'subject.network', 'verb.depressed', 'object.keyboard.key' ] ) ).throw_on_error(); };
+setTimeout( fn, option_value );
+)%%%";
+        KMAP_TRY( oclerk_.install_option( "keyboard.key.timeout"
+                                        , "Tells the event system to reset transitions for keyboard keys after given time interval."
+                                        , "1000"
+                                        , script ) );
     }
+
 
     rv = outcome::success();
 
     return rv;
 }
 
-auto Network::install_events()
+auto Network::install_default_events()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
+    KTRY( eclerk_.install_subject( "kmap" ) );
     KTRY( eclerk_.install_subject( "network" ) );
-    KTRY( eclerk_.install_subject( "network" ) );
+    KTRY( eclerk_.install_subject( "window" ) );
     KTRY( eclerk_.install_verb( "depressed" ) );
     KTRY( eclerk_.install_verb( "raised" ) );
     KTRY( eclerk_.install_verb( "scaled" ) );
+    KTRY( eclerk_.install_verb( "selected" ) );
     KTRY( eclerk_.install_object( "keyboard.key.arrowdown" ) );
     KTRY( eclerk_.install_object( "keyboard.key.arrowleft" ) );
     KTRY( eclerk_.install_object( "keyboard.key.arrowright" ) );
@@ -560,7 +686,12 @@ auto Network::install_events()
     KTRY( eclerk_.install_object( "keyboard.key.shift" ) );
     KTRY( eclerk_.install_object( "keyboard.key.v" ) );
     KTRY( eclerk_.install_object( "viewport" ) );
+    KTRY( eclerk_.install_object( "node" ) );
 
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.select_node"
+                                      , .requisites = { "subject.kmap", "verb.selected", "object.node" }
+                                      , .description = "updates network with selected node"
+                                      , .action = R"%%%(kmap.network().select_node( kmap.selected_node() );)%%%" } ) );
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_left.h"
                                       , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
                                       , .description = "travel to parent node"
@@ -601,7 +732,7 @@ auto Network::install_events()
                                                                , .action = R"%%%(kmap.travel_bottom();)%%%" }
                                                          , Leaf{ .heading = "unshift"
                                                                , .requisites = { "subject.network", "verb.raised", "object.keyboard.key.shift" }
-                                                               , .description = "travel to bottom sibling."
+                                                               , .description = "resets transition state."
                                                                , .action = R"%%%(/*Do nothing; Allow reset transition.*/)%%%" } } } ) );
     KTRY( eclerk_.install_outlet( Branch{ .heading = "network.travel_top"
                                         , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
@@ -624,10 +755,25 @@ auto Network::install_events()
                                                                , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.c" }
                                                                , .description = "leave editor mode."
                                                                , .action = R"%%%(kmap.leave_editor();)%%%" } } } ) );
-    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.update_viewport_scale"
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.update_viewport_scale_on_network_resize"
                                       , .requisites = { "subject.network", "verb.scaled", "object.viewport" }
                                       , .description = "updates network viewport scale option value"
                                       , .action = R"%%%(kmap.option_store().update_value( 'network.viewport_scale', kmap.network().viewport_scale() ).throw_on_error();)%%%" } ) );
+    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.refresh_on_window_resize"
+                                      , .requisites = { "subject.window", "verb.scaled" }
+                                      , .description = "resizes network when window resized"
+                                      , .action = R"%%%(kmap.option_store().apply( 'network.viewport_scale' ).throw_on_error(); kmap.network().center_viewport_node( kmap.root_node() );)%%%" } ) );
+    {
+        // TODO: Too general to belong in Network, but placing here temporarily until more appropriate home is found.
+        auto const script =
+R"%%%(
+kmap.option_store().apply( "keyboard.key.timeout" ).throw_on_error();
+)%%%";
+        KTRY( eclerk_.install_outlet( Leaf{ .heading = "keyboard.key.timeout"
+                                          , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key" } // TODO: This ought not be limited to "subject.network", but any subject.
+                                          , .description = "resets keyboard transition states aften timeout expiration"
+                                          , .action = script } ) );
+    }
 
     rv = outcome::success();
     
@@ -766,7 +912,7 @@ auto Network::position( Uuid const& id ) const
     return fetch_position( id ).value(); // TODO: Propagate Result<>?
 }
 
-auto Network::remove( Uuid const& id )
+auto Network::erase_node( Uuid const& id )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );

@@ -390,15 +390,17 @@ class Network
     {
         try
         {
-            this.network.body.data.nodes.remove( { id: nid } );
+            // TODO: Not an efficient way to remove edges (iterating over all edges), but given small number displayed typically, not much of a concern.
             this.network.body.data.edges.forEach( function( e )
             {
-                if( e.from == nid
-                 || e.to == nid )
+                if( e.from === nid
+                 || e.to === nid )
                 {
                     this.network.body.data.edges.remove( e.id );
                 }
-            } );
+            }.bind(this) );
+
+            this.network.body.data.nodes.remove( { id: nid } );
         }
         catch( err )
         {
@@ -427,7 +429,7 @@ class Network
         try
         {
             this.network.setSelection( { nodes: [ node_id ]
-                                     , edges: [] } );
+                                       , edges: [] } );
 
             return true;
         }

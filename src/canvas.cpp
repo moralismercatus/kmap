@@ -26,11 +26,12 @@
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/join.hpp>
+#include <range/v3/view/remove.hpp>
+#include <range/v3/view/replace.hpp>
+#include <range/v3/view/reverse.hpp>
 #include <range/v3/view/split.hpp>
 #include <range/v3/view/stride.hpp>
 #include <range/v3/view/transform.hpp>
-#include <range/v3/view/remove.hpp>
-#include <range/v3/view/replace.hpp>
 
 #include <string>
 #include <regex>
@@ -76,15 +77,6 @@ auto from_string( std::string const& s )
     return rv;
 }
 
-auto fetch_canvas_root( Kmap& kmap )
-    -> Result< Uuid >
-{
-    auto const abs_root = kmap.root_node_id();
-    auto const root_path = "/meta.setting.window.canvas";
-
-    return kmap.fetch_or_create_descendant( abs_root, abs_root, root_path );
-}
-
 auto fetch_overlay_root( Kmap& kmap )
     -> Result< Uuid >
 {
@@ -117,6 +109,43 @@ Canvas::Canvas( Kmap& kmap )
 {
 }
 
+Canvas::~Canvas()
+{
+    try
+    {
+fmt::print( "Canvas::~create_html_canvas\n" );
+        for( auto const& elem_id : canvas_element_stack_
+                                 | ranges::views::reverse )
+        {
+            KTRYE( js::erase_child_element( to_string( elem_id ) ) );
+        }
+        
+        if( canvas_root_ )
+        {
+            KTRYE( kmap_.erase_node( canvas_root_.value() ) );
+        }
+    }
+    catch( std::exception& e )
+    {
+        std::cerr << e.what() << '\n';
+        std::terminate();
+    }
+}
+
+auto Canvas::fetch_canvas_root()
+    -> Result< Uuid >
+{
+    if( !canvas_root_ )
+    {
+        auto const abs_root = kmap_.root_node_id();
+        auto const root_path = "/meta.setting.window.canvas";
+
+        canvas_root_ = KTRY( kmap_.fetch_or_create_descendant( abs_root, abs_root, root_path ) );
+    }
+
+    return canvas_root_.value();
+}
+
 auto Canvas::init_event_callbacks()
     -> Result< void >
 {
@@ -127,8 +156,14 @@ auto Canvas::install_events()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
-    #if 0
     auto& estore = kmap_.event_store();
+
+    KTRY( estore.install_subject( "window" ) );
+    KTRY( estore.install_verb( "scaled" ) );
+
+    KTRY( js::eval_void( "window.onresize = function(){ kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.scaled' ] ) ); };" ) );
+
+    #if 0
 
     KMAP_TRY( estore.install_subject( "keyboard.key.c" ) );
     KMAP_TRY( estore.install_verb( "depressed" ) );
@@ -247,6 +282,10 @@ auto Canvas::install_options()
                                 , "Width of border."
                                 , "\"thin\""
                                 , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderWidth = option_value;" ) );
+    KMAP_TRY( opt.install_option( "canvas.completion_box.scrollbar"
+                                , "Specify scroll behavior."
+                                , "\"auto\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.overflow = option_value;" ) );
     // I think all canvas items are absolute... I think this gets encoded when they are created. Probably doesn't belong here.
     KMAP_TRY( opt.install_option( "canvas.completion_box.position_type"
                                 , "Sets the rounding radius for the corners of the box."
@@ -266,8 +305,8 @@ auto Canvas::complete_path( std::string const& path )
     -> StringVec
 {
     auto rv = StringVec{};
-    auto const canvas_root = fetch_canvas_root( kmap_ );
-    if( canvas_root )
+    if( auto const canvas_root = fetch_canvas_root()
+      ; canvas_root )
     {
         auto const inflated = std::regex_replace( path, std::regex{ "\\." }, ".subdivision." );
         if( auto const completed = complete_path_reducing( kmap_ 
@@ -312,7 +351,7 @@ auto Canvas::is_pane( Uuid const& node )
 
     auto rv = false;
 
-    if( auto const canvas_root = fetch_canvas_root( kmap_ )
+    if( auto const canvas_root = fetch_canvas_root()
       ; canvas_root )
     {
         rv = kmap_.is_lineal( canvas_root.value(), node )
@@ -437,7 +476,7 @@ auto Canvas::subdivide( Uuid const& parent_pane
 auto Canvas::update_all_panes()
     -> Result< void >
 {
-    return update_pane( KMAP_TRY( fetch_canvas_root( kmap_ ) ) );
+    return update_pane( KMAP_TRY( fetch_canvas_root() ) );
 }
 
 auto Canvas::update_pane( Uuid const& pane )
@@ -500,7 +539,7 @@ auto Canvas::update_panes()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
-    auto const canvas_root = KMAP_TRY( fetch_canvas_root( kmap_ ) );
+    auto const canvas_root = KMAP_TRY( fetch_canvas_root() );
 
     KMAP_ENSURE( is_pane( canvas_root ), error_code::network::invalid_node );
 
@@ -621,7 +660,8 @@ auto Canvas::hide_internal( Uuid const& pane
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_ENSURE( is_pane( pane ), error_code::network::invalid_node );
+    KMAP_ENSURE_MSG( kmap_.exists( pane ), error_code::network::invalid_node, to_string_elaborated( kmap_, pane ) );
+    KMAP_ENSURE_MSG( is_pane( pane ), error_code::network::invalid_node, to_string_elaborated( kmap_, pane ) );
 
     auto const hiddenn = KMAP_TRY( kmap_.fetch_descendant( pane, pane, "/hidden" ) );
     auto const hidden_str = to_string( hidden );
@@ -635,6 +675,45 @@ auto Canvas::hide_internal( Uuid const& pane
     return rv;
 }
 
+auto Canvas::create_html_canvas( Uuid const& id )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+fmt::print( "Canvas::create_html_canvas( {} );\n", to_string( id ) );
+    KTRY( js::create_html_canvas( to_string( id ) ) );
+
+    canvas_element_stack_.emplace_back( id );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Canvas::create_html_child_element( std::string const& elem_type
+                                      , Uuid const& parent_id
+                                      , Uuid const& child_id )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KTRY( js::eval_void( io::format( "let child_div = document.createElement( '{}' );"
+                                     "child_div.id = '{}';"
+                                     "child_div.tabIndex= {};"
+                                     "let parent_div = document.getElementById( '{}' );"
+                                     "parent_div.appendChild( child_div );" 
+                                   , elem_type
+                                   , to_string( child_id )
+                                   , next_tabindex_++
+                                   , to_string( parent_id ) ) ) );
+
+    canvas_element_stack_.emplace_back( child_id );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto Canvas::reset()
     -> Result< void >
 {
@@ -642,24 +721,16 @@ auto Canvas::reset()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_TRY( js::create_html_canvas( to_string( util_canvas_uuid ) ) );
-    // if( js::element_exists( to_string( util_canvas_uuid ) ) )
-    // {
-    //     KMAP_TRY( js::erase_child_element( to_string( util_canvas_uuid ) ) );
-    // }
-    // if( js::element_exists( to_string( util_canvas_uuid ) ) )
-    // {
-    //     KMAP_TRY( js::create_html_canvas( to_string( util_canvas_uuid ) ) );
-    // }
+    KTRY( create_html_canvas( util_canvas_uuid ) );
 
-    auto const canvas     = KMAP_TRY( reset_root() );
-                            // KMAP_TRY( reset_breadcrumb( canvas ) );
-    auto const workspace  = KMAP_TRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false }, "div" ) );
-                            KMAP_TRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false }, "div" ) );
-    auto const text_area  = KMAP_TRY( subdivide( workspace, text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false }, "div" ) );
-                            KMAP_TRY( subdivide( text_area, editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true }, "textarea" ) );
-                            KMAP_TRY( subdivide( text_area, preview_pane(), "preview", Division{ Orientation::horizontal, 1.000f, false }, "div" ) );
-                            KMAP_TRY( subdivide( canvas, cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false }, "input" ) );
+    auto const canvas     = KTRY( reset_root() );
+                            //KTRY( reset_breadcrumb( canvas ) );
+    auto const workspace  = KTRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false }, "div" ) );
+                            KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false }, "div" ) );
+    auto const text_area  = KTRY( subdivide( workspace, text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false }, "div" ) );
+                            KTRY( subdivide( text_area, editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true }, "textarea" ) );
+                            KTRY( subdivide( text_area, preview_pane(), "preview", Division{ Orientation::horizontal, 1.000f, false }, "div" ) );
+                            KTRY( subdivide( canvas, cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false }, "input" ) );
 
 
     KMAP_TRY( create_overlay( completion_overlay(), "completion_overlay", "div" ) );
@@ -708,14 +779,14 @@ auto Canvas::make_subdivision( Uuid const& target
         })
     ;
 
-    KMAP_TRY( kmap_.fetch_or_create_descendant( target, target, "/orientation" ) );
-    KMAP_TRY( kmap_.fetch_or_create_descendant( target, target, "/base" ) );
-    KMAP_TRY( kmap_.fetch_or_create_descendant( target, target, "/hidden" ) );
-    KMAP_TRY( kmap_.fetch_or_create_descendant( target, target, "/subdivision" ) );
-    KMAP_TRY( reorient_internal( target, subdiv.orientation ) );
-    KMAP_TRY( rebase_internal( target, subdiv.base ) );
-    KMAP_TRY( hide_internal( target, subdiv.hidden ) );
-    // KMAP_TRY( update_pane( target ) );
+    KTRY( kmap_.fetch_or_create_descendant( target, target, "/orientation" ) );
+    KTRY( kmap_.fetch_or_create_descendant( target, target, "/base" ) );
+    KTRY( kmap_.fetch_or_create_descendant( target, target, "/hidden" ) );
+    KTRY( kmap_.fetch_or_create_descendant( target, target, "/subdivision" ) );
+    KTRY( reorient_internal( target, subdiv.orientation ) );
+    KTRY( rebase_internal( target, subdiv.base ) );
+    KTRY( hide_internal( target, subdiv.hidden ) );
+    // KTRY( update_pane( target ) );
 
     rv = outcome::success();
 
@@ -739,20 +810,12 @@ auto Canvas::create_overlay( Uuid const& id
         })
     ;
 
-    auto const canvas_root = KMAP_TRY( fetch_canvas_root( kmap_ ) );
+    auto const canvas_root = KMAP_TRY( fetch_canvas_root() );
     auto const overlay_root = KMAP_TRY( fetch_overlay_root( kmap_ ) );
     auto const overlay = KMAP_TRY( kmap_.create_child( overlay_root, id, heading ) );
 
-    KMAP_TRY( js::eval_void( io::format( "let elem = document.createElement( '{}' );"
-                                         "elem.id = '{}';"
-                                         "elem.tabIndex= {};"
-                                         "let canvas_div = document.getElementById( '{}' );"
-                                         "canvas_div.appendChild( elem );" 
-                                       , elem_type
-                                       , to_string( overlay )
-                                       , next_tabindex_++
-                                       , to_string( canvas_root ) ) ) );
-    
+    KTRY( create_html_child_element( elem_type, canvas_root, overlay ) );
+
     rv = overlay;
 
     return rv;
@@ -780,18 +843,8 @@ auto Canvas::create_subdivision( Uuid const& parent
     auto const parent_pane = KMAP_TRY( fetch_parent_pane( parent ) );
     auto const subdivn = KMAP_TRY( kmap_.create_child( parent, child, heading ) );
 
-    KMAP_TRY( js::eval_void( io::format( "let child_div = document.createElement( '{}' );"
-                                         "child_div.id = '{}';"
-                                         "child_div.tabIndex= {};"
-                                         "let parent_div = document.getElementById( '{}' );"
-                                         "parent_div.appendChild( child_div );" 
-                                       , elem_type
-                                       , to_string( subdivn )
-                                       , next_tabindex_++
-                                       , to_string( parent_pane ) ) ) );
-io::print( "create_subdiv.heading: {}, elem_type: {}\n", heading, elem_type );
-
-    KMAP_TRY( make_subdivision( subdivn, subdiv ) );
+    KTRY( create_html_child_element( elem_type, parent_pane, subdivn ) );
+    KTRY( make_subdivision( subdivn, subdiv ) );
 
     rv = subdivn;
 
@@ -820,7 +873,7 @@ auto Canvas::reset_root()
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     {
-        auto const canvas_root = KMAP_TRY( fetch_canvas_root( kmap_ ) );
+        auto const canvas_root = KMAP_TRY( fetch_canvas_root() );
 
         if( js::element_exists( to_string( canvas_root ) ) )
         {
@@ -829,16 +882,18 @@ auto Canvas::reset_root()
     }
 
     {
-        auto const canvas_root = KMAP_TRY( fetch_canvas_root( kmap_ ) );
+        auto const canvas_root = KMAP_TRY( fetch_canvas_root() );
 
         // TODO: Shouldn't... this be a child of the 'canvas' element that we created?
         //       Unless... we don't actually use the 'canvas' type, but rather divs only.
         //       And... what is the 'canvas' element's purpose then? Anyway, 'div's will simply things, as I'm familiar with those.
-        KMAP_TRY( js::eval_void( io::format( "let canvas_div = document.createElement( 'div' );"
-                                             "canvas_div.id = '{}';"
-                                             "let body_tag = document.getElementsByTagName( 'body' )[ 0 ];"
-                                             "body_tag.appendChild( canvas_div );" 
-                                           , to_string( canvas_root ) ) ) );
+        KTRY( js::eval_void( io::format( "let canvas_div = document.createElement( 'div' );"
+                                         "canvas_div.id = '{}';"
+                                         "let body_tag = document.getElementsByTagName( 'body' )[ 0 ];"
+                                         "body_tag.appendChild( canvas_div );" 
+                                       , to_string( canvas_root ) ) ) );
+
+        canvas_element_stack_.emplace_back( canvas_root );
 
         KMAP_TRY( make_subdivision( canvas_root, { Orientation::horizontal, 0.0f, false } ) );
 
@@ -944,7 +999,7 @@ auto Canvas::pane_path( Uuid const& subdiv )
     -> Result< std::string >
 {
     auto rv = KMAP_MAKE_RESULT( std::string );
-    auto const canvas_root = KMAP_TRY( fetch_canvas_root( kmap_ ) );
+    auto const canvas_root = KMAP_TRY( fetch_canvas_root() );
     auto const ids = kmap_.absolute_path_uuid( KMAP_TRY( make< Lineal >( kmap_, canvas_root, subdiv ) ) );
 
     KMAP_ENSURE( is_pane( subdiv ), error_code::network::invalid_node );
@@ -1008,7 +1063,7 @@ auto Canvas::dimensions( Uuid const& target )
     -> Result< Dimensions >
 {
     auto rv = KMAP_MAKE_RESULT( Dimensions );
-    auto const canvas_root = KMAP_TRY( fetch_canvas_root( kmap_ ) ); 
+    auto const canvas_root = KMAP_TRY( fetch_canvas_root() ); 
 
     KMAP_ENSURE( kmap_.is_lineal( canvas_root, target ), error_code::network::invalid_lineage );
 

@@ -361,7 +361,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         WHEN( "item erased" )
         {
             REQUIRE_NOTHROW( db.erase_all( nid ) );
-            REQUIRE( ranges::distance( table ) == 1 ); // Erase as a delta, so table item remains.
+            REQUIRE( ranges::distance( table ) == 0 );
             fmt::print( "db.erase_all()\n" );
 
             WHEN( "delta flushed" )
@@ -468,7 +468,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         WHEN( "item erased" )
         {
             REQUIRE_NOTHROW( db.erase_all( n2 ) );
-            REQUIRE( ranges::distance( table ) == 1 ); // Erase as a delta, so table item remains.
+            REQUIRE( ranges::distance( table ) == 0 ); 
 
             WHEN( "delta flushed" )
             {

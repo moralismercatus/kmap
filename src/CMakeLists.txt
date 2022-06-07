@@ -43,7 +43,7 @@ else()
                              KMAP_LOGGING_DB=0
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -g3 
-                         -O0 
+                         -O1 
                          -sEXCEPTION_DEBUG=1 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sDEMANGLE_SUPPORT=1 
@@ -119,9 +119,11 @@ add_executable( emcc.index.html
                 network.cpp network.hpp
                 node_fetcher.cpp
                 option/option.cpp
+                option/option_clerk.cpp
                 path.cpp
                 path/act/front.cpp path/act/front.hpp
                 path/act/order.cpp path/act/order.hpp
+                path/act/to_string.cpp path/act/to_string.hpp
                 path/node_view.cpp path/node_view.hpp
                 path/sm.cpp
                 stmt_prep.cpp
