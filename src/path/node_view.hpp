@@ -405,6 +405,7 @@ auto const rlineage = RLineage{}; // TODO: "Lineage" doesn't specify direction. 
 auto const parent = Parent{};
 auto const resolve = Resolve{};
 auto const sibling = Sibling{};
+// TODO: auto const sibling_inclusive = view::parent | view::child; 
 auto const single = Single{};
 
 // Post-Result Operations

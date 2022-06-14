@@ -8,6 +8,7 @@ var registration_arguments =
 ,   "heading_path"
 ,   "numeric_decimal"
 ,   "numeric_unsigned_integer"
+,   "tag_path"
 ,   "unconditional"
 ];
 
@@ -29,6 +30,8 @@ var registration_commands =
 ,   "create_project"
 ,   "create_reference"
 ,   "create_sibling"
+,   "create_tag"
+,   "create_task"
 ,   "delete"
 ,   "delete_alias"
 ,   "delete_children"
@@ -63,6 +66,7 @@ var registration_commands =
 ,   "select_daily_log"
 ,   "sort_children"
 ,   "swap_node"
+,   "tag_node"
 ,   "travel_bottom"
 ,   "travel_down"
 ,   "travel_left"

@@ -67,7 +67,7 @@ struct Result
     auto success_message() const
         -> std::string
     {
-        return success_message;
+        return "TODO: Success message";
     }
 
     auto throw_on_error()

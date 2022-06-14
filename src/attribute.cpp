@@ -105,6 +105,11 @@ auto push_order( Kmap& kmap
 	auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( !kmap.is_alias( parent ) );
+            BC_ASSERT( !kmap.is_alias( child ) );
+        })
         BC_POST([ & ]
         {
             if( rv )
@@ -150,6 +155,11 @@ auto pop_order( Kmap& kmap
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( !kmap.is_alias( parent ) );
+            BC_ASSERT( !kmap.is_alias( child ) );
+        })
         BC_POST([ & ]
         {
             if( rv )
@@ -172,13 +182,18 @@ auto pop_order( Kmap& kmap
     auto const filtered = split 
                         | views::remove( to_string( child ) )
                         | to< std::vector >();
-    auto const nb = filtered
-                  | views::join( '\n' )
-                  | to< std::string >();
+    if( filtered.empty() )
+    {
+        KTRY( kmap.erase_node( pordern ) );
+    }
+    else
+    {
+        auto const nb = filtered
+                    | views::join( '\n' )
+                    | to< std::string >();
 
-    KMAP_TRY( kmap.update_body( pordern, nb ) );
-
-    // TODO: If no children are found, should the "order" node be erased entirely?
+        KTRY( kmap.update_body( pordern, nb ) );
+    }
 
     rv = pordern;
 

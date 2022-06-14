@@ -9,7 +9,11 @@
 #include "error/master.hpp"
 #include "kmap.hpp"
 
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/drop.hpp>
+#include <range/v3/view/join.hpp>
 #include <range/v3/view/reverse.hpp>
+#include <range/v3/view/split.hpp>
 
 namespace kmap::event {
 
@@ -43,6 +47,48 @@ EventClerk::~EventClerk()
         std::cerr << e.what() << '\n';
         std::terminate();
     }
+}
+
+auto EventClerk::fire_event( std::vector< std::string > const& requisites )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& estore = kmap.event_store();
+    auto const eroot = estore.event_root();
+
+    for( auto const& req : requisites )
+    {
+        if( !( view::make( eroot )
+             | view::direct_desc( req )
+             | view::exists( kmap ) ) )
+        {
+            // TODO: Fix this...
+            auto const ps = req
+                          | ranges::views::split( '.' )
+                          | ranges::views::drop( 1 )
+                          | ranges::views::join( '.' )
+                          | ranges::to< std::string >();
+
+            if( req.starts_with( "subject" ) )
+            {
+                KTRY( install_subject( ps ) );
+            }
+            else if( req.starts_with( "verb" ) )
+            {
+                KTRY( install_verb( ps ) );
+            }
+            else if( req.starts_with( "object" ) )
+            {
+                KTRY( install_object( ps ) );
+            }
+            else
+            {
+                KMAP_THROW_EXCEPTION_MSG( "unexpected event requisite category" );
+            }
+        }
+    }
+
+    return rv;
 }
 
 auto EventClerk::install_subject( Heading const& heading )

@@ -100,6 +100,7 @@ add_executable( emcc.index.html
                 cmd/select_node.cpp
                 cmd/state.cpp
                 cmd/tag.cpp
+                cmd/task.cpp 
                 cmd/test.cpp
                 cmd/text_area.cpp
                 common.cpp common.hpp
@@ -127,6 +128,8 @@ add_executable( emcc.index.html
                 path/node_view.cpp path/node_view.hpp
                 path/sm.cpp
                 stmt_prep.cpp
+                tag/tag.cpp tag/tag.hpp
+                task/task.cpp task/task.hpp
                 test/autosave.cpp
                 test/canvas/canvas.cpp
                 test/cli/cli.cpp

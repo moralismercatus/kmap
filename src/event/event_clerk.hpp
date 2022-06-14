@@ -15,6 +15,14 @@
 
 namespace kmap::event {
 
+// TODO: So, yet another problem...
+//       What if a common requisite is created by this clerk? I.e., "verb.created". When this destructs,
+//       it will erase "verb.created", yet it is common, so others depend on it. Suddenly, it's gone!
+//       Proposal:
+//       1. Somehow maintain a shared_ptr-like mechanism, so each concerned clerk/party is holding onto a counted-ref.
+//       1. Provide a "fire" routine here. The "fire" routine then pre-checks each requisite for existence, creating it if it doesn't exist.
+//          It then claims ownership if created. That might be the easiest solution....
+//          Perhaps the same mechanism can be done for outlets, alleviating the need for an explicit call to "install_default_events()"....
 struct EventClerk
 {
     Kmap& kmap;
@@ -27,6 +35,8 @@ struct EventClerk
     EventClerk( Kmap& km );
     ~EventClerk();
 
+    auto fire_event( std::vector< std::string > const& requisites )
+        -> Result< void >;
     auto install_subject( Heading const& heading )
         -> Result< Uuid >;
     auto install_verb( Heading const& heading )

@@ -22,47 +22,44 @@ using namespace ranges;
 
 namespace kmap::cmd::log {
 
-template< typename TimePoint >
-auto to_log_date_string( TimePoint const& tp )
-    -> std::string
-{
-    using namespace date;
-
-    io::print( "[warning] TODO: impl. local time zone for date string\n" );
-
-    return date::format( "%Y.%m.%d"
-                       , tp );
-}
-
 auto fetch_or_create_daily_log( Kmap& kmap
                               , std::string const& date )
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
-    auto rv = Optional< Uuid >{};
+    auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    if( auto const daily = kmap.fetch_or_create_descendant( kmap.root_node_id()
-                                                          , fmt::format( "/logs.daily.{}"
-                                                                       , date ) )
-      ; daily )
-    {
-        rv = daily.value();
-    }
+    rv = KTRY( kmap.fetch_or_create_descendant( kmap.root_node_id(), fmt::format( "/logs.daily.{}", date ) ) );
+
+    return rv;
+}
+
+auto fetch_or_create_daily_log( Kmap& kmap )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    rv = KTRY( fetch_or_create_daily_log( kmap, to_log_date_string( std::chrono::system_clock::now() ) ) );
 
     return rv;
 }
 
 auto fetch_daily_log( Kmap const& kmap
                     , std::string const& date )
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
-    auto rv = Optional< Uuid >{};
+    auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    if( auto const daily = kmap.fetch_descendant( fmt::format( "/logs.daily.{}"
-                                                             , date ) )
-      ; daily )
-    {
-        rv = daily.value();
-    }
+    rv = KTRY( kmap.fetch_descendant( fmt::format( "/logs.daily.{}", date ) ) );
+
+    return rv;
+}
+
+auto fetch_daily_log( Kmap const& kmap )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    rv = KTRY( fetch_daily_log( kmap, to_log_date_string( std::chrono::system_clock::now() ) ) );
 
     return rv;
 }
@@ -78,11 +75,10 @@ auto add_daily_task( Kmap& kmap )
 
         if( auto const project_root = fetch_project_root( kmap, selected ) )
         {
-            if( auto const log = fetch_or_create_daily_log( kmap 
-                                                          , to_log_date_string( std::chrono::system_clock::now() ) )
+            if( auto const log = fetch_or_create_daily_log( kmap )
               ; log )
             {
-                auto const task_root = kmap.fetch_or_create_descendant( *log, "tasks" );
+                auto const task_root = kmap.fetch_or_create_descendant( log.value(), "tasks" );
 
                 if( auto const task = kmap.create_alias( project_root.value()
                                                        , task_root.value() )
@@ -92,7 +88,7 @@ auto add_daily_task( Kmap& kmap )
 
                     return fmt::format( "added {} as a task of {}"
                                       , kmap.absolute_path_flat( project_root.value() )
-                                      , kmap.absolute_path_flat( *log ) );
+                                      , kmap.absolute_path_flat( log.value() ) );
                 }
                 else
                 {
@@ -117,11 +113,10 @@ auto create_daily_log( Kmap& kmap )
 {
     return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
     {
-        if( auto const did = fetch_or_create_daily_log( kmap
-                                                      , to_log_date_string( std::chrono::system_clock::now() ) )
+        if( auto const did = fetch_or_create_daily_log( kmap )
           ; did )
         {
-            KMAP_TRY( kmap.select_node( *did ) );
+            KMAP_TRY( kmap.select_node( did.value() ) );
 
             return fmt::format( "log created or was existent" );
         }

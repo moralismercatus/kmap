@@ -13,6 +13,7 @@
 #include "js_iface.hpp"
 #include "option/option.hpp"
 #include "path.hpp"
+#include "path/act/order.hpp"
 #include "path/node_view.hpp"
 #include "util/window.hpp"
 #include "utility.hpp"
@@ -1121,7 +1122,11 @@ auto Canvas::dimensions( Uuid const& target )
         };
         auto const parent_pane = KMAP_TRY( fetch_parent_pane( target ) );
         auto const orientation = KMAP_TRY( pane_orientation( parent_pane ) );
-        auto const siblings = kmap_.fetch_siblings_inclusive_ordered( target );
+        auto const siblings = view::make( target )
+                            | view::parent
+                            | view::child
+                            | view::to_node_set( kmap_ )
+                            | act::order( kmap_ );
         auto const percs = compute_percents( siblings );
         auto const pdims = KMAP_TRY( dimensions( parent_pane ) );
 

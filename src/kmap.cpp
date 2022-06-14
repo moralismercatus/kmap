@@ -28,8 +28,10 @@
 #include "network.hpp"
 #include "option/option.hpp"
 #include "path.hpp"
+#include "path/act/order.hpp"
 #include "path/act/value_or.hpp"
 #include "path/node_view.hpp"
+#include "task/task.hpp"
 #include "test/master.hpp"
 #include "test/util.hpp"
 
@@ -133,6 +135,9 @@ auto Kmap::set_up_db_root()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE( root_node_id() != Uuid{ 0 }, error_code::common::uncategorized );
+
     auto const id = root_node_id();
     auto const heading = "root";
     auto const title = format_title( heading );
@@ -185,9 +190,9 @@ auto Kmap::set_up_nw_root()
 
 auto Kmap::set_ordering_position( Uuid const& id
                                 , uint32_t pos )
-    -> bool
+    -> Result< void >
 {
-    auto rv = false;
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -204,17 +209,23 @@ auto Kmap::set_ordering_position( Uuid const& id
         })
     ;
     
-    if( auto siblings = fetch_siblings_inclusive_ordered( id )
+    if( auto siblings = ( view::make( id ) 
+                        | view::parent
+                        | view::child
+                        | view::to_node_set( *this ) 
+                        | act::order( *this ) )
       ; siblings.size() > pos )
     {
+        auto const parent = KTRY( fetch_parent( id ) );
         auto const it = find( siblings, id );
 
         BC_ASSERT( it != end( siblings) );
 
-        std::iter_swap( it
-                      , begin( siblings ) + pos );
+        std::iter_swap( it, begin( siblings ) + pos );
 
-        reorder_children( fetch_parent( id ).value(), siblings ).value();
+        KTRY( reorder_children( parent, siblings ) );
+
+        rv = outcome::success();
     }
 
     return rv;
@@ -683,6 +694,19 @@ auto Kmap::option_store() const
     return *option_store_;
 }
 
+auto Kmap::task_store()
+    -> TaskStore&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( task_store_ );
+        })
+    ;
+
+    return *task_store_;
+}
+
 auto Kmap::parse_cli( std::string const& input )
     -> void
 {
@@ -1010,6 +1034,7 @@ auto Kmap::create_child( Uuid const& parent
     BC_CONTRACT()
         BC_PRE([ & ]
         {
+            BC_ASSERT( !is_alias( child ) );
             BC_ASSERT( !attr::is_in_order( *this, parent, child ) );
         })
         BC_POST([ & ]
@@ -1204,6 +1229,7 @@ auto Kmap::create_descendants( Uuid const& root
 }
 
 // TODO: This fails if alias source is "/" - add a TC for this.
+// TODO: Test when src is child of dst
 auto Kmap::create_alias( Uuid const& src
                        , Uuid const& dst )
     -> Result< Uuid >
@@ -1469,6 +1495,12 @@ auto Kmap::init_option_store()
     option_store_ = std::make_unique< OptionStore >( *this );
 }
 
+auto Kmap::init_task_store()
+    -> void
+{
+    task_store_ = std::make_unique< TaskStore >( *this );
+}
+
 auto Kmap::init_network()
     -> void
 {
@@ -1626,6 +1658,9 @@ auto Kmap::initialize()
 
         KMAP_TRY( autosave_->initialize() );
     }
+
+    init_task_store();
+
     {
         KMAP_TRY( option_store().apply_all() );
     }
@@ -1748,14 +1783,20 @@ auto Kmap::reorder_children( Uuid const& parent
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+        })
+    ;
+
     KMAP_ENSURE( fetch_children( parent ) == ( children | to< std::set >() ), error_code::network::invalid_ordering );
 
     auto const osv = children
-                  | views::transform( []( auto const& e ){ return to_string( e ); } )
-                  | to< std::vector >();
+                   | views::transform( [ & ]( auto const& e ){ return to_string( resolve( e ) ); } )
+                   | to< std::vector >();
     auto const oss = osv
-                  | views::join( '\n' )
-                  | to< std::string >();
+                   | views::join( '\n' )
+                   | to< std::string >();
     auto const ordern = KMAP_TRY( view::make( parent )
                                 | view::attr
                                 | view::child( "order" )
@@ -1776,8 +1817,6 @@ auto Kmap::reorder_children( Uuid const& parent
 auto Kmap::select_node( Uuid const& id )
     -> Result< Uuid > 
 {
-    KMAP_PROFILE_SCOPE();
-
     auto rv = error::make_result< Uuid >( *this, id );
 
     BC_CONTRACT()
@@ -1848,21 +1887,64 @@ auto Kmap::swap_nodes( Uuid const& t1
 
     auto const t1_pos = KTRY( fetch_ordering_position( t1 ) );
     auto const t2_pos = KTRY( fetch_ordering_position( t2 ) );
-    auto const t1_parent = fetch_parent( t1 ).value();
-    auto const t2_parent = fetch_parent( t2 ).value();
+    auto const t1_parent = KTRY( fetch_parent( t1 ) );
+    auto const t2_parent = KTRY( fetch_parent( t2 ) );
 
     if( t1_parent != t2_parent ) // No movement is required if nodes are siblings; only repositioning.
     {
-        KMAP_TRY( move_node( t1, t2_parent ) );
-        KMAP_TRY( move_node( t2, t1_parent ) );
+        KTRY( move_node( t1, t2_parent ) );
+        KTRY( move_node( t2, t1_parent ) );
     }
 
-    set_ordering_position( t1, t2_pos ); 
-    set_ordering_position( t2, t1_pos ); 
+    KTRY( set_ordering_position( t1, t2_pos ) ); 
+    KTRY( set_ordering_position( t2, t1_pos ) ); 
 
     rv = std::pair{ t2, t1 };
 
     return rv;
+}
+
+SCENARIO( "swap two sibling aliases", "[iface][swap_nodes]" )
+{
+    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto const root = kmap.root_node_id();
+
+    GIVEN( "two sibling aliases" )
+    {
+        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( kmap.create_child( root, "2" ) );
+        auto const c3 = REQUIRE_TRY( kmap.create_child( root, "3" ) );
+        auto const a31 = REQUIRE_TRY( kmap.create_alias( c1, c3 ) );
+        auto const a32 = REQUIRE_TRY( kmap.create_alias( c2, c3 ) );
+        
+        REQUIRE_RES( kmap.fetch_ordering_position( a31 ) );
+        REQUIRE( kmap.fetch_ordering_position( a31 ).value() == 0 );
+        REQUIRE( kmap.fetch_ordering_position( a32 ).value() == 1 );
+
+        WHEN( "swap aliases" )
+        {
+            REQUIRE_RES( kmap.swap_nodes( a31, a32 ) );
+
+            THEN( "aliases swapped" )
+            {
+                REQUIRE( kmap.fetch_ordering_position( a31 ).value() == 1 );
+                REQUIRE( kmap.fetch_ordering_position( a32 ).value() == 0 );
+            }
+
+            WHEN( "swap aliases again" )
+            {
+                REQUIRE_RES( kmap.swap_nodes( a31, a32 ) );
+
+                THEN( "aliases swapped" )
+                {
+                    REQUIRE( kmap.fetch_ordering_position( a31 ).value() == 0 );
+                    REQUIRE( kmap.fetch_ordering_position( a32 ).value() == 1 );
+                }
+            }
+        }
+    }
 }
 
 auto Kmap::jump_to( Uuid const& id )
@@ -2309,6 +2391,7 @@ auto Kmap::resolve( Uuid const& id ) const
 
 // Returns a recommended node to select following the deletion of "id".
 // TODO: Make test case for when node to be deleted is selected, when it's not, and when it's a descendant of the node to be deleted.
+// TODO: Are we ensuring that attributes get cascade erased when parent node is erased? Unit tested?
 auto Kmap::erase_node( Uuid const& id )
     -> Result< Uuid >
 {
@@ -2334,7 +2417,6 @@ auto Kmap::erase_node( Uuid const& id )
     KMAP_ENSURE( id != root_node_id(), error_code::node::is_root );
     KMAP_ENSURE( !is_alias( id ) || is_top_alias( id ), error_code::node::is_nontoplevel_alias );
 
-    // TODO: fire_event( { "map", "verb.pre", "verb.erased", "node" }, std::any< payload:id >? ) // after checks, but before anything is done? Or before checks, in case handler modifies something?
 
     auto const selected = selected_node();
     auto next_selected = selected;
@@ -2357,7 +2439,44 @@ auto Kmap::erase_node( Uuid const& id )
 
     rv = next_selected;
 
+    // TODO: fire_event( { "map", "verb.post", "verb.erased", "node" }, std::any< payload:id >? ) // after checks, but before anything is done? Or before checks, in case handler modifies something?
+
     return rv;
+}
+
+SCENARIO( "erase_node erases attributes", "[iface]" )
+{
+    KMAP_DATABASE_ROOT_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto const& db = kmap.database();
+    auto const& attr_tbl = db.fetch< db::AttributeTable >();
+    auto const& node_tbl = db.fetch< db::NodeTable >();
+    auto const count = []( auto const& tbl ){ return std::distance( tbl.begin(), tbl.end() ); };
+    auto const attr_original_count = count( attr_tbl );
+    auto const node_original_count = count( node_tbl );
+
+    GIVEN( "node" )
+    {
+        auto const n1 = REQUIRE_TRY( kmap.create_child( kmap.root_node_id(), "1" ) );
+
+        THEN( "new attribute nodes detected" )
+        {
+            REQUIRE( count( attr_tbl ) > attr_original_count );
+            REQUIRE( count( node_tbl ) > node_original_count );
+        }
+
+        WHEN( "erase node" )
+        {
+            REQUIRE_RES( kmap.erase_node( n1 ) );
+
+            THEN( "attr nodes return to previous count" )
+            {
+                REQUIRE( count( attr_tbl ) == attr_original_count );
+                REQUIRE( count( node_tbl ) == node_original_count );
+            }
+        }
+    }
 }
 
 auto Kmap::erase_node_internal( Uuid const& id )
@@ -2381,7 +2500,6 @@ auto Kmap::erase_node_internal( Uuid const& id )
         })
     ;
 
-    KMAP_ENSURE( !attr::is_in_attr_tree( *this, id ), error_code::network::invalid_node );
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != root_node_id(), error_code::network::invalid_node );
 
@@ -2420,27 +2538,27 @@ auto Kmap::erase_node_leaf( Uuid const& id )
         })
     ;
 
-    KMAP_ENSURE( !attr::is_in_attr_tree( *this, id ), error_code::network::invalid_node );
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != root_node_id(), error_code::network::invalid_node );
     KMAP_ENSURE( is_leaf( *this, id ), error_code::network::invalid_node );
 
-    auto const parent = KTRY( fetch_parent( id ) );
+    auto& db = database();
 
+    // Delete node.
+    if( is_alias( id ) )
     {
-        auto& db = database();
-
-        // Delete node.
-        if( is_alias( id ) )
+        KMAP_TRY( erase_alias( id ) );
+    }
+    else
+    {
+        if( has_alias( id ) )
         {
-            KMAP_TRY( erase_alias( id ) );
+            KTRY( erase_aliases_to( id ) );
         }
-        else
+
+        if( !attr::is_in_attr_tree( *this, id ) )
         {
-            if( has_alias( id ) )
-            {
-                KTRY( erase_aliases_to( id ) );
-            }
+            auto const parent = KTRY( fetch_parent( id ) );
 
             KMAP_TRY( attr::pop_order( *this, parent, id ) );
 
@@ -2450,9 +2568,9 @@ auto Kmap::erase_node_leaf( Uuid const& id )
             {
                 KMAP_TRY( erase_attr( at.value() ) );
             }
-
-            db.erase_all( id );
         }
+
+        db.erase_all( id );
     }
 
     rv = outcome::success();
@@ -2579,23 +2697,17 @@ auto Kmap::erase_attr( Uuid const& id )
     
     for( auto const& child : fetch_children( id ) )
     {
-        KMAP_TRY( erase_attr( child ) );
+        // TODO: Is this right? Child nodes of attributes are still child nodes, right?
+        //       Negative... they are like ordinary nodes except without attributes themselves.
+        //       Errghhh... this further complicates things if I use an alias as a $.tag., as the alias will then have attributes.
+        //       But as long as such can be accounted for, it should be fine.
+        KMAP_TRY( erase_node_internal( child ) );
     }
 
     auto& db = database();
-    auto const parent = KMAP_TRY( [ & ]
-    {
-        if( attr::is_attr( *this, id ) )
-        {
-            return db.fetch_attr_owner( id );
-        }
-        else
-        {
-            return fetch_parent( id );
-        }
-    }() );
+    auto const parent = db.fetch_attr_owner( id );
 
-    database().erase_all( id );
+    db.erase_all( id );
 
     rv = parent;
 
@@ -3217,38 +3329,33 @@ auto Kmap::fetch_parent_children( Uuid const& id ) const
 auto Kmap::fetch_parent_children_ordered( Uuid const& id ) const
     -> kmap::UuidVec
 { 
-    return kmap::fetch_parent_children_ordered( *this
-                                              , id );
+    return kmap::fetch_parent_children_ordered( *this, id );
 }
 
 auto Kmap::fetch_siblings( Uuid const& id ) const
     -> kmap::UuidSet
 { 
-    return kmap::fetch_siblings( *this
-                               , id );
+    return kmap::fetch_siblings( *this, id );
 }
 
 // TODO: this is to be eventually superceded by: node | siblings | drop( node ) | ordered
 auto Kmap::fetch_siblings_ordered( Uuid const& id ) const
     -> kmap::UuidVec
 { 
-    return kmap::fetch_siblings_ordered( *this
-                                       , id );
+    return kmap::fetch_siblings_ordered( *this, id );
 }
 
 auto Kmap::fetch_siblings_inclusive( Uuid const& id ) const
     -> kmap::UuidSet
 { 
-    return kmap::fetch_siblings_inclusive( *this
-                                         , id );
+    return kmap::fetch_siblings_inclusive( *this, id );
 }
 
 // TODO: this is to be eventually superceded by: node | siblings | ordered
 auto Kmap::fetch_siblings_inclusive_ordered( Uuid const& id ) const
     -> kmap::UuidVec
 { 
-    return kmap::fetch_siblings_inclusive_ordered( *this
-                                                 , id );
+    return kmap::fetch_siblings_inclusive_ordered( *this, id );
 }
 
 auto Kmap::fetch_children_ordered( Uuid const& root
@@ -3266,19 +3373,27 @@ auto Kmap::fetch_children_ordered( Uuid const& root
     return rv;
 }
 
+// TODO:
+// if parent has $order: use $order
+// else: find each child's $genesis, order by that.
+// TODO: if is attribute node, sort alphanumerically?
 auto Kmap::fetch_children_ordered( Uuid const& parent ) const
     -> std::vector< Uuid >
 {
-    // TODO:
-    // if parent has $order: use $order
-    // else: find each child's $genesis, order by that.
     using Map = std::vector< std::pair< Uuid, uint64_t > >;
 
-    // TODO: if is attribute node, sort alphanumerically?
+    auto rv = std::vector< Uuid >{};
 
-    auto rv = fetch_children( parent ) | to< std::vector >();
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            BC_ASSERT( ( rv | to< std::set >() ) == fetch_children( parent ) );
+        })
+    ;
 
-    if( rv.empty() )
+    auto children = fetch_children( parent ) | to< std::vector >();
+
+    if( children.empty() )
     {
         return rv;
     }
@@ -3297,18 +3412,28 @@ auto Kmap::fetch_children_ordered( Uuid const& parent ) const
 
     for( auto const [ i, s ] : ids | views::enumerate )
     {
-        id_ordinal_map.emplace( KMAP_TRYE( to_uuid( s ) ), i );
+        auto const idi = KMAP_TRYE( to_uuid( s ) );
+
+        BC_ASSERT( !is_alias( idi ) );
+
+        id_ordinal_map.emplace( idi, i );
     }
     
-    for( auto const& e : rv )
+    for( auto const& e : children )
     {
         if( !id_ordinal_map.contains( resolve( e ) ) )
         {
+            for( auto const& ord : id_ordinal_map )
+            {
+                fmt::print( "ord: {}, alias?:{}\n", ord.first, to_string( resolve( ord.first ) ) );
+            }
             KMAP_THROW_EXCEPTION_MSG( fmt::format( "failed to find ordering ({}) for child: {}", to_string( parent ), to_string( e ) ) );
         }
     }
 
-    ranges::sort( rv, [ & ]( auto const& lhs, auto const& rhs ){ return id_ordinal_map[ resolve( lhs ) ] < id_ordinal_map[ resolve( rhs ) ]; } );
+    ranges::sort( children, [ & ]( auto const& lhs, auto const& rhs ){ return id_ordinal_map[ resolve( lhs ) ] < id_ordinal_map[ resolve( rhs ) ]; } );
+
+    rv = children;
 
     return rv;
 }
@@ -3698,15 +3823,38 @@ auto Kmap::fetch_ordering_position( Uuid const& node ) const
     -> Result< uint32_t >
 {
     auto rv = KMAP_MAKE_RESULT( uint32_t );
-    auto const ordering = fetch_parent_children_ordered( node );
+    auto const parent = KTRY( fetch_parent( node ) );
+    auto const ordered = fetch_children_ordered( parent );
     
-    if( auto const it = find( ordering, node )
-      ; it != end( ordering) )
+    if( auto const it = find( ordered, node )
+      ; it != end( ordered ) )
     {
-        rv = std::distance( ordering.begin(), it );
+        rv = std::distance( ordered.begin(), it );
     }
 
     return rv;
+}
+
+SCENARIO( "fetch_ordering_position", "[iface]" )
+{
+    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+
+    auto& kmap = Singleton::instance();
+    auto const root = kmap.root_node_id();
+
+    GIVEN( "alias child" )
+    {
+        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( kmap.create_child( root, "2" ) );
+        auto const a21 = REQUIRE_TRY( kmap.create_alias( c1, c2 ) );
+
+        WHEN( "fetch_ordering_position of alias parent" )
+        {
+            auto const pos = REQUIRE_TRY( kmap.fetch_ordering_position( a21 ) );
+
+            REQUIRE( pos == 0 );
+        }
+    }
 }
 
 Kmap& Singleton::instance()

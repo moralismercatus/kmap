@@ -3,126 +3,129 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "tag.hpp"
-
 #include "../common.hpp"
 #include "../contract.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
+#include "command.hpp"
 
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/join.hpp>
-#include <range/v3/view/reverse.hpp>
-#include <range/v3/view/split.hpp>
-#include <range/v3/view/transform.hpp>
-
-#include <string>
-
-using namespace ranges;
+#include <emscripten.h>
+#include <emscripten/bind.h>
 
 namespace kmap::cmd {
 
-auto create_tag( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+namespace {
+
+namespace tag_path {
+
+auto const guard_code =
+R"%%%(```javascript
+return kmap.is_valid_heading_path( arg );
+```)%%%";
+auto const completion_code =
+R"%%%(```javascript
+const troot = kmap.fetch_node( "/meta.tag" );
+
+if( troot.has_error() )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
-    {
-        BC_CONTRACT()
-            BC_PRE([ & ]
-            {
-                BC_ASSERT( args.size() == 1 );
-            })
-        ;
-
-        if( auto const tag_path = fmt::format( "/tags.{}"
-                                             , args[ 0 ] )
-          ; !kmap.exists( tag_path ) )
-        {
-            if( auto const tag = kmap.fetch_or_create_leaf( tag_path )
-            ; tag )
-            {
-                KMAP_TRY( kmap.select_node( *tag ) );
-
-                return fmt::format( "added: {}"
-                                  , tag_path );
-            }
-            else
-            {
-                return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", tag_path ) );
-            }
-        }
-        else
-        {
-            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "tag already exists {}", tag_path ) );
-        }
-    };
+    return new kmap.VectorString();
 }
-
-auto add_tag( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+else
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
-    {
-        BC_CONTRACT()
-            BC_PRE([ & ]
-            {
-                BC_ASSERT( args.size() == 1 );
-            })
-        ;
-
-        // TODO: Match inverted...
-        auto const target = kmap.selected_node();
-        auto const troot_path = "/tags";
-        auto const tag_root = kmap.fetch_leaf( troot_path );
-
-        if( !tag_root )
-        {
-            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", troot_path ) );
-        }
-
-        auto const tag_path_v = args[ 0 ]
-                              | views::split( '.' )
-                              | views::transform( []( auto const& e ){ return to< std::string >( e ); } )
-                              | to< StringVec >();
-        auto const tag_path = tag_path_v
-                            | views::reverse
-                            | views::join( '.' )
-                            | to< std::string >();
-        auto const tag = kmap.fetch_leaf( *tag_root
-                                        , *tag_root
-                                        , ".tags." + tag_path );
-
-        if( !tag )
-        {
-            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to acquire {}", tag_path ) );
-        }
-
-        auto alias_parent = [ & ]
-        {
-            if( kmap.is_child( target
-                              , "tags" ) )
-            {
-                return kmap.fetch_child( target, "tags" ).value(); // TODO: Handle failure case.
-            }
-            else
-            {
-                return kmap.create_child( target, "tags" ).value(); // TODO: Handle failure case.
-            }
-        }();
-
-        if( auto const alias = kmap.create_alias( *tag
-                                                , alias_parent )
-          ; alias )
-        {
-            KMAP_TRY( kmap.select_node( target ) ); // We don't want to move to the newly added alias.
-
-            return fmt::format( "added: {}", tag_path );
-        }
-        else
-        {
-            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "unable to add tag: {}", tag_path ) );
-        }
-    };
+    return kmap.complete_heading_path_from( troot.value(), troot.value(), arg );
 }
+```)%%%";
+
+auto const description = "tag heading path";
+auto const guard = guard_code;
+auto const completion = completion_code;
+
+REGISTER_ARGUMENT
+(
+    tag_path 
+,   description 
+,   guard
+,   completion
+);
+
+} // namespace heading_path 
+
+namespace create_tag_def {
+auto const guard_code =
+R"%%%(```javascript
+return kmap.success( 'unconditional' );
+```)%%%";
+auto const action_code =
+R"%%%(```javascript
+const tagn = kmap.tag_store().create_tag( args.get( 0 ) );
+
+if( tagn.has_value() )
+{
+    kmap.select_node( tagn.value() );
+
+    return kmap.success( 'success' );
+}
+else
+{
+    return kmap.failure( kmap.error_message() );
+}
+```)%%%";
+
+using Guard = PreregisteredCommand::Guard;
+using Argument = PreregisteredCommand::Argument;
+
+auto const description = "Creates tag node";
+auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
+                                                        , "heading path for tag node"
+                                                        , "tag_path" } };
+auto const guard = Guard{ "unconditional"
+                        , guard_code };
+auto const action = action_code;
+
+REGISTER_COMMAND
+(
+    create.tag
+,   description 
+,   arguments
+,   guard
+,   action
+);
+} // namespace create_tag_def 
+
+namespace tag_node_def {
+auto const guard_code =
+R"%%%(```javascript
+return kmap.success( 'unconditional' );
+```)%%%";
+auto const action_code =
+R"%%%(```javascript
+kmap.tag_store().tag_node( kmap.selected_node(), args.get( 0 ) ).throw_on_error();
+
+kmap.select_node( kmap.selected_node() );
+
+return kmap.success( 'success' );
+```)%%%";
+
+using Guard = PreregisteredCommand::Guard;
+using Argument = PreregisteredCommand::Argument;
+
+auto const description = "TODO";
+auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
+                                                        , "path to target tag"
+                                                        , "tag_path" } };
+auto const guard = Guard{ "unconditional"
+                        , guard_code };
+auto const action = action_code;
+
+REGISTER_COMMAND
+(
+    tag.node
+,   description 
+,   arguments
+,   guard
+,   action
+);
+} // namespace tag_node_def 
+} // namespace anon
 
 } // namespace kmap::cmd

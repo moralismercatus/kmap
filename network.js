@@ -18,27 +18,28 @@ class Network
             let edges = new vis.DataSet();
             let nodes = new vis.DataSet();
             let data = { nodes: nodes
-                    , edges: edges };
+                       , edges: edges };
             //  TODO: All these options should exist in a setting node, configurable by the user.
             let options = { height: '100%'
-                        , width: '100%'
-                        , autoResize: true
-                        , layout: { hierarchical: { direction: 'LR'
+                          , width: '100%'
+                          , autoResize: true
+                          , layout: { hierarchical: { direction: 'LR'
                                                     // , sortMethod: 'directed' Disabled this setting, as enabling it caused all leaf nodes to become aligned.
                                                     , nodeSpacing: 50
                                                     , levelSeparation: 250
                                                     , blockShifting: true
                                                     , edgeMinimization: true
                                                     , parentCentralization: true } }
-                        , physics: { enabled: false
-                                    , hierarchicalRepulsion: { nodeDistance: 1 } }
-                        , interaction: { dragNodes: false }
-                        , edges: { smooth: { type: 'continuous'
-                                            , forceDirection: 'horizontal' } }
-                        , nodes: { shape: 'box'
-                                , shapeProperties: { interpolation: false }
-                                , widthConstraint: { minimum: 200
-                                                    , maximum: 200 } } };
+                          , physics: { enabled: false
+                                     , hierarchicalRepulsion: { nodeDistance: 1 } }
+                          , interaction: { dragNodes: false }
+                          , edges: { smooth: { type: 'continuous'
+                                             , forceDirection: 'horizontal' } }
+                          , nodes: { shape: 'box'
+                                   , shapeProperties: { interpolation: false }
+                                   , widthConstraint: { minimum: 200
+                                                      , maximum: 200 }
+                                   , font: { multi: 'html' } } };
 
             this.network = new vis.Network( container, data, options );
             
@@ -568,7 +569,7 @@ let network_on_select_node_event = function( network )
                 // Note: double "select node" is non-straightforward workaround. Here's what I understand to be going on:
                 // - kmap.select_node() assumes that the network always has a node selected, so if it's called without
                 //   visjs having a node selected, it will err - even though it proceeds to call select_node() itslef.
-                network.select_node( node );
+                // network.select_node( node );
                 kmap.select_node( kmap.uuid_from_string( node ).value() ).throw_on_error(); // Assumes 'node' valid UUID.
             }
         };

@@ -18,6 +18,8 @@
 #include "jump_stack.hpp"
 #include "kmap.hpp"
 #include "option/option.hpp"
+#include "tag/tag.hpp"
+#include "task/task.hpp"
 #include "test/master.hpp"
 #include "utility.hpp"
 
@@ -365,8 +367,48 @@ struct OptionStore
     }
 };
 
+struct TagStore
+{
+    Kmap& kmap_;
+
+    TagStore( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto create_tag( std::string const& path )
+        -> binding::Result< Uuid >
+    {
+        return kmap::create_tag( kmap_, path );
+    }
+    auto tag_node( Uuid const& node
+                 , std::string const& path )
+        -> binding::Result< Uuid >
+    {
+        return kmap::tag_node( kmap_, node, path );
+    }
+};
+
+struct TaskStore
+{
+    Kmap& kmap_;
+
+    TaskStore( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto create_task( std::string const& title )
+        -> binding::Result< Uuid >
+    {
+        return kmap_.task_store().create_task( title );
+    }
+};
+
 struct TextArea
 {
+    Kmap& kmap_;
+
     TextArea( Kmap& kmap )
         : kmap_{ kmap }
     {
@@ -397,18 +439,16 @@ struct TextArea
     }
 
     auto show_editor()
-        -> void
+        -> binding::Result< void >
     {
-        kmap_.text_area().show_editor();
+        return kmap_.text_area().show_editor();
     }
 
     auto show_preview( std::string const& body_text )
-        -> void
+        -> binding::Result< void >
     {
-        kmap_.text_area().show_preview( body_text );
+        return kmap_.text_area().show_preview( body_text );
     }
-
-    Kmap& kmap_;
 };
 
 auto autosave()
@@ -433,6 +473,22 @@ auto network()
     -> binding::Network
 {
     return binding::Network{ Singleton::instance() };
+}
+
+auto tag_store()
+    -> binding::TagStore
+{
+    auto& kmap = Singleton::instance();
+
+    return binding::TagStore{ kmap };
+}
+
+auto task_store()
+    -> binding::TaskStore
+{
+    auto& kmap = Singleton::instance();
+
+    return binding::TaskStore{ kmap };
 }
 
 auto text_area()
@@ -1200,6 +1256,8 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "sort_children", &kmap::binding::sort_children );
     function( "success", &kmap::binding::make_success );
     function( "swap_nodes", &kmap::binding::swap_nodes );
+    function( "tag_store", &kmap::binding::tag_store );
+    function( "task_store", &kmap::binding::task_store );
     function( "text_area", &kmap::binding::text_area );
     function( "travel_bottom", &kmap::binding::travel_bottom );
     function( "travel_down", &kmap::binding::travel_down );
@@ -1274,6 +1332,13 @@ EMSCRIPTEN_BINDINGS( kmap_module )
         .function( "apply", &kmap::binding::OptionStore::apply )
         .function( "apply_all", &kmap::binding::OptionStore::apply_all )
         .function( "update_value", &kmap::binding::OptionStore::update_value )
+        ;
+    class_< kmap::binding::TagStore >( "TagStore" )
+        .function( "create_tag", &kmap::binding::TagStore::create_tag )
+        .function( "tag_node", &kmap::binding::TagStore::tag_node )
+        ;
+    class_< kmap::binding::TaskStore >( "TaskStore" )
+        .function( "create_task", &kmap::binding::TaskStore::create_task )
         ;
     class_< kmap::binding::TextArea >( "TextArea" )
         .function( "focus_editor", &kmap::binding::TextArea::focus_editor )

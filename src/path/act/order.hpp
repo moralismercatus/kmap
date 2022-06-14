@@ -37,7 +37,7 @@ auto operator|( RT const& range, Order const& op )
     {
         return is_ordered( op.kmap, lhs, rhs );
     };
-    auto tr = range;
+    auto tr = UuidVec{ range.begin(), range.end() };
 
     ranges::sort( tr, sfn );
 

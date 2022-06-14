@@ -799,7 +799,7 @@ auto Cli::show_popup( std::string const& text )
                            | views::transform( []( auto const& e ){ return static_cast< uint32_t >( e.size() ); } ) // TODO: Checked conversion...
                            | to< std::vector< uint32_t > >();
 
-        return ranges::max( lengths );
+        return lengths.empty() ? 0 : ranges::max( lengths );
     }();
 
     box_dims.left = cli_dims.left;

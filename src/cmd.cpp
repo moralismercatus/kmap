@@ -447,15 +447,15 @@ auto make_core_commands( Kmap& kmap )
                        , kmap }
         , add_step( kmap )
         }
-    ,   { "add.tag"
-        , "associates node with given tag"
-        , ArgumentList{}
-             | InvertedPathArg{ "inverted tag path"
-                             , "associates <_> with selected node" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-                             , "/tags"
-                             , kmap }
-        , add_tag( kmap )
-        }
+    // ,   { "add.tag"
+    //     , "associates node with given tag"
+    //     , ArgumentList{}
+    //          | InvertedPathArg{ "inverted tag path"
+    //                          , "associates <_> with selected node" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
+    //                          , "/tags"
+    //                          , kmap }
+    //     , add_tag( kmap )
+    //     }
     // ,   { "add.task" 
     //     , "adds a reference to an existing project, as a task of the present project"
     //     , ArgumentList{}
@@ -592,14 +592,14 @@ auto make_core_commands( Kmap& kmap )
     //                   , "inserts <_> adjacent to selected node" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
     //     , create_sibling( kmap )
     //     }
-    ,   { "create.tag"
-        , "creates a new tag definition"
-        , ArgumentList{}
-            | TagPathArg{ "heading"
-                        , "creates tag <_>" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-                        , kmap }
-        , create_tag( kmap )
-        }
+    // ,   { "create.tag"
+    //     , "creates a new tag definition"
+    //     , ArgumentList{}
+    //         | TagPathArg{ "heading"
+    //                     , "creates tag <_>" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
+    //                     , kmap }
+    //     , create_tag( kmap )
+    //     }
     // ,   { "create.task" 
     //     , "creates a new project, as a task of the present project"
     //     , ArgumentList{}

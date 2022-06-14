@@ -200,15 +200,14 @@ SCENARIO( "child ordering", "[kmap_iface]" )
             REQUIRE( attr::is_in_order( kmap, root, c2 ) );
         }
 
-        WHEN( "siblings erased" )
+        WHEN( "one child is erased" )
         {
             REQUIRE( succ( kmap.erase_node( c1 ) ) );
-            REQUIRE( succ( kmap.erase_node( c2 ) ) );
-            
+
             THEN( "ordering is empty and well formed" )
             {
                 REQUIRE( !attr::is_in_order( kmap, root, c1 ) );
-                REQUIRE( !attr::is_in_order( kmap, root, c2 ) );
+                REQUIRE( attr::is_in_order( kmap, root, c2 ) );
 
                 auto const ordern = REQUIRE_TRY( view::make( root )
                                                | view::attr
@@ -216,7 +215,22 @@ SCENARIO( "child ordering", "[kmap_iface]" )
                                                | view::fetch_node( kmap ) );
                 auto const orderb = REQUIRE_TRY( kmap.fetch_body( ordern ) );
 
-                REQUIRE( orderb.empty() );
+                REQUIRE( orderb == to_string( c2 ) );
+            }
+        }
+        WHEN( "siblings/all children are erased" )
+        {
+            REQUIRE( succ( kmap.erase_node( c1 ) ) );
+            REQUIRE( succ( kmap.erase_node( c2 ) ) );
+            
+            THEN( "parent ordering is erased" )
+            {
+                REQUIRE( !attr::is_in_order( kmap, root, c1 ) );
+                REQUIRE( !attr::is_in_order( kmap, root, c2 ) );
+                REQUIRE( !( view::make( root )
+                          | view::attr
+                          | view::child( "order" )
+                          | view::exists( kmap ) ) );
             }
 
             WHEN( "child is created" )

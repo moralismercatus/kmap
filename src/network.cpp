@@ -261,11 +261,65 @@ auto Network::create_edges( std::vector< std::pair< Uuid, Uuid > > const& edges 
 #endif // 0
 }
 
+auto Network::format_node_label( Uuid const& node )
+    -> std::string
+{
+    auto rv = std::string{};
+    auto const db_title = KTRYE( kmap_.fetch_title( node ) );
+    auto const child_count = kmap_.fetch_children( node ).size();
+    auto const tags = view::make( node )
+                    | view::attr
+                    | view::child( "tag" )
+                    | view::child
+                    | view::to_node_set( kmap_ );
+    auto const tag_hs = tags
+                        | views::transform( [ & ]( auto const& t ){ return KTRYE( kmap_.fetch_heading( t ) ); } )
+                        | ranges::to< std::vector >()
+                        | actions::sort;
+    auto const tag_line = tag_hs
+                        | views::join( '#' )
+                        | ranges::to< std::string >();
+    auto const is_alias = kmap_.is_alias( node );
+
+    if( !tags.empty() )
+    {
+        if( is_alias )
+        {
+            rv = fmt::format( "<i>{} ({})</i>\n<i>#{}</i>"
+                            , db_title
+                            , child_count
+                            , tag_line );
+        }
+        else
+        {
+            rv = fmt::format( "{} ({})\n<i>#{}</i>"
+                            , db_title
+                            , child_count
+                            , tag_line );
+        }
+    }
+    else
+    {
+        if( is_alias )
+        {
+            rv = fmt::format( "<i>{} ({})</i>"
+                            , db_title
+                            , child_count );
+        }
+        else
+        {
+            rv = fmt::format( "{} ({})"
+                            , db_title
+                            , child_count );
+        }
+    }
+
+    return rv;
+}
+
 auto Network::select_node( Uuid const& id )
     -> Result< Uuid >
 {
-    KMAP_PROFILE_SCOPE();
-
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::no_prev_selection );
 
     BC_CONTRACT()
@@ -296,15 +350,6 @@ auto Network::select_node( Uuid const& id )
             KTRYE( add_edge( pid.value(), nid ) );
         }
     };
-    auto const to_title = [ & ]( auto const& e )
-    {
-        auto const title = KTRYE( kmap_.fetch_title( e ) );
-        auto const child_count = kmap_.fetch_children( e ).size();
-
-        return fmt::format( "{} ({})"
-                          , title
-                          , child_count );
-    };
 
     // This is an inefficient hack. It appears recent versions of visjs will render hierarchy based on node chronology
     // So, to get around this, all nodes are deleted for each movement. Then, recreated, in order.
@@ -314,7 +359,7 @@ auto Network::select_node( Uuid const& id )
     for( auto const& cid : visible_nodes )
     {
         BC_ASSERT( kmap_.exists( cid ) );
-        KMAP_TRY( create_node( cid, to_title( cid ) ) );
+        KTRY( create_node( cid, format_node_label( cid ) ) );
         create_edge( cid );
     }
 

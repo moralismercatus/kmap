@@ -165,7 +165,7 @@ auto HeadingArg::is_fmt_malformed( std::string const& raw ) const
 }
 
 TitleArg::TitleArg( std::string const& arg_desc
-                      , std::string const& cmd_ctx_desc )
+                  , std::string const& cmd_ctx_desc )
     : Argument{ arg_desc
               , cmd_ctx_desc}
 {

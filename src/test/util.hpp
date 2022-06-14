@@ -43,14 +43,58 @@ auto fail( T const& t )
     return !static_cast< bool >( t );
 }
 
+template< typename EntryFn
+        , typename ExitFn >
+struct Fixture
+{
+    EntryFn entry_fn;
+    ExitFn exit_fn;
+    std::string file;
+    uint32_t line;
+
+    Fixture( EntryFn entry
+           , ExitFn exit
+           , std::string const &curr_file = __builtin_FILE()
+           , uint32_t const curr_line = __builtin_LINE() )
+        : entry_fn{ entry }
+        , exit_fn{ exit }
+        , file{ curr_file }
+        , line{ curr_line }
+    {
+        try
+        {
+            entry_fn();
+        }
+        catch( std::exception const& e )
+        {
+            fmt::print( stderr, "Fixture ctor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+            std::cerr << e.what() << '\n';
+            throw;
+        }
+    }
+    ~Fixture()
+    {
+        try
+        {
+            exit_fn();
+        }
+        catch( std::exception const& e )
+        {
+            fmt::print( stderr, "Fixture dtor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+            std::cerr << e.what() << '\n';
+            std::terminate();
+        }
+    }
+};
+
 struct BlankStateFixture
 {
-	std::string file;
-	uint32_t line;
+    std::string file;
+    uint32_t line;
 
-	BlankStateFixture( std::string const& curr_file 
-	                 , uint32_t const curr_line );
-	~BlankStateFixture();
+    BlankStateFixture( std::string const& curr_file 
+                     , uint32_t const curr_line );
+    ~BlankStateFixture();
 };
 
 struct CommandFixture

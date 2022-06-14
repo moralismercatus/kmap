@@ -94,6 +94,8 @@ public:
         -> float;
     auto focus()
         -> void;
+    auto format_node_label( Uuid const& node )
+        -> std::string;
     [[ nodiscard ]]
     auto get_appropriate_node_font_face( Uuid const& id ) const // TODO: Should be from option?
         -> std::string;

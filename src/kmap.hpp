@@ -30,6 +30,7 @@ class Environment;
 class EventStore;
 class Network;
 class OptionStore;
+class TaskStore;
 
 namespace chrono
 {
@@ -51,6 +52,7 @@ class Kmap
     std::unique_ptr< TextArea > text_area_ = {}; // pimpl.
     std::unique_ptr< EventStore > event_store_ = {}; // pimpl.
     std::unique_ptr< OptionStore > option_store_ = {}; // pimpl.
+    std::unique_ptr< TaskStore > task_store_ = {}; // pimpl.
     std::unique_ptr< chrono::Timer > timer_ = {}; // pimpl.
     std::unique_ptr< db::Autosave > autosave_ = {}; // pimpl.
     Uuid selected_node_ = Uuid{ 0 };
@@ -126,6 +128,9 @@ public:
     [[ nodiscard ]]
     auto option_store() const
         -> OptionStore const&;
+    [[ nodiscard ]]
+    auto task_store()
+        -> TaskStore&;
     // TODO [cleanup]: All these abs_path varieties are composables. They are better served with pipes than functions for each composition.
     [[ nodiscard ]]
     auto absolute_path_uuid( Lineal const& node ) const
@@ -261,7 +266,7 @@ public:
     [[ maybe_unused ]]
     auto set_ordering_position( Uuid const& id
                               , uint32_t pos )
-        -> bool;
+        -> Result< void >;
     auto update_body( Uuid const& id
                     , std::string const& contents )
         -> Result< void >;
@@ -291,6 +296,8 @@ public:
     auto init_event_store()
         -> void;
     auto init_option_store()
+        -> void;
+    auto init_task_store()
         -> void;
     auto init_network()
         -> void;
@@ -387,22 +394,22 @@ public:
     auto fetch_children( Uuid const& root
                        , Heading const& parent ) const
         -> kmap::UuidSet;
-    [[ nodiscard ]]
+    [[ nodiscard, deprecated ]]
     auto fetch_parent_children( Uuid const& id ) const
         -> kmap::UuidSet;
-    [[ nodiscard ]]
+    [[ nodiscard, deprecated ]]
     auto fetch_parent_children_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
     [[ nodiscard ]]
     auto fetch_siblings( Uuid const& id ) const // TODO [cleanup]: view::make( id ) | view::sibling | view::to_node_set( kmap ); // view::sibling => view::make( id ) | view::parent | view::child( view::none_of( id ) )
         -> kmap::UuidSet;
-    [[ nodiscard ]]
+    [[ nodiscard, deprecated ]]
     auto fetch_siblings_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
-    [[ nodiscard ]]
+    [[ nodiscard, deprecated ]]
     auto fetch_siblings_inclusive( Uuid const& id ) const
         -> kmap::UuidSet;
-    [[ nodiscard ]]
+    [[ nodiscard, deprecated ]]
     auto fetch_siblings_inclusive_ordered( Uuid const& id ) const
         -> kmap::UuidVec;
     // TODO [cleanup]: Deprecate in favor of view::make( root ) | view::child | view::fetch_node( kmap ) | view::to_ordered
