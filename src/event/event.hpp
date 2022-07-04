@@ -10,6 +10,7 @@
 #include "common.hpp"
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string_view>
 
@@ -17,6 +18,11 @@ namespace kmap { // TODO: kmap::event?
 
 class Kmap;
 
+struct Debounce
+{
+    std::string action = {};
+    uint32_t timeout = {};
+};
 struct Leaf;
 struct Branch;
 using Transition = std::variant< Leaf, Branch >;
@@ -26,6 +32,7 @@ struct Leaf
     std::set< std::string > requisites;
     std::string description;
     std::string action;
+    // std::variant< std::string, Debounce > action;
 };
 struct Branch
 {
@@ -46,6 +53,7 @@ class EventStore
     // Only the active state gets acted upon.
     using TransitionMap = std::map< Uuid, std::shared_ptr< TransitionState > >;
     TransitionMap transition_states_;
+    std::optional< std::string > payload_ = std::nullopt;
 
 public:
     EventStore( Kmap& kmap );
@@ -61,6 +69,8 @@ public:
         -> Result< UuidSet >;
     auto fetch_matching_outlets( std::set< std::string > const& requisites )
         -> Result< UuidSet >;
+    auto fetch_payload()
+        -> Result< std::string >;
 
     auto install_defaults()
         -> Result< void >;
@@ -113,6 +123,9 @@ public:
     auto execute_body( Uuid const& node )
         -> Result< void >;
     auto fire_event( std::set< std::string > const& requisites )
+        -> Result< void >;
+    auto fire_event( std::set< std::string > const& requisites
+                   , std::string const& payload )
         -> Result< void >;
 
     auto reset_transitions( Uuid const& outlet )

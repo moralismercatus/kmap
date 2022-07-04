@@ -10,6 +10,7 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "util/macro.hpp"
 
 #include <emscripten.h>
 #include <emscripten/bind.h>

@@ -175,12 +175,10 @@ auto publish_function( std::string_view const name
     return rv;
 }
 
-auto is_global_kmap_null()
+auto is_global_kmap_valid()
     -> bool 
 {
-    using emscripten::val;
-
-    return val::global().call< bool >( "eval", std::string{ "global.kmap != null" } );
+    return KTRYE( eval< bool >( "return ( global.kmap !== undefined ) && ( global.kmap !== null );" ) );
 }
 
 auto set_global_kmap( Kmap& kmap )
@@ -188,11 +186,9 @@ auto set_global_kmap( Kmap& kmap )
 {
     using emscripten::val;
 
-    // TODO: Shouldn't this be a call to js::eval_void?
-    val::global().call< val >( "eval"
-                             , std::string{ "global.kmap = Module;" } );
+    KTRYE( js::eval_void( "global.kmap = Module;" ) );
 
-    if( is_global_kmap_null() ) // TODO: Figure out how to make it so kmap can't be reassigned.
+    if( is_global_kmap_valid() ) // TODO: Figure out how to make it so kmap can't be reassigned.
     {
         fmt::print( "kmap module set\n" );
     }

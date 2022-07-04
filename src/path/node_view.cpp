@@ -12,6 +12,7 @@
 #include "lineage.hpp"
 #include "path.hpp"
 #include "path/act/to_string.hpp"
+#include "tag/tag.hpp"
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -22,6 +23,7 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop_last.hpp>
 #include <range/v3/view/filter.hpp>
+#include <range/v3/view/join.hpp>
 #include <range/v3/view/set_algorithm.hpp>
 #include <range/v3/view/transform.hpp>
 
@@ -137,6 +139,18 @@ auto operator==( SelectionVariant const& lhs
                         //     rv = ( h.value() == rhs );
                         // }
                     }
+                    else if constexpr( std::is_same_v< T, Uuid > )
+                    {
+                        KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                    }
+                    else if constexpr( std::is_same_v< T, UuidSet > )
+                    {
+                        KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                    }
+                    else if constexpr( std::is_same_v< T, PredFn > )
+                    {
+                        KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                    }
                     else
                     {
                         static_assert( always_false< T >::value, "non-exhaustive visitor!" );
@@ -191,6 +205,14 @@ auto operator==( SelectionVariant const& lhs
                     {
                         KMAP_THROW_EXCEPTION_MSG( "TODO" );
                         // TODO: Missing 'kmap' here... so impl. can't be done until I account for that.
+                    }
+                    else if constexpr( std::is_same_v< T, UuidSet > )
+                    {
+                        KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                    }
+                    else if constexpr( std::is_same_v< T, PredFn > )
+                    {
+                        KMAP_THROW_EXCEPTION_MSG( "TODO" );
                     }
                     else
                     {
@@ -261,8 +283,9 @@ auto match( Kmap const& kmap
                     {
                         auto const ns = arg | view::to_node_set( kmap );
 
+                        // set_insection
                         rv = lhs
-                           | ranges::views::filter( [ & ]( auto const& e ){ return !ns.contains( e ); } )
+                           | ranges::views::filter( [ & ]( auto const& e ){ return ns.contains( e ); } )
                            | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, Uuid > )
@@ -271,6 +294,19 @@ auto match( Kmap const& kmap
                         {
                             rv = UuidSet{ arg };
                         }
+                    }
+                    else if constexpr( std::is_same_v< T, UuidSet > )
+                    {
+                        // set_insection
+                        rv = lhs
+                           | ranges::views::filter( [ & ]( auto const& e ){ return arg.contains( e ); } )
+                           | ranges::to< std::set >();
+                    }
+                    else if constexpr( std::is_same_v< T, PredFn > )
+                    {  
+                        rv = lhs
+                           | ranges::views::filter( [ & ]( auto const& e ){ return arg( e ); } )
+                           | ranges::to< std::set >();
                     }
                     else
                     {
@@ -317,6 +353,19 @@ auto to_string( SelectionVariant const& sel )
                            else if constexpr( std::is_same_v< T, Uuid > )
                            {
                                return kmap::to_string( arg );
+                           }
+                           else if constexpr( std::is_same_v< T, UuidSet > )
+                           {
+                               auto const joined = arg 
+                                                 | ranges::views::transform( []( auto const& id ){ return kmap::to_string( id ); } )
+                                                 | ranges::views::join( ',' )
+                                                 | ranges::to< std::string >();
+
+                               return fmt::format( "({})\n", joined );
+                           }
+                           else if constexpr( std::is_same_v< T, PredFn > )
+                           {
+                               return "pred( TODO )";
                            }
                            else
                            {
@@ -389,11 +438,77 @@ auto Alias::operator()( Kmap const& kmap
     auto const process_aliases = [ & ]( auto const& parent
                                       , auto const& aliases )
     {
-        if( selection )
+        if( predicate )
         {
-            auto const& osv = selection.value();
+            auto const dispatch = 
+                util::Dispatch{ [ & ]( std::string const& pred )
+                                {
+                                    return aliases
+                                         | ranges::views::filter( [ & ]( auto const& e ){ return pred == KMAP_TRYE( kmap.fetch_heading( e ) ); } ) 
+                                         | ranges::to< std::set >();
+                                } 
+                              , [ & ]( Uuid const& pred )
+                                {
+                                    if( aliases.contains( pred ) )
+                                    {
+                                        return UuidSet{ pred };
+                                    }
+                                    else
+                                    {
+                                        return UuidSet{};
+                                    }
+                                } 
+                              , [ & ]( Src const& pred )
+                                {
+                                    auto const resolved = aliases
+                                                        | ranges::views::transform( [ & ]( auto const& e ){ return kmap.resolve( e ); } )
+                                                        | ranges::to< std::set >();
+                                    if( resolved.contains( pred.value() ) )
+                                    {
+                                        return UuidSet{ pred.value() };
+                                    }
+                                    else
+                                    {
+                                        return UuidSet{};
+                                    }
+                                } 
+                              , [ & ]( Dst const& pred )
+                                {
+                                    auto const resolved = aliases
+                                                        | ranges::views::transform( [ & ]( auto const& e ){ return KTRYE( kmap.fetch_parent( e ) ); } )
+                                                        | ranges::views::transform( [ & ]( auto const& e ){ return kmap.resolve( e ); } )
+                                                        | ranges::to< std::set >();
+                                    if( resolved.contains( pred.value() ) )
+                                    {
+                                        return UuidSet{ pred.value() };
+                                    }
+                                    else
+                                    {
+                                        return UuidSet{};
+                                    }
+                                } 
+                              , [ & ]( UuidSet const& pred )
+                                {
+                                    return aliases
+                                         | ranges::views::filter( [ & ]( auto const& e ){ return pred.contains( e ); } )
+                                         | ranges::to< std::set >();
+                                } 
+                              , [ & ]( Intermediary const& pred )
+                                {
+                                    auto const ns = pred | view::to_node_set( kmap );
 
-            return match( kmap, aliases, osv );
+                                    return aliases
+                                         | ranges::views::filter( [ & ]( auto const& e ){ return ns.contains( e ); } )
+                                         | ranges::to< std::set >();
+                                } 
+                              , [ & ]( PredFn const& pred )
+                                {
+                                    return aliases
+                                         | ranges::views::filter( [ & ]( auto const& e ){ return pred( e ); } )
+                                         | ranges::to< std::set >();
+                                } };
+
+            return std::visit( dispatch, predicate.value() );
         }
         else
         {
@@ -410,62 +525,57 @@ auto Alias::create( Kmap& kmap
                   , Uuid const& parent ) const
     -> Result< UuidSet >
 {
+    using NoMatchVariant = std::variant< char const*
+                                       , std::string
+                                       , Dst
+                                       , all_of
+                                       , any_of
+                                       , none_of
+                                       , exactly
+                                       , PredFn >;
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
-    if( selection )
+    if( predicate )
     {
-        auto const& sv = selection.value();
-        auto const vres = std::visit( [ & ]( auto const& arg ) -> Result< UuidSet >
-                                      {
-                                          using T = std::decay_t< decltype( arg ) >;
+        auto const dispatch = 
+            util::Dispatch{ [ & ]( NoMatchVariant const& pred ) -> Result< UuidSet >
+                            {
+                                return KMAP_MAKE_ERROR( error_code::network::invalid_path );
+                            }
+                          , [ & ]( Uuid const& pred ) -> Result< UuidSet >
+                            {
+                                return Result< UuidSet >{ UuidSet{ KTRY( kmap.create_alias( pred, parent ) ) } };
+                            } 
+                          , [ & ]( Src const& pred ) -> Result< UuidSet >
+                            {
+                                return Result< UuidSet >{ UuidSet{ KTRY( kmap.create_alias( pred.value(), parent ) ) } };
+                            } 
+                          , [ & ]( UuidSet const& pred ) -> Result< UuidSet >
+                            {
+                                auto rs = UuidSet{};
+                                
+                                for( auto const& e : pred )
+                                {
+                                    rs.emplace( KTRY( kmap.create_alias( e, parent ) ) );
+                                }
 
-                                          auto vrv = KMAP_MAKE_RESULT( UuidSet );
-                                          auto rset = UuidSet{};
+                                return Result< UuidSet >{ rs };
+                            } 
+                          , [ & ]( Intermediary const& pred ) -> Result< UuidSet >
+                            {
+                                auto const ns = pred | view::to_node_set( kmap );
+                                auto rs = UuidSet{};
+                                
+                                for( auto const& e : ns )
+                                {
+                                    rs.emplace( KTRY( kmap.create_alias( e, parent ) ) );
+                                }
 
-                                          if constexpr( std::is_same_v< T, char const* >
-                                                     || std::is_same_v< T, std::string >
-                                                     || std::is_same_v< T, any_of >
-                                                     || std::is_same_v< T, all_of >
-                                                     || std::is_same_v< T, none_of > 
-                                                     || std::is_same_v< T, exactly > )
-                                          {
-                                              vrv = KMAP_MAKE_ERROR( error_code::network::invalid_path );
-                                          }
-                                          else if constexpr( std::is_same_v< T, Intermediary > )
-                                          {
-                                              auto const ns = arg | to_node_set( kmap );
+                                return Result< UuidSet >{ rs };
+                            } };
 
-                                              for( auto const& src : ns )
-                                              {
-                                                  rset.emplace( KMAP_TRY( kmap.create_alias( src, parent ) ) );
-                                              }
-                                          }
-                                          else if constexpr( std::is_same_v< T, Uuid > )
-                                          {
-                                              rset.emplace( KMAP_TRY( kmap.create_alias( arg, parent ) ) );
-                                          }
-                                          else
-                                          {
-                                              static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                                          }
-
-                                          if( !rset.empty() )
-                                          {
-                                              vrv = rset;
-                                          }
-
-                                          return vrv;
-                                      }
-                                    , sv );
-
-        if( !vres )
-        {
-            rv = KMAP_PROPAGATE_FAILURE( vres );
-        }
-        else
-        {
-            rv = vres;
-        }
+        rv = KTRY( std::visit( dispatch, predicate.value() ) );
     }
 
     return rv;
@@ -474,9 +584,9 @@ auto Alias::create( Kmap& kmap
 auto Alias::to_string() const
     -> std::string
 {
-    if( selection )
+    if( predicate )
     {
-        return fmt::format( "alias( {} )", view::to_string( selection.value() ) );
+        return fmt::format( "alias( TODO )"/*, view::to_string( predicate.value() )*/ );
     }
     else
     {
@@ -644,6 +754,14 @@ auto Child::create( Kmap& kmap
                              {
                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
                              }
+                             else if constexpr( std::is_same_v< T, UuidSet > )
+                             {
+                                 KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                             }
+                             else if constexpr( std::is_same_v< T, PredFn > )
+                             {  
+                                 KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                             }
                              else
                              {
                                  static_assert( always_false< T >::value, "non-exhaustive visitor!" );
@@ -790,11 +908,30 @@ auto Desc::operator()( Kmap const& kmap
 
                                                 rset.insert( d.begin(), d.end() );
                                             }
-
                                         }
                                         else if constexpr( std::is_same_v< T, Uuid > )
                                         {
                                             if( auto const dr = fetch_descendants( kmap, node, [ &arg ]( auto const& e ){ return e == arg; } )
+                                              ; dr )
+                                            {
+                                                auto const& d = dr.value();
+
+                                                rset.insert( d.begin(), d.end() );
+                                            }
+                                        }
+                                        else if constexpr( std::is_same_v< T, UuidSet > )
+                                        {
+                                            if( auto const dr = fetch_descendants( kmap, node, [ &arg ]( auto const& e ){ return arg.contains( e ); } )
+                                              ; dr )
+                                            {
+                                                auto const& d = dr.value();
+
+                                                rset.insert( d.begin(), d.end() );
+                                            }
+                                        }
+                                        else if constexpr( std::is_same_v< T, PredFn > )
+                                        {  
+                                            if( auto const dr = fetch_descendants( kmap, node, [ &arg ]( auto const& e ){ return arg( e ); } )
                                               ; dr )
                                             {
                                                 auto const& d = dr.value();
@@ -1015,6 +1152,14 @@ auto DirectDesc::operator()( Kmap const& kmap
                                             {
                                                 rset.emplace( arg );
                                             }
+                                        }
+                                        else if constexpr( std::is_same_v< T, UuidSet > )
+                                        {
+                                            KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                        }
+                                        else if constexpr( std::is_same_v< T, PredFn > )
+                                        {  
+                                            KMAP_THROW_EXCEPTION_MSG( "TODO" );
                                         }
                                         else
                                         {
@@ -1267,6 +1412,216 @@ auto Single::to_string() const
     -> std::string
 {
     return "single";
+}
+
+auto Tag::operator()( Kmap const& kmap
+                    , Uuid const& node ) const
+    -> UuidSet
+{
+    auto rv = UuidSet{};
+    auto const tags = view::make( node )
+                    | view::attr
+                    | view::child( "tag" )
+                    | view::alias
+                    | view::to_node_set( kmap );
+
+    if( selection )
+    {
+        auto const selected = std::visit( [ & ]( auto const& arg ) -> Result< UuidSet >
+                                          {
+                                              using T = std::decay_t< decltype( arg ) >;
+
+                                              auto sel = KMAP_MAKE_RESULT( UuidSet );
+                                              auto const rtags = tags
+                                                               | ranges::views::transform( [ &kmap ]( auto const& t ){ return kmap.resolve( t ); } )
+                                                               | ranges::to< std::set >();
+
+                                              if constexpr( std::is_same_v< T, char const* >
+                                                         || std::is_same_v< T, std::string > )
+                                              {
+                                                  auto const ft = KTRY( fetch_tag( kmap, arg ) );
+
+                                                  sel = tags
+                                                      | ranges::views::filter( [ & ]( auto const& t ){ return kmap.resolve( t ) == ft; } )
+                                                      | ranges::to< UuidSet >();
+                                              }
+                                              else if constexpr( std::is_same_v< T, all_of > )
+                                              {
+                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                              }
+                                              else if constexpr( std::is_same_v< T, any_of > )
+                                              {
+                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                              }
+                                              else if constexpr( std::is_same_v< T, none_of > )
+                                              {
+                                                  auto const tag_matches = arg.data
+                                                                         | ranges::views::transform( [ &kmap ]( auto const& t ){ return fetch_tag( kmap, t ); } )
+                                                                         | ranges::views::filter( []( auto const& rt ){ return rt.has_value(); } )
+                                                                         | ranges::views::transform( []( auto const& t ){ return t.value(); } )
+                                                                         | ranges::to< UuidSet >();
+
+                                                  sel = tags
+                                                      | ranges::views::filter( [ & ]( auto const& t ){ return !tag_matches.contains( kmap.resolve( t ) ); } )
+                                                      | ranges::to< UuidSet >();
+                                              }
+                                              else if constexpr( std::is_same_v< T, exactly > )
+                                              {
+                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                              }
+                                              else if constexpr( std::is_same_v< T, Intermediary > )
+                                              {
+                                                  auto ts = UuidSet{};
+                                                  for( auto const& tag : arg | view::to_node_set( kmap ) )
+                                                  {
+                                                      if( rtags.contains( tag ) )
+                                                      {
+                                                          ts.emplace( tag );
+                                                      }
+                                                  }
+                                                  sel = ts;
+                                              }
+                                              else if constexpr( std::is_same_v< T, Uuid > )
+                                              {
+                                                  if( rtags.contains( arg ) )
+                                                  {
+                                                      sel = UuidSet{ arg };
+                                                  }
+                                              }
+                                              else if constexpr( std::is_same_v< T, UuidSet > )
+                                              {
+                                                  auto ts = UuidSet{};
+                                                  for( auto const& tag : arg )
+                                                  {
+                                                      if( rtags.contains( tag ) )
+                                                      {
+                                                          ts.emplace( tag );
+                                                      }
+                                                  }
+                                                  sel = ts;
+                                              }
+                                              else if constexpr( std::is_same_v< T, PredFn > )
+                                              {  
+                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                              }
+                                              else
+                                              {
+                                                  static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                              }
+
+                                              return sel;
+                                          }
+                                        , selection.value() );
+        
+        if( selected )
+        {
+            rv = selected.value();
+        }
+    }
+    else
+    {
+        rv = tags;
+    }
+
+    return rv;
+}
+
+auto Tag::create( Kmap& kmap
+                , Uuid const& parent ) const
+    -> Result< UuidSet >
+{
+    auto rv = KMAP_MAKE_RESULT( UuidSet );
+
+    if( selection )
+    {
+        rv = std::visit( [ & ]( auto const& arg ) -> Result< UuidSet >
+                         {
+                             using T = std::decay_t< decltype( arg ) >;
+
+                             auto rset = KMAP_MAKE_RESULT( UuidSet );
+
+                             if constexpr( std::is_same_v< T, char const* >
+                                        || std::is_same_v< T, std::string > )
+                             {
+                                 rset = UuidSet{ KTRY( tag_node( kmap, parent, arg ) ) };
+                             }
+                             else if constexpr( std::is_same_v< T, all_of > )
+                             {
+                                 auto t = UuidSet{};
+
+                                 for( auto const& e : arg.data )
+                                 {
+                                     t.emplace( KTRY( tag_node( kmap, parent, e ) ) );
+                                 }
+
+                                 rset = t;
+                             }
+                             else if constexpr( std::is_same_v< T, any_of > )
+                             {
+                                 KMAP_THROW_EXCEPTION_MSG( "invalid node qualifier" );
+                             }
+                             else if constexpr( std::is_same_v< T, none_of > )
+                             {
+                                 KMAP_THROW_EXCEPTION_MSG( "invalid node qualifier" );
+                             }
+                             else if constexpr( std::is_same_v< T, exactly > )
+                             {
+                                 // This one is tricky.
+                                 // Take every element node that matches only fetch_descendant( dn, dr )?.
+                                 // It's possible that this doesn't belong in the for loop, but just from the root.
+                                 // Need to clarify exactly what "exactly" means.
+                                 KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                             }
+                             else if constexpr( std::is_same_v< T, Intermediary > )
+                             {
+                                 auto ts = UuidSet{};
+                                 for( auto const& tag : arg | to_node_set( kmap ) )
+                                 {
+                                    ts.emplace( KTRY( tag_node( kmap, parent, tag ) ) );
+                                 }
+                                 rset = ts;
+                             }
+                             else if constexpr( std::is_same_v< T, Uuid > )
+                             {
+                                 rset = UuidSet{ KTRY( tag_node( kmap, parent, arg ) ) };
+                             }
+                             else if constexpr( std::is_same_v< T, UuidSet > )
+                             {
+                                 auto ts = UuidSet{};
+                                 for( auto const& tag : arg )
+                                 {
+                                    ts.emplace( KTRY( tag_node( kmap, parent, tag ) ) );
+                                 }
+                                 rset = ts;
+                             }
+                             else if constexpr( std::is_same_v< T, PredFn > )
+                             {  
+                                 KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                             }
+                             else
+                             {
+                                 static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                             }
+
+                             return rset;
+                         }
+                         , selection.value() );
+    }
+
+    return rv;
+}
+
+auto Tag::to_string() const
+    -> std::string
+{
+    if( selection )
+    {
+        return fmt::format( "tag( {} )", view::to_string( selection.value() ) );
+    }
+    else
+    {
+        return "tag";
+    }
 }
 
 auto operator|( Intermediary const& i
@@ -1696,17 +2051,31 @@ auto create_lineages( Kmap& kmap
                          if constexpr( std::is_same_v< T, Child > 
                                     || std::is_same_v< T, Desc >
                                     || std::is_same_v< T, DirectDesc >
-                                    || std::is_same_v< T, Attr > )
+                                    || std::is_same_v< T, Attr >
+                                    || std::is_same_v< T, Tag > )
                          {
-                             vrv = UuidSet{ KMAP_TRY( vop.create( kmap, root ) ) };
+                             vrv = UuidSet{ KTRY( vop.create( kmap, root ) ) };
                          }
                          else if constexpr( std::is_same_v< T, Alias > )
                          {
-                             vrv = KMAP_TRY( vop.create( kmap, root ) );
+                             vrv = KTRY( vop.create( kmap, root ) ); // TODO: Why is this in a separate category from the others? Even if it's correct, at least add a comment explaining why.
                          }
                          else if constexpr( std::is_same_v< T, Single > )
                          {
                              vrv = UuidSet{ root }; // Effectively a NOP for "create".
+                         }
+                         else if constexpr( std::is_same_v< T, Ancestor >
+                                         || std::is_same_v< T, Leaf > // TODO: Shouldn't this one create? I think it's incorrect to be in the do-nothing
+                                         || std::is_same_v< T, Sibling > // TODO: Shouldn't this one create? I think it's incorrect to be in the do-nothing
+                                         || std::is_same_v< T, RLineage >
+                                         || std::is_same_v< T, Resolve >
+                                         || std::is_same_v< T, Parent > )
+                         {
+                            // Nothing to do.
+                         }
+                         else
+                         {
+                            static_assert( always_false< T >::value, "non-exhaustive visitor!" );
                          }
 
                          return vrv;
@@ -1774,7 +2143,8 @@ auto operator|( Intermediary const& i
                                                if constexpr( std::is_same_v< T, Attr >
                                                           || std::is_same_v< T, Child >
                                                           || std::is_same_v< T, Desc >
-                                                          || std::is_same_v< T, DirectDesc > )
+                                                          || std::is_same_v< T, DirectDesc >
+                                                          || std::is_same_v< T, Tag > )
                                                {
                                                    vrv = UuidSet{ KMAP_TRY( vop.create( foc_op.kmap, node ) ) };
                                                }
@@ -1827,6 +2197,17 @@ auto operator|( Intermediary const& i
 
 auto operator|( Intermediary const& i
               , Single const& op )
+    -> Intermediary
+{
+    auto rv = i;
+
+    rv.op_chain.emplace_back( op );
+
+    return rv;
+}
+
+auto operator|( Intermediary const& i
+              , Tag const& op )
     -> Intermediary
 {
     auto rv = i;

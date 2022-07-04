@@ -25,6 +25,7 @@ namespace kmap {
 
 class Canvas;
 class Cli;
+class ComponentStore;
 class Database;
 class Environment;
 class EventStore;
@@ -52,6 +53,7 @@ class Kmap
     std::unique_ptr< TextArea > text_area_ = {}; // pimpl.
     std::unique_ptr< EventStore > event_store_ = {}; // pimpl.
     std::unique_ptr< OptionStore > option_store_ = {}; // pimpl.
+    std::unique_ptr< ComponentStore > component_store_ = {}; // pimpl.
     std::unique_ptr< TaskStore > task_store_ = {}; // pimpl.
     std::unique_ptr< chrono::Timer > timer_ = {}; // pimpl.
     std::unique_ptr< db::Autosave > autosave_ = {}; // pimpl.
@@ -119,6 +121,9 @@ public:
     [[ nodiscard ]]
     auto root_node_id() const
         -> Uuid const&;
+    [[ nodiscard ]]
+    auto component_store()
+        -> ComponentStore&;
     [[ nodiscard ]]
     auto event_store()
         -> EventStore&;
@@ -200,7 +205,7 @@ public:
                      , Title const& title )
         -> kmap::Result< Uuid >;
     // TODO: Need to propagate error: Result< UuidVec >
-    // TODO: Is this even necessary with composible node_view now?
+    // TODO: Is this even necessary with composible node_view now? I don't think so.
     template< typename... Nodes >
     [[ maybe_unused ]]
     auto create_children( Uuid const& parent
@@ -232,6 +237,7 @@ public:
     auto create_alias( Uuid const& src
                      , Uuid const& dst )
         -> Result< Uuid >;
+    [[ deprecated ]]
     auto create_nodes( std::vector< std::pair< Uuid, std::string > > const& nodes // TODO: Replace with PreparedStatement class?
                      , std::vector< std::pair< Uuid, Uuid > > const& edges )
         -> void; // TODO: Should return bool to indicate succ/fail.
@@ -291,6 +297,8 @@ public:
         -> Result< void >;
     auto init_canvas()
         -> void;
+    auto init_component_store()
+        -> void;
     auto init_database()
         -> void;
     auto init_event_store()
@@ -308,6 +316,8 @@ public:
     auto clear_autosave()
         -> void;
     auto clear_canvas()
+        -> void;
+    auto clear_component_store()
         -> void;
     auto clear_database()
         -> void;
@@ -394,12 +404,6 @@ public:
     auto fetch_children( Uuid const& root
                        , Heading const& parent ) const
         -> kmap::UuidSet;
-    [[ nodiscard, deprecated ]]
-    auto fetch_parent_children( Uuid const& id ) const
-        -> kmap::UuidSet;
-    [[ nodiscard, deprecated ]]
-    auto fetch_parent_children_ordered( Uuid const& id ) const
-        -> kmap::UuidVec;
     [[ nodiscard ]]
     auto fetch_siblings( Uuid const& id ) const // TODO [cleanup]: view::make( id ) | view::sibling | view::to_node_set( kmap ); // view::sibling => view::make( id ) | view::parent | view::child( view::none_of( id ) )
         -> kmap::UuidSet;

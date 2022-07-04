@@ -148,6 +148,19 @@ auto EventStore::fetch_outlet_tree( Uuid const& outlet )
     return rv;
 }
 
+auto EventStore::fetch_payload()
+    -> Result< std::string >
+{
+    auto rv = KMAP_MAKE_RESULT( std::string );
+
+    if( payload_ )
+    {
+        rv = payload_.value();
+    }
+
+    return rv;
+}
+
 auto EventStore::install_verb( Heading const& heading )
     -> Result< Uuid >
 {
@@ -363,9 +376,12 @@ auto EventStore::install_outlet_internal( Uuid const& root
 
     for( auto const& e : branch.requisites )
     {
+        auto const req_alias = KTRY( view::make( event_root() )
+                                   | view::desc( e )
+                                   | view::fetch_node( kmap_ ) );
         KMAP_TRY( view::make( root )
                 | view::child( "requisite" ) 
-                | view::alias( view::make( event_root() ) | view::desc( e ) ) 
+                | view::alias( req_alias ) 
                 | view::create_node( kmap_ ) );
     }
 
@@ -605,6 +621,23 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
             node = KTRY( kmap_.fetch_parent( node ) );
         }
     }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventStore::fire_event( std::set< std::string > const& requisites
+                           , std::string const& payload )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    
+    payload_ = payload;
+    {
+        KTRY( fire_event( requisites ) );
+    }
+    payload_ = std::nullopt; // TODO: payload_ needs to be nulled even if fire_event returns error.
 
     rv = outcome::success();
 

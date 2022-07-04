@@ -1042,8 +1042,6 @@ auto Database::erase_all( Uuid const& id )
 auto Database::fetch_children() const
     -> std::vector< std::pair< Uuid, Uuid > >
 {
-    KMAP_PROFILE_SCOPE();
-
     auto rv = std::vector< std::pair< Uuid, Uuid > >{};
 
     BC_CONTRACT()
@@ -1085,8 +1083,6 @@ auto Database::fetch_children() const
 auto Database::fetch_children( Uuid const& parent ) const
     -> Result< UuidSet >
 {
-    KMAP_PROFILE_SCOPE();
-
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
     BC_CONTRACT()

@@ -8,13 +8,11 @@
 #define KMAP_CMD_COMMAND_HPP
 
 #include "../error/node_manip.hpp"
+#include "util/macro.hpp"
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
 
-#define KMAP_CONCAT_( lhs, rhs ) lhs ## rhs
-#define KMAP_CONCAT( lhs, rhs ) KMAP_CONCAT_( lhs, rhs )
-#define KMAP_UNIQUE_NAME( prefix ) KMAP_CONCAT( prefix, __COUNTER__ )
 #define REGISTER_COMMAND( path, desc, args, guard, action ) \
     namespace binding \
     { \

@@ -398,10 +398,38 @@ struct TaskStore
     {
     }
 
+    auto cascade_tags( Uuid const& task )
+        -> binding::Result< void >
+    {
+        return kmap_.task_store().cascade_tags( task );
+    }
     auto create_task( std::string const& title )
         -> binding::Result< Uuid >
     {
         return kmap_.task_store().create_task( title );
+    }
+    auto create_subtask( Uuid const& supertask
+                       , std::string const& title )
+        -> binding::Result< Uuid >
+    {
+        return kmap_.task_store().create_subtask( supertask, title );
+    }
+    auto close_task( Uuid const& task )
+                   
+        -> binding::Result< void >
+    {
+        return kmap_.task_store().close_task( task );
+    }
+    auto open_task( Uuid const& task )
+                   
+        -> binding::Result< void >
+    {
+        return kmap_.task_store().open_task( task );
+    }
+    auto is_task( Uuid const& task )
+        -> bool
+    {
+        return kmap_.task_store().is_task( task );
     }
 };
 
@@ -665,6 +693,30 @@ auto create_child( Uuid const& parent
     return kmap.create_child( parent
                             , format_heading( title )
                             , title );
+}
+
+auto create_descendant( Uuid const& parent
+                      , std::string const& heading )
+    -> binding::Result< Uuid >
+{
+    auto& kmap = Singleton::instance();
+
+    return view::make( parent )
+         | view::desc( heading )
+         | view::create_node( kmap )
+         | view::to_single;
+}
+
+auto create_direct_descendant( Uuid const& parent
+                             , std::string const& heading )
+    -> binding::Result< Uuid >
+{
+    auto& kmap = Singleton::instance();
+
+    return view::make( parent )
+         | view::direct_desc( heading )
+         | view::create_node( kmap )
+         | view::to_single;
 }
 
 auto database()
@@ -1205,6 +1257,8 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "count_descendants", &kmap::binding::count_descendants );
     function( "create_alias", &kmap::binding::create_alias );
     function( "create_child", &kmap::binding::create_child );
+    function( "create_descendant", &kmap::binding::create_descendant );
+    function( "create_direct_descendant", &kmap::binding::create_direct_descendant );
     function( "database", &kmap::binding::database );
     function( "delete_alias", &kmap::binding::delete_alias );
     function( "delete_children", &kmap::binding::delete_children );
@@ -1338,7 +1392,12 @@ EMSCRIPTEN_BINDINGS( kmap_module )
         .function( "tag_node", &kmap::binding::TagStore::tag_node )
         ;
     class_< kmap::binding::TaskStore >( "TaskStore" )
+        .function( "cascade_tags", &kmap::binding::TaskStore::cascade_tags )
         .function( "create_task", &kmap::binding::TaskStore::create_task )
+        .function( "create_subtask", &kmap::binding::TaskStore::create_subtask )
+        .function( "close_task", &kmap::binding::TaskStore::close_task )
+        .function( "open_task", &kmap::binding::TaskStore::open_task )
+        .function( "is_task", &kmap::binding::TaskStore::is_task )
         ;
     class_< kmap::binding::TextArea >( "TextArea" )
         .function( "focus_editor", &kmap::binding::TextArea::focus_editor )

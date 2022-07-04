@@ -129,6 +129,8 @@ public:
         -> bool;
     auto clear_input()
         -> void;
+    auto clear_preregs()
+        -> void;
     [[ nodiscard ]]
     auto valid_commands()
         -> std::vector< CliCommand >;

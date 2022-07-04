@@ -424,7 +424,7 @@ auto DailyLogArg::is_fmt_malformed( std::string const& raw ) const
 auto DailyLogArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const log_root = kmap_.fetch_descendant( "/logs.daily" );
+    auto const log_root = kmap_.fetch_descendant( "/log.daily" );
 
     if( !log_root )
     {
@@ -480,7 +480,7 @@ auto DefinitionPathArg::is_fmt_malformed( std::string const& raw ) const
 }
 
 /**
- * root_path: Path to uppermost allowed node e.g., .root.tags or .root.logs.daily
+ * root_path: Path to uppermost allowed node e.g., .root.tags or .root.log.daily
  * raw: Partial or full heading of node to complete.
  **/
 auto complete( Kmap const& kmap

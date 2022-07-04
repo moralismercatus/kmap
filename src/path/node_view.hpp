@@ -12,6 +12,7 @@
 #include "lineage.hpp"
 #include "util/concepts.hpp"
 
+#include <functional>
 #include <optional>
 
 namespace kmap::view
@@ -35,6 +36,8 @@ struct all_of
     //       Some code that could otherwise be quite straight-forward is awkwardly awaiting this support.
     //       Will require substantial rework, as each operator handles "data", as set< string >, differently.
     //       std::set< std::variant< std::string, Uuid, Intermediate, PlaceholderNode(?) > >
+    //       Actually, it probably needs to be an "std::set< std::any >", just a matter of how to evaluate the "any":
+    //       I suppose in terms of the caller, something like: if constexpr( pred::all_of ){ return ranges::all_of( data, intermedary | op ) }...
     std::set< std::string > data;
 };
 struct any_of
@@ -80,6 +83,7 @@ struct Parent;
 struct Resolve;
 struct Sibling;
 struct Single;
+struct Tag;
 
 using OperatorVariant = std::variant< Alias
                                     , Ancestor
@@ -92,7 +96,8 @@ using OperatorVariant = std::variant< Alias
                                     , Parent
                                     , Resolve
                                     , Sibling
-                                    , Single >;
+                                    , Single
+                                    , Tag >;
 
 struct Intermediary
 {
@@ -100,6 +105,8 @@ struct Intermediary
     UuidSet root = {};
 };
 
+using PredFn = std::function< bool(Uuid const&) >;
+// TODO: Rename SelectionVariant to PredicateVariant?
 using SelectionVariant = std::variant< char const* // TODO: To consolidate std::string and char const*, and own the char*, consider making SelectionVariant a struct with ctor with variant as a member.
                                      , std::string
                                      , all_of
@@ -107,7 +114,9 @@ using SelectionVariant = std::variant< char const* // TODO: To consolidate std::
                                      , exactly
                                      , none_of
                                      , Intermediary
-                                     , Uuid >;
+                                     , Uuid
+                                     , UuidSet
+                                     , PredFn >;
 
 auto to_string( SelectionVariant const& sel )
     -> std::string;
@@ -142,13 +151,23 @@ struct Ancestor
 };
 struct Alias
 {
-    std::optional< SelectionVariant > selection = std::nullopt;
+    using Src = StrongType< Uuid, class SrcTag >;
+    using Dst = StrongType< Uuid, class DstTag >;
+    using PredVariant = std::variant< char const*
+                                    , std::string
+                                    , Intermediary // Equivalent to UuidSet, right?
+                                    , Uuid
+                                    , UuidSet // Equivalent to all_of{ ids }, right?
+                                    , PredFn
+                                    , Src
+                                    , Dst >;
+    std::optional< PredVariant > predicate = std::nullopt;
 
     Alias() = default;
-    explicit Alias( SelectionVariant const& sel ) : selection{ sel } {}
+    explicit Alias( PredVariant const& pred ) : predicate{ pred } {}
 
     auto operator()() const {}
-    auto operator()( SelectionVariant const& sel ) const { return Alias{ sel }; }
+    auto operator()( PredVariant const& pred ) const { return Alias{ pred }; } // TODO: Replace all operator() used for selection to fetch(), or something equivalent. Explicit name.
     auto operator()( Kmap const& kmap
                    , Uuid const& node ) const
         -> UuidSet;
@@ -318,6 +337,25 @@ struct Single
     auto to_string() const
         -> std::string;
 };
+struct Tag
+{
+    std::optional< SelectionVariant > selection = std::nullopt;
+
+    Tag() = default;
+    explicit Tag( SelectionVariant const& sel ) : selection{ sel } {}
+
+    auto operator()() const {}
+    auto operator()( SelectionVariant const& sel ) const { return Tag{ sel }; }
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    auto create( Kmap& kmap
+               , Uuid const& parent ) const
+    -> Result< UuidSet >;
+    auto to_string() const
+        -> std::string;
+};
 
 // Result Operations
 struct Count
@@ -407,6 +445,7 @@ auto const resolve = Resolve{};
 auto const sibling = Sibling{};
 // TODO: auto const sibling_inclusive = view::parent | view::child; 
 auto const single = Single{};
+auto const tag = Tag{};
 
 // Post-Result Operations
 auto const to_single = ToSingle{};
@@ -434,6 +473,7 @@ auto make( UuidSet const& n ) -> Intermediary;
 // auto fetch_unique( Kmap const& kmap ) -> FetchUnique;
 
 // Intermediate Operations
+// Need here: operator( op, op ) => Intermediary (fine, could be called view::node, I reckon)
 auto operator|( Intermediary const& i, Alias const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Ancestor const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Attr const& op ) -> Intermediary;
@@ -447,6 +487,8 @@ auto operator|( Intermediary const& i, Parent const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Resolve const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Sibling const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Single const& op ) -> Intermediary;
+auto operator|( Intermediary const& i, Tag const& op ) -> Intermediary;
+// Actions
 // Result Operations
 auto operator|( Intermediary const& i, CreateNode const& op ) -> Result< UuidSet >;
 auto operator|( Intermediary const& i, EraseNode const& op ) -> Result< void >;

@@ -11,7 +11,9 @@
 #include "error/node_manip.hpp"
 #include "io.hpp"
 #include "kmap.hpp"
+#include "path/act/order.hpp"
 #include "path/act/value_or.hpp"
+#include "path/node_view.hpp"
 
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/filesystem.hpp>
@@ -1352,44 +1354,18 @@ auto fetch_siblings_inclusive( Kmap const& kmap
                              , Uuid const& id )
     -> UuidSet
 {
-    return fetch_parent_children( kmap, id );
+    return view::make( id )
+         | view::parent
+         | view::child
+         | view::to_node_set( kmap );
 }
 
 auto fetch_siblings_inclusive_ordered( Kmap const& kmap
                                      , Uuid const& id )
     -> UuidVec
 {
-    return fetch_parent_children_ordered( kmap, id );
-}
-
-auto fetch_parent_children( Kmap const& kmap
-                          , Uuid const& id )
-    -> UuidSet
-{
-    auto rv = UuidSet{};
-
-    if( auto const parent = kmap.fetch_parent( id )
-      ; parent )
-    {
-        rv = kmap.fetch_children( parent.value() );
-    }
-
-    return rv;
-}
-
-auto fetch_parent_children_ordered( Kmap const& kmap
-                                  , Uuid const& id )
-    -> UuidVec
-{
-    auto rv = UuidVec{};
-
-    if( auto const parent = kmap.fetch_parent( id )
-      ; parent )
-    {
-        rv = kmap.fetch_children_ordered( parent.value() );
-    }
-
-    return rv;
+    return fetch_siblings_inclusive( kmap, id )
+         | act::order( kmap );
 }
 
 auto to_heading_path( Kmap const& kmap

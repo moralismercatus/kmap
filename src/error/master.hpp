@@ -18,7 +18,7 @@
 #define KMAP_THROW_EXCEPTION_MSG( msg ) \
     ({ \
         kmap::log_exception( ( msg ), __PRETTY_FUNCTION__, __FILE__, __LINE__ ); \
-        throw std::runtime_error( ( msg ) ); \
+        throw std::runtime_error( fmt::format( "Exception:\n\tmessage: {}\n\t{}|{}|{}", ( msg ), __LINE__, __PRETTY_FUNCTION__, __FILE__ ) ); \
     })
 // TODO: Replace macros with std::source_location. This can be done by creating a default
 //       argument KMAP_MAKE_RESULT( T >( boost::system::error_code const& ec = common::uncategorized, std::source_location const& = std::source_location::current() )

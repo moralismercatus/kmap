@@ -25,6 +25,11 @@
 
 namespace kmap::binding {
 
+// TODO: I suspect this is the wrong approach to binding. It requires, effectively, duplicating all desired structs/classes because of dependent types, some of which
+//       are hidden under abstractions. Along with copious duplication, interplay/conversion between the binding::T and kmap::T can be difficult.
+//       I think, rather, the way to achieve this is to bind the original type (e.g., kmap::Result< T >), and for specific routines, provide function utilities.
+//       E.g. "kmap::Result< T >": to get the error message in JS, one also has to bind decltype( r.error() ), to finally get to r.error().message().
+//       Rather, provide a utility class with functions as needed: `str = kmap.Result#T$.error_message( r );`
 /**
  * Extensible wrapper for communicating kmap::Result< T > to javascript.
  * Simply expose your type (kmap::Result< MyType >) to Emscripten's binding mechanism.

@@ -22,13 +22,37 @@ using namespace ranges;
 
 namespace kmap::cmd::log {
 
+auto present_date_string()
+    -> std::string
+{
+    // TODO: Awaiting C++20 chrono date capabilities.
+    // return to_log_date_string( std::chrono::system_clock::now() );
+
+    auto t = std::time( nullptr );
+    auto ss = std::stringstream{};
+
+    ss << std::put_time( std::localtime( &t ), "%Y.%m.%d" );
+
+    return ss.str();
+}
+
+auto present_daily_log_path()
+    -> std::string
+{
+    auto const pds = present_date_string();
+
+    return fmt::format( "/{}.{}"
+                      , "log.daily" 
+                      , pds );
+}
+
 auto fetch_or_create_daily_log( Kmap& kmap
                               , std::string const& date )
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    rv = KTRY( kmap.fetch_or_create_descendant( kmap.root_node_id(), fmt::format( "/logs.daily.{}", date ) ) );
+    rv = KTRY( kmap.fetch_or_create_descendant( present_daily_log_path() ) );
 
     return rv;
 }
@@ -38,7 +62,7 @@ auto fetch_or_create_daily_log( Kmap& kmap )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    rv = KTRY( fetch_or_create_daily_log( kmap, to_log_date_string( std::chrono::system_clock::now() ) ) );
+    rv = KTRY( fetch_or_create_daily_log( kmap, present_daily_log_path() ) );
 
     return rv;
 }
@@ -49,7 +73,7 @@ auto fetch_daily_log( Kmap const& kmap
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    rv = KTRY( kmap.fetch_descendant( fmt::format( "/logs.daily.{}", date ) ) );
+    rv = KTRY( kmap.fetch_descendant(kmap.root_node_id(), date ) );
 
     return rv;
 }
@@ -59,7 +83,7 @@ auto fetch_daily_log( Kmap const& kmap )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    rv = KTRY( fetch_daily_log( kmap, to_log_date_string( std::chrono::system_clock::now() ) ) );
+    rv = KTRY( fetch_daily_log( kmap, present_daily_log_path() ) );
 
     return rv;
 }
@@ -139,17 +163,30 @@ auto const action_code =
 R"%%%(```javascript
 let rv = null;
 const path = kmap.present_daily_log_path();
-const ln = kmap.fetch_or_create_node( kmap.root_node(), path );
+const fln = kmap.fetch_descendant( kmap.root_node(), path ); // TODO: direct_desc?
 
-if( ln.has_value() )
+if( fln.has_value() )
 {
-    kmap.select_node( ln.value() );
+    kmap.select_node( fln.value() );
 
-    rv = kmap.success( 'log created or existent' );
+    rv = kmap.success( 'log already existent' );
 }
 else
 {
-    rv = kmap.failure( ln.error_message() );
+    const cln = kmap.create_descendant( kmap.root_node(), path );
+
+    if( cln.has_value() )
+    {
+        kmap.select_node( cln.value() );
+
+        kmap.event_store().fire_event( to_VectorString( [ 'subject.log', 'verb.created', 'object.daily' ] ) ).throw_on_error();
+
+        rv = kmap.success( 'log created' );
+    }
+    else
+    {
+        rv = kmap.failure( cln.error_message() );
+    }
 }
 
 return rv;
@@ -353,34 +390,10 @@ namespace binding {
 
 using namespace emscripten;
 
-auto present_date_string()
-    -> std::string
+EMSCRIPTEN_BINDINGS( kmap_log )
 {
-    // TODO: Awaiting C++20 chrono date capabilities.
-    // return to_log_date_string( std::chrono::system_clock::now() );
-
-    auto t = std::time( nullptr );
-    auto ss = std::stringstream{};
-
-    ss << std::put_time( std::localtime( &t ), "%Y.%m.%d" );
-
-    return ss.str();
-}
-
-auto present_daily_log_path()
-    -> std::string
-{
-    auto const pds = present_date_string();
-
-    return fmt::format( "{}.{}"
-                      , "/logs.daily" 
-                      , pds );
-}
-
-EMSCRIPTEN_BINDINGS( kmap_module )
-{
-    function( "present_date_string", &kmap::cmd::log::binding::present_date_string );
-    function( "present_daily_log_path", &kmap::cmd::log::binding::present_daily_log_path );
+    function( "present_date_string", &kmap::cmd::log::present_date_string );
+    function( "present_daily_log_path", &kmap::cmd::log::present_daily_log_path );
 }
 
 } // namespace binding

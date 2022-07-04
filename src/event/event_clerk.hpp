@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "event/event.hpp"
 
+#include <optional>
 #include <set>
 #include <string_view>
 
@@ -31,11 +32,15 @@ struct EventClerk
     std::vector< Uuid > objects = {};
     std::vector< Uuid > outlets = {};
     std::vector< Uuid > outlet_transitions = {};
+    std::optional< std::string > payload = std::nullopt;
 
     EventClerk( Kmap& km );
     ~EventClerk();
 
-    auto fire_event( std::vector< std::string > const& requisites )
+    auto fire_event( std::set< std::string > const& requisites )
+        -> Result< void >;
+    auto fire_event( std::set< std::string > const& requisites
+                   , std::string const& payload )
         -> Result< void >;
     auto install_subject( Heading const& heading )
         -> Result< Uuid >;
@@ -49,6 +54,8 @@ struct EventClerk
         -> Result< void >;
     auto install_outlet_transition( Uuid const& root
                                   , Transition const& transition )
+        -> Result< void >;
+    auto install_requisites( std::set< std::string > const& requisites )
         -> Result< void >;
 };
 

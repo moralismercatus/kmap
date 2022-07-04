@@ -72,7 +72,9 @@ auto register_commands()
     using emscripten::val;
     using emscripten::vecFromJSArray;
 
-    for( auto const& cmd : vecFromJSArray< std::string >( val::global( "registration_commands" ) ) )
+    auto const cmds = vecFromJSArray< std::string >( val::global( "kmap_registration_commands" ) );
+
+    for( auto const& cmd : cmds )
     {
         if( auto const& succ = js::eval_void( fmt::format( "Module.register_cmd_{}();", cmd ) )
           ; !succ )
@@ -90,7 +92,9 @@ auto register_arguments()
     using emscripten::val;
     using emscripten::vecFromJSArray;
 
-    for( auto const& arg : vecFromJSArray< std::string >( val::global( "registration_arguments" ) ) )
+    auto const args = vecFromJSArray< std::string >( val::global( "kmap_registration_arguments" ) );
+
+    for( auto const& arg : args )
     {
         if( auto const& succ = js::eval_void( fmt::format( "Module.register_arg_{}();", arg ) )
           ; !succ )
@@ -677,6 +681,13 @@ auto Cli::clear_input()
     hide_popup();
 }
 
+auto Cli::clear_preregs()
+    -> void
+{
+    prereg_cmds_.clear();
+    prereg_args_.clear();
+}
+
 auto Cli::valid_commands()
     -> std::vector< CliCommand >
 {
@@ -975,9 +986,10 @@ auto Cli::create_argument( PreregisteredArgument const& arg )
     if( auto const existing = kmap_.fetch_descendant( io::format( "{}.{}", arg_root_path, arg.path ) )
       ; existing )
     {
-        KMAP_TRY( kmap_.erase_node( existing.value() ) );
+        KTRY( kmap_.erase_node( existing.value() ) );
     } 
 
+{
     auto const arglin = KMAP_TRY( kmap_.create_descendants( arg_root.value()
                                                           , io::format( "/{}", arg.path ) ) );
     auto const arg_node = arglin.back();
@@ -986,11 +998,12 @@ auto Cli::create_argument( PreregisteredArgument const& arg )
                                             , "guard"
                                             , "completion" );
     
-    KMAP_TRY( kmap_.update_body( nodes[ 0 ], arg.description ) );
-    KMAP_TRY( kmap_.update_body( nodes[ 1 ], arg.guard ) );
-    KMAP_TRY( kmap_.update_body( nodes[ 2 ], arg.completion ) );
+    KTRY( kmap_.update_body( nodes[ 0 ], arg.description ) );
+    KTRY( kmap_.update_body( nodes[ 1 ], arg.guard ) );
+    KTRY( kmap_.update_body( nodes[ 2 ], arg.completion ) );
 
     rv = arg_node;
+}
 
     return rv;
 }
@@ -1027,8 +1040,7 @@ auto Cli::create_command( PreregisteredCommand const& prereg )
     for( auto const& arg : prereg.arguments )
     {
         auto const argn = KTRY( vcmd | view::child( "argument" ) | view::fetch_node( kmap_ ) );
-        auto const arg_src = KMAP_TRY( kmap_.fetch_descendant( fmt::format( "/meta.setting.argument.{}"
-                                                                          , arg.argument_alias ) ) );
+        auto const arg_src = KMAP_TRY( kmap_.fetch_descendant( fmt::format( "/meta.setting.argument.{}", arg.argument_alias ) ) );
         auto const arg_dst = KMAP_TRY( kmap_.create_child( argn, arg.heading ) );
 
         KMAP_TRY( kmap_.update_body( arg_dst, arg.description ) );
@@ -1128,8 +1140,8 @@ auto Cli::reset_all_preregistered()
     auto rv = KMAP_MAKE_RESULT( void );
 
     // Note: Must be applied the order below, as commands depends upon arguments.
-    KMAP_TRY( reset_preregistered_arguments() );
-    KMAP_TRY( reset_preregistered_commands() );
+    KTRY( reset_preregistered_arguments() );
+    KTRY( reset_preregistered_commands() );
 
     rv = outcome::success();
 

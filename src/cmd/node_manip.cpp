@@ -1277,7 +1277,7 @@ auto create_reference( Uuid const& src
     return kmap.create_alias( src, ref );
 }
 
-EMSCRIPTEN_BINDINGS( kmap_module )
+EMSCRIPTEN_BINDINGS( kmap_node_manip )
 {
     function( "create_reference", &kmap::cmd::binding::create_reference );
 }

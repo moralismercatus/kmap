@@ -29,6 +29,7 @@ BlankStateFixture::BlankStateFixture( std::string const& curr_file
 
         kmap.clear_database();
         kmap.init_database();
+        kmap.init_root_node();
         KTRYE( kmap.set_up_db_root() );
     }
     catch( std::exception const& e )
@@ -51,6 +52,7 @@ BlankStateFixture::~BlankStateFixture()
             KMAP_TRYE( kmap.erase_node( child ) );
         }
         kmap.database().erase_all( kmap.root_node_id() );
+        kmap.clear();
     }
     catch( std::exception const& e )
     {

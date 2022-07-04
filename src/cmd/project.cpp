@@ -1362,7 +1362,7 @@ auto open_project( Uuid const& at )
     return id;
 }
 
-EMSCRIPTEN_BINDINGS( kmap_module )
+EMSCRIPTEN_BINDINGS( kmap_project )
 {
     function( "close_project", &kmap::cmd::project::binding::close_project );
     function( "create_project", &kmap::cmd::project::binding::create_project );

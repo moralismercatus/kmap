@@ -113,7 +113,7 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
         {
             auto const c1 = kmap.create_child( root, "1" ); REQUIRE( succ( c1 ) );
             auto const c2 = kmap.create_child( root, "2" ); REQUIRE( succ( c2 ) );
-            auto const a1 = kmap.create_alias( c2.value(), c1.value() ); REQUIRE( succ( a1 ) );
+            auto const a1 = kmap.create_alias( c2.value(), c1.value() ); REQUIRE( succ( a1 ) ); // a1 => /1.2
 
             THEN( "unspecified view::alias finds" )
             {
@@ -138,8 +138,7 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             {
                 auto const v = view::make( root )
                              | view::child( "1" )
-                             | view::alias( view::make( root )
-                                          | view::child( "2" ) );
+                             | view::alias( a1.value() );
 
                 REQUIRE( succ( v | view::fetch_node( kmap ) ) );
                 REQUIRE( ( v | view::to_node_set( kmap ) ).size() == 1 );

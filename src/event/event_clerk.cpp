@@ -5,8 +5,9 @@
  ******************************************************************************/
 #include "event/event_clerk.hpp"
 
-#include "event/event.hpp"
+#include "contract.hpp"
 #include "error/master.hpp"
+#include "event/event.hpp"
 #include "kmap.hpp"
 
 #include <range/v3/range/conversion.hpp>
@@ -49,44 +50,42 @@ EventClerk::~EventClerk()
     }
 }
 
-auto EventClerk::fire_event( std::vector< std::string > const& requisites )
+auto EventClerk::fire_event( std::set< std::string > const& requisites )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto& estore = kmap.event_store();
     auto const eroot = estore.event_root();
 
-    for( auto const& req : requisites )
-    {
-        if( !( view::make( eroot )
-             | view::direct_desc( req )
-             | view::exists( kmap ) ) )
-        {
-            // TODO: Fix this...
-            auto const ps = req
-                          | ranges::views::split( '.' )
-                          | ranges::views::drop( 1 )
-                          | ranges::views::join( '.' )
-                          | ranges::to< std::string >();
+    KTRY( install_requisites( requisites ) );
 
-            if( req.starts_with( "subject" ) )
-            {
-                KTRY( install_subject( ps ) );
-            }
-            else if( req.starts_with( "verb" ) )
-            {
-                KTRY( install_verb( ps ) );
-            }
-            else if( req.starts_with( "object" ) )
-            {
-                KTRY( install_object( ps ) );
-            }
-            else
-            {
-                KMAP_THROW_EXCEPTION_MSG( "unexpected event requisite category" );
-            }
-        }
+    if( payload )
+    {
+        KTRY( estore.fire_event( requisites, payload.value() ) );
     }
+    else
+    {
+        KTRY( estore.fire_event( requisites ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::fire_event( std::set< std::string > const& requisites
+                           , std::string const& event_payload )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    payload = event_payload;
+    {
+        KTRY( fire_event( requisites ) );
+    }
+    payload = std::nullopt; // TODO: Still need to null payload even if fire_event fails.
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -138,9 +137,14 @@ auto EventClerk::install_outlet( Leaf const& leaf )
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto& estore = kmap.event_store();
-    auto const outlet = KTRY( estore.install_outlet( leaf ) );
 
-    outlets.emplace_back( outlet );
+    KTRY( install_requisites( leaf.requisites ) );
+
+    {
+        auto const outlet = KTRY( estore.install_outlet( leaf ) );
+
+        outlets.emplace_back( outlet );
+    }
 
     rv = outcome::success();
 
@@ -165,11 +169,57 @@ auto EventClerk::install_outlet_transition( Uuid const& root
                                           , Transition const& transition )
     -> Result< void >
 {
+    KMAP_THROW_EXCEPTION_MSG( "TODO: Need to install_requisites() first" );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& estore = kmap.event_store();
     auto const ot = KTRY( estore.install_outlet_transition( root, transition ) );
 
     outlet_transitions.emplace_back( ot );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::install_requisites( std::set< std::string > const& requisites )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& estore = kmap.event_store();
+    auto const eroot = estore.event_root();
+
+    for( auto const& req : requisites )
+    {
+        if( !( view::make( eroot )
+             | view::direct_desc( req )
+             | view::exists( kmap ) ) )
+        {
+            // TODO: Fix this...
+            auto const ps = req
+                          | ranges::views::split( '.' )
+                          | ranges::views::drop( 1 )
+                          | ranges::views::join( '.' )
+                          | ranges::to< std::string >();
+
+            if( req.starts_with( "subject" ) )
+            {
+                KTRY( install_subject( ps ) );
+            }
+            else if( req.starts_with( "verb" ) )
+            {
+                KTRY( install_verb( ps ) );
+            }
+            else if( req.starts_with( "object" ) )
+            {
+                KTRY( install_object( ps ) );
+            }
+            else
+            {
+                KMAP_THROW_EXCEPTION_MSG( "unexpected event requisite category" );
+            }
+        }
+    }
 
     rv = outcome::success();
 

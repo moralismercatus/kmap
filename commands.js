@@ -1,4 +1,4 @@
-var registration_arguments =
+var kmap_registration_arguments =
 [
     "bookmark_heading"
 ,   "canvas_pane_path"
@@ -12,11 +12,13 @@ var registration_arguments =
 ,   "unconditional"
 ];
 
-var registration_commands =
+var kmap_registration_commands =
 [
     "apply_options"
+,   "cascade_tags"
 ,   "check_state"
 ,   "close_project"
+,   "close_task"
 ,   "copy_body_from"
 ,   "copy_body_to"
 ,   "count_ancestors"
@@ -32,6 +34,7 @@ var registration_commands =
 ,   "create_sibling"
 ,   "create_tag"
 ,   "create_task"
+,   "create_subtask"
 ,   "delete"
 ,   "delete_alias"
 ,   "delete_children"
@@ -51,6 +54,7 @@ var registration_commands =
 ,   "move_down"
 ,   "move_node"
 ,   "move_up"
+,   "open_task"
 ,   "print_heading"
 ,   "print_id"
 ,   "rebase_pane"

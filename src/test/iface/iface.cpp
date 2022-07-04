@@ -382,6 +382,15 @@ SCENARIO( "erase nested alias source", "[kmap_iface]" )
         {
             REQUIRE(( view::make( root ) 
                     | view::child( "alias_root" )
+                    | view::single
+                    | view::exists( kmap ) ));
+            REQUIRE(( view::make( root ) 
+                    | view::child( "alias_root" )
+                    | view::direct_desc( "1.2.3" )
+                    | view::single
+                    | view::exists( kmap ) ));
+            REQUIRE(( view::make( root ) 
+                    | view::child( "alias_root" )
                     | view::alias
                     | view::alias
                     | view::alias

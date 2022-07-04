@@ -109,7 +109,7 @@ return kmap.success( 'success' );
 using Guard = PreregisteredCommand::Guard;
 using Argument = PreregisteredCommand::Argument;
 
-auto const description = "TODO";
+auto const description = "appends tag to node";
 auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
                                                         , "path to target tag"
                                                         , "tag_path" } };
@@ -127,5 +127,7 @@ REGISTER_COMMAND
 );
 } // namespace tag_node_def 
 } // namespace anon
+
+// TODO unit test...
 
 } // namespace kmap::cmd

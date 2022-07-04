@@ -12,6 +12,7 @@
 #include "io.hpp"
 // #include "path.hpp"
 #include "stmt_prep.hpp"
+#include "util/macro.hpp"
 
 #include <boost/timer/timer.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -23,9 +24,9 @@
 #define KMAP_TIME_SCOPE( msg ) \
     fmt::print( "{}...\n", msg ); \
     boost::timer::auto_cpu_timer kmap_scope_timer( fmt::format( "{} done: %ws\n", msg ) );
-#if KMAP_PROFILE 
+#if KMAP_PROFILE
     #define KMAP_PROFILE_SCOPE() \
-            boost::timer::auto_cpu_timer kmap_profile_scope_timer( fmt::format( "{} done: %ws\n", __PRETTY_FUNCTION__ ) ); 
+            boost::timer::auto_cpu_timer KMAP_CONCAT( kmap_profile_scope_timer_, __LINE__ )( fmt::format( "{}|{}| done: %ws\n", __PRETTY_FUNCTION__, __LINE__ ) ); 
 #else
     #define KMAP_PROFILE_SCOPE() ( void )0;
 #endif // KMAP_PROFILE
@@ -275,14 +276,6 @@ auto fetch_siblings_inclusive( Kmap const& kmap
 [[ nodiscard ]]
 auto fetch_siblings_inclusive_ordered( Kmap const& kmap
                                      , Uuid const& id )
-    -> UuidVec;
-[[ nodiscard ]]
-auto fetch_parent_children( Kmap const& kmap
-                          , Uuid const& id )
-    -> UuidSet;
-[[ nodiscard ]]
-auto fetch_parent_children_ordered( Kmap const& kmap
-                                  , Uuid const& id )
     -> UuidVec;
 [[ nodiscard ]]
 auto to_heading_path( Kmap const& kmap

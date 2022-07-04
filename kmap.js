@@ -11,6 +11,8 @@ const showdown = require( 'showdown' )
 const jshint = require( 'jshint' ).JSHINT;
 require( 'geteventlisteners' ); // This works by overriding Element.prototype.addEventListener and Element.prototype.removeEventListener upon import, so only after here are they overriden.
 
+let kmap_pretest_targets = '*'
+
 // [WARNING] Not thread safe! Uses global object 'jshint'!
 function lint_javascript( code )
 {
@@ -26,21 +28,21 @@ function lint_javascript( code )
             rv = '';
 
             for( let i = 0
-            ; i < jshint.errors.length
-            ; ++i )
+               ; i < jshint.errors.length
+               ; ++i )
             {
                 error = jshint.errors[ i ];
 
                 rv += [ 'error #: ' + i
-                    , 'scope: ' + error.scope
-                    , 'reason: ' + error.reason
-                    , 'evidence: ' + error.evidence
-                    , 'raw: ' + error.raw 
-                    , 'id: ' + error.id 
-                    , 'line: ' + error.line
-                    , 'character: ' + error.character
-                    , 'code: ' + error.code
-                    ].join( '\n' ) + '\n';
+                      , 'scope: ' + error.scope
+                      , 'reason: ' + error.reason
+                      , 'evidence: ' + error.evidence
+                      , 'raw: ' + error.raw 
+                      , 'id: ' + error.id 
+                      , 'line: ' + error.line
+                      , 'character: ' + error.character
+                      , 'code: ' + error.code
+                      ].join( '\n' ) + '\n';
             }
 
             rv += 'full source: ' + code;
@@ -346,4 +348,17 @@ window.onkeydown = function( e )
     {
         console.log( String( err ) );
     }
+}
+
+function debounce( fn, timer_name, timeout )
+{
+  return function(...args) 
+  {
+    if( global[ timer_name ] !== undefined )
+    {
+        clearTimeout( global[ timer_name ] );
+    }
+
+    global[ timer_name ] = setTimeout( function(){ fn.apply( this, args ); }, timeout );
+  };
 }

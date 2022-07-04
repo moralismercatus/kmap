@@ -14,6 +14,18 @@
 
 namespace kmap {
 
+auto fetch_tag_root( Kmap const& kmap )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    rv = KTRY( view::make( kmap.root_node_id() )
+             | view::direct_desc( "meta.tag" )
+             | view::fetch_node( kmap ) );
+
+    return rv;
+}
+
 auto fetch_tag_root( Kmap& kmap )
     -> Result< Uuid >
 {
@@ -37,6 +49,20 @@ auto create_tag( Kmap& kmap
              | view::direct_desc( path )
              | view::create_node( kmap )
              | view::to_single );
+
+    return rv;
+}
+
+auto fetch_tag( Kmap const& kmap
+              , std::string const& tag_path )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const troot = KTRY( fetch_tag_root( kmap ) );
+
+    rv = KTRY( view::make( troot )
+             | view::desc( tag_path )
+             | view::fetch_node( kmap ) );
 
     return rv;
 }
@@ -83,6 +109,41 @@ SCENARIO( "create_tag", "[tag]" )
     }
 }
 
+auto has_tag( Kmap const& kmap
+            , Uuid const& node
+            , Uuid const& tag )
+    -> bool
+{
+    auto rv = false;
+    auto const nts = view::make( node )
+                    | view::attr
+                    | view::child( "tag" )
+                    | view::alias
+                    | view::resolve
+                    | view::to_node_set( kmap );
+
+    rv = nts.contains( tag );
+
+    return rv;
+}
+
+auto has_tag( Kmap const& kmap
+            , Uuid const& node
+            , std::string const& tag_path )
+    -> bool
+{
+    auto rv = false;
+
+    if( auto const tag = fetch_tag( kmap, tag_path )
+      ; tag )
+    {
+        rv = has_tag( kmap, node, tag.value() );
+    }
+
+    return rv;
+}
+
+// TODO: What are the ramifications of aliasing a non-attr into a the attr tree? Is it ok?
 auto tag_node( Kmap& kmap
              , Uuid const& target 
              , Uuid const& tag )
@@ -90,13 +151,14 @@ auto tag_node( Kmap& kmap
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const troot = KTRY( fetch_tag_root( kmap ) );
+    auto const rtag = kmap.resolve( tag ); // TODO: Verify resolve() is the right thing to do. Use case: when tagging nodes based on other tags (which are aliases).;
 
-    KMAP_ENSURE( kmap.is_ancestor( troot, tag ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( kmap.is_ancestor( troot, rtag ), error_code::network::invalid_lineage );
 
     rv = KTRY( view::make( target )
              | view::attr
              | view::child( "tag" )
-             | view::alias( tag )
+             | view::alias( view::Alias::Src{ rtag } )
              | view::create_node( kmap )
              | view::to_single );
 

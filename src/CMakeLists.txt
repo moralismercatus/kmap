@@ -37,6 +37,7 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
                          -O2 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sWASM=1 )
+    add_link_options()
 else()
     add_compile_definitions( KMAP_DEBUG=1 
                              KMAP_LOGGING_PATH=0 
@@ -53,7 +54,9 @@ else()
                          -sWASM=1 
                          --profiling 
                          --profiling-funcs 
-                         -sALLOW_MEMORY_GROWTH=1
+                        #  -finstrument-functions
+                        #  -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
+                        #  -sALLOW_MEMORY_GROWTH=1
                         #  -fsanitize=address # Dramatically decreases runtime performance
                         #  -fsanitize=undefined # Even More Dramatically decreases runtime performance
                         #  -sINITIAL_MEMORY=400MB # Needed for -fsanitize=undefined
@@ -62,6 +65,7 @@ else()
         # -fsanitize=undefined \
         # -fsanitize=address \
 add_link_options( -sALLOW_MEMORY_GROWTH=1 
+                #   -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
                 #   -fsanitize=address
                 #   -fsanitize=undefined
                 #   -sINITIAL_MEMORY=400MB
@@ -104,6 +108,7 @@ add_executable( emcc.index.html
                 cmd/test.cpp
                 cmd/text_area.cpp
                 common.cpp common.hpp
+                component.cpp component.hpp
                 db.cpp db.hpp
                 db/autosave.cpp db/autosave.hpp
                 db/cache.cpp db/cache.hpp
@@ -117,6 +122,7 @@ add_executable( emcc.index.html
                 jump_stack.cpp
                 kmap.cpp kmap.hpp
                 lineage.cpp
+                bridge/log_task.cpp
                 network.cpp network.hpp
                 node_fetcher.cpp
                 option/option.cpp
@@ -161,9 +167,10 @@ add_executable( emcc.index.html
                 test/path/path.cpp
                 test/sqlite/sqlite.cpp
                 test/sqlpp/sqlpp.cpp
-                test/util/util.cpp
                 test/util.cpp
+                test/util/util.cpp
                 text_area.cpp
+                util/profile.cpp
                 util/window.cpp
                 utility.cpp
                 main.cpp )

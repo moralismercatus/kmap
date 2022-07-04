@@ -6,6 +6,7 @@
 #include "cli.hpp"
 #include "cmd.hpp"
 #include "common.hpp"
+#include "component.hpp"
 #include "contract.hpp"
 #include "error/network.hpp"
 #include "filesystem.hpp"
@@ -13,6 +14,8 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "test/master.hpp"
+#include "util/profile.hpp"
+#include "util/window.hpp"
 #include "utility.hpp"
 
 #include <emscripten.h>
@@ -59,31 +62,12 @@ auto init_js_syntax_error_handler()
                                 };)%%%" );
 }
 
-// auto init_ems_nodefs()
-//     -> void
-// {
-// #ifndef NODERAWFS
-//     EM_ASM({
-//         let rd = UTF8ToString( $0 );
-//         FS.mkdir( rd );
-//         FS.mount( NODEFS
-//                 , { root: "." }
-//                 , rd );
-
-//     }
-//     , kmap_root_dir.string().c_str() );
-// #else
-//     #error Unsupported
-// #endif // NODERAWFS
-// }
-
 auto init_kmap( Kmap& kmap )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    // TODO: Why isn't this working?
-    // KMAP_ENSURE_MSG( !js::is_global_kmap_null(), error_code::network::invalid_instance, "expected JS kmap to be non-null" );
+    KMAP_ENSURE_MSG( js::is_global_kmap_valid(), error_code::network::invalid_instance, "expected JS kmap to be non-null" );
 
     KMAP_TRY( kmap.initialize() );
 
@@ -105,30 +89,20 @@ auto focus_network()
     return rv;
 }
 
-auto set_window_title() // TODO: Move definition to canvas? Basically, elsewhere.
-    -> Result< void >
-{
-#if KMAP_DEBUG
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "Debug" ) );
-#else
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "Release" ) );
-#endif // KMAP_DEBUG
-}
-
 auto initialize()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
 
-    KMAP_TRY( init_js_syntax_error_handler() );
+    KTRY( init_js_syntax_error_handler() );
     configure_terminate();
     configure_contract_failure_handlers();
-    KMAP_TRY( init_kmap( kmap ) );
+    KTRY( init_kmap( kmap ) );
     register_arguments();
     register_commands();
     reset_registrations( kmap );
-    KMAP_TRY( focus_network() );
+    KTRY( focus_network() );
 
     {
         // TODO:
@@ -157,9 +131,13 @@ auto main( int argc
 {
     try
     {
-        KMAP_TRYE( set_window_title() );
+        KMAP_TRYE( window::set_default_window_title() );
         init_ems_nodefs();
         js::set_global_kmap( Singleton::instance() );
+
+#if KMAP_PROFILE
+        enable_profiling();
+#endif // KMAP_PROFILE
 
 #if KMAP_TEST_PRE_ENV 
         if( auto const res = run_pre_env_unit_tests()

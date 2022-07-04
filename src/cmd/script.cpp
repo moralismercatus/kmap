@@ -126,7 +126,7 @@ auto load_kscript( std::string const& fs_path )
     return cmd::load_script( kmap, fs_path );
 }
 
-EMSCRIPTEN_BINDINGS( kmap_module )
+EMSCRIPTEN_BINDINGS( kmap_script )
 {
     function( "load_kscript", &kmap::cmd::script::binding::load_kscript );
 }

@@ -15,6 +15,7 @@
 #include "path.hpp"
 #include "path/act/order.hpp"
 #include "path/node_view.hpp"
+#include "util/macro.hpp"
 #include "util/window.hpp"
 #include "utility.hpp"
 
@@ -507,14 +508,19 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     auto rv = KMAP_MAKE_RESULT( void );
     auto const subdivn = KMAP_TRY( pane_subdivision( root ) );
     
-    // io::print( "updating pane: {}\n", kmap_.absolute_path_flat( root ) );
-
     KMAP_ENSURE( is_pane( root ), error_code::network::invalid_node );
+
+    for( auto const& subdiv : kmap_.fetch_children( subdivn ) )
+    {
+        KMAP_TRY( update_pane_descending( subdiv ) );
+    }
+
+    // io::print( "updating pane: {}\n", kmap_.absolute_path_flat( root ) );
 
     auto style = KMAP_TRY( js::eval< val >( io::format( "return document.getElementById( '{}' ).style;", root ) ) ); 
 
     auto const dims = KMAP_TRY( dimensions( root ) );
-    io::print( "'{}' dims: {}\n", KMAP_TRYE( kmap_.fetch_heading( root ) ), dims );
+    // io::print( "'{}' dims: {}\n", KMAP_TRYE( kmap_.fetch_heading( root ) ), dims );
     BC_ASSERT( dims.bottom >= dims.top );
     BC_ASSERT( dims.right >= dims.left );
     style.set( "position", "absolute" );
@@ -526,16 +532,12 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     // TODO: subdivision style map? for each: style.set( key, val );
     //       Is there any way to sensibly pull this info from setting.option?
 
-    for( auto const& subdiv : kmap_.fetch_children( subdivn ) )
-    {
-        KMAP_TRY( update_pane_descending( subdiv ) );
-    }
-
     rv = outcome::success();
 
     return rv;
 }
 
+// TODO: What's diff between this and update_all_panes()?
 auto Canvas::update_panes()
     -> Result< void >
 {

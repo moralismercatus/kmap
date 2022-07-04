@@ -12,6 +12,7 @@
 #include "cmd.hpp"
 #include "cmd/parser.hpp"
 #include "common.hpp"
+#include "component.hpp"
 #include "contract.hpp"
 #include "db.hpp"
 #include "db/autosave.hpp"
@@ -655,6 +656,19 @@ auto Kmap::root_node_id() const
     return env_->root_node_id();
 }
 
+auto Kmap::component_store()
+    -> ComponentStore&
+{
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( component_store_ );
+        })
+    ;
+
+    return *component_store_;
+}
+
 auto Kmap::event_store()
     -> EventStore&
 {
@@ -932,7 +946,11 @@ auto Kmap::fetch_above( Uuid const& id ) const
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     
-    if( auto const children = fetch_parent_children_ordered( id )
+    if( auto const children = view::make( id )
+                            | view::parent
+                            | view::child
+                            | view::to_node_set( *this )
+                            | act::order( *this )
       ; !children.empty() )
     {
         auto const it = find( children, id );
@@ -963,7 +981,11 @@ auto Kmap::fetch_below( Uuid const& id ) const
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     
-    if( auto const children = fetch_parent_children_ordered( id )
+    if( auto const children = view::make( id )
+                            | view::parent
+                            | view::child
+                            | view::to_node_set( *this )
+                            | act::order( *this )
       ; !children.empty() )
     {
         auto const it = find( children, id );
@@ -1061,7 +1083,6 @@ auto Kmap::create_child( Uuid const& parent
     auto const rpid = resolve( parent );
 
     KMAP_TRY( create_child_internal( rpid, child, heading, title ) );
-
 
     if( !attr::is_in_attr_tree( *this, child ) ) // TODO: What is the purpose of this check? And what's with it's name? Something feels half-baked about this...
     {
@@ -1279,8 +1300,8 @@ auto Kmap::create_alias( Uuid const& src
     KMAP_ENSURE( exists( rdst ), error_code::create_alias::dst_not_found );
     KMAP_ENSURE( rsrc != rdst, error_code::create_alias::src_equals_dst );
     KMAP_ENSURE( !is_lineal( rsrc, rdst ), error_code::create_alias::src_ancestor_of_dst );
-    KMAP_ENSURE( !exists( alias_id ), error_code::create_alias::alias_already_exists );
-    KMAP_ENSURE( !is_child( rdst, fetch_heading( rsrc ).value() ), error_code::create_node::duplicate_child_heading );
+    KMAP_ENSURE_MSG( !exists( alias_id ), error_code::create_alias::alias_already_exists, absolute_path_flat( rsrc ) );
+    KMAP_ENSURE_MSG( !is_child( rdst, KTRYE( fetch_heading( rsrc ) ) ), error_code::create_node::duplicate_child_heading, KTRYE( fetch_heading( rsrc ) ) );
     KMAP_ENSURE( !is_child( rdst, rsrc ), error_code::network::invalid_node );
 
     {
@@ -1483,6 +1504,12 @@ auto Kmap::init_canvas()
     canvas_ = std::make_unique< Canvas >( *this );
 }
 
+auto Kmap::init_component_store()
+    -> void
+{
+    component_store_ = std::make_unique< ComponentStore >( *this );
+}
+
 auto Kmap::init_event_store()
     -> void
 {
@@ -1609,6 +1636,16 @@ auto Kmap::initialize()
         KMAP_TRY( event_store().install_defaults() );
     }
     {
+        init_component_store();
+        KTRY( register_components() );
+        // Because component_store depends on EventStore, which depends on OptionStore, we know these two have been initialized.
+        KTRY( component_store_->fire_initialized( "option_store" ) );
+        KTRY( component_store_->fire_initialized( "event_store" ) );
+        // temporarily here...
+        KTRY( component_store_->fire_initialized( "task_store" ) );
+        KTRY( component_store_->fire_initialized( "log_store" ) );
+    }
+    {
         timer_ = std::make_unique< chrono::Timer >( *this );
 
         KMAP_TRY( timer_->install_default_timers() );
@@ -1682,9 +1719,11 @@ auto Kmap::clear()
     clear_timer();
     clear_network();
     clear_canvas();
+    clear_component_store();
     clear_event_store();
     clear_option_store();
     clear_database();
+    cli().clear_preregs();
 }
 
 auto Kmap::clear_autosave()
@@ -1697,6 +1736,12 @@ auto Kmap::clear_canvas()
     -> void
 {
     canvas_ = nullptr;
+}
+
+auto Kmap::clear_component_store()
+    -> void
+{
+    component_store_ = nullptr;
 }
 
 auto Kmap::clear_database()
@@ -1812,8 +1857,6 @@ auto Kmap::reorder_children( Uuid const& parent
 }
 
 // Returns previously selected node.
-// TODO: Add unit tests for:
-//   - node coloring
 auto Kmap::select_node( Uuid const& id )
     -> Result< Uuid > 
 {
@@ -1838,8 +1881,6 @@ auto Kmap::select_node( Uuid const& id )
     selected_node_ = id;
 
     KTRY( event_store().fire_event( { "subject.kmap", "verb.selected", "object.node" } ) );
-
-    // Remainder of this goes in Network...
 
     // TODO: breadcrumb should have its own handler listening for the fired event.
     auto id_abs_path = absolute_path_uuid( id );
@@ -2132,8 +2173,6 @@ auto Kmap::update_alias( Uuid const& from
             BC_ASSERT( exists( to ) );
         })
     ;
-
-    KMAP_THROW_EXCEPTION_MSG( "shouldn't call" );
 
     // TODO: Deleting and remaking all does not seem optimal way to update.
     // TODO: This may actually be a problematic way of updating the alias. Why not just check if it exists, and if not, create it?
@@ -2505,7 +2544,7 @@ auto Kmap::erase_node_internal( Uuid const& id )
 
     // Delete children.
     for( auto const& children = fetch_children_ordered( id )
-        ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
+       ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
     {
         KMAP_TRY( erase_node_internal( e ) );
     }
@@ -3319,19 +3358,6 @@ auto Kmap::fetch_children( Uuid const& root
     return rv;
 }
 
-auto Kmap::fetch_parent_children( Uuid const& id ) const
-    -> kmap::UuidSet
-{ 
-    return kmap::fetch_parent_children( *this
-                                      , id );
-}
-
-auto Kmap::fetch_parent_children_ordered( Uuid const& id ) const
-    -> kmap::UuidVec
-{ 
-    return kmap::fetch_parent_children_ordered( *this, id );
-}
-
 auto Kmap::fetch_siblings( Uuid const& id ) const
     -> kmap::UuidSet
 { 
@@ -3499,8 +3525,6 @@ auto Kmap::fetch_next_selected_as_if_erased( Uuid const& node ) const
 auto Kmap::fetch_visible_nodes_from( Uuid const& id ) const
     -> std::vector< Uuid >
 { 
-    KMAP_PROFILE_SCOPE();
-
     auto rv = std::vector< Uuid >{};
 
     BC_CONTRACT()

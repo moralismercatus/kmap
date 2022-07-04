@@ -21,6 +21,7 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "../path.hpp"
+#include "js_iface.hpp"
 #include "master.hpp"
 
 using namespace kmap;
@@ -103,9 +104,11 @@ auto run_pre_env_unit_tests()
 {
     {
         // Use -# [#<file>] without extension to unit test particular file.
+        auto const specified_tests = KTRYE( js::eval< std::string >( "return kmap_pretest_targets;" ) );
         char const* targv[] = { "kmap" 
                               , "--durations=yes"
-                              , "--verbosity=high" };
+                              , "--verbosity=high"
+                              , specified_tests.c_str() };
         io::print( "[log] Running Catch2 pre-env unit tests\n" );
         if( 0 != Catch::Session().run( sizeof( targv ) / sizeof( char* ), targv ) )
         {

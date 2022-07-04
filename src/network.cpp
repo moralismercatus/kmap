@@ -268,9 +268,7 @@ auto Network::format_node_label( Uuid const& node )
     auto const db_title = KTRYE( kmap_.fetch_title( node ) );
     auto const child_count = kmap_.fetch_children( node ).size();
     auto const tags = view::make( node )
-                    | view::attr
-                    | view::child( "tag" )
-                    | view::child
+                    | view::tag
                     | view::to_node_set( kmap_ );
     auto const tag_hs = tags
                         | views::transform( [ & ]( auto const& t ){ return KTRYE( kmap_.fetch_heading( t ) ); } )
@@ -317,6 +315,8 @@ auto Network::format_node_label( Uuid const& node )
     return rv;
 }
 
+// TODO: Add unit tests for:
+//   - node coloring
 auto Network::select_node( Uuid const& id )
     -> Result< Uuid >
 {
@@ -596,8 +596,6 @@ auto Network::center_viewport_node( Uuid const& id )
 auto Network::exists( Uuid const& id ) const
     -> bool
 {
-    KMAP_PROFILE_SCOPE();
-
     return js_nw_->call< bool >( "id_exists"
                                , to_string( id ) );
 }
@@ -605,8 +603,6 @@ auto Network::exists( Uuid const& id ) const
 auto Network::exists( Title const& title ) const
     -> bool
 {
-    KMAP_PROFILE_SCOPE();
-
     return 0 != count_if( nodes()
                         , [ & ]( auto const& e ){ return KMAP_TRYE( this->fetch_title( e ) ) == title; } );
 }
@@ -615,8 +611,6 @@ auto Network::edge_exists( Uuid const& from
                          , Uuid const& to ) const
     -> bool
 {
-    KMAP_PROFILE_SCOPE();
-
     return js_nw_->call< bool >( "edge_exists"
                                , to_string( make_edge_id( from, to ) ) );
 }
@@ -624,8 +618,6 @@ auto Network::edge_exists( Uuid const& from
 auto Network::focus()
     -> void
 {
-    KMAP_PROFILE_SCOPE();
-
     js_nw_->call< val >( "focus_network" );
 }
 
@@ -736,7 +728,7 @@ auto Network::install_default_events()
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.select_node"
                                       , .requisites = { "subject.kmap", "verb.selected", "object.node" }
                                       , .description = "updates network with selected node"
-                                      , .action = R"%%%(kmap.network().select_node( kmap.selected_node() );)%%%" } ) );
+                                      , .action = fmt::format( R"%%%(debounce( function(){{ kmap.network().select_node( kmap.selected_node() ); }}, 'debounce_timer_{}', 100 )();)%%%", gen_uuid() ) } ) );
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_left.h"
                                       , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
                                       , .description = "travel to parent node"
@@ -984,8 +976,6 @@ auto Network::erase_node( Uuid const& id )
 auto Network::remove_nodes()
     -> void
 {
-    KMAP_PROFILE_SCOPE();
-
     BC_CONTRACT()
         BC_PRE([ & ]
         {

@@ -160,8 +160,7 @@ auto exists( Uuid const& id )
     -> bool;
 auto element_exists( std::string const& doc_id )
     -> bool;
-
-auto is_global_kmap_null()
+auto is_global_kmap_valid()
     -> bool;
 
 } // namespace kmap::js
