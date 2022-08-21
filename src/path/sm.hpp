@@ -7,11 +7,12 @@
 #ifndef KMAP_PATH_SM_HPP
 #define KMAP_PATH_SM_HPP
 
-#include "../common.hpp"
-#include "../contract.hpp"
-#include "../db.hpp"
-#include "../kmap.hpp"
-#include "../util/sm/logger.hpp"
+#include "common.hpp"
+#include "contract.hpp"
+#include "com/database/db.hpp"
+#include "com/network/network.hpp"
+#include "kmap.hpp"
+#include "util/sm/logger.hpp"
 
 #include <boost/sml.hpp>
 #include <range/v3/action/remove_if.hpp>
@@ -144,7 +145,8 @@ public:
             BC_ASSERT( output_ );
             BC_ASSERT( !output_->prospect.empty() );
 
-            auto const rv = kmap_.fetch_child( output_->prospect.back(), ev.heading ).has_value();
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const rv = nw->fetch_child( output_->prospect.back(), ev.heading ).has_value();
             return rv;
         };
         auto const current_heading_exists = [ & ]( auto const& ev )
@@ -152,15 +154,17 @@ public:
             BC_ASSERT( output_ );
             BC_ASSERT( !output_->prospect.empty() );
 
-            return kmap_.fetch_heading( output_->prospect.back() ).value() == ev.heading;
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            return nw->fetch_heading( output_->prospect.back() ).value() == ev.heading;
         };
         auto const parent_exists = [ & ]( auto const& ev )
         {
             BC_ASSERT( output_ );
             BC_ASSERT( !output_->prospect.empty() );
-            BC_ASSERT( kmap_.is_lineal( root_, output_->prospect.back() ) );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            BC_ASSERT( nw->is_lineal( root_, output_->prospect.back() ) );
 
-            auto const p = kmap_.fetch_parent( output_->prospect.back() );
+            auto const p = nw->fetch_parent( output_->prospect.back() );
 
             return p && output_->prospect.back() != root_;
         };
@@ -168,9 +172,10 @@ public:
         {
             BC_ASSERT( output_ );
             BC_ASSERT( !output_->prospect.empty() );
-            BC_ASSERT( kmap_.is_lineal( root_, output_->disambiguation.back() ) );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            BC_ASSERT( nw->is_lineal( root_, output_->disambiguation.back() ) );
 
-            auto const p = kmap_.fetch_parent( output_->disambiguation.back() );
+            auto const p = nw->fetch_parent( output_->disambiguation.back() );
 
             return p && output_->prospect.back() != root_;
         };
@@ -182,9 +187,10 @@ public:
             }
             else
             {
-                auto const parent = kmap_.fetch_parent( output_->disambiguation.back() );
+                auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+                auto const parent = nw->fetch_parent( output_->disambiguation.back() );
 
-                return parent && kmap_.fetch_heading( parent.value() ).value() == ev.heading;
+                return parent && nw->fetch_heading( parent.value() ).value() == ev.heading;
             }
         };
 
@@ -196,7 +202,8 @@ public:
 
             auto& back = output_->prospect.back();
 
-            auto const child = kmap_.fetch_child( back, ev.heading ); BC_ASSERT( child );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const child = nw->fetch_child( back, ev.heading ); BC_ASSERT( child );
             output_->prospect.emplace_back( child.value() );
         };
         auto const push_parent = [ & ]( auto const& ev )
@@ -204,7 +211,8 @@ public:
             BC_ASSERT( output_ );
             BC_ASSERT( !output_->prospect.empty() );
 
-            auto const parent = kmap_.fetch_parent( output_->prospect.back() ); BC_ASSERT( parent );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const parent = nw->fetch_parent( output_->prospect.back() ); BC_ASSERT( parent );
             output_->prospect.emplace_back( parent.value() );
         };
         auto const prime_disam = [ & ]( auto const& ev )
@@ -222,8 +230,9 @@ public:
             BC_ASSERT( !output_->disambiguation.empty() );
 
             auto& disam = output_->disambiguation;
-            auto const parent = kmap_.fetch_parent( disam.back() ); BC_ASSERT( parent );
-            auto const pheading = kmap_.fetch_heading( parent.value() ); BC_ASSERT( pheading );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const parent = nw->fetch_parent( disam.back() ); BC_ASSERT( parent );
+            auto const pheading = nw->fetch_heading( parent.value() ); BC_ASSERT( pheading );
 
             BC_ASSERT( pheading.value() == ev.heading );
 
@@ -240,9 +249,9 @@ public:
                 // auto const& prospect = this->output_->prospect;
                 // if( !prospect.empty() )
                 // {
-                //     if( this->kmap_.fetch_heading( prospect.back() ).has_value() )
+                //     if( this->nw->fetch_heading( prospect.back() ).has_value() )
                 //     {
-                //         fmt::print( "path sm error: '{}'| last heading: '{}'\n", msg, this->kmap_.fetch_heading( prospect.back() ).value() );
+                //         fmt::print( "path sm error: '{}'| last heading: '{}'\n", msg, this->nw->fetch_heading( prospect.back() ).value() );
                 //     }
                 //     else
                 //     {
@@ -368,9 +377,9 @@ public:
         {
             BC_ASSERT( output_ );
 
-            auto const& db = kmap_.database();
+            auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
-            return db.contains< db::HeadingTable >( ev.heading );
+            return db->contains< db::HeadingTable >( ev.heading );
         };
         auto const has_prospect = [ & ]( auto const& ev ) -> bool
         {
@@ -406,7 +415,8 @@ public:
         };
         auto const start_selected_parent = [ & ]( auto const& ev ) -> void
         {
-            auto const parent = kmap_.fetch_parent( selected_node_ ); BC_ASSERT( parent );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const parent = nw->fetch_parent( selected_node_ ); BC_ASSERT( parent );
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, parent.value() ) );
             output_->prospects.back().first->process_event( sm::ev::Bwd{} );
         };
@@ -414,16 +424,17 @@ public:
         {
             BC_ASSERT( output_ );
 
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto const filter_heading = views::filter( [ & ]( auto const& e )
             {
-                auto const heading = kmap_.fetch_heading( e ); BC_ASSERT( heading );
+                auto const heading = nw->fetch_heading( e ); BC_ASSERT( heading );
                 return ev.heading == heading.value();
             } );
             auto const filter_lineal = views::filter( [ & ]( auto const& e )
             {
-                return kmap_.is_lineal( root_, e );
+                return nw->is_lineal( root_, e );
             } );
-            auto const& nodes = kmap_.fetch_nodes( ev.heading );
+            auto const& nodes = nw->fetch_nodes( ev.heading );
 
             for( auto const& node : nodes
                                   | filter_heading // TODO: Isn't filtering the heading redundant with the call to fetch_heading( <heading> )?
@@ -601,9 +612,9 @@ public:
         //     {
         //         BC_ASSERT( !dp.empty() );
 
-        //         for( auto const child : kmap_.fetch_children( dp.back() ) )
+        //         for( auto const child : nw->fetch_children( dp.back() ) )
         //         {
-        //             auto const cheading = kmap_.fetch_heading( child ).value();
+        //             auto const cheading = nw->fetch_heading( child ).value();
 
         //             if( cheading.starts_with( tokens_.back() ) )
         //             {

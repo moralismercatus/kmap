@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_NODE_MANIP_HPP
 #define KMAP_CMD_NODE_MANIP_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 #include <functional>
 
 namespace kmap {
@@ -22,19 +22,19 @@ auto create_child( Kmap& kmap
                  , Heading const& heading )
     -> Result< std::string >;
 auto merge_nodes( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto move_body( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto move_node( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto move_up( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto move_down( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto move_children( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto move_siblings( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

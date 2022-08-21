@@ -93,9 +93,17 @@ R"%%%(
         {{
             if( is_cpp_exception( err ) )
             {{
-                console.log( '[kmap][error] std::exception encountered:' );
-                // print std exception
-                kmap.print_std_exception( err );
+                if( kmap.is_signal_exception( err ) )
+                {{
+                    console.log( 'signal exception recieved' );
+                    throw err;
+                }}
+                else
+                {{
+                    console.log( '[kmap][error] std::exception encountered:' );
+                    // print std exception
+                    kmap.print_std_exception( err );
+                }}
             }}
             else // Javascript exception
             {{
@@ -162,6 +170,23 @@ auto element_exists( std::string const& doc_id )
     -> bool;
 auto is_global_kmap_valid()
     -> bool;
+
+class ScopedCode
+{
+    std::string ctor_code;
+    std::string dtor_code;
+
+public:
+    ScopedCode() = default;
+    ScopedCode( std::string const& ctor
+              , std::string const& dtor );
+    ScopedCode( ScopedCode&& other );
+    ScopedCode( ScopedCode const& other ) = delete;
+    ~ScopedCode();
+
+    auto operator=( ScopedCode&& other ) -> ScopedCode&;
+    auto operator=( ScopedCode const& other ) -> ScopedCode& = delete;
+};
 
 } // namespace kmap::js
 

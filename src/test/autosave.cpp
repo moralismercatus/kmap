@@ -4,13 +4,15 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "chrono/timer.hpp"
-#include "db.hpp"
-#include "db/autosave.hpp"
-#include "event/event.hpp"
+#include "com/autosave/autosave.hpp"
+
+#include "com/chrono/timer.hpp"
+#include "com/database/db.hpp"
+#include "com/event/event.hpp"
+#include "com/network/network.hpp"
+#include "com/option/option.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
-#include "option/option.hpp"
 #include "test/master.hpp"
 #include "test/util.hpp"
 
@@ -21,19 +23,20 @@
 using namespace kmap;
 using namespace kmap::test;
 
-SCENARIO( "autosave" )
+SCENARIO( "autosave", "[com][autosave]" )
 {
-    KMAP_COMMAND_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "autosave" );
 
     auto& kmap = Singleton::instance();
 
-    auto& db = kmap.database();
-    auto& estore = kmap.event_store();
-    auto& ostore = kmap.option_store();
-    auto& timer = kmap.timer();
-    auto& asave = kmap.autosave();
+    auto const db = REQUIRE_TRY( kmap.fetch_component< com::Database >() );
+    auto const estore = REQUIRE_TRY( kmap.fetch_component< com::EventStore >() );
+    auto const ostore = REQUIRE_TRY( kmap.fetch_component< com::OptionStore >() );
+    auto const timer = REQUIRE_TRY( kmap.fetch_component< com::Timer >() );
+    auto const asave = REQUIRE_TRY( kmap.fetch_component< com::Autosave >() );
+    auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
 
-    REQUIRE( kmap.database().node_exists( kmap.root_node_id() ) );
+    REQUIRE( db->node_exists( kmap.root_node_id() ) );
 
     // Steps:
     // As always, bare minimum to test:
@@ -47,16 +50,16 @@ SCENARIO( "autosave" )
     // 1. Check title "Rootie" on disk.
     GIVEN( "autotimer infrastructure initialized" )
     {
-        REQUIRE( succ( timer.install_default_timers() ) );
-        REQUIRE( succ( asave.initialize() ) );
-        REQUIRE( succ( ostore.apply_all() ) );
-        REQUIRE( succ( estore.fire_event( { "subject.chrono.timer", "verb.intervaled", "object.chrono.minute" } ) ) );
+        REQUIRE( succ( timer->install_default_timers() ) ); // TODO: Is this even used, if fire_event is called manually?
+        REQUIRE( succ( asave->initialize() ) );
+        REQUIRE( succ( ostore->apply_all() ) );
+        REQUIRE( succ( estore->fire_event( { "subject.chrono.timer", "verb.intervaled", "object.chrono.minute" } ) ) );
 
         WHEN( "nothing flushed to disk" )
         {
             THEN( "no erase deltas in database" )
             {
-                auto const& cache = db.cache();
+                auto const& cache = db->cache();
                 auto const proc_table = [ & ]( auto const& table )
                 {
                     for( auto const& t_item : table )
@@ -71,25 +74,24 @@ SCENARIO( "autosave" )
 
         WHEN( "save to disk" )
         {
-            KMAP_INIT_DISK_DB_FIXTURE_SCOPED( db );
+            KMAP_INIT_DISK_DB_FIXTURE_SCOPED( *db );
 
-    fmt::print( "desc_count: {}\n", view::make( kmap.root_node_id() ) | view::desc | view::count( kmap ) );
-            REQUIRE( succ( db.flush_delta_to_disk() ) );
+            REQUIRE( succ( db->flush_delta_to_disk() ) );
 
             THEN( "root title exists in disk db" )
             {
                 auto tt = titles::titles{};
-                auto rows = db.execute( select( all_of( tt ) )
-                                      . from( tt )
-                                      . where( tt.title == "Root" ) );
+                auto rows = db->execute( select( all_of( tt ) )
+                                       . from( tt )
+                                       . where( tt.title == "Root" ) );
 
                 REQUIRE( std::distance( rows.begin(), rows.end() ) == 1 );
             }
 
             WHEN( "root title is modified and autosave triggered" )
             {
-                REQUIRE( succ( kmap.update_title( kmap.root_node_id(), "Rootie" ) ) );
-                REQUIRE( succ( estore.fire_event( { "subject.chrono.timer", "verb.intervaled", "object.chrono.minute" } ) ) );
+                REQUIRE( succ( nw->update_title( kmap.root_node_id(), "Rootie" ) ) );
+                REQUIRE( succ( estore->fire_event( { "subject.chrono.timer", "verb.intervaled", "object.chrono.minute" } ) ) );
             }
         }
     }

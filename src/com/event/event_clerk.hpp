@@ -1,0 +1,64 @@
+/******************************************************************************
+ * Author(s): Christopher J. Havlicek
+ *
+ * See LICENSE and CONTACTS.
+ ******************************************************************************/
+#pragma once
+#ifndef KMAP_EVENT_EVENT_CLERK_HPP
+#define KMAP_EVENT_EVENT_CLERK_HPP
+
+#include "common.hpp"
+#include "com/event/event.hpp"
+
+#include <optional>
+#include <set>
+#include <string_view>
+
+namespace kmap::com {
+
+// TODO: So, yet another problem...
+//       What if a common requisite is created by this clerk? I.e., "verb.created". When this destructs,
+//       it will erase "verb.created", yet it is common, so others depend on it. Suddenly, it's gone!
+//       Proposal:
+//       1. Somehow maintain a shared_ptr-like mechanism, so each concerned clerk/party is holding onto a counted-ref.
+//       1. Provide a "fire" routine here. The "fire" routine then pre-checks each requisite for existence, creating it if it doesn't exist.
+//          It then claims ownership if created. That might be the easiest solution....
+//          Perhaps the same mechanism can be done for outlets, alleviating the need for an explicit call to "install_default_events()"....
+struct EventClerk
+{
+    Kmap& kmap;
+    std::vector< Uuid > subjects = {};
+    std::vector< Uuid > verbs = {};
+    std::vector< Uuid > objects = {};
+    std::vector< Uuid > outlets = {};
+    std::vector< Uuid > outlet_transitions = {};
+    std::optional< std::string > payload = std::nullopt;
+
+    EventClerk( Kmap& km );
+    ~EventClerk();
+
+    auto fire_event( std::set< std::string > const& requisites )
+        -> Result< void >;
+    auto fire_event( std::set< std::string > const& requisites
+                   , std::string const& payload )
+        -> Result< void >;
+    auto install_subject( Heading const& heading )
+        -> Result< Uuid >;
+    auto install_verb( Heading const& heading )
+        -> Result< Uuid >;
+    auto install_object( Heading const& heading )
+        -> Result< Uuid >;
+    auto install_outlet( com::Leaf const& leaf ) 
+        -> Result< void >;
+    auto install_outlet( com::Branch const& branch ) 
+        -> Result< void >;
+    auto install_outlet_transition( Uuid const& root
+                                  , com::Transition const& transition )
+        -> Result< void >;
+    auto install_requisites( std::set< std::string > const& requisites )
+        -> Result< void >;
+};
+
+} // namespace kmap::com
+
+#endif // KMAP_EVENT_EVENT_CLERK_HPP

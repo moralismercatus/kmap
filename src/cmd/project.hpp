@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_PROJECT_HPP
 #define KMAP_CMD_PROJECT_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 #include "../common.hpp"
 
 #include <functional>
@@ -28,13 +28,13 @@ enum class ProjectCategory
 };
 
 auto open_task( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto close_task( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto activate_project( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto deactivate_project( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 
 auto create_project( Kmap& kmap
                    , Title const& title )

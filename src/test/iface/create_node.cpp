@@ -23,30 +23,29 @@ BOOST_AUTO_TEST_CASE( create_node
 {
     auto& kmap = Singleton::instance();
 
-    BOOST_TEST( kmap.exists( "/" ) );
-    BOOST_TEST( kmap.fetch_children( kmap.root_node_id() ).size() == 1 );
+    BOOST_TEST( nw->exists( "/" ) );
+    BOOST_TEST( nw->fetch_children( kmap.root_node_id() ).size() == 1 );
 
-    auto const c1 = kmap.create_child( kmap.root_node_id()
-                                     , "1" );
+    auto const c1 = kmap.create_child( kmap.root_node_id(), "1" );
     BOOST_REQUIRE( c1 );
-    BOOST_TEST( kmap.exists( c1.value() ) );
-    BOOST_TEST( kmap.exists( "/1" ) );
-    BOOST_TEST( kmap.fetch_children( kmap.root_node_id() ).size() == 2 );
-    BOOST_TEST( kmap.selected_node() == kmap.root_node_id() );
+    BOOST_TEST( nw->exists( c1.value() ) );
+    BOOST_TEST( nw->exists( "/1" ) );
+    BOOST_TEST( nw->fetch_children( kmap.root_node_id() ).size() == 2 );
+    BOOST_TEST( nw->selected_node() == kmap.root_node_id() );
 
     auto const c2 = kmap.create_child( kmap.root_node_id()
                                      , "2" );
     BOOST_REQUIRE( c2 );
-    BOOST_TEST( kmap.exists( c2.value() ) );
-    BOOST_TEST( kmap.exists( "/2" ) );
-    BOOST_TEST( kmap.fetch_children( kmap.root_node_id() ).size() == 3 );
+    BOOST_TEST( nw->exists( c2.value() ) );
+    BOOST_TEST( nw->exists( "/2" ) );
+    BOOST_TEST( nw->fetch_children( kmap.root_node_id() ).size() == 3 );
 
     auto const c3 = kmap.create_child( c1.value()
                                      , "3" );
     BOOST_REQUIRE( c3 );
-    BOOST_TEST( kmap.exists( c3.value() ) );
-    BOOST_TEST( kmap.exists( "/1.3" ) );
-    BOOST_TEST( kmap.fetch_children( *kmap.fetch_leaf( "/1" ) ).size() == 1 );
+    BOOST_TEST( nw->exists( c3.value() ) );
+    BOOST_TEST( nw->exists( "/1.3" ) );
+    BOOST_TEST( nw->fetch_children( *kmap.fetch_leaf( "/1" ) ).size() == 1 );
 }
 
 BOOST_AUTO_TEST_SUITE_END( /* kmap_iface */ )

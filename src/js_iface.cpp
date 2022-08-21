@@ -115,10 +115,17 @@ R"%%%(
         {{
             if( is_cpp_exception( err ) )
             {{
-                console.log( '[kmap][error] std::exception encountered:' );
-                // print std exception
-                kmap.print_std_exception( err );
-                return kmap.eval_failure( kmap.std_exception_to_string( err ) );
+                if( kmap.is_signal_exception( err ) )
+                {{
+                    throw err;
+                }}
+                else
+                {{
+                    console.log( '[kmap][error] std::exception encountered:' );
+                    // print std exception
+                    kmap.print_std_exception( err );
+                    return kmap.eval_failure( kmap.std_exception_to_string( err ) );
+                }}
             }}
             else // Javascript exception
             {{
@@ -140,7 +147,7 @@ R"%%%(
         if( auto const except = res.as< binding::Result< void > >()
           ; except.has_error() )
         {
-            rv = KMAP_PROPAGATE_FAILURE( except.result );
+            rv = KMAP_PROPAGATE_FAILURE_MSG( except.result, fmt::format( "\n {}", expr ) );
         }
         else
         {
@@ -196,6 +203,55 @@ auto set_global_kmap( Kmap& kmap )
     {
         fmt::print( stderr, "Unable to set kmap module\n" );
     }
+}
+
+ScopedCode::ScopedCode( std::string const& ctor
+                      , std::string const& dtor )
+    : ctor_code{ ctor }
+    , dtor_code{ dtor }
+{
+    if( !ctor_code.empty() )
+    {
+        fmt::print( "scoped ctor, evaling: {}\n", ctor_code );
+        KTRYE( eval_void( ctor_code ) );
+    }
+}
+
+ScopedCode::ScopedCode( ScopedCode&& other )
+    : ctor_code{ std::move( other.ctor_code ) }
+    , dtor_code{ std::move( other.dtor_code ) }
+{
+    other.ctor_code = {};
+    other.dtor_code = {};
+}
+
+ScopedCode::~ScopedCode()
+{
+    try
+    {
+        if( !dtor_code.empty() )
+        {
+            fmt::print( "scoped dtor, evaling: {}\n", dtor_code );
+            KTRYE( eval_void( dtor_code ) );
+        }
+    }
+    catch( std::exception const& e )
+    {
+        std::cerr << e.what() << '\n';
+        std::terminate();
+    }
+}
+
+auto ScopedCode::operator=( ScopedCode&& other )
+    -> ScopedCode&
+{
+    ctor_code = std::move( other.ctor_code );
+    dtor_code = std::move( other.dtor_code );
+
+    other.ctor_code = {};
+    other.dtor_code = {};
+
+    return *this;
 }
 
 } // namespace kmap::js

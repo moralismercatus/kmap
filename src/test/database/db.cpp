@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "../../db.hpp"
+#include "com/database/db.hpp"
 #include "test/master.hpp"
 #include "test/util.hpp"
 
@@ -22,7 +22,7 @@ using namespace kmap::test;
 
 SCENARIO( "DB basics manipulated", "[db]" )
 {
-    auto db = Database{};
+    auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
     
     GIVEN( "db is empty" )
     {
@@ -118,7 +118,7 @@ SCENARIO( "DB basics manipulated", "[db]" )
 
 SCENARIO( "db interacts with disk", "[db][env]" )
 {
-    auto db = Database{};
+    auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
 
     KMAP_INIT_DISK_DB_FIXTURE_SCOPED( db );
 
@@ -552,7 +552,7 @@ BOOST_AUTO_TEST_CASE( /*database*/insert )
     // BOOST_REQUIRE( !fs::exists( tmp_db_name ) );
 
     {
-        auto db = Database{};
+        auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
 
         auto const pid = gen_uuid();
         auto const ph = "echo";

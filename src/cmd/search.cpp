@@ -5,11 +5,13 @@
  ******************************************************************************/
 #include "search.hpp"
 
-#include "../common.hpp"
-#include "../contract.hpp"
-#include "../io.hpp"
-#include "../db.hpp"
-#include "../kmap.hpp"
+#include "com/alias/alias.hpp"
+#include "com/database/db.hpp"
+#include "com/network/network.hpp"
+#include "common.hpp"
+#include "contract.hpp"
+#include "io.hpp"
+#include "kmap.hpp"
 
 #include <range/v3/action/sort.hpp>
 #include <range/v3/view/enumerate.hpp>
@@ -77,6 +79,9 @@ auto process_search_results( Kmap& kmap
                            , std::vector< Uuid > const& matching_nodes )
     -> Result< std::string >
 {
+    auto rv = KMAP_MAKE_RESULT( std::string );
+    auto const nw = KTRY( kmap_.fetch_component< com::Network>() );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto sorted_matches = matching_nodes;
     auto const count_ancestors = [ &kmap ]( auto const& node ){ return view::make( node ) | view::ancestor | view::count( kmap ); };
 
@@ -88,7 +93,7 @@ auto process_search_results( Kmap& kmap
                                              , searches_root
                                              , format_heading( srgx ) );
 
-    if( kmap.exists( search_root_path ) )
+    if( nw->exists( search_root_path ) )
     {
         return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "search {} already exists", search_root_path ) );
     }
@@ -103,37 +108,38 @@ auto process_search_results( Kmap& kmap
                                           "Hits: {}<br>"
                                         , srgx
                                         , sorted_matches.size() );
-        KMAP_TRY( kmap.update_body( *search_root,  details ) );
-        KMAP_TRY( kmap.update_title( *search_root, srgx ) );
+        KTRY( nw->update_body( *search_root,  details ) );
+        KTRY( nw->update_title( *search_root, srgx ) );
     }
 
     for( auto const [ idx, id ] : views::enumerate( sorted_matches ) )
     {
-        auto const iid = kmap.create_child( *search_root
-                                           , fmt::format( "match_{}"
-                                                        , idx ) );
+        auto const iid = nw->create_child( *search_root
+                                         , fmt::format( "match_{}"
+                                                      , idx ) );
         auto const details = fmt::format( "Path: `{}`<br>iPath: `{}`<br>distance from root: {}"
                                         , kmap.absolute_path_flat( id )
                                         , kmap.absolute_ipath_flat( id )
                                         , view::make( id ) | view::ancestor | view::count( kmap ) );
 
-        KMAP_TRY( kmap.update_body( iid.value(), details ) );
-
-        auto const aid = kmap.create_alias( id, iid.value() );
+        KTRY( nw->update_body( iid.value(), details ) );
+        KTRY( nw->alias_store().create_alias( id, iid.value() ) );
     }
 
-    KMAP_TRY( kmap.select_node( *search_root ) );
+    KTRY( kmap.select_node( *search_root ) );
 
-    auto cumulative_match_count = sorted_matches.size();
+    auto const cumulative_match_count = sorted_matches.size();
 
-    return fmt::format( "matches found: {}"
-                      , cumulative_match_count );
+    rv = fmt::format( "matches found: {}"
+                    , cumulative_match_count );
+    
+    return rv;
 }
 
 auto search_bodies( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -144,10 +150,10 @@ auto search_bodies( Kmap& kmap )
  
         KMAP_THROW_EXCEPTION_MSG( "current search is disabled, refactoring needed" );
 
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
         auto const srgx = flatten( args, ' ' );
-        auto const raw = db.execute_raw( fmt::format( "SELECT * FROM bodies WHERE body REGEXP '{}'"
-                                                    , srgx ) );
+        auto const raw = db->execute_raw( fmt::format( "SELECT * FROM bodies WHERE body REGEXP '{}'"
+                                                     , srgx ) );
         auto const nodes = raw
                          | views::transform( [ & ]( auto const& e ){ return uuid_from_string( e.first ).value(); } )
                          | to_vector;
@@ -159,9 +165,9 @@ auto search_bodies( Kmap& kmap )
 }
 
 auto search_bodies_first( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -172,10 +178,10 @@ auto search_bodies_first( Kmap& kmap )
 
         KMAP_THROW_EXCEPTION_MSG( "current search is disabled, refactoring needed" );
 
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
         auto const srgx = flatten( args, ' ' );
-        auto const raw = db.execute_raw( fmt::format( "SELECT * FROM bodies WHERE body REGEXP '{}' LIMIT 1"
-                                                    , srgx ) );
+        auto const raw = db->execute_raw( fmt::format( "SELECT * FROM bodies WHERE body REGEXP '{}' LIMIT 1"
+                                                     , srgx ) );
         auto const nodes = raw
                          | views::transform( [ & ]( auto const& e ){ return uuid_from_string( e.first ).value(); } )
                          | to_vector;
@@ -189,10 +195,11 @@ auto search_bodies_first( Kmap& kmap )
 // TODO: This can probably be made obsolete by chaining commands. E.g.: `kmap.nodes | select.leaf | search.body: args`
 //       If common, a simple command in the graph could be named search.leaf.bodies that calls the chained commands.
 // TODO: Create test for rgx=".*" when all leaf node bodies are empty. Got an error trying this.
+#if 0
 auto search_leaf_bodies( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -208,14 +215,14 @@ auto search_leaf_bodies( Kmap& kmap )
         auto const srgx = flatten( args, ' ' );
         auto const matching_nodes = [ & ]
         {
-            auto const& db = kmap.database();
+            auto const db = KTRYE( kmap.fetch_component< com::Database >() );
             auto bt = bodies::bodies{};
             using namespace sqlpp;
 
             return search_bodies( std::regex{ srgx }
-                                , db.execute( select( all_of( bt ) )
-                                            . from( bt )
-                                            . where( bt.uuid.in( sqlpp::value_list( sleaves ) ) ) ) );
+                                , db->execute( select( all_of( bt ) )
+                                             . from( bt )
+                                             . where( bt.uuid.in( sqlpp::value_list( sleaves ) ) ) ) );
         }();
 
         return process_search_results( kmap
@@ -223,11 +230,12 @@ auto search_leaf_bodies( Kmap& kmap )
                                      , matching_nodes );
     };
 }
+#endif // 0
 
 auto search_headings( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {   
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -239,13 +247,13 @@ auto search_headings( Kmap& kmap )
         auto const srgx = flatten( args, ' ' );
         auto const matching_nodes = [ & ]
         {
-            auto const& db = kmap.database();
+            auto const db = KTRYE( kmap.fetch_component< com::Database >() );
             auto ht = headings::headings{};
 
             return search_headings( std::regex{ srgx }
-                                  , db.execute( select( all_of( ht ) )
-                                              . from( ht )
-                                              . unconditionally() ) );
+                                  , db->execute( select( all_of( ht ) )
+                                               . from( ht )
+                                               . unconditionally() ) );
         }();
 
         return process_search_results( kmap

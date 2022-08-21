@@ -6,7 +6,9 @@
 #include "utility.hpp"
 
 #include "contract.hpp"
-#include "db.hpp"
+#include "com/database/db.hpp"
+#include "com/filesystem/filesystem.hpp"
+#include "com/network/network.hpp"
 #include "error/master.hpp"
 #include "error/node_manip.hpp"
 #include "io.hpp"
@@ -376,7 +378,7 @@ auto to_ordering_id( Uuid const& id )
 }
 
 auto to_uuids( HeadingPath const& path
-             , Database& db
+             , com::Database& db
              , Uuid const& root )
     -> std::vector< Uuid >
 {
@@ -537,7 +539,6 @@ auto format_title( Heading const& heading )
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            BC_ASSERT( is_valid_heading( heading ) );
         })
     ;
 
@@ -629,17 +630,18 @@ auto to_string( bool const b )
     }
 }
 
-auto to_string_elaborated( Kmap const& kmap
+auto to_string_elaborated( Kmap const& km
                          , Uuid const node )
     -> std::string
 {
+    auto const nw = KTRYE( km.fetch_component< com::Network >() );
     auto const sid = to_string( node );
-    auto const heading = kmap.fetch_heading( node ) | act::value_or( std::string{ "n/a" } );
+    auto const heading = nw->fetch_heading( node ) | act::value_or( std::string{ "n/a" } );
     auto const path = [ & ] -> std::string
     { 
-        if( kmap.exists( node ) )
+        if( nw->exists( node ) )
         {
-            return kmap.absolute_path_flat( node );
+            return KTRYE( absolute_path_flat( km, node ) );
         }
         else
         {
@@ -987,7 +989,7 @@ auto fetch_latest_state_path()
     auto to_paths = views::transform( []( auto const& e ){ return e.path(); } );
     auto filter_extension = views::filter( []( auto const& e ){ return e.extension() == ".kmap"; } );
     auto sort_by_timestamp = actions::sort( []( auto const& lhs, auto const& rhs ){ return fs::last_write_time( lhs ) > fs::last_write_time( rhs ); } );
-    auto const di = fs::directory_iterator{ kmap_root_dir };
+    auto const di = fs::directory_iterator{ com::kmap_root_dir };
     auto rv = di
             | to_paths
             | filter_extension
@@ -1077,14 +1079,12 @@ auto merge_trees_internal( Stmts& stmts
     stmts.erase_node( src );
 }
 
-auto merge_trees( Kmap& kmap
+auto merge_trees( com::Network& nw
                 , Uuid const& src 
                 , Uuid const& dst )
     -> void
 {
-    merge_trees_internal( kmap
-                        , src
-                        , dst );
+    merge_trees_internal( nw, src, dst );
 }
 
 auto merge_trees( StatementPreparer& stmts
@@ -1092,9 +1092,7 @@ auto merge_trees( StatementPreparer& stmts
                 , Uuid const& dst )
     -> void
 {
-    merge_trees_internal( stmts
-                        , src
-                        , dst );
+    merge_trees_internal( stmts, src, dst );
 }
 
 auto merge_ranges( std::set< uint64_t > const& values )
@@ -1137,29 +1135,34 @@ auto print_stacktrace()
     } );
 }
 
-auto print_tree( Kmap const& kmap
+auto print_tree( Kmap const& km
                , Uuid const& root )
     -> Result< void >
 {
-    if( kmap.is_top_alias( root ) )
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
+
+    if( nw->alias_store().is_top_alias( root ) )
     {
-        fmt::print( "{}[{}]\n", kmap.absolute_path_flat( root ), kmap.absolute_path_flat( kmap.resolve( root ) ) );
+        fmt::print( "{}[{}]\n", absolute_path_flat( km, root ), absolute_path_flat( km, nw->alias_store().resolve( root ) ) );
     }
     else
     {
-        fmt::print( "{}\n", kmap.absolute_path_flat( root ) );
+        fmt::print( "{}\n", absolute_path_flat( km, root ) );
     }
 
-    for( auto const children = kmap.fetch_children_ordered( root )
+    for( auto const children = view::make( root )
+                             | view::child
+                             | view::to_node_set( km )
+                             | act::order( km )
        ; auto const& child : children )
     {
-        KMAP_TRY( print_tree( kmap, child ) );
+        KTRY( print_tree( km, child ) );
     }
 
     return outcome::success();
 }
 
-auto copy_body( Kmap& kmap
+auto copy_body( com::Network& nw 
               , Uuid const& src
               , Uuid const& dst )
     -> Result< void >
@@ -1169,15 +1172,15 @@ auto copy_body( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.fetch_body( src ) );
+            BC_ASSERT( nw.fetch_body( src ) );
         })
         BC_POST([ &
-                , prev_src_body = kmap.fetch_body( src ) ]
+                , prev_src_body = nw.fetch_body( src ) ]
         {
             if( rv )
             {
-                auto const src_body = kmap.fetch_body( src );
-                auto const dst_body = kmap.fetch_body( dst );
+                auto const src_body = nw.fetch_body( src );
+                auto const dst_body = nw.fetch_body( dst );
 
                 BC_ASSERT( src_body
                         && dst_body
@@ -1189,16 +1192,16 @@ auto copy_body( Kmap& kmap
         })
     ;
 
-    auto const src_body = KMAP_TRY( kmap.fetch_body( src ) );
+    auto const src_body = KTRY( nw.fetch_body( src ) );
 
-    KMAP_TRY( kmap.update_body( dst, src_body ) );
+    KTRY( nw.update_body( dst, src_body ) );
         
     rv = outcome::success();
 
     return rv;
 }
 
-auto move_body( Kmap& kmap
+auto move_body( com::Network& nw
               , Uuid const& src
               , Uuid const& dst )
     -> Result< void >
@@ -1208,15 +1211,15 @@ auto move_body( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.fetch_body( src ) );
+            BC_ASSERT( nw.fetch_body( src ) );
         })
         BC_POST([ &
-                , prev_src_body = kmap.fetch_body( src ) ]
+                , prev_src_body = nw.fetch_body( src ) ]
         {
             if( rv )
             {
-                auto const src_body = kmap.fetch_body( src );
-                auto const dst_body = kmap.fetch_body( dst );
+                auto const src_body = nw.fetch_body( src );
+                auto const dst_body = nw.fetch_body( dst );
 
                 BC_ASSERT( src_body && src_body.value().empty() );
                 BC_ASSERT( dst_body
@@ -1226,8 +1229,8 @@ auto move_body( Kmap& kmap
         })
     ;
 
-    KMAP_TRY( copy_body( kmap, src, dst ) );
-    KMAP_TRY( kmap.update_body( src, "" ) ); // TODO: Delete body?
+    KTRY( copy_body( nw, src, dst ) );
+    KTRY( nw.update_body( src, "" ) ); // TODO: Erase body. Unit test that body has been erased in DB.
         
     rv = outcome::success();
 
@@ -1303,14 +1306,15 @@ auto fetch_siblings( Kmap const& kmap
     -> UuidSet
 {
     auto rv = UuidSet{};
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    if( auto parent = kmap.fetch_parent( id )
+    if( auto parent = nw->fetch_parent( id )
       ; parent )
     {
         auto const siblings = [ & ]
         {
             auto const id_set = UuidSet{ id };
-            auto const children = kmap.fetch_children( parent.value() );
+            auto const children = nw->fetch_children( parent.value() );
             auto sibs = UuidSet{};
 
             std::set_difference( children.begin(), children.end()
@@ -1326,18 +1330,22 @@ auto fetch_siblings( Kmap const& kmap
     return rv;
 }
 
-auto fetch_siblings_ordered( Kmap const& kmap
+auto fetch_siblings_ordered( Kmap const& km
                            , Uuid const& id )
     -> UuidVec
 {
     auto rv = UuidVec{};
+    auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
-    if( auto parent = kmap.fetch_parent( id )
+    if( auto parent = nw->fetch_parent( id )
       ; parent )
     {
         auto const siblings = [ & ]
         {
-            auto const children = kmap.fetch_children_ordered( parent.value() );
+            auto const children = view::make( parent.value() )
+                                | view::child
+                                | view::to_node_set( km )
+                                | act::order( km );
 
             return children
                  | views::remove( id )
@@ -1372,8 +1380,10 @@ auto to_heading_path( Kmap const& kmap
                     , UuidVec const& lineage )
     -> StringVec
 {
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+
     return lineage
-         | views::transform( [ & ]( auto const& e ){ return kmap.fetch_heading( e ).value(); } )
+         | views::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ); } )
          | to< StringVec >();
 }
 
@@ -1381,8 +1391,10 @@ auto to_heading_path_flat( Kmap const& kmap
                          , UuidVec const& lineage )
     -> Heading
 {
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+
     auto rv = lineage 
-            | views::transform( [ & ]( auto const& e ){ return kmap.fetch_heading( e ).value(); } )
+            | views::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ); } )
             | to_vector;
 
     return rv 
@@ -1399,47 +1411,20 @@ auto flatten( StringVec const& v
          | to< std::string >();
 }
 
-auto is_direct_descendant( Kmap const& kmap
-                         , Uuid const& root
-                         , Heading const& path )
-    -> bool
-{
-    auto rv = false;
-    auto const lineage = path | views::split( '.' ) | to< StringVec >();
-    auto parent = root;
-
-    for( auto const& schild : lineage )
-    {
-        if( auto const child = kmap.fetch_child( parent, schild )
-          ; child )
-        {
-            parent = child.value();
-
-            rv = true;
-        }
-        else
-        {
-            rv = false;
-
-            break;
-        }
-    }
-
-    return rv;
-}
-
 auto is_ordered( Kmap const& kmap
                , Uuid const& former 
                , Uuid const& latter )
     -> bool
 {
-    if( kmap.are_siblings( former, latter ) )
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+
+    if( nw->are_siblings( former, latter ) )
     {
-        return KTRYE( kmap.fetch_ordering_position( former ) ) < KTRYE( kmap.fetch_ordering_position( latter ) );
+        return KTRYE( nw->fetch_ordering_position( former ) ) < KTRYE( nw->fetch_ordering_position( latter ) );
     }
     else
     {
-        return kmap.distance( kmap.root_node_id(), former ) < kmap.distance( kmap.root_node_id(), latter );
+        return nw->distance( kmap.root_node_id(), former ) < nw->distance( kmap.root_node_id(), latter );
     }
 }
 

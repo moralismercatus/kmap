@@ -29,7 +29,7 @@ auto is_recipe( Kmap const& kmap
     if( auto const recipes_root = fetch_recipes_root( kmap )
       ; recipes_root )
     {
-        rv = kmap.is_lineal( recipes_root.value(), id )
+        rv = nw->is_lineal( recipes_root.value(), id )
           && has_geometry( kmap
                          , id
                          , std::regex{ "step|steps" } );
@@ -78,15 +78,15 @@ auto fetch_parent_recipe( Kmap const& kmap
     
     // A little tricky to figure out the recipe to reproduce this using node_view.
     // Requires (1) "first of"/"nearest to", and (2) ancestor between two points that has child( any_of( "step"", "steps" ) )
-    // rv = KTRY( view::root( view::root( rroot ) | view::lineage( id ) | view::to_node_set( kmap ) )
+    // rv = KTRY( view::make( view::make( rroot ) | view::lineage( id ) | view::to_node_set( kmap ) )
     //          | view::ancestor( view::any_of( "step", "steps" ) )
     //          | view::fetch_node( kmap_ ) );
-    // rv = KTRY( view::root( id )
+    // rv = KTRY( view::make( id )
     //          | view::lineage( rroot )
     //          | view::ancestor( view::any_of( "step", "steps" ) )
     //          | view::fetch_node( kmap_ ) );
     // This version has all properties except (1).
-    // rv = KTRY( view::root( id )
+    // rv = KTRY( view::make( id )
     //          | view::lineage( rroot )
     //          | view::child( view::any_of( "step", "steps" ) )
     //          | view::parent
@@ -111,7 +111,7 @@ auto fetch_nearest_category( Kmap const& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.exists( id ) );
+            BC_ASSERT( nw->exists( id ) );
         })
     ;
 
@@ -135,7 +135,7 @@ auto create_recipe( Kmap& kmap
     -> Result< Uuid > 
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const selected = kmap.selected_node();
+    auto const selected = nw->selected_node();
     auto const cat = KMAP_TRY( fetch_nearest_category( kmap, selected ) );
     auto const cid = KMAP_TRY( kmap.create_child( cat, heading ) );
 
@@ -155,31 +155,31 @@ auto convert_to_multistep_recipe( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.exists( recipe ) );
+            BC_ASSERT( nw->exists( recipe ) );
         })
         BC_POST([ & ]
         {
             if( rv )
             {
-                BC_ASSERT( kmap.exists( rv.value() ) );
+                BC_ASSERT( nw->exists( rv.value() ) );
             }
         })
     ;
 
-    if( auto const single_step = kmap.fetch_child( recipe
+    if( auto const single_step = nw->fetch_child( recipe
                                                  , "step" )
       ; single_step )
     {
-        if( auto const body = kmap.fetch_body( single_step.value() )
+        if( auto const body = nw->fetch_body( single_step.value() )
           ; body
          && body.value().empty() )
         {
-            KMAP_TRY( kmap.erase_node( single_step.value() ) );
+            KMAP_TRY( nw->erase_node( single_step.value() ) );
             KMAP_TRY( kmap.create_child( recipe, "steps" ) );
         }
     }
 
-    rv = kmap.fetch_child( recipe, "steps" );
+    rv = nw->fetch_child( recipe, "steps" );
 
     return rv;
 }
@@ -190,7 +190,7 @@ auto create_step( Kmap& kmap
 {
     auto rv = KMAP_MAKE_RESULT( Uuid ); 
 
-    auto const pr = KMAP_TRY( fetch_parent_recipe( kmap, kmap.selected_node() ) );
+    auto const pr = KMAP_TRY( fetch_parent_recipe( kmap, nw->selected_node() ) );
     auto const steps = KMAP_TRY( convert_to_multistep_recipe( kmap, pr ) );
     auto const ns = KMAP_TRY( create_recipe( kmap, heading ) );
     rv = KMAP_TRY( kmap.create_alias( ns, steps ) );
@@ -205,7 +205,7 @@ auto add_step( Kmap& kmap
     auto rv = Optional< Uuid >{};
 
     if( auto const pr = fetch_parent_recipe( kmap
-                                           , kmap.selected_node() )
+                                           , nw->selected_node() )
       ; pr )
     {
         if( auto const steps = convert_to_multistep_recipe( kmap
@@ -240,7 +240,7 @@ auto add_prerequisite( Kmap& kmap
     auto rv = Optional< Uuid >{};
 
     if( auto const pr = fetch_parent_recipe( kmap
-                                           , kmap.selected_node() )
+                                           , nw->selected_node() )
       ; pr )
     {
         if( auto const prereq_root = kmap.fetch_or_create_descendant( pr.value()
@@ -273,9 +273,9 @@ auto add_prerequisite( Kmap& kmap
 } // anonymous ns
 
 auto create_recipe( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -295,7 +295,7 @@ auto create_recipe( Kmap& kmap )
         if( auto const cid = create_recipe( kmap, heading )
           ; cid )
         {
-            KMAP_TRY( kmap.update_title( cid.value(), title ) );
+            KMAP_TRY( nw->update_title( cid.value(), title ) );
             KMAP_TRY( kmap.select_node( cid.value() ) );
       
             return fmt::format( "{} added to {}"
@@ -310,9 +310,9 @@ auto create_recipe( Kmap& kmap )
 }
 
 auto create_step( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -332,7 +332,7 @@ auto create_step( Kmap& kmap )
                                          , heading )
           ; step )
         {
-            KMAP_TRY( kmap.update_title( step.value(), title ) );
+            KMAP_TRY( nw->update_title( step.value(), title ) );
             KMAP_TRY( kmap.select_node( step.value() ) );
 
             return fmt::format( "created recipe step" );
@@ -347,9 +347,9 @@ auto create_step( Kmap& kmap )
 // TODO: Need to inform user reason for failure e.g., that the "step" is nonempty.
 // TODO: Needs to ensure the step to be added isn't the recipe itself!
 auto add_step( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -375,9 +375,9 @@ auto add_step( Kmap& kmap )
 
 // TODO: Needs to ensure the step to be added isn't the recipe itself!
 auto add_prerequisite( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -402,9 +402,9 @@ auto add_prerequisite( Kmap& kmap )
 }
 
 auto create_prerequisite( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]

@@ -3,8 +3,9 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "cli.hpp"
 #include "cmd.hpp"
+#include "com/cli/cli.hpp"
+#include "com/filesystem/filesystem.hpp"
 #include "common.hpp"
 #include "component.hpp"
 #include "contract.hpp"
@@ -40,12 +41,25 @@ using namespace kmap;
 
 namespace {
 
-auto init_js_syntax_error_handler()
+auto init_window_error_handler()
     -> Result< void >
 {
     // TODO: error info is just about useless. Line number is 1.... does window.addEventListener( 'error')
     return js::eval_void( R"%%%(window.onerror = function( msg, url, lineNo, columnNo, error )
                                 {
+                                    if( is_cpp_exception( error ) )
+                                    {
+                                        if( kmap.is_signal_exception( error ) )
+                                        {
+                                            kmap.handle_signal_exception( error );
+                                            return true;
+                                        }
+                                        else
+                                        {
+                                            kmap.print_std_exception( error );
+                                            // handle_cpp_exception( error ); // inside: if( DoLoad ){ kmap.load( msg ); else{ print_std_exception( error )...} )}
+                                        }
+                                    }
                                     let message = [ 'Caught by `window.onerror` handler. Major error occurred. Likely uncaught exception or uncatchable JS Syntax Error.'
                                                   , 'Message: ' + msg
                                                   , 'URL: ' + url
@@ -53,10 +67,6 @@ auto init_js_syntax_error_handler()
                                                   , 'Column: ' + columnNo
                                                   , 'Error object: ' + JSON.stringify( error ) ];
                                     console.log( message.join( '\n' ) );
-                                    if( is_cpp_exception( error ) )
-                                    {
-                                        kmap.print_std_exception( error );
-                                    }
                                     alert( message.join( '\n' ) );
                                     return true;
                                 };)%%%" );
@@ -81,8 +91,9 @@ auto focus_network()
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
-    KMAP_TRY( kmap.select_node( kmap.root_node_id() ) );
+    KMAP_TRY( nw->select_node( kmap.root_node_id() ) );
 
     rv = outcome::success();
 
@@ -95,13 +106,10 @@ auto initialize()
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
 
-    KTRY( init_js_syntax_error_handler() );
+    KTRY( init_window_error_handler() );
     configure_terminate();
     configure_contract_failure_handlers();
     KTRY( init_kmap( kmap ) );
-    register_arguments();
-    register_commands();
-    reset_registrations( kmap );
     KTRY( focus_network() );
 
     {
@@ -123,6 +131,24 @@ auto initialize()
     return rv;
 }
 
+auto temp_init_fs()
+{
+
+#ifndef NODERAWFS
+    EM_ASM({
+        let rd = UTF8ToString( $0 );
+        FS.mkdir( rd );
+        FS.mount( NODEFS
+                , { root: "." }
+                , rd );
+
+    }
+    , kmap::com::kmap_root_dir.string().c_str() );
+#else
+    #error Unsupported
+#endif // NODERAWFS
+}
+
 } // anonymous ns
 
 auto main( int argc
@@ -131,8 +157,10 @@ auto main( int argc
 {
     try
     {
+        temp_init_fs();
+
         KMAP_TRYE( window::set_default_window_title() );
-        init_ems_nodefs();
+        // init_ems_nodefs();
         js::set_global_kmap( Singleton::instance() );
 
 #if KMAP_PROFILE
@@ -164,7 +192,7 @@ auto main( int argc
     catch( std::exception const& e )
     {
         io::print( stderr
-                 , "exception: {}\n"
+                 , "[main] exception: {}\n"
                  , e.what() );
     }
 

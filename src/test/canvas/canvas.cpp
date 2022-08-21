@@ -4,9 +4,9 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "../../canvas.hpp"
 #include "../../kmap.hpp"
 #include "../master.hpp"
+#include "com/canvas/canvas.hpp"
 #include "js_iface.hpp"
 #include "test/util.hpp"
 
@@ -17,13 +17,13 @@ using namespace kmap::test;
 
 SCENARIO( "canvas" )
 {
-    auto& kmap = Singleton::instance();
-    auto& canvas = kmap.canvas();
+    // auto& km = Singleton::instance();
+    // auto& canvas = kmap.canvas();
 
     GIVEN( "html canvas" )
     {
-        REQUIRE( !js::element_exists( to_string( util_canvas_uuid ) ) ); 
-        REQUIRE( succ( js::create_html_canvas( to_string( util_canvas_uuid ) ) ) );
+        REQUIRE( !js::element_exists( to_string( com::util_canvas_uuid ) ) ); 
+        REQUIRE( succ( js::create_html_canvas( to_string( com::util_canvas_uuid ) ) ) );
 
         // canvas.
         // This would be a good opportunity to run through exactly how the canvas operates.
@@ -32,6 +32,6 @@ SCENARIO( "canvas" )
             // canvas.root is created..
         }
 
-        REQUIRE( succ( js::erase_child_element( to_string( util_canvas_uuid ) ) ) );
+        REQUIRE( succ( js::erase_child_element( to_string( com::util_canvas_uuid ) ) ) );
     }
 }

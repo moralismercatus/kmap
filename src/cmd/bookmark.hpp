@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_BOOKMARK_HPP
 #define KMAP_CMD_BOOKMARK_HPP
 
-#include "../cli.hpp"
+#include <string>
 
 namespace kmap {
 class Kmap;

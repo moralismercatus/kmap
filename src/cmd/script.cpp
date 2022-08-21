@@ -12,6 +12,8 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
+#include "com/filesystem/filesystem.hpp"
 
 #include <boost/filesystem.hpp>
 #include <emscripten.h>
@@ -33,7 +35,8 @@ auto load_script( Kmap& kmap
 
     while( std::getline( is, line ) )
     {
-        if( rv = kmap.cli().parse_raw( line )
+        auto const cli = KTRY( kmap.fetch_component< com::Cli >() );
+        if( rv = cli->parse_raw( line )
           ; !rv )
         {
             break;
@@ -48,7 +51,7 @@ auto load_script( Kmap& kmap
     -> Result< std::string >
 {
     auto rv = KMAP_MAKE_RESULT( std::string );
-    auto const path = kmap_root_dir / raw_path;
+    auto const path = com::kmap_root_dir / raw_path;
 
     if( fs::exists( path ) )
     {
@@ -75,6 +78,7 @@ auto load_script( Kmap& kmap
 
 } // namespace kmap::cmd
 
+#if 0
 namespace kmap::cmd::load_kscript_def {
 namespace { 
 
@@ -91,15 +95,14 @@ rv = kmap.load_kscript( args.get( 0 ) );
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "loads and executes kscript file";
 auto const arguments = std::vector< Argument >{ Argument{ "script_file_path"
                                                         , "path to script file"
                                                         , "filesystem_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -113,6 +116,7 @@ REGISTER_COMMAND
 
 } // namespace anon
 } // namespace kmap::cmd::load_kscript_def
+#endif // 0
 
 namespace kmap::cmd::script::binding {
 

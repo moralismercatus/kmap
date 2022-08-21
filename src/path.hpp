@@ -12,10 +12,14 @@
 #include <regex>
 #include <set>
 
+namespace kmap::com
+{
+    class Network;
+}
+
 namespace kmap {
 
-class Network;
-// class Kmap;
+class Kmap;
 class Lineal;
 class LinealRange;
 
@@ -33,10 +37,12 @@ auto operator<( CompletionNode const& lhs
 
 using CompletionNodeSet = std::set< CompletionNode >;
 
-[[ nodiscard ]]
 auto absolute_path( Kmap const& kmap
                   , Uuid const& desc )
     -> Result< UuidVec >;
+auto absolute_path_flat( Kmap const& km
+                       , Uuid const& node )
+    -> Result< std::string >;
 auto complete_any( Kmap const& kmap
                  , Uuid const& root
                  , std::string const& heading )
@@ -93,20 +99,6 @@ auto fetch_descendants( Kmap const& kmap
                       , Uuid const& root
                       , Pred pred )
     -> Result< UuidSet >;
-/**
- * Returns descendants of root who are ancestros to direct descendants of path described by descendant_path.
- * 
- * Examples:
- * Valid conclusion heading path: conclusions.(<category>.)*<heading>.(assertion|premises)
- * Valid project heading path: projects.(<category>.)*<heading>.(task|tasks)
- * Valid recipe heading path: recipes.(<category>.)*<heading>.(step|steps)
-**/
-[[ nodiscard ]]
-auto fetch_direct_descendants( Kmap const& kmap
-                             , Uuid const& root
-                             , Uuid const& selected
-                             , Heading const& descendant_path )
-    -> std::vector< Uuid >;
 [[ nodiscard ]]
 auto fetch_descendant( Kmap const& kmap
                      , Uuid const& root
@@ -198,6 +190,7 @@ auto fetch_descendants( KMap const& kmap
     -> Result< UuidSet >
 {
     auto rv = KMAP_MAKE_RESULT( UuidSet );
+    auto const nw = KTRY( kmap.template fetch_component< com::Network >() );
     auto matches = UuidSet{};
 
     if( pred( root ) )
@@ -205,7 +198,7 @@ auto fetch_descendants( KMap const& kmap
         matches.emplace( root );
     }
 
-    for( auto const& child : kmap.fetch_children( root ) )
+    for( auto const& child : nw->fetch_children( root ) )
     {
         auto const descs = KMAP_TRY( fetch_descendants( kmap, child, pred ) );
 

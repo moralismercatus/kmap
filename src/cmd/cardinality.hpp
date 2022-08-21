@@ -7,6 +7,6 @@
 #ifndef KMAP_CMD_CARDINALITY_HPP
 #define KMAP_CMD_CARDINALITY_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 
 #endif // KMAP_CMD_CARDINALITY_HPP

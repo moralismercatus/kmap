@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_REPAIR_HPP
 #define KMAP_CMD_REPAIR_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 #include "../common.hpp"
 
 #include <functional>

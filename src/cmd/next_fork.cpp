@@ -13,9 +13,9 @@
 namespace kmap::cmd {
 
 auto next_fork( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -27,11 +27,11 @@ auto next_fork( Kmap& kmap )
         auto const target = [ & ]() -> Optional< Uuid >
         {
             auto rv = Optional< Uuid >{};
-            auto n = kmap.selected_node();
+            auto n = nw->selected_node();
 
             while( !rv )
             {
-                auto const children = kmap.fetch_children( n );
+                auto const children = nw->fetch_children( n );
 
                 if( children.empty() )
                 {
@@ -64,9 +64,9 @@ auto next_fork( Kmap& kmap )
 }
 
 auto prev_fork( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -78,11 +78,11 @@ auto prev_fork( Kmap& kmap )
         auto const target = [ & ]() -> Optional< Uuid >
         {
             auto rv = Optional< Uuid >{};
-            auto n = kmap.selected_node();
+            auto n = nw->selected_node();
 
             while( !rv )
             {
-                auto const parent = kmap.fetch_parent( n );
+                auto const parent = nw->fetch_parent( n );
 
                 if( !parent )
                 {
@@ -90,7 +90,7 @@ auto prev_fork( Kmap& kmap )
                 }
                 else
                 {
-                    auto const children = kmap.fetch_children( parent.value() );
+                    auto const children = nw->fetch_children( parent.value() );
 
                     if( children.size() > 1 )
                     {
@@ -120,9 +120,9 @@ auto prev_fork( Kmap& kmap )
 }
 
 auto next_leaf( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -136,11 +136,11 @@ auto next_leaf( Kmap& kmap )
         auto const target = [ & ]() -> Optional< Uuid >
         {
             auto rv = Optional< Uuid >{};
-            auto n = kmap.selected_node();
+            auto n = nw->selected_node();
 
             while( !rv )
             {
-                auto const children = kmap.fetch_children( n );
+                auto const children = nw->fetch_children( n );
 
                 if( children.empty() )
                 {

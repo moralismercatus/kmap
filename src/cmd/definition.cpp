@@ -23,9 +23,9 @@ using namespace ranges;
 namespace kmap::cmd {
 
 auto create_definition( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -41,7 +41,7 @@ auto create_definition( Kmap& kmap )
         if( auto const def = kmap.fetch_or_create_leaf( def_path )
           ; def )
         {
-            KMAP_TRY( kmap.update_title( *def, title ) );
+            KMAP_TRY( nw->update_title( *def, title ) );
             KMAP_TRY( kmap.select_node( *def ) );
 
             return fmt::format( "added: {}", def_path );
@@ -55,9 +55,9 @@ auto create_definition( Kmap& kmap )
 
 // TODO: Decide whether this should create an alias under the common "references" or the specific "definitions".
 auto add_definition( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -67,7 +67,7 @@ auto add_definition( Kmap& kmap )
         ;
 
         // TODO: Match inverted...
-        auto const target = kmap.selected_node();
+        auto const target = nw->selected_node();
         auto const droot_path = "/definitions";
         auto const def_root = kmap.fetch_leaf( droot_path );
 
@@ -95,10 +95,10 @@ auto add_definition( Kmap& kmap )
 
         auto alias_parent = [ & ]
         {
-            if( kmap.is_child( target
+            if( nw->is_child( target
                               , "definitions" ) )
             {
-                return kmap.fetch_child( target, "definitions" ).value(); // TODO: Handle failure case.
+                return nw->fetch_child( target, "definitions" ).value(); // TODO: Handle failure case.
             }
             else
             {

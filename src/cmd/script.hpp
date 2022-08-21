@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_SCRIPT_HPP
 #define KMAP_CMD_SCRIPT_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 
 #include <functional>
 

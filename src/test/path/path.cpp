@@ -4,7 +4,7 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #include "../master.hpp"
-#include "canvas.hpp"
+#include "com/canvas/canvas.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/node_view.hpp"
@@ -40,9 +40,10 @@ auto check_path( Kmap const& kmap
                , std::vector< Uuid > const& matches )
     -> bool
 {
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const ps = kmap::decide_path( kmap
                                      , kmap.root_node_id()
-                                     , kmap.selected_node()
+                                     , nw->selected_node()
                                      , path );
 
     if( matches.empty() )
@@ -284,10 +285,11 @@ BOOST_AUTO_TEST_CASE( fetch_abs_root
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "/" )
               . has_value() );
 }
@@ -298,31 +300,15 @@ BOOST_AUTO_TEST_CASE( fetch_abs_descendant
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     create_lineages( "/1.2.3" );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , kmap.root_node_id()
                                        , "/1.2.3" )
               . has_value() == true );
-}
-
-BOOST_AUTO_TEST_CASE( fetch_abs_from_custom_root
-                    ,
-                    * utf::fixture< ClearMapFixture >() )
-{
-    auto& kmap = Singleton::instance();
-
-    create_lineages( "/1.2.3" );
-
-    auto const root_1 = kmap.fetch_leaf( "/1" );
-    BOOST_TEST_REQUIRE( root_1.has_value() );
-    BOOST_TEST( kmap::fetch_descendants( kmap
-                                       , *root_1
-                                       , *root_1
-                                       , "1.2.3" ) 
-              . has_value() );
 }
 
 BOOST_AUTO_TEST_CASE( fetch_rel_root
@@ -330,10 +316,11 @@ BOOST_AUTO_TEST_CASE( fetch_rel_root
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "root" )
               . has_value() );
 }
@@ -343,27 +330,28 @@ BOOST_AUTO_TEST_CASE( fetch_rel_single
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     create_lineages( "/1.2.3" );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "1" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "2" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "3" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "z" )
               . has_value() == false );
 }
@@ -374,35 +362,20 @@ BOOST_AUTO_TEST_CASE( fetch_rel_mult_fwd
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
     create_lineages( "/1.2.3"
                    , "/4.5.6" );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "1.2" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "1.2.3" )
-              . has_value() );
-}
-
-BOOST_AUTO_TEST_CASE( fetch_nearest_ancestor
-                    , 
-                    * utf::depends_on( "path/fetch_rel_single" )
-                    * utf::fixture< ClearMapFixture >() )
-{
-    auto& kmap = Singleton::instance();
-
-    create_lineages( "/1.2.3" );
-
-    BOOST_TEST( kmap::fetch_nearest_ancestor( kmap
-                                            , kmap.root_node_id() 
-                                            , *kmap.fetch_leaf( "/1.2" )
-                                            , std::regex{ "2" } )
               . has_value() );
 }
 
@@ -416,21 +389,22 @@ BOOST_AUTO_TEST_CASE( root_parent
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     create_lineages( "/1.2.3"
                    , "/4.5.6" );
     
     BOOST_TEST( !kmap::fetch_descendants( kmap
                                         , kmap.root_node_id()
-                                        , kmap.selected_node()
+                                        , nw->selected_node()
                                         , "," ) );
     BOOST_TEST( !kmap::fetch_descendants( kmap
                                         , kmap.root_node_id()
-                                        , kmap.selected_node()
+                                        , nw->selected_node()
                                         , ",," ) );
     BOOST_TEST( !kmap::fetch_descendants( kmap
                                         , kmap.root_node_id()
-                                        , kmap.selected_node()
+                                        , nw->selected_node()
                                         , ",,," ) );
 }
 
@@ -440,27 +414,28 @@ BOOST_AUTO_TEST_CASE( sel_parent
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
     create_lineages( "/1.2.3"
                    , "/4.5.6" );
 
-    BOOST_TEST( kmap.select_node( KTRYE( kmap.fetch_descendant( "1.2.3" ) ) ) );
+    BOOST_TEST( nw->select_node( KTRYE( kmap.root_view() | view::direct_desc( "1.2.3" ) | view::fetch_node( kmap ) ) ) );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "," ) );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , ",," ) );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , ",,," ) );
     BOOST_TEST( !kmap::fetch_descendants( kmap
                                         , kmap.root_node_id()
-                                        , kmap.selected_node()
+                                        , nw->selected_node()
                                         , ",,,," ) );
 }
 
@@ -470,23 +445,24 @@ BOOST_AUTO_TEST_CASE( mult_bwd
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
     create_lineages( "/1.2.3"
                    , "/4.5.6" );
 
-    BOOST_TEST( kmap.select_node( KTRYE( kmap.fetch_descendant( "1.2.3" ) ) ) );
+    BOOST_TEST( nw->select_node( KTRYE( kmap.root_view() | view::direct_desc( "1.2.3" ) | view::fetch_node( kmap ) ) ) );
 
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , ",," ) );
     BOOST_TEST( kmap::fetch_descendants( kmap
-                                        , kmap.root_node_id()
-                                        , kmap.selected_node()
-                                        , ",,," ) );
+                                       , kmap.root_node_id()
+                                       , nw->selected_node()
+                                       , ",,," ) );
     BOOST_TEST( !kmap::fetch_descendants( kmap
                                         , kmap.root_node_id()
-                                        , kmap.selected_node()
+                                        , nw->selected_node()
                                         , ",,,," ) );
 }
 
@@ -496,6 +472,7 @@ BOOST_AUTO_TEST_CASE( rel_mult_bwd
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
     create_lineages( "/1.2.3"
                    , "/4.5.6"
@@ -503,27 +480,27 @@ BOOST_AUTO_TEST_CASE( rel_mult_bwd
 
     BOOST_TEST( !kmap::fetch_descendants( kmap
                                         , kmap.root_node_id()
-                                        , kmap.selected_node()
+                                        , nw->selected_node()
                                         , "2,3" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "3,2" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "3,2,1" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "6,5,4" )
               . has_value() );
     BOOST_TEST( kmap::fetch_descendants( kmap
                                        , kmap.root_node_id()
-                                       , kmap.selected_node()
+                                       , nw->selected_node()
                                        , "6,5" )
               . has_value() );
 }

@@ -15,12 +15,12 @@
 #include <catch2/catch_session.hpp>
 #include <range/v3/view/enumerate.hpp>
 
-#include "../cmd/command.hpp"
-#include "../contract.hpp"
-#include "../db.hpp"
-#include "../io.hpp"
-#include "../kmap.hpp"
-#include "../path.hpp"
+#include "cmd/command.hpp"
+#include "contract.hpp"
+#include "com/database/db.hpp"
+#include "io.hpp"
+#include "kmap.hpp"
+#include "path.hpp"
 #include "js_iface.hpp"
 #include "master.hpp"
 
@@ -41,22 +41,34 @@ ResetInstanceFixture::ResetInstanceFixture()
 
 ResetInstanceFixture::~ResetInstanceFixture()
 {
-    fs::remove( Singleton::instance().database().path() );
+    try
+    {
+        auto const& kmap = Singleton::instance();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
+
+        fs::remove( db->path() );
+    }
+    catch( std::exception const& e )
+    {
+        std::cerr << e.what() << '\n';
+        std::terminate();
+    }
 }
 
 ClearMapFixture::ClearMapFixture()
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    for( auto const& c : kmap.fetch_children( kmap.root_node_id() ) )
+    for( auto const& c : nw->fetch_children( kmap.root_node_id() ) )
     {
-        if( kmap.fetch_heading( c ).value() != "meta" )
+        if( nw->fetch_heading( c ).value() != "meta" )
         {
-            ( void )kmap.erase_node( c );
+            ( void )nw->erase_node( c );
         }
     }
 
-    if( auto const res = kmap.select_node( kmap.root_node_id() )
+    if( auto const res = nw->select_node( kmap.root_node_id() )
       ; !res )
     {
         KMAP_THROW_EXCEPTION_MSG( to_string( res.error() ) );
@@ -72,9 +84,11 @@ auto select_each_descendant_test( Kmap& kmap
                                 , Uuid const& node )
     -> bool
 {
-    auto rv = kmap.select_node( node ).has_value();
+    auto rv = view::make( node ) | view::exists( kmap );
 
-    for( auto const& child : kmap.fetch_children( node ) )
+    for( auto const& child : view::make( node )
+                           | view::child
+                           | view::to_node_set( kmap ) )
     {
         if( rv = select_each_descendant_test( kmap, child )
           ; !rv )
@@ -104,15 +118,24 @@ auto run_pre_env_unit_tests()
 {
     {
         // Use -# [#<file>] without extension to unit test particular file.
-        auto const specified_tests = KTRYE( js::eval< std::string >( "return kmap_pretest_targets;" ) );
-        char const* targv[] = { "kmap" 
-                              , "--durations=yes"
-                              , "--verbosity=high"
-                              , specified_tests.c_str() };
-        io::print( "[log] Running Catch2 pre-env unit tests\n" );
-        if( 0 != Catch::Session().run( sizeof( targv ) / sizeof( char* ), targv ) )
+        if( auto const specified_tests = js::eval< std::string >( "return kmap_pretest_targets;" )
+          ; specified_tests )
         {
-            return 1;
+            char const* targv[] = { "kmap" 
+                                  , "--durations=yes"
+                                  , "--verbosity=high"
+                                  , specified_tests.value().c_str() };
+
+            io::print( "[log] Running Catch2 pre-env unit tests\n" );
+
+            if( 0 != Catch::Session().run( sizeof( targv ) / sizeof( char* ), targv ) )
+            {
+                return 1;
+            }
+        }
+        else
+        {
+            io::print( "[log] No pretest specified\n" );
         }
     }
     // TODO: So, the alternative, and probably better solution to running only non-UI "pre" tests, is to use the negation (assuming it works with labels)

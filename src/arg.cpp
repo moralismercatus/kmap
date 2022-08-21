@@ -5,9 +5,11 @@
  ******************************************************************************/
 #include "arg.hpp"
 
-#include "db.hpp"
-#include "cli.hpp"
 #include "cmd/command.hpp"
+#include "com/cli/cli.hpp"
+#include "com/database/db.hpp"
+#include "com/filesystem/filesystem.hpp"
+#include "com/network/network.hpp"
 #include "contract.hpp"
 #include "io.hpp"
 #include "kmap.hpp"
@@ -104,13 +106,13 @@ auto CommandArg::is_fmt_malformed( std::string const& raw ) const
 auto CommandArg::complete( std::string const& raw ) const 
     -> StringVec
 {
+    auto const cli = KTRYE( kmap_.fetch_component< com::Cli >() );
     auto rm_pred = [ & ]( auto const& e )
     {
         return raw.size() != match_length( raw
                                          , e );
     };
-    auto const cmds = kmap_.cli()
-                           .valid_commands();
+    auto const cmds = cli->valid_commands();
 
     return cmds
          | views::transform( [ & ]( auto const& e ){ return e.command; } )
@@ -142,7 +144,7 @@ auto FsPathArg::complete( std::string const& raw ) const
     auto const parent_path = fs::path{ raw }.parent_path();
     fmt::print( "parent path: {}\n", parent_path.string() );
     auto to_paths = views::transform( [ & ]( auto const& e ){ return ( parent_path / e.path().filename() ).string(); } );
-    auto const di = fs::directory_iterator{ kmap_root_dir / parent_path };
+    auto const di = fs::directory_iterator{ com::kmap_root_dir / parent_path };
     auto const paths = di
                      | to_paths
                      | to_vector;
@@ -252,22 +254,25 @@ auto HeadingPathArg::complete( std::string const& raw ) const
     -> StringVec
 {
     auto rv = StringVec{};
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-    if( auto const root = kmap_.fetch_leaf( root_ )
+    if( auto const root = view::make( kmap_.root_node_id() )
+                        | view::desc( root_ )
+                        | view::fetch_node( kmap_ )
       ; root )
     {
         if( raw.empty() )
         {
-            auto const children = kmap_.fetch_children( *root );
+            auto const children = nw->fetch_children( root.value() );
             rv = children
-               | views::transform( [ & ]( auto const& e ){ return kmap_.fetch_heading( e ).value(); } )
+               | views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
                | to< StringVec >();
         }
         else
         {
             auto const completed = complete_path( kmap_
-                                                , *root
-                                                , kmap_.selected_node()
+                                                , root.value()
+                                                , nw->selected_node()
                                                 , raw );
             if( !completed )
             {
@@ -285,84 +290,84 @@ auto HeadingPathArg::complete( std::string const& raw ) const
     return rv;
 }
 
-InvertedPathArg::InvertedPathArg( std::string const& arg_desc
-                              , std::string const& cmd_ctx_desc
-                              , Kmap const& kmap )
-    : Argument{ arg_desc
-              , cmd_ctx_desc }
-    , kmap_{ kmap }
-{
-}
+// InvertedPathArg::InvertedPathArg( std::string const& arg_desc
+//                               , std::string const& cmd_ctx_desc
+//                               , Kmap const& kmap )
+//     : Argument{ arg_desc
+//               , cmd_ctx_desc }
+//     , kmap_{ kmap }
+// {
+// }
 
-InvertedPathArg::InvertedPathArg( std::string const& arg_desc
-                                , std::string const& cmd_ctx_desc
-                                , Heading const& root 
-                                , Kmap const& kmap )
-    : Argument{ arg_desc
-              , cmd_ctx_desc }
-    , kmap_{ kmap }
-    , root_{ root }
-{
-}
+// InvertedPathArg::InvertedPathArg( std::string const& arg_desc
+//                                 , std::string const& cmd_ctx_desc
+//                                 , Heading const& root 
+//                                 , Kmap const& kmap )
+//     : Argument{ arg_desc
+//               , cmd_ctx_desc }
+//     , kmap_{ kmap }
+//     , root_{ root }
+// {
+// }
 
-auto InvertedPathArg::is_fmt_malformed( std::string const& raw ) const
-    -> Optional< uint32_t >
-{
-    if( !raw.empty() 
-     && raw[ 0 ] == '.' )
-    {
-        return false;
-    }
+// auto InvertedPathArg::is_fmt_malformed( std::string const& raw ) const
+//     -> Optional< uint32_t >
+// {
+//     if( !raw.empty() 
+//      && raw[ 0 ] == '.' )
+//     {
+//         return false;
+//     }
     
-    auto count = 0u;
+//     auto count = 0u;
 
-    for( auto const e : raw
-                      | views::split( '.' )
-                      | views::transform( []( auto const& e ){ return to< std::string >( e ); } ) )
-    {
-        auto const inv = fetch_first_invalid( e );
+//     for( auto const e : raw
+//                       | views::split( '.' )
+//                       | views::transform( []( auto const& e ){ return to< std::string >( e ); } ) )
+//     {
+//         auto const inv = fetch_first_invalid( e );
 
-        if( inv )
-        {
-            return count + *inv;
-        }
-        else
-        {
-            count += distance( e );
-        }
-    }
+//         if( inv )
+//         {
+//             return count + *inv;
+//         }
+//         else
+//         {
+//             count += distance( e );
+//         }
+//     }
 
-    return nullopt;
-}
+//     return nullopt;
+// }
 
-auto InvertedPathArg::complete( std::string const& raw ) const
-    -> StringVec
-{
-    auto const root = kmap_.fetch_leaf( root_ )
-                           .value_or( kmap_.root_node_id() );
-    auto const ipaths = kmap_.descendant_ipaths( root );
-    auto manip = views::transform( [ & ]( auto const& e )
-    {
-        return flatten( e
-                      | views::reverse
-                      | views::drop( distance( kmap_.absolute_path( root ) ) )
-                      | views::reverse
-                      | to< StringVec >() ) ;
-    } );
-    auto rm_nonmatch = views::remove_if( [ & ]( auto const& e )
-    {
-        using boost::algorithm::starts_with;
+// auto InvertedPathArg::complete( std::string const& raw ) const
+//     -> StringVec
+// {
+//     auto const root = kmap_.fetch_leaf( root_ )
+//                            .value_or( kmap_.root_node_id() );
+//     auto const ipaths = kmap_.descendant_ipaths( root );
+//     auto manip = views::transform( [ & ]( auto const& e )
+//     {
+//         return flatten( e
+//                       | views::reverse
+//                       | views::drop( distance( KTRYE( absolute_path_flat( kmap_, root ) ) ) )
+//                       | views::reverse
+//                       | to< StringVec >() ) ;
+//     } );
+//     auto rm_nonmatch = views::remove_if( [ & ]( auto const& e )
+//     {
+//         using boost::algorithm::starts_with;
 
-        return !starts_with( e
-                           , raw );
-    } );
-    auto const rv = ipaths
-                  | manip
-                  | rm_nonmatch
-                  | to< StringVec >();
+//         return !starts_with( e
+//                            , raw );
+//     } );
+//     auto const rv = ipaths
+//                   | manip
+//                   | rm_nonmatch
+//                   | to< StringVec >();
 
-    return rv;
-}
+//     return rv;
+// }
 
 JumpInArg::JumpInArg( std::string const& arg_desc
                     , std::string const& cmd_ctx_desc
@@ -424,23 +429,26 @@ auto DailyLogArg::is_fmt_malformed( std::string const& raw ) const
 auto DailyLogArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const log_root = kmap_.fetch_descendant( "/log.daily" );
+    auto const log_root = view::make( kmap_.root_node_id() )
+                        | view::direct_desc( "log.daily" )
+                        | view::fetch_node( kmap_ );
 
     if( !log_root )
     {
         return {};
     }
 
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const parent = log_root.value();
-    auto const cids = kmap_.fetch_children( parent );
+    auto const cids = nw->fetch_children( parent );
+    auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
     auto to_headings = views::transform( [ & ]( auto const& e )
     {
-        return kmap_.database().fetch_heading( kmap_.resolve( e ) ).value();
+        return db->fetch_heading( nw->alias_store().resolve( e ) ).value();
     } );
     auto rm_disparate = views::remove_if( [ & ]( auto const& e )
     {
-        return raw.size() != match_length( raw
-                                         , e );
+        return raw.size() != match_length( raw, e );
     } );
 
     return cids
@@ -488,9 +496,10 @@ auto complete( Kmap const& kmap
              , std::string const& raw )
     -> StringVec
 {
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const root = fetch_descendant( kmap
                                       , kmap.root_node_id()
-                                      , kmap.selected_node()
+                                      , nw->selected_node()
                                       , root_path );
 
     if( !root )
@@ -499,10 +508,10 @@ auto complete( Kmap const& kmap
     }
 
     auto const parent = root.value();
-    auto const cids = kmap.fetch_children( parent );
+    auto const cids = nw->fetch_children( parent );
     auto to_headings = views::transform( [ & ]( auto const& e )
     {
-        return kmap.fetch_heading( e ).value();
+        return nw->fetch_heading( e ).value();
     } );
     auto rm_disparate = views::remove_if( [ & ]( auto const& e )
     {
@@ -520,9 +529,10 @@ auto complete( Kmap const& kmap
 auto TagPathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const tags_root = fetch_descendant( kmap_
                                            , kmap_.root_node_id()
-                                           , kmap_.selected_node()
+                                           , nw->selected_node()
                                            , "tags" );
 
     if( !tags_root )
@@ -533,7 +543,7 @@ auto TagPathArg::complete( std::string const& raw ) const
     auto const parent = tags_root.value();
     auto const completed = complete_path( kmap_
                                         , parent
-                                        , kmap_.selected_node()
+                                        , nw->selected_node()
                                         , raw );
     if( !completed )
     {
@@ -551,7 +561,10 @@ auto TagPathArg::complete( std::string const& raw ) const
 auto DefinitionPathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const defs_root = kmap_.fetch_descendant( "/definitions" );
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+    auto const defs_root = view::make( kmap_.root_node_id() )
+                         | view::direct_desc( "definitions" )
+                         | view::fetch_node( kmap_ );
 
     if( !defs_root )
     {
@@ -561,7 +574,7 @@ auto DefinitionPathArg::complete( std::string const& raw ) const
     auto const parent = defs_root.value();
     auto const completed = complete_path( kmap_
                                         , parent
-                                        , kmap_.selected_node()
+                                        , nw->selected_node()
                                         , raw );
     if( !completed )
     {
@@ -594,7 +607,10 @@ auto ResourcePathArg::is_fmt_malformed( std::string const& raw ) const
 auto ResourcePathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const resources_root = kmap_.fetch_descendant( "/resources" );
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+    auto const resources_root = view::make( kmap_.root_node_id() )
+                              | view::direct_desc( "resources" )
+                              | view::fetch_node( kmap_ );
 
     if( !resources_root )
     {
@@ -603,7 +619,7 @@ auto ResourcePathArg::complete( std::string const& raw ) const
 
     auto const completed = complete_path( kmap_
                                         , resources_root.value()
-                                        , kmap_.selected_node()
+                                        , nw->selected_node()
                                         , raw );
     if( !completed )
     {
@@ -635,10 +651,11 @@ auto AliasDestArg::is_fmt_malformed( std::string const& raw ) const
 auto AliasDestArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const selected = kmap_.selected_node();
-    auto const dsts = kmap_.fetch_aliases_to( selected );
+    auto nw = KTRYE( kmap_.fetch_component< com::Network >() );
+    auto const selected = nw->selected_node();
+    auto const dsts = nw->alias_store().fetch_aliases_to( selected );
     auto const map = dsts
-                   | views::transform( [ & ]( auto const& e ){ return kmap_.fetch_heading( e ).value(); } )
+                   | views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
                    | to_vector;
 
     return map;
@@ -667,7 +684,10 @@ auto ProjectArg::complete( std::string const& raw ) const
                     , auto const& rel_root
                     , auto const& raw ) -> StringVec
     {
-        auto const root = kmap.fetch_descendant( rel_root );
+        auto const nw = KTRYE( kmap.template fetch_component< com::Network >() );
+        auto const root = view::make( kmap.root_node_id() )
+                        | view::direct_desc( rel_root )
+                        | view::fetch_node( kmap );
 
         if( !root )
         {
@@ -677,7 +697,7 @@ auto ProjectArg::complete( std::string const& raw ) const
         auto const parent = root.value();
         auto const completed = complete_path( kmap_
                                             , parent
-                                            , kmap_.selected_node()
+                                            , nw->selected_node()
                                             , raw );
         if( !completed )
         {
@@ -724,6 +744,7 @@ auto ConclusionArg::is_fmt_malformed( std::string const& raw ) const
 auto ConclusionArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto complete = [ & ]
                     ( auto const& kmap
                     , auto const& rel_root
@@ -731,7 +752,7 @@ auto ConclusionArg::complete( std::string const& raw ) const
     {
         auto const root = fetch_descendants( kmap_
                                            , kmap_.root_node_id()
-                                           , kmap_.selected_node()
+                                           , nw->selected_node()
                                            , rel_root );
 
         if( !root )
@@ -742,7 +763,7 @@ auto ConclusionArg::complete( std::string const& raw ) const
         auto const parent = root.value().back();
         auto const completed = complete_path( kmap_
                                             , parent
-                                            , kmap_.selected_node()
+                                            , nw->selected_node()
                                             , raw );
         if( !completed )
         {
@@ -784,9 +805,10 @@ auto RecipeArg::complete( std::string const& raw ) const
                     , auto const& rel_root
                     , auto const& raw ) -> StringVec
     {
+        auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
         auto const root = fetch_descendants( kmap_
                                            , kmap_.root_node_id()
-                                           , kmap_.selected_node()
+                                           , nw->selected_node()
                                            , rel_root );
 
         if( !root )
@@ -797,7 +819,7 @@ auto RecipeArg::complete( std::string const& raw ) const
         auto const parent = root.value().back();
         auto const completed = complete_path( kmap_
                                             , parent
-                                            , kmap_.selected_node()
+                                            , nw->selected_node()
                                             , raw );
         if( !completed )
         {
@@ -836,21 +858,22 @@ auto CommandPathArg::complete( std::string const& raw ) const
 {
     auto rv = StringVec{};
     auto const cmd_abs_path = "/setting.command";
+    auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = kmap_.fetch_leaf( cmd_abs_path )
+    if( auto const cmd_root = view::make( kmap_.root_node_id() )
+                            | view::desc( cmd_abs_path )
+                            | view::fetch_node( kmap_ )
       ; cmd_root )
     {
         auto const prospects = complete_path( kmap_
-                                            , *cmd_root
-                                            , *cmd_root
+                                            , cmd_root.value()
+                                            , cmd_root.value()
                                             , raw );
         auto const filter = views::filter( [ & ]( auto const& e )
         {
-            return kmap_.exists( fmt::format( "{}.{}", cmd_abs_path, e.path ) ) // Ensure it's an absolute cmd path.
-                && kmap_.is_lineal( e.target
-                                  , "guard" )
-                && kmap_.is_lineal( e.target
-                                  , "action" )
+            return nw->exists( fmt::format( "{}.{}", cmd_abs_path, e.path ) ) // Ensure it's an absolute cmd path.
+                && nw->is_lineal( e.target, "guard" )
+                && nw->is_lineal( e.target, "action" )
                  ;
         } );
 
@@ -870,6 +893,7 @@ auto CommandPathArg::complete( std::string const& raw ) const
     return rv;
 }
 
+#if 0
 namespace unconditional {
 namespace {
 
@@ -900,7 +924,9 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace unconditional
+#endif // 0
 
+#if 0
 namespace heading {
 namespace {
 
@@ -931,7 +957,9 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace heading 
+#endif // 0
 
+#if 0
 namespace heading_path {
 namespace {
 
@@ -958,7 +986,9 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace heading_path 
+#endif // 0
 
+#if 0
 namespace filesystem_path_def {
 namespace {
 
@@ -985,7 +1015,9 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace filesystem_path_def
+#endif // 0
 
+#if 0
 namespace numeric_decimal_def {
 namespace {
 
@@ -1025,7 +1057,9 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace numeric_decimal_def 
+#endif // 0
 
+#if 0
 namespace numeric_unsigned_integer_def {
 namespace {
 
@@ -1066,5 +1100,6 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace numeric_unsigned_integer_def 
+#endif // 0
 
 } // namespace kmap

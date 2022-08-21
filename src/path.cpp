@@ -5,6 +5,8 @@
  ******************************************************************************/
 #include "path.hpp"
 
+#include "com/network/network.hpp"
+#include "com/network/visnetwork.hpp"
 #include "common.hpp"
 #include "contract.hpp"
 #include "error/master.hpp"
@@ -13,7 +15,7 @@
 #include "kmap.hpp"
 #include "kmap.hpp"
 #include "lineage.hpp"
-#include "network.hpp"
+#include "path/act/abs_path.hpp"
 #include "path/sm.hpp"
 #include "utility.hpp"
 
@@ -108,14 +110,16 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         /* Guards */
         auto exists = [ & ]( auto const& ev )
         {
-            auto const& db = kmap_.database();
+            auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
-            return db.contains< db::HeadingTable >( ev );
+            return db->contains< db::HeadingTable >( ev );
         };
 
         auto is_root = [ & ]( auto const& ev )
         {
-            return kmap_.fetch_heading( root_id_ ).value() == ev; // TODO: Does this fail when another node is named "root"?
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+
+            return KTRYE( nw->fetch_heading( root_id_ ) ) == ev; // TODO: Does this fail when another node is named "root"?
         };
 
         auto is_selected_root = [ & ]( auto const& ev )
@@ -133,8 +137,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
                 }
 
                 auto const parent = e.back();
-                auto const child = kmap_.fetch_child( parent
-                                                    , ev );
+                auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+                auto const child = nw->fetch_child( parent, ev );
 
                 return bool{ child };
             };
@@ -150,12 +154,12 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             {
                 BC_ASSERT( !e.empty() );
 
+                auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
                 auto const current = e.back();
 
-                return kmap_.fetch_parent( current ).has_value();
+                return nw->fetch_parent( current ).has_value();
             };
-            auto const it = find_if( paths()
-                                   , fn );
+            auto const it = find_if( paths(), fn );
         
             return it != end( paths() );
         };
@@ -169,7 +173,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         //             return false;
         //         }
 
-        //         return bool{ kmap_.fetch_parent( e.back() ) };
+        //         return bool{ nw->fetch_parent( e.back() ) };
         //     };
 
         //     return 0 != count_if( paths()
@@ -210,14 +214,15 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_any_leads = [ & ]( auto const& ev )
         {
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto filter = views::filter( [ & ]( auto const& e )
             {
-                auto const heading = kmap_.fetch_heading( e );
+                auto const heading = nw->fetch_heading( e );
                 BC_ASSERT( heading );
                 return ev == heading.value();
             } );
             auto const heading = ev;
-            auto const all_ids = kmap_.fetch_nodes( heading );
+            auto const all_ids = nw->fetch_nodes( heading );
 
             paths() = all_ids
                     | filter
@@ -239,11 +244,11 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             //         // either grown by 1, or removed.
             //     })
             // ;
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
             for( auto&& path : paths() )
             {
-                if( auto const id = kmap_.fetch_child( path.back()
-                                                     , ev )
+                if( auto const id = nw->fetch_child( path.back(), ev )
                   ; id )
                 {
                     path.emplace_back( id.value() );
@@ -261,16 +266,18 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         // It may be worthwhile to maintain a separate vector of directions { [ Fwd | Bwd ] }, and not do any popping, thereby being able to reproduce the input string accurately, for completion.
         // I can include additional actions (push_direction) to the state.
         auto const push_parents = [ & ]( auto const& ev )
-        {
+        { 
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+
             for( auto&& path : paths() )
             {
                 BC_ASSERT( !path.empty() ); // Other pertinent actions should ensure empty paths are removed.
 
-                io::print( "pushing parent of: {}\n", kmap_.fetch_heading( path.back() ).value() );
+                io::print( "pushing parent of: {}\n", nw->fetch_heading( path.back() ).value() );
 
                 auto const node = path.back();
 
-                if( auto const parent = kmap_.fetch_parent( node )
+                if( auto const parent = nw->fetch_parent( node )
                   ; parent )
                 {
                     path.emplace_back( parent.value() );
@@ -286,9 +293,11 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto const push_selected_parent = [ & ]( auto const& ev )
         {
-            io::print( "pushing parent of selected: {}\n", kmap_.fetch_heading( selected_node_ ).value() );
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-            auto const parent = kmap_.fetch_parent( selected_node_ );
+            io::print( "pushing parent of selected: {}\n", nw->fetch_heading( selected_node_ ).value() );
+
+            auto const parent = nw->fetch_parent( selected_node_ );
 
             BC_ASSERT( parent );
 
@@ -297,12 +306,13 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_all_children = [ & ]( auto const& ev )
         {
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto new_paths = UuidPaths{};
 
             for( auto const& path : paths() )
             {
                 // TODO: assert: !path.empty()
-                for( auto const id : kmap_.fetch_children( path.back() ) )
+                for( auto const id : nw->fetch_children( path.back() ) )
                 {
                     auto new_path = path;
 
@@ -316,18 +326,19 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_parent_children = [ & ]( auto const& ev )
         {
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto new_paths = UuidPaths{};
 
             for( auto const& path : paths() )
             {
                 BC_ASSERT( !path.empty() );
 
-                if( auto const parent = kmap_.fetch_parent( path.back() )
+                if( auto const parent = nw->fetch_parent( path.back() )
                   ; parent )
                 {
                     BC_ASSERT( !parent );
 
-                    for( auto const id : kmap_.fetch_children( parent.value() ) )
+                    for( auto const id : nw->fetch_children( parent.value() ) )
                     {
                         auto new_path = path;
 
@@ -380,7 +391,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             //     })
             // ;
             
-            auto const known = kmap_.fetch_heading( root_id_ ).value();
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const known = nw->fetch_heading( root_id_ ).value();
             auto const ml = match_length( ev
                                         , known );
 
@@ -399,9 +411,10 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             //     })
             // ;
 
-            auto const& db = kmap_.database();
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network>() );
+            auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
             // auto const& headings = db.fetch_headings().get< 2 >();
-            auto const& ht = db.fetch< db::HeadingTable >().underlying();
+            auto const& ht = db->fetch< db::HeadingTable >().underlying();
             auto const& hv = ht.get< db::right_ordered >();
             auto matches = std::vector< UuidPath >{};
             
@@ -419,7 +432,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
                 auto const node_and_aliases = [ & ]
                 {
-                    auto all = kmap_.fetch_aliases_to( nid );
+                    auto all = nw->alias_store().fetch_aliases_to( nid );
 
                     all.emplace_back( nid );
 
@@ -428,7 +441,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
                 for( auto const& e : node_and_aliases )
                 {
-                    if( kmap_.is_lineal( root_id_, Uuid{ e } ) )
+                    if( nw->is_lineal( root_id_, Uuid{ e } ) )
                     {
                         matches.emplace_back( UuidPath{ e } );
                     }
@@ -451,18 +464,19 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             //     })
             // ;
 
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network>() );
+
             auto new_paths = [ & ]
             {
                 auto rv = std::vector< UuidPath >{};
 
                 for( auto const& path : paths() )
                 {
-                    auto const cids = kmap_.fetch_children( path.back() );
+                    auto const cids = nw->fetch_children( path.back() );
 
                     for( auto const cid : cids )
                     {
-                        if( ev.size() == match_length( ev
-                                                     , kmap_.fetch_heading( kmap_.resolve( cid ) ).value() ) )
+                        if( ev.size() == match_length( ev, KTRYE( nw->fetch_heading( nw->alias_store().resolve( cid ) ) ) ) )
                         {
                             rv.emplace_back( path )
                               .emplace_back( cid );
@@ -673,18 +687,19 @@ auto tokenize_path( std::string const& raw )
     return rv;
 }
 
-auto absolute_path( Kmap const& kmap
+auto absolute_path( Kmap const& km
                   , Uuid const& desc )
     -> Result< UuidVec >
 {
     auto rv = KMAP_MAKE_RESULT( UuidVec );
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto nv = UuidVec{ desc };
 
     auto n = desc;
 
-    while( n != kmap.root_node_id() )
+    while( n != km.root_node_id() )
     {
-        n = KTRY( kmap.fetch_parent( n ) );
+        n = KTRY( nw->fetch_parent( n ) );
 
         nv.emplace_back( n );
     }
@@ -692,6 +707,23 @@ auto absolute_path( Kmap const& kmap
     rv = nv | views::reverse | ranges::to< UuidVec >();
 
     return rv;
+}
+
+auto absolute_path_flat( Kmap const& km
+                       , Uuid const& node )
+    -> Result< std::string >
+{
+    if( km.root_node_id() == node )
+    {
+        return view::make( km.root_node_id() )
+             | act::abs_path_flat( km );
+    }
+    else
+    {
+        return view::make( km.root_node_id() )
+            | view::desc( node )
+            | act::abs_path_flat( km );
+    }
 }
 
 auto complete_any( Kmap const& kmap
@@ -703,8 +735,9 @@ auto complete_any( Kmap const& kmap
 
     KMAP_ENSURE( is_valid_heading( heading ), error_code::network::invalid_heading );
 
-    auto const& db = kmap.database();
-    auto const& ht = db.fetch< db::HeadingTable >().underlying();
+    auto const nw = KTRY( kmap.fetch_component< com::Network>() );
+    auto const db = KTRY( kmap.fetch_component< com::Database >() );
+    auto const& ht = db->fetch< db::HeadingTable >().underlying();
     auto const& hv = ht.get< db::right_ordered >();
     auto matches = UuidSet{};
     
@@ -722,7 +755,7 @@ auto complete_any( Kmap const& kmap
 
         auto const node_and_aliases = [ & ]
         {
-            auto all = kmap.fetch_aliases_to( nid );
+            auto all = nw->alias_store().fetch_aliases_to( nid );
 
             all.emplace_back( nid );
 
@@ -731,7 +764,7 @@ auto complete_any( Kmap const& kmap
 
         for( auto const& e : node_and_aliases )
         {
-            if( kmap.is_lineal( root, e ) )
+            if( nw->is_lineal( root, e ) )
             {
                 matches.emplace( e );
             }
@@ -766,7 +799,9 @@ auto complete_path( Kmap const& kmap
         } )
     ;
 
-    KMAP_ENSURE( kmap.is_lineal( root, selected ), error_code::network::invalid_lineage );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
+
+    KMAP_ENSURE( nw->is_lineal( root, selected ), error_code::network::invalid_lineage );
 
     auto const tokens = tokenize_path( raw );
 
@@ -780,7 +815,7 @@ auto complete_path( Kmap const& kmap
             {
                 auto const nodes = KMAP_TRY( complete_any( kmap, root, raw ) );
                 comps = nodes
-                      | views::transform( [ & ]( auto const& e ){ return CompletionNode{ .target=e, .path=kmap.fetch_heading( e ).value() }; } )
+                      | views::transform( [ & ]( auto const& e ){ return CompletionNode{ .target=e, .path=KTRYE( nw->fetch_heading( e ) ) }; } )
                       | to< Set >();
             }
             else
@@ -791,9 +826,9 @@ auto complete_path( Kmap const& kmap
                 {
                     if( prospect.first->is( boost::sml::state< sm::state::FwdNode > ) )
                     {
-                        for( auto const& child : kmap.fetch_children( prospect.second->prospect.back() ) )
+                        for( auto const& child : nw->fetch_children( prospect.second->prospect.back() ) )
                         {
-                            auto const ch = kmap.fetch_heading( child ).value();
+                            auto const ch = nw->fetch_heading( child ).value();
 
                             if( ch.starts_with( tokens.back() ) )
                             {
@@ -808,7 +843,7 @@ auto complete_path( Kmap const& kmap
                         BC_ASSERT( !prospect.second->prospect.empty() );
 
                         auto const p = prospect.second->prospect.back();
-                        auto const ph = kmap.fetch_heading( p ); BC_ASSERT( ph );
+                        auto const ph = nw->fetch_heading( p ); BC_ASSERT( ph );
 
                         if( ph.value().starts_with( tokens.back() ) )
                         {
@@ -821,17 +856,17 @@ auto complete_path( Kmap const& kmap
                     {
                         BC_ASSERT( !prospect.second->disambiguation.empty() );
 
-                        auto const p = kmap.fetch_parent( prospect.second->disambiguation.back() ); BC_ASSERT( p );
-                        auto const ph = kmap.fetch_heading( p.value() ); BC_ASSERT( ph );
+                        auto const p = KTRY( nw->fetch_parent( prospect.second->disambiguation.back() ) );
+                        auto const ph = KTRY( nw->fetch_heading( p ) );
 
-                        if( ph.value().starts_with( tokens.back() ) )
+                        if( ph.starts_with( tokens.back() ) )
                         {
                             auto const joined = tokens | views::drop_last( 1 ) | views::join | to< std::string >();
-                            auto const np = joined + ph.value();
+                            auto const np = joined + ph;
                             auto const target = prospect.second->prospect.back();
                             BC_ASSERT( !prospect.second->disambiguation.empty() );
-                            auto const disp = kmap.fetch_parent( prospect.second->disambiguation.back() ); BC_ASSERT( disp );
-                            comps.emplace( CompletionNode{ .target=target, .path=np, .disambig={ disp.value() } } );
+                            auto const disp = KTRY( nw->fetch_parent( prospect.second->disambiguation.back() ) );
+                            comps.emplace( CompletionNode{ .target=target, .path=np, .disambig={ disp } } );
                         }
                     }
                 }
@@ -841,17 +876,17 @@ auto complete_path( Kmap const& kmap
             auto tails = Set{};
             for( auto const& comp : comps )
             {
-                if( kmap.fetch_heading( comp.target ).value() == tokens.back() )
+                if( KTRY( nw->fetch_heading( comp.target ) ) == tokens.back() )
                 {
                     auto const joined = tokens | views::join | to< std::string >();
 
-                    if( auto const parent = kmap.fetch_parent( comp.target )
+                    if( auto const parent = nw->fetch_parent( comp.target )
                       ; parent && comp.target != root )
                     {
                         tails.emplace( CompletionNode{ .target=parent.value(), .path=fmt::format( "{},", joined ) } );
                     }
 
-                    if( !kmap.fetch_children( comp.target ).empty() )
+                    if( !nw->fetch_children( comp.target ).empty() )
                     {
                         tails.emplace( CompletionNode{ .target=comp.target, .path=fmt::format( "{}.", joined ) } );
                     }
@@ -866,7 +901,7 @@ auto complete_path( Kmap const& kmap
                          | views::filter( [ & ]( auto const& e )
                            {
                                auto const target = e.disambig.empty() ? e.target : e.disambig.back();
-                               return tokens.back() == kmap.fetch_heading( target ).value();
+                               return tokens.back() == nw->fetch_heading( target ).value();
                            } ) 
                          | to< CompletionNodeSet >();
                 };
@@ -888,10 +923,10 @@ auto complete_path( Kmap const& kmap
                          | views::transform( [ & ]( auto const& e )
                            {
                                auto const tdis = e.disambig.empty() ? e.target : e.disambig.back();
-                               auto const tdisp = kmap.fetch_parent( tdis ); BC_ASSERT( tdisp );
+                               auto const tdisp = KTRYE( nw->fetch_parent( tdis ) );
                                auto ndis = e.disambig;
-                               ndis.emplace_back( tdisp.value() );
-                               return CompletionNode{ .target=e.target, .path=io::format( "{}'{}", e.path, kmap.fetch_heading( tdisp.value() ).value() ), .disambig=ndis };
+                               ndis.emplace_back( tdisp );
+                               return CompletionNode{ .target=e.target, .path=io::format( "{}'{}", e.path, KTRYE( nw->fetch_heading( tdisp ) ) ), .disambig=ndis };
                            } )
                          | to< CompletionNodeSet >();
                 };
@@ -919,10 +954,10 @@ auto complete_path( Kmap const& kmap
             {
                 if( prospect.first->is( boost::sml::state< sm::state::FwdNode > ) )
                 {
-                    for( auto const& child : kmap.fetch_children( prospect.second->prospect.back() ) )
+                    for( auto const& child : nw->fetch_children( prospect.second->prospect.back() ) )
                     {
                         auto const joined = tokens | views::join | to< std::string >();
-                        auto const np = joined + kmap.fetch_heading( child ).value();
+                        auto const np = joined + nw->fetch_heading( child ).value();
 
                         comps.emplace( CompletionNode{ .target=child, .path=np } );
                     }
@@ -931,16 +966,16 @@ auto complete_path( Kmap const& kmap
                 {
                     auto const target = prospect.second->prospect.back();
                     auto const joined = tokens | views::join | to< std::string >();
-                    auto const np = joined + kmap.fetch_heading( target ).value();
+                    auto const np = joined + nw->fetch_heading( target ).value();
 
                     comps.emplace( CompletionNode{ .target=target, .path=np } );
                 }
                 else if( prospect.first->is( boost::sml::state< sm::state::DisNode > ) )
                 {
                     auto const target = prospect.second->disambiguation.back();
-                    auto const p = kmap.fetch_parent( target); BC_ASSERT( p );
+                    auto const p = KTRYE( nw->fetch_parent( target ) );
                     auto const joined = tokens | views::join | to< std::string >();
-                    auto const np = joined + kmap.fetch_heading( p.value() ).value();
+                    auto const np = joined + KTRYE( nw->fetch_heading( p ) );
 
                     comps.emplace( CompletionNode{ .target=target, .path=np } );
                 }
@@ -959,11 +994,12 @@ auto complete_child_heading( Kmap const& kmap
     -> IdHeadingSet
 {
     auto rv = IdHeadingSet{};
-    auto const children = kmap.fetch_children( parent );
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+    auto const children = nw->fetch_children( parent );
 
     for( auto const& cid : children )
     {
-        auto const cheading = kmap.fetch_heading( cid ).value();
+        auto const cheading = KTRYE( nw->fetch_heading( cid ) );
         if( heading.size() == match_length( heading, cheading ) )
         {
             rv.emplace( cid, cheading );
@@ -1046,10 +1082,11 @@ auto decide_path( Kmap const& kmap
 {
 
     auto rv = KMAP_MAKE_RESULT( UuidVec );
+    auto const nw = KTRY( kmap.fetch_component< com::Network > () );
 
     KMAP_ENSURE( !raw.empty(), error_code::node::invalid_heading );
     KMAP_ENSURE_MSG( is_valid_heading_path( raw ), error_code::node::invalid_heading, raw );
-    KMAP_ENSURE_MSG( kmap.is_lineal( root, selected ), error_code::node::not_lineal, io::format( "root `{}` not lineal to selected `{}`\n", kmap.absolute_path_flat( root ), kmap.absolute_path_flat( selected ) ) );
+    KMAP_ENSURE_MSG( nw->is_lineal( root, selected ), error_code::node::not_lineal, io::format( "root `{}` not lineal to selected `{}`\n", KTRYE( absolute_path_flat( kmap, root ) ), KTRYE( absolute_path_flat( kmap, selected ) ) ) );
 
     auto const tokens = tokenize_path( raw );
 
@@ -1079,9 +1116,9 @@ auto fetch_descendants( Kmap const& kmap
                       , Uuid const& root )
     -> Result< UuidSet >
 {
-    return KMAP_TRY( fetch_descendants( kmap
-                                      , root
-                                      , []( auto const& e ){ (void)e; return true; } ) );
+    return KTRY( fetch_descendants( kmap
+                                  , root
+                                  , []( auto const& e ){ (void)e; return true; } ) );
 }
 
 auto has_geometry( Kmap const& kmap
@@ -1089,13 +1126,14 @@ auto has_geometry( Kmap const& kmap
                  , std::regex const& geometry )
     -> bool
 {
-    for( auto const& child : kmap.fetch_children( parent ) )
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+
+    for( auto const& child : nw->fetch_children( parent ) )
     {
-        auto const heading = kmap.fetch_heading( child );
-        assert( heading );
+        auto const heading = KTRYE( nw->fetch_heading( child ) );
         auto result = std::smatch{};
 
-        if( std::regex_match( heading.value()
+        if( std::regex_match( heading
                             , result
                             , geometry ) )
         {
@@ -1104,50 +1142,6 @@ auto has_geometry( Kmap const& kmap
     }
 
     return false;
-}
-
-auto fetch_direct_descendants( Kmap const& kmap
-                             , Uuid const& root
-                             , Heading const& descendant_geometry )
-    -> std::vector< Uuid >
-{
-    auto rv = std::vector< Uuid >{};
-
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( kmap.exists( root ) );
-        })
-        BC_POST([ & ]
-        {
-            for( auto const& id : rv )
-            {
-                BC_ASSERT( kmap.exists( id ) );
-            }
-        })
-    ;
-
-    for( auto const& child : kmap.fetch_children( root ) )
-    {
-        auto const matches = fetch_direct_descendants( kmap
-                                                     , child 
-                                                     , descendant_geometry );
-        
-        rv.insert( rv.begin()
-                 , matches.begin()
-                 , matches.end() );
-
-        auto const match = kmap.fetch_leaf( child
-                                          , child
-                                          , descendant_geometry );
-        
-        if( match )
-        {
-            rv.emplace_back( child );
-        }
-    }
-
-    return rv;
 }
 
 // TODO: Shouldn't this limit the root to a range, not absolute root? That is, say a path is completed (subroot, heading), then fed here.
@@ -1166,6 +1160,7 @@ auto disambiguate_paths( Kmap const& kmap
     };
 
     auto rv = KMAP_MAKE_RESULT( ResMap );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto const disn = node_set
                     | views::transform( []( auto const& e ){ return Node{ e.path, e.target, e }; } )
                     | to< std::vector< Node > >();
@@ -1195,8 +1190,8 @@ auto disambiguate_paths( Kmap const& kmap
                                      io::print( "disambiguating: {}\n", e.comp.path );
                                  if( e.path.ends_with( '.' ) ) 
                                  {
-                                    auto const p = kmap.fetch_parent( e.disambig ).value();
-                                    auto const ph = kmap.fetch_heading( p ).value();
+                                    auto const p = nw->fetch_parent( e.disambig ).value();
+                                    auto const ph = nw->fetch_heading( p ).value();
 
                                     return Node{ io::format( "{}'{}."
                                                            , e.path | views::drop_last( 1 ) | to< std::string >() // TODO: drop_last_while( '.' ) to remove all ending '.' if multiple?
@@ -1206,8 +1201,8 @@ auto disambiguate_paths( Kmap const& kmap
                                  }
                                  else if( e.path.ends_with( ',' ) )
                                  {
-                                    auto const p = kmap.fetch_parent( e.disambig ).value(); // TODO: Once input is in the form of UuidPath, use *( target.end() - 2 ) to get parent.
-                                    auto const ph = kmap.fetch_heading( p ).value();
+                                    auto const p = nw->fetch_parent( e.disambig ).value(); // TODO: Once input is in the form of UuidPath, use *( target.end() - 2 ) to get parent.
+                                    auto const ph = nw->fetch_heading( p ).value();
 
                                     return Node{ io::format( "{}'{},"
                                                            , e.path | views::drop_last( 1 ) | to< std::string >() // TODO: drop_last_while( '.' ) to remove all ending '.' if multiple?
@@ -1218,8 +1213,8 @@ auto disambiguate_paths( Kmap const& kmap
                                  else if( e.path.ends_with( '\'' ) )
                                  {
                                      io::print( "disambiguating ending in': {}\n", e.path );
-                                    auto const p = kmap.fetch_parent( e.disambig ).value();
-                                    auto const ph = kmap.fetch_heading( p ).value();
+                                    auto const p = nw->fetch_parent( e.disambig ).value();
+                                    auto const ph = nw->fetch_heading( p ).value();
 
                                     return Node{ io::format( "{}{}"
                                                            , e.path
@@ -1229,8 +1224,8 @@ auto disambiguate_paths( Kmap const& kmap
                                  }
                                  else
                                  {
-                                    auto const p = kmap.fetch_parent( e.disambig ).value();
-                                    auto const ph = kmap.fetch_heading( p ).value();
+                                    auto const p = nw->fetch_parent( e.disambig ).value();
+                                    auto const ph = nw->fetch_heading( p ).value();
 
                                     return Node{ io::format( "{}'{}"
                                                            , e.path
@@ -1290,11 +1285,13 @@ auto is_ancestor( Kmap const& kmap
         && is_lineal( kmap, ancestor, descendant );
 }
 
-auto is_leaf( Kmap const& kmap
+auto is_leaf( Kmap const& km
             , Uuid const& node )
     -> bool
 {
-    return kmap.fetch_children( node ).empty();
+    auto const nw = KTRYE( km.fetch_component< com::Network >() );
+
+    return nw->fetch_children( node ).empty();
 }
 
 auto is_lineal( Kmap const& kmap
@@ -1302,8 +1299,9 @@ auto is_lineal( Kmap const& kmap
               , Uuid const& descendant )
     -> bool
 {
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto child = descendant;
-    auto parent = kmap.fetch_parent( child );
+    auto parent = nw->fetch_parent( child );
 
     while( parent )
     {
@@ -1314,7 +1312,7 @@ auto is_lineal( Kmap const& kmap
         else
         {
             child = parent.value();
-            parent = kmap.fetch_parent( child );
+            parent = nw->fetch_parent( child );
         }
     }
 
@@ -1333,9 +1331,11 @@ auto is_lineal( Kmap const& kmap
               , Heading const& descendant )
     -> bool
 {
-    for( auto const& c : kmap.fetch_children( ancestor ) )
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+
+    for( auto const& c : nw->fetch_children( ancestor ) )
     {
-        if( kmap.fetch_heading( c ).value() == descendant )
+        if( KTRYE( nw->fetch_heading( c ) ) == descendant )
         {
             return true;
         }
@@ -1357,10 +1357,11 @@ auto is_ascending( Kmap const& kmap
     -> bool
 {
     auto rv = true;
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     if( !lineage.empty() )
     {
-        auto parent = kmap.fetch_parent( lineage.front() );
+        auto parent = nw->fetch_parent( lineage.front() );
 
         for( auto const& node : lineage
                               | views::drop( 1 ) )
@@ -1368,7 +1369,7 @@ auto is_ascending( Kmap const& kmap
             if( parent
              && node == parent.value() )
             {
-                parent = kmap.fetch_parent( parent.value() );
+                parent = nw->fetch_parent( parent.value() );
             }
             else
             {
@@ -1400,28 +1401,28 @@ auto fetch_nearest_ancestor( Kmap const& kmap
     -> Result< Uuid > 
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
             // TODO: How many of these should be KMAP_ENSURE?
-            BC_ASSERT( kmap.exists( root ) );
-            BC_ASSERT( kmap.exists( leaf ) );
-            BC_ASSERT( kmap.is_lineal( root
-                                     , leaf ) );
+            BC_ASSERT( nw->exists( root ) );
+            BC_ASSERT( nw->exists( leaf ) );
+            BC_ASSERT( nw->is_lineal( root, leaf ) );
         })
         BC_POST([ & ]
         {
             if( rv )
             {
                 BC_ASSERT( rv.value() != root );
-                BC_ASSERT( kmap.is_lineal( root, rv.value() ) );
+                BC_ASSERT( nw->is_lineal( root, rv.value() ) );
             }
         })
     ;
 
     auto child = leaf;
-    auto parent = kmap.fetch_parent( child );
+    auto parent = nw->fetch_parent( child );
 
     while( parent 
         && child != root )
@@ -1436,7 +1437,7 @@ auto fetch_nearest_ancestor( Kmap const& kmap
         else
         {
             child = parent.value();
-            parent = kmap.fetch_parent( parent.value() );
+            parent = nw->fetch_parent( parent.value() );
         }
     }
 
@@ -1456,30 +1457,35 @@ auto fetch_nearest_ascending( Kmap const& kmap
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
         BC_POST([ & ]
         {
             if( rv )
             {
-                BC_ASSERT( kmap.is_lineal( root, rv.value() ) );
+                BC_ASSERT( nw->is_lineal( root, rv.value() ) );
             }
         })
     ;
 
-    KMAP_ENSURE( kmap.exists( root ), error_code::network::invalid_node );
-    KMAP_ENSURE( kmap.exists( leaf ), error_code::network::invalid_node );
-    KMAP_ENSURE( kmap.is_lineal( root, leaf ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( nw->exists( root ), error_code::network::invalid_node );
+    KMAP_ENSURE( nw->exists( leaf ), error_code::network::invalid_node );
+    KMAP_ENSURE( nw->is_lineal( root, leaf ), error_code::network::invalid_lineage );
 
     auto const check = [ & ]( Uuid const& c ){ return pred( kmap, c ); }; // TODO: Replace with std::bind_front. TODO: Assume predicate has captured kmap, and just call pred( c ).
     auto child = leaf;
-    auto parent = kmap.fetch_parent( root, child );
+    auto parent = view::make( root )
+                | view::child( child )
+                | view::fetch_node( kmap );
 
     while( parent
         && !check( child ) )
     {
         child = parent.value();
-        parent = kmap.fetch_parent( root, child );
+        parent = view::make( root )
+               | view::child( child )
+               | view::fetch_node( kmap );
     }
 
     if( check( child ) )
@@ -1504,6 +1510,7 @@ auto create_descendants( Kmap& kmap
     -> Result< UuidVec >
 {
     auto rv = KMAP_MAKE_RESULT( UuidVec );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
         BC_POST( [ & ] 
@@ -1511,8 +1518,8 @@ auto create_descendants( Kmap& kmap
         } )
     ;
 
-    KMAP_ENSURE( kmap.exists( root ), error_code::network::invalid_root );
-    KMAP_ENSURE( kmap.is_lineal( root, selected ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( nw->exists( root ), error_code::network::invalid_root );
+    KMAP_ENSURE( nw->is_lineal( root, selected ), error_code::network::invalid_lineage );
     
     // Algorithm:
     // 1. Tokenize
@@ -1544,16 +1551,34 @@ auto create_descendants( Kmap& kmap
             if( !is_valid_heading_path( curr_token ) )
             {
                 rv = KMAP_MAKE_ERROR_MSG( error_code::network::invalid_heading, fmt::format( "'{}' in '{}'", curr_token, heading ) );
+
                 break;
             }
             else if( output->prospects.size() > 1 )
             {
-                rv = KMAP_MAKE_ERROR_MSG( error_code::network::ambiguous_path, heading );
+                auto const to_abs_path = [ & ]( auto const& prospect )
+                {
+                    KMAP_ENSURE_EXCEPT( prospect.second != nullptr );
+                    KMAP_ENSURE_EXCEPT( prospect.second->prospect.size() != 0 );
+
+                    return KTRYE( kmap.root_view()
+                                | view::desc( prospect.second->prospect.back() )
+                                | act::abs_path_flat( kmap ) );
+                };
+
+                auto const prospects_flattened = output->prospects
+                                               | ranges::views::transform( to_abs_path )
+                                               | ranges::views::join( ',' )
+                                               | ranges::to< std::string >();
+
+                rv = KMAP_MAKE_ERROR_MSG( error_code::network::ambiguous_path, fmt::format( "{} ambiguous with: {}\n", heading, prospects_flattened ) );
+
                 break;
             }
             else if( output->prospects.size() == 0 )
             {
                 rv = KMAP_MAKE_ERROR_MSG( error_code::network::invalid_heading, heading );
+                
                 break;
             }
             else
@@ -1561,8 +1586,10 @@ auto create_descendants( Kmap& kmap
                 BC_ASSERT( output->prospects.size() == 1 );
 
                 KMAP_ENSURE_EXCEPT( is_valid_heading( curr_token ) );
+                KMAP_ENSURE_EXCEPT( output->prospects.back().second != nullptr );
+                KMAP_ENSURE_EXCEPT( output->prospects.back().second->prospect.size() != 0 );
 
-                auto const ccr = kmap.create_child( output->prospects.back().second->prospect.back(), curr_token );
+                auto const ccr = nw->create_child( output->prospects.back().second->prospect.back(), curr_token );
 
                 if( ccr )
                 {
@@ -1646,15 +1673,15 @@ auto fetch_or_create_descendant( Kmap& kmap
     }
     else
     {
-        KMAP_TRY( create_descendants( kmap
-                                    , root
-                                    , selected
-                                    , heading ) );
+        KTRY( create_descendants( kmap
+                                , root
+                                , selected
+                                , heading ) );
         
-        rv = KMAP_TRY( fetch_descendant( kmap
-                                       , root
-                                       , selected
-                                       , heading ) );
+        rv = KTRY( fetch_descendant( kmap
+                                   , root
+                                   , selected
+                                   , heading ) );
     }
 
     return rv;
@@ -1683,6 +1710,7 @@ auto mirror_basic( Kmap& kmap
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto dn = dst;
 
     if( ranges::distance( src ) == 0 )
@@ -1693,15 +1721,15 @@ auto mirror_basic( Kmap& kmap
     {
         for( auto const& sn : src )
         {
-            auto const heading = kmap.fetch_heading( sn ).value();
-            auto const title = kmap.fetch_title( sn ).value();
-            auto const c = kmap.create_child( dn, heading, title );
+            auto const heading = nw->fetch_heading( sn ).value();
+            auto const title = KTRY( nw->fetch_title( sn ) );
+            auto const c = nw->create_child( dn, heading, title );
 
             if( !c )
             {
                 if( c.error().ec == error_code::create_node::duplicate_child_heading )
                 {
-                    dn = KMAP_TRY( kmap.fetch_child( dn, heading ) );
+                    dn = KTRY( nw->fetch_child( dn, heading ) );
                     rv = dn;
                 }
                 else

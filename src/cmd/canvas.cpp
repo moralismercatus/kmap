@@ -8,9 +8,11 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
 
 namespace kmap::cmd {
 
+#if 0
 namespace canvas_pane_path {
 namespace {
 
@@ -37,7 +39,9 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace heading_path 
+#endif // 0
 
+#if 0
 namespace { 
 namespace focus_pane_def {
 
@@ -68,15 +72,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "Sets target pane as the active pane";
 auto const arguments = std::vector< Argument >{ Argument{ "pane"
                                                         , "path to target canvas pane"
                                                         , "canvas.pane.path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -90,7 +93,9 @@ REGISTER_COMMAND
 
 } // namespace focus_pane_def
 } // namespace anon
+#endif // 0
 
+#if 0
 namespace hide_pane_def {
 namespace {
 
@@ -121,15 +126,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "Hides target canvas pane";
 auto const arguments = std::vector< Argument >{ Argument{ "pane"
                                                         , "path to target canvas pane"
                                                         , "canvas.pane.path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -143,7 +147,9 @@ REGISTER_COMMAND
 
 } // namespace hide_pane_def
 } // namespace anon
+#endif // 0
 
+#if 0
 namespace rebase_pane_def {
 namespace {
 
@@ -175,8 +181,8 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "Reveals target canvas pane";
 auto const arguments = std::vector< Argument >{ Argument{ "pane"
@@ -185,8 +191,7 @@ auto const arguments = std::vector< Argument >{ Argument{ "pane"
                                               , Argument{ "percent"
                                                         , "percent of superpane for pane base"
                                                         , "numeric.decimal" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -200,7 +205,9 @@ REGISTER_COMMAND
 
 } // namespace rebase_pane_def
 } // namespace anon
+#endif // 0
 
+#if 0
 namespace reveal_pane_def {
 namespace {
 
@@ -231,15 +238,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "Reveals target canvas pane";
 auto const arguments = std::vector< Argument >{ Argument{ "pane"
                                                         , "path to target canvas pane"
                                                         , "canvas.pane.path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -253,7 +259,9 @@ REGISTER_COMMAND
 
 } // namespace reveal_pane_def
 } // namespace anon
+#endif // 0
 
+#if 0
 namespace { 
 namespace rotate_pane_def {
 
@@ -284,15 +292,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "Reorients target pane";
 auto const arguments = std::vector< Argument >{ Argument{ "pane"
                                                         , "path to target canvas pane"
                                                         , "canvas.pane.path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -306,5 +313,6 @@ REGISTER_COMMAND
 
 } // namespace rotate_pane_def
 } // namespace anon
+#endif // 0
 
 } // namespace kmap::cmd

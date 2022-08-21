@@ -12,6 +12,8 @@
 #include "../kmap.hpp"
 #include "../utility.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
+#include "com/network/network.hpp"
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -23,31 +25,32 @@ using namespace ranges;
 
 namespace kmap::cmd {
 
-auto create_child( Kmap& kmap
-                 , Uuid const& parent
-                 , Title const& title
-                 , Heading const& heading )
-    -> Result< std::string >
-{
-    if( !kmap.is_child( parent, heading ) )
-    { 
-        auto const cid = KMAP_TRY( kmap.create_child( parent, heading ) );
+// auto create_child( Kmap& kmap
+//                  , Uuid const& parent
+//                  , Title const& title
+//                  , Heading const& heading )
+//     -> Result< std::string >
+// {
+//     if( !nw->is_child( parent, heading ) )
+//     { 
+//         auto const nw = KTRY( kmap.fetch_component< com::Network >() );
+//         auto const cid = KTRY( nw->create_child( parent, heading ) );
 
-        KMAP_TRY( kmap.update_title( cid, title ) );
-        KMAP_TRY( kmap.select_node( cid ) );
+//         KTRY( nw->update_title( cid, title ) );
+//         KTRY( kmap.select_node( cid ) );
 
-        return fmt::format( "added: {}", heading );
-    }
-    else
-    {
-        return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "path already exists" ) );
-    }
-}
+//         return fmt::format( "added: {}", heading );
+//     }
+//     else
+//     {
+//         return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "path already exists" ) );
+//     }
+// }
 
 auto merge_nodes( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -56,18 +59,19 @@ auto merge_nodes( Kmap& kmap )
             })
         ;
 
+        auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
         auto const heading = args[ 0 ];
 
-        if( kmap.exists( heading ) )
+        if( nw->exists( heading ) )
         {
-            auto const dst = *kmap.fetch_leaf( heading );
-            auto const src = kmap.selected_node();
+            auto const dst = KTRYE( view::make( kmap.root_node_id() )
+                                  | view::desc( heading )
+                                  | view::fetch_node( kmap ) );
+            auto const src = nw->selected_node();
 
-            merge_trees( kmap
-                       , src
-                       , dst );
+            merge_trees( *nw, src, dst );
 
-            KMAP_TRY( kmap.select_node( dst ) );
+            KMAP_TRY( nw->select_node( dst ) );
 
             return "merge succeeded";
         }
@@ -78,63 +82,40 @@ auto merge_nodes( Kmap& kmap )
     };
 }
 
-auto create_child( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
-{
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
-    {
-        BC_CONTRACT()
-            BC_PRE([ & ]
-            {
-                BC_ASSERT( args.size() > 0 );
-                BC_ASSERT( args[ 0 ].size() > 0 );
-            })
-        ;
+// auto create_sibling( Kmap& kmap )
+//     -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
+// {
+//     return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
+//     {
+//         BC_CONTRACT()
+//             BC_PRE([ & ]
+//             {
+//                 BC_ASSERT( args.size() >= 1 );
+//             })
+//         ;
 
-        auto const parent = kmap.selected_node();
-        auto const title = flatten( args, ' ' );
-        auto const heading = format_heading( title );
+//         auto const title = flatten( args, ' ' );
+//         auto const heading = format_heading( title );
+//         auto const target = nw->selected_node();
+//         auto const parent = nw->fetch_parent( target );
 
-        return create_child( kmap
-                           , parent
-                           , title
-                           , heading );
-    };
-}
+//         if( parent )
+//         {
+//             return create_child( kmap
+//                                , parent.value()
+//                                , title
+//                                , heading );
+//         }
+//         else
+//         {
+//             BC_ASSERT( target == kmap.root_node_id() );
 
-auto create_sibling( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
-{
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
-    {
-        BC_CONTRACT()
-            BC_PRE([ & ]
-            {
-                BC_ASSERT( args.size() >= 1 );
-            })
-        ;
+//             return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "cannot create sibling for root" );
+//         }
+//     };
+// }
 
-        auto const title = flatten( args, ' ' );
-        auto const heading = format_heading( title );
-        auto const target = kmap.selected_node();
-        auto const parent = kmap.fetch_parent( target );
-
-        if( parent )
-        {
-            return create_child( kmap
-                               , parent.value()
-                               , title
-                               , heading );
-        }
-        else
-        {
-            BC_ASSERT( target == kmap.root_node_id() );
-
-            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "cannot create sibling for root" );
-        }
-    };
-}
-
+#if 0
 namespace { 
 // TODO: I'm not sure about these to/from. As per the kmap guidelines, the "present" node
 //       is always the "source." Thus, copy.body treats the present node as the source,
@@ -154,9 +135,9 @@ const dst = kmap.selected_node();
 
 if( src.has_value() )
 {
-    const body = kmap.fetch_body( src.value() );
+    const body = nw->fetch_body( src.value() );
 
-    kmap.update_body( dst, body.value() );
+    nw->update_body( dst, body.value() );
     
     kmap.select_node( dst );
 
@@ -170,15 +151,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "copies body content from target node";
 auto const arguments = std::vector< Argument >{ Argument{ "source_node_path"
                                                         , "source node path"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -206,9 +186,9 @@ const dst = kmap.fetch_node( args.get( 0 ) );
 
 if( dst.has_value() )
 {
-    const body = kmap.fetch_body( src );
+    const body = nw->fetch_body( src );
 
-    kmap.update_body( dst.value(), body.value() );
+    nw->update_body( dst.value(), body.value() );
 
     kmap.select_node( dst.value() );
 
@@ -222,15 +202,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "copies body content to target node";
 auto const arguments = std::vector< Argument >{ Argument{ "destination_node_path"
                                                         , "destination node path"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -257,11 +236,11 @@ const src = kmap.fetch_node( args.get( 0 ) );
 
 if( src.has_value() )
 {
-    const c = kmap.create_alias( src.value(), kmap.selected_node() );
+    const c = kmap.create_alias( src.value(), nw->selected_node() );
 
     if( c.has_value() )
     {
-        kmap.select_node( kmap.selected_node() ); // Refresh.
+        kmap.select_node( nw->selected_node() ); // Refresh.
 
         rv = kmap.success( 'alias created' );
     }
@@ -278,15 +257,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates alias node as a child of selected node";
 auto const arguments = std::vector< Argument >{ Argument{ "source_node"
                                                         , "heading path of source node"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -302,12 +280,13 @@ SCENARIO( "create.alias", "[cmd][create.alias]" )
 {
     GIVEN( "commands initialized" )
     {
-        KMAP_COMMAND_FIXTURE_SCOPED();
+        KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
 
         auto& kmap = Singleton::instance();
+        auto const nw= REQUIRE_TRY( kmap.fetch_component< com::Network >() );
         auto const root = kmap.root_node_id();
 
-        REQUIRE( kmap.exists( "/meta.setting.command.create.alias" ) );
+        REQUIRE( nw->exists( "/meta.setting.command.create.alias" ) );
 
         GIVEN( "nodes: /1.2, /2.1.2" )
         {
@@ -329,19 +308,21 @@ SCENARIO( "create.alias", "[cmd][create.alias]" )
 
                 WHEN( "create.alias /2.1.2" )
                 {
-                    REQUIRE_RES( kmap.cli().parse_raw( ":create.alias /2.1.2" ) );
+                    auto const cli = REQUIRE_TRY( kmap.fetch_component< com::Cli >() );
+                    REQUIRE_RES( cli->parse_raw( ":create.alias /2.1.2" ) );
 
                     THEN( "alias /1.2.2[/2.1.2] exists" )
                     {
                         auto const dst = REQUIRE_TRY( kmap.fetch_descendant( "/1.2.2" ) );
                         auto const src = REQUIRE_TRY( kmap.fetch_descendant( "/2.1.2" ) );
 
-                        REQUIRE( kmap.resolve( dst ) == src );
+                        REQUIRE( nw->alias_store().resolve( dst ) == src );
                     }
                 }
                 WHEN( "create.alias 2'1'2" )
                 {
-                    REQUIRE_RES( kmap.cli().parse_raw( ":create.alias 2'1'2" ) );
+                    auto const cli = REQUIRE_TRY( kmap.fetch_component< com::Cli >() );
+                    REQUIRE_RES( cli->parse_raw( ":create.alias 2'1'2" ) );
                 }
             }
         }
@@ -359,7 +340,7 @@ return kmap.success( 'unconditional' );
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const c = kmap.create_child( kmap.selected_node(), args.get( 0 ) );
+const c = kmap.create_child( nw->selected_node(), args.get( 0 ) );
 
 if( c.has_value() )
 {
@@ -375,15 +356,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates node as a child of selected node";
 auto const arguments = std::vector< Argument >{ Argument{ "child_title"
                                                         , "title for child node"
                                                         , "unconditional" } };
-auto const guard = PreregisteredCommand::Guard{ "unconditional"
-                                              , guard_code };
+auto const guard = Guard{ "unconditional" , guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -407,7 +387,7 @@ auto const action_code =
 R"%%%(```javascript
 let rv = null;
 const src = kmap.fetch_node( args.get( 0 ) );
-const sel = kmap.selected_node();
+const sel = nw->selected_node();
 const res = kmap.create_reference( src.value(), sel );
 
 if( res.has_value() )
@@ -424,15 +404,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates reference child and an alias to the source node";
 auto const arguments = std::vector< Argument >{ Argument{ "source_node"
                                                         , "heading path of source node"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -450,7 +429,7 @@ namespace create_sibling_def {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.root_node() == kmap.selected_node() )
+if( kmap.root_node() == nw->selected_node() )
 {
     return kmap.failure( 'root cannot have a sibling' );
 }
@@ -462,7 +441,7 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const parent = kmap.fetch_parent( kmap.selected_node() );
+const parent = nw->fetch_parent( nw->selected_node() );
 const c = kmap.create_child( parent.value(), args.get( 0 ) );
 
 if( c.has_value() )
@@ -479,15 +458,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates node as a sibling of selected node";
 auto const arguments = std::vector< Argument >{ Argument{ "sibling_title"
                                                         , "sibling node title"
                                                         , "unconditional" } };
-auto const guard = Guard{ "nonroot"
-                        , guard_code };
+auto const guard = Guard{ "nonroot", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -510,8 +488,8 @@ return kmap.success( 'success' );
 auto const action_code =
 R"%%%(```javascript
 let rv = kmap.success( 'no children' );
-const selected = kmap.selected_node();
-const children = kmap.fetch_children( selected );
+const selected = nw->selected_node();
+const children = nw->fetch_children( selected );
 
 rv = kmap.delete_children( selected );
 
@@ -525,13 +503,12 @@ if( rv.has_value() )
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "deletes child nodes of selected";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -549,7 +526,7 @@ namespace delete_alias_def {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.is_alias( kmap.selected_node() ) )
+if( kmap.is_alias( nw->selected_node() ) )
 {
     return kmap.success( 'success' );
 }
@@ -561,7 +538,7 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-res = kmap.delete_alias( kmap.selected_node() );
+res = kmap.delete_alias( nw->selected_node() );
 
 if( res.has_value() )
 {
@@ -577,8 +554,8 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "deletes selected node";
 auto const arguments = std::vector< Argument >{};
@@ -601,7 +578,7 @@ namespace delete_node_def {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.root_node() === kmap.selected_node() )
+if( kmap.root_node() === nw->selected_node() )
 {
     return kmap.failure( 'cannot delete root node' );
 }
@@ -613,7 +590,7 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-res = kmap.delete_node( kmap.selected_node() );
+res = kmap.delete_node( nw->selected_node() );
 
 if( res.has_value() )
 {
@@ -629,8 +606,8 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "deletes selected node";
 auto const arguments = std::vector< Argument >{};
@@ -662,14 +639,14 @@ namespace delete_def
     //     delete
     // ,   delete.node.deletable
     // );
-    REGISTER_COMMAND
-    (
-        delete
-    ,   description 
-    ,   arguments
-    ,   guard
-    ,   action
-    );
+    // REGISTER_COMMAND
+    // (
+    //     delete
+    // ,   description 
+    // ,   arguments
+    // ,   guard
+    // ,   action
+    // );
 } // delete_def
 
 } // namespace delete_node_def
@@ -683,15 +660,15 @@ return kmap.success( 'unconditional' );
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const sel = kmap.selected_node();
+const sel = nw->selected_node();
 const below = kmap.fetch_below( sel );
 const pos = kmap.fetch_sibling_position( sel ).value();
-const size = kmap.fetch_children_ordered( kmap.fetch_parent( sel ).value() ).value();
+const size = nw->fetch_children_ordered( nw->fetch_parent( sel ).value() ).value();
 // err.. not sure how I want the API to look here... Could be as simple as reorder_children( p, rearranged );
 
 while( below.has_value() )
 {
-    let swapped = kmap.swap_nodes( sel, above.value() );
+    let swapped = nw->swap_nodes( sel, above.value() );
 
     if( swapped.has_value() )
     {
@@ -712,13 +689,12 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "repositions selected node at bottom of children";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -741,12 +717,12 @@ return kmap.success( 'unconditional' );
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const src = kmap.selected_node();
+const src = nw->selected_node();
 const dst = kmap.fetch_node( args.get( 0 ) );
 
 if( dst.has_value() )
 {
-    if( kmap.move_body( src, dst.value() ) )
+    if( nw->move_body( src, dst.value() ) )
     {
         kmap.select_node( dst.value() );
 
@@ -765,15 +741,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "moves selected node's body to destination node";
 auto const arguments = std::vector< Argument >{ Argument{ "target_node"
                                                         , "Destination node for selected node body"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -796,12 +771,12 @@ return kmap.success( 'unconditional' );
 auto const action_code =
 R"%%%(```javascript
 let rv = kmap.success( "children moved" );
-const src = kmap.selected_node();
+const src = nw->selected_node();
 const dst = kmap.fetch_node( args.get( 0 ) );
 
 if( dst.has_value() )
 {
-    const cs = kmap.fetch_children( src );
+    const cs = nw->fetch_children( src );
 
     for( let i = 0
        ; i < cs.size()
@@ -830,15 +805,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "moves selected node to destination";
 auto const arguments = std::vector< Argument >{ Argument{ "target_node"
                                                         , "Destination node for selected node"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -887,13 +861,12 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "swaps selected node with below node";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -960,15 +933,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "moves selected node to destination";
 auto const arguments = std::vector< Argument >{ Argument{ "target_node"
                                                         , "Destination node for selected node"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1017,13 +989,12 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "swaps selected node with above node";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1055,13 +1026,12 @@ kmap.select_node( selected ); // Refresh graph.
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "exchanges given node with selected";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1110,15 +1080,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "exchanges given node with selected";
 auto const arguments = std::vector< Argument >{ Argument{ "path_to_target_node"
                                                         , "path to target node"
                                                         , "heading_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1153,15 +1122,14 @@ if( rv.has_value() )
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "overwrites existing body with given one";
 auto const arguments = std::vector< Argument >{ Argument{ "body_content"
                                                         , "replacement body content"
                                                         , "unconditional" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1196,15 +1164,14 @@ if( rv.has_value() )
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "overwrites existing heading with given one";
 auto const arguments = std::vector< Argument >{ Argument{ "heading"
                                                         , "replacement heading"
                                                         , "heading" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1239,15 +1206,14 @@ if( rv.has_value() )
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "overwrites existing title with given one";
 auto const arguments = std::vector< Argument >{ Argument{ "title"
                                                         , "replacement title"
                                                         , "unconditional" } };
-auto const guard = PreregisteredCommand::Guard{ "unconditional"
-                                              , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -1262,6 +1228,7 @@ REGISTER_COMMAND
 } // namespace update_title_def
 
 } // namespace anon
+#endif // 0
 
 namespace binding {
 
@@ -1271,10 +1238,13 @@ auto create_reference( Uuid const& src
                      , Uuid const& dst )
     -> kmap::binding::Result< Uuid >
 {
-    auto& kmap = Singleton::instance();
-    auto const ref = KMAP_TRY( kmap.fetch_or_create_descendant( dst, "/references" ) );
+    auto& km = Singleton::instance();
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
+    auto const ref = KTRY( view::make( dst )
+                         | view::child( "references" )
+                         | view::fetch_or_create_node( km ) );
 
-    return kmap.create_alias( src, ref );
+    return nw->alias_store().create_alias( src, ref );
 }
 
 EMSCRIPTEN_BINDINGS( kmap_node_manip )

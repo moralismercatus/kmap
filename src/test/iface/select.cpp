@@ -26,17 +26,17 @@ BOOST_AUTO_TEST_CASE( is_lineal
     create_lineages( "1.2"
                    , "3" );
     
-    BOOST_TEST( kmap.is_lineal( nodes[ "/" ]
+    BOOST_TEST( nw->is_lineal( nodes[ "/" ]
                               , nodes[ "/" ] ) );
-    BOOST_TEST( kmap.is_lineal( nodes[ "/" ]
+    BOOST_TEST( nw->is_lineal( nodes[ "/" ]
                               , nodes[ "/1" ] ) );
-    BOOST_TEST( kmap.is_lineal( nodes[ "/" ]
+    BOOST_TEST( nw->is_lineal( nodes[ "/" ]
                               , nodes[ "/1.2" ] ) );
-    BOOST_TEST( !kmap.is_lineal( nodes[ "/1" ]
+    BOOST_TEST( !nw->is_lineal( nodes[ "/1" ]
                                , nodes[ "/" ] ) );
-    BOOST_TEST( !kmap.is_lineal( nodes[ "/1.2" ]
+    BOOST_TEST( !nw->is_lineal( nodes[ "/1.2" ]
                                , nodes[ "/" ] ) );
-    BOOST_TEST( !kmap.is_lineal( nodes[ "/1" ]
+    BOOST_TEST( !nw->is_lineal( nodes[ "/1" ]
                                , nodes[ "/3" ] ) );
 }
 

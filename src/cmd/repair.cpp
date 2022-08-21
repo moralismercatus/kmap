@@ -5,15 +5,18 @@
  ******************************************************************************/
 #include "repair.hpp"
 
-#include "../common.hpp"
-#include "../contract.hpp"
-#include "../db.hpp"
-#include "../emcc_bindings.hpp"
-#include "../error/filesystem.hpp"
-#include "../error/master.hpp"
-#include "../io.hpp"
-#include "../kmap.hpp"
+#include "common.hpp"
+#include "contract.hpp"
+#include "com/database/db.hpp"
+#include "com/filesystem/filesystem.hpp"
+#include "emcc_bindings.hpp"
+#include "error/filesystem.hpp"
+#include "error/master.hpp"
+#include "io.hpp"
+#include "kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
+#include "com/database/db.hpp"
 
 #include <boost/filesystem.hpp>
 #include <range/v3/algorithm/find.hpp>
@@ -36,7 +39,7 @@ namespace {
 
 template< typename CheckFn
         , typename RepairFn >
-auto repair_missing_entry( Database& db
+auto repair_missing_entry( com::Database& db
                          , std::string const& entry_type
                          , CheckFn check
                          , RepairFn repair )
@@ -64,7 +67,7 @@ auto repair_missing_entry( Database& db
 /**
  * Searches for discrepancies between children and orderings and attempts to repair.
 **/
-auto repair_orderings( Database& db )
+auto repair_orderings( com::Database& db )
     -> void
 {
     KMAP_THROW_EXCEPTION_MSG( "TODO: Impl." );
@@ -126,7 +129,7 @@ auto repair_orderings( Database& db )
 /**
  * Searches all nodes for conflicting heading paths, and attempts to resolve the conflict.
 **/
-auto repair_conflicting_headings( Database& db )
+auto repair_conflicting_headings( com::Database& db )
     -> void
 {
     for( auto const pid : db.fetch_nodes() )
@@ -174,7 +177,7 @@ auto back_up_state( FsPath const& fp )
                  , fs::copy_option::overwrite_if_exists );
 }
 
-auto check_state( Database const& db )
+auto check_state( com::Database const& db )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
@@ -316,11 +319,11 @@ auto check_state( FsPath const& path )
         })
     ;
 
-    auto const fp = kmap_root_dir / path;
+    auto const fp = com::kmap_root_dir / path;
 
     if( file_exists( fp ) )
     {
-        auto db = Database{};
+        auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
 
         KMAP_TRYE( db.init_db_on_disk( fp ) );
 
@@ -341,13 +344,13 @@ auto repair_state( FsPath const& path )
         })
     ;
 
-    auto const fp = kmap_root_dir / path;
+    auto const fp = com::kmap_root_dir / path;
 
     if( file_exists( fp ) )
     {
         back_up_state( fp );
 
-        auto db = Database{};
+        auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
 
         KMAP_TRYE( db.init_db_on_disk( fp ) );
 
@@ -393,6 +396,7 @@ auto repair_state( FsPath const& path )
 
 namespace {
 
+#if 0
 namespace check_state_def {
 auto const guard_code =
 R"%%%(```javascript
@@ -418,15 +422,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "examines state of the target map for abnormalities";
 auto const arguments = std::vector< Argument >{ Argument{ "file_path"
                                                         , "path of map to be examined"
                                                         , "filesystem_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -439,7 +442,9 @@ REGISTER_COMMAND
 );
 
 } // namespace check_state_def
+#endif // 0
 
+#if 0
 namespace repair_state_def {
 auto const guard_code =
 R"%%%(```javascript
@@ -465,15 +470,14 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "attempts to repair state of the target map";
 auto const arguments = std::vector< Argument >{ Argument{ "file_path"
                                                         , "path of map to be repaired"
                                                         , "filesystem_path" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -486,6 +490,7 @@ REGISTER_COMMAND
 );
 
 } // namespace repair_state_def
+#endif // 0
 
 namespace binding {
 

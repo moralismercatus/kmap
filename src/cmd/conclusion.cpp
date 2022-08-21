@@ -7,7 +7,7 @@
 
 #include "../common.hpp"
 #include "../contract.hpp"
-#include "../db.hpp"
+#include "com/database/db.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 
@@ -33,7 +33,7 @@ auto fetch_parent_conclusion( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.exists( id ) );
+            BC_ASSERT( nw->exists( id ) );
         })
     ;
 
@@ -67,7 +67,7 @@ auto fetch_nearest_category( Kmap const& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.exists( id ) );
+            BC_ASSERT( nw->exists( id ) );
         })
     ;
 
@@ -113,13 +113,13 @@ auto create_conclusion( Kmap& kmap
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const root = [ & ]
     {
-        auto const selected = kmap.selected_node();
+        auto const selected = nw->selected_node();
         auto const con_root = kmap.fetch_or_create_leaf( "/conclusions" );
         auto rv = Optional< Uuid >{ con_root };
 
         BC_ASSERT( con_root );
         
-        if( kmap.is_lineal( *con_root, selected ) )
+        if( nw->is_lineal( *con_root, selected ) )
         {
             if( auto const cat = fetch_nearest_category( kmap, selected )
               ; cat )
@@ -135,7 +135,7 @@ auto create_conclusion( Kmap& kmap
     // that would throw an exception; therefore, replace assert with throw.
     BC_ASSERT( root );
 
-    if( kmap.is_child( *root, heading ) )
+    if( nw->is_child( *root, heading ) )
     {
         auto const cid = KMAP_TRY( kmap.create_child( *root, heading ) );
 
@@ -156,32 +156,32 @@ auto convert_to_premised_conclusion( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.exists( con ) );
+            BC_ASSERT( nw->exists( con ) );
         })
         BC_POST([ & ]
         {
             if( rv )
             {
-                BC_ASSERT( kmap.exists( rv.value() ) );
+                BC_ASSERT( nw->exists( rv.value() ) );
             }
         })
     ;
 
-    if( auto const assertion = kmap.fetch_child( con
+    if( auto const assertion = nw->fetch_child( con
                                                , "assertion" )
       ; assertion )
     {
-        if( auto const body = kmap.fetch_body( assertion.value() )
+        if( auto const body = nw->fetch_body( assertion.value() )
           ; body
          && body.value().empty() )
         {
-            KMAP_TRY( kmap.erase_node( assertion.value() ) );
+            KMAP_TRY( nw->erase_node( assertion.value() ) );
             KMAP_TRY( kmap.create_child( con 
                                        , "premises" ) );
         }
     }
 
-    rv = kmap.fetch_child( con 
+    rv = nw->fetch_child( con 
                          , "premises" );
 
     return rv;
@@ -193,7 +193,7 @@ auto create_premise( Kmap& kmap
 {
     auto rv = Optional< Uuid >{};
 
-    if( auto const pr = fetch_parent_conclusion( kmap, kmap.selected_node() )
+    if( auto const pr = fetch_parent_conclusion( kmap, nw->selected_node() )
       ; pr )
     {
         if( auto const premises = convert_to_premised_conclusion( kmap, *pr )
@@ -222,7 +222,7 @@ auto add_premise( Kmap& kmap
     auto rv = Optional< Uuid >{};
 
     if( auto const pr = fetch_parent_conclusion( kmap
-                                               , kmap.selected_node() )
+                                               , nw->selected_node() )
       ; pr )
     {
         if( auto const premises = convert_to_premised_conclusion( kmap
@@ -258,7 +258,7 @@ auto create_objection( Kmap& kmap
     auto rv = Optional< Uuid >{};
 
     if( auto const pr = fetch_parent_conclusion( kmap
-                                               , kmap.selected_node() )
+                                               , nw->selected_node() )
       ; pr )
     {
         if( auto const objections = kmap.fetch_or_create_descendant( *pr, "objections" )
@@ -288,7 +288,7 @@ auto add_objection( Kmap& kmap
     auto rv = Optional< Uuid >{};
 
     if( auto const pr = fetch_parent_conclusion( kmap
-                                               , kmap.selected_node() )
+                                               , nw->selected_node() )
       ; pr )
     {
         if( auto const objections = kmap.fetch_or_create_descendant( *pr, "objections" )
@@ -319,9 +319,9 @@ auto add_objection( Kmap& kmap
 } // anonymous ns
 
 auto create_conclusion( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -341,7 +341,7 @@ auto create_conclusion( Kmap& kmap )
         if( auto const cid = create_conclusion( kmap, heading )
           ; cid )
         {
-            kmap.update_title( cid.value(), title );
+            nw->update_title( cid.value(), title );
             KMAP_TRY( kmap.select_node( cid.value() ) );
       
             return fmt::format( "{} added to {}"
@@ -356,9 +356,9 @@ auto create_conclusion( Kmap& kmap )
 }
 
 auto create_premise( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -378,7 +378,7 @@ auto create_premise( Kmap& kmap )
                                                , heading )
           ; premise )
         {
-            kmap.update_title( *premise
+            nw->update_title( *premise
                              , title );
             KMAP_TRY( kmap.select_node( *premise ) ); 
 
@@ -394,9 +394,9 @@ auto create_premise( Kmap& kmap )
 // TODO: Needs to ensure the premise to be added isn't the project itself!
 // TODO: This has a lot of overlap with project, recipe.
 auto add_premise( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -421,9 +421,9 @@ auto add_premise( Kmap& kmap )
 }
 
 auto create_objection( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -443,7 +443,7 @@ auto create_objection( Kmap& kmap )
                                                    , heading )
           ; objection )
         {
-            kmap.update_title( *objection
+            nw->update_title( *objection
                              , title );
             KMAP_TRY( kmap.select_node( *objection ) ); 
 
@@ -459,9 +459,9 @@ auto create_objection( Kmap& kmap )
 // TODO: Needs to ensure the objection to be added isn't the project itself!
 // TODO: This has a lot of overlap with project, recipe.
 auto add_objection( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -486,9 +486,9 @@ auto add_objection( Kmap& kmap )
 }
 
 auto create_citation( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -507,7 +507,7 @@ auto create_citation( Kmap& kmap )
         auto const source = kmap.fetch_leaf( *concl_root
                                            , *concl_root
                                            , args[ 0 ] );
-        auto const target = kmap.selected_node();
+        auto const target = nw->selected_node();
 
         if( !source )
         {
@@ -516,23 +516,18 @@ auto create_citation( Kmap& kmap )
 
         auto ref_parent = [ & ]
         {
-            if( kmap.is_child( target
-                             , "citations" ) )
+            if( nw->is_child( target, "citations" ) )
             {
-                return kmap.database()
-                           .fetch_child( target
-                                       , "citations" )
-                           .value();
+                auto const db = KTRYE( kmap.fetch_component< com::Database >() );
+                return db->fetch_child( target, "citations" ).value();
             }
             else
             {
-                return kmap.create_child( target
-                                        , "citations" ).value();
+                return kmap.create_child( target, "citations" ).value();
             }
         }();
 
-        if( auto const alias = kmap.create_alias( *source 
-                                                , ref_parent )
+        if( auto const alias = kmap.create_alias( *source, ref_parent )
           ; alias )
         {
             kmap.select_node( target ).value(); // We don't want to move to the newly added reference.

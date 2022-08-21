@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_RECIPE_HPP
 #define KMAP_CMD_RECIPE_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 
 #include <functional>
 
@@ -18,15 +18,15 @@ class Kmap;
 namespace kmap::cmd {
 
 auto create_recipe( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto create_step( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto add_step( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto add_prerequisite( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto create_prerequisite( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

@@ -11,7 +11,18 @@ const showdown = require( 'showdown' )
 const jshint = require( 'jshint' ).JSHINT;
 require( 'geteventlisteners' ); // This works by overriding Element.prototype.addEventListener and Element.prototype.removeEventListener upon import, so only after here are they overriden.
 
-let kmap_pretest_targets = '*'
+// let kmap_pretest_targets = '*'
+// let kmap_pretest_targets = 'Scenario: TaskStore::create_subtask'
+// let kmap_pretest_targets = '[autosave]'
+// let kmap_pretest_targets = '[cmd][log][task]'
+// let kmap_pretest_targets = '[cmd][task]'
+let kmap_pretest_targets = '[com][nw]'
+// let kmap_pretest_targets = '[db][fs]'
+// let kmap_pretest_targets = '[event]'
+// let kmap_pretest_targets = '[kmap_iface]'
+// let kmap_pretest_targets = '[path][node_view]'
+// let kmap_pretest_targets = '[tag]'
+// let kmap_pretest_targets = '[task]'
 
 // [WARNING] Not thread safe! Uses global object 'jshint'!
 function lint_javascript( code )
@@ -292,63 +303,63 @@ function eval_js_command( code )
     return true;
 }
 
-window.onkeydown = function( e )
-{
-    try
-    {
-        let key = e.keyCode ? e.keyCode : e.which;
-        let is_shift = !!e.shiftKey;
-        let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
-        let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
+// window.onkeydown = function( e )
+// {
+//     try
+//     {
+//         let key = e.keyCode ? e.keyCode : e.which;
+//         let is_shift = !!e.shiftKey;
+//         let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
+//         let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
 
-        switch ( key )
-        {
-            case 186: // colon
-            {
-                if( is_shift
-                && cli != document.activeElement
-                && editor != document.activeElement )
-                {
-                    clear_cli_error();
-                    cli.value = "";
-                    kmap.cli().focus();
-                }
-                break;
-            }
-            case 50: // '2' for '@'
-            {
-                if( is_shift
-                && cli != document.activeElement
-                && editor != document.activeElement )
-                {
-                    clear_cli_error();
-                    cli.value = ":";
-                    kmap.cli().focus();
-                }
-                break;
-            }
-            case 191: // forward slash
-            {
-                if( cli != document.activeElement
-                && editor != document.activeElement )
-                {
-                    clear_cli_error();
-                    cli.value = ":";
-                    kmap.cli().focus();
-                }
-                break;
-            }
-            case 13: // enter
-            {
-                break;
-            }
-        }
-    }
-    catch( err )
-    {
-        console.log( String( err ) );
-    }
-}
+//         switch ( key )
+//         {
+//             case 186: // colon
+//             {
+//                 if( is_shift
+//                 && cli != document.activeElement
+//                 && editor != document.activeElement )
+//                 {
+//                     clear_cli_error();
+//                     cli.value = "";
+//                     kmap.cli().focus();
+//                 }
+//                 break;
+//             }
+//             case 50: // '2' for '@'
+//             {
+//                 if( is_shift
+//                 && cli != document.activeElement
+//                 && editor != document.activeElement )
+//                 {
+//                     clear_cli_error();
+//                     cli.value = ":";
+//                     kmap.cli().focus();
+//                 }
+//                 break;
+//             }
+//             case 191: // forward slash
+//             {
+//                 if( cli != document.activeElement
+//                 && editor != document.activeElement )
+//                 {
+//                     clear_cli_error();
+//                     cli.value = ":";
+//                     kmap.cli().focus();
+//                 }
+//                 break;
+//             }
+//             case 13: // enter
+//             {
+//                 break;
+//             }
+//         }
+//     }
+//     catch( err )
+//     {
+//         console.log( String( err ) );
+//     }
+// }
 
 function debounce( fn, timer_name, timeout )
 {

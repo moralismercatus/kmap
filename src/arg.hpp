@@ -7,8 +7,8 @@
 #ifndef KMAP_ARG_HPP
 #define KMAP_ARG_HPP
 
+#include "com/network/visnetwork.hpp"
 #include "common.hpp"
-#include "network.hpp"
 #include "path.hpp"
 #include "utility.hpp"
 
@@ -110,25 +110,25 @@ public:
     Heading root_ = "/";
 };
 
-class InvertedPathArg : public Argument
-{
-public:
-    InvertedPathArg( std::string const& arg_desc
-                   , std::string const& cmd_ctx_desc
-                   , Kmap const& kmap );
-    InvertedPathArg( std::string const& arg_desc
-                   , std::string const& cmd_ctx_desc
-                   , Heading const& root
-                   , Kmap const& kmap );
+// class InvertedPathArg : public Argument
+// {
+// public:
+//     InvertedPathArg( std::string const& arg_desc
+//                    , std::string const& cmd_ctx_desc
+//                    , Kmap const& kmap );
+//     InvertedPathArg( std::string const& arg_desc
+//                    , std::string const& cmd_ctx_desc
+//                    , Heading const& root
+//                    , Kmap const& kmap );
 
-    auto is_fmt_malformed( std::string const& raw ) const 
-        -> Optional< uint32_t > override;
-    auto complete( std::string const& raw ) const 
-        -> StringVec override;
+//     auto is_fmt_malformed( std::string const& raw ) const 
+//         -> Optional< uint32_t > override;
+//     auto complete( std::string const& raw ) const 
+//         -> StringVec override;
 
-    Kmap const& kmap_;
-    Heading root_ = "/";
-};
+//     Kmap const& kmap_;
+//     Heading root_ = "/";
+// };
 
 class TitleArg : public Argument
 {

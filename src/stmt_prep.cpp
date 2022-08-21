@@ -6,7 +6,7 @@
 #include "stmt_prep.hpp"
 #include "kmap.hpp"
 #include "contract.hpp"
-#include "db.hpp"
+#include "com/database/db.hpp"
 #include <sqlpp11/sqlite3/insert_or.h>
 #include <range/v3/algorithm/find.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -36,7 +36,7 @@ auto StatementPreparer::commit_nodes( Kmap& kmap )
         {
             for( auto const& n : nodes_prep_ )
             {
-                BC_ASSERT( !kmap.exists( n ));
+                BC_ASSERT( !nw->exists( n ));
             }
         })
         BC_POST([ & ]
@@ -45,7 +45,7 @@ auto StatementPreparer::commit_nodes( Kmap& kmap )
 
             for( auto const& n : nodes_prep_ )
             {
-                BC_ASSERT( kmap.exists( n ));
+                BC_ASSERT( nw->exists( n ));
                 BC_ASSERT( present_time() >= kmap.fetch_genesis_time( n ) );
             }
         })
@@ -53,7 +53,7 @@ auto StatementPreparer::commit_nodes( Kmap& kmap )
 
     if( !nodes_prep_.empty() )
     {
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
         {
             auto nt = nodes::nodes{};
@@ -64,7 +64,7 @@ auto StatementPreparer::commit_nodes( Kmap& kmap )
                 inserter.values.add( nt.uuid = to_string( n ) );
             }
 
-            db.execute( inserter );
+            db->execute( inserter );
         }
 
         nodes_prep_ = {};
@@ -79,12 +79,12 @@ auto StatementPreparer::commit_children( Kmap& kmap )
         {
             for( auto const& [ pid, cids ] : children_prep_ )
             {
-                BC_ASSERT( kmap.exists( pid ) );
+                BC_ASSERT( nw->exists( pid ) );
                 
                 for( auto const& cid : cids )
                 {
-                    BC_ASSERT( kmap.exists( cid ) );
-                    BC_ASSERT( !kmap.is_child( pid
+                    BC_ASSERT( nw->exists( cid ) );
+                    BC_ASSERT( !nw->is_child( pid
                                              , cid ) );
                 }
             }
@@ -97,8 +97,8 @@ auto StatementPreparer::commit_children( Kmap& kmap )
             {
                 for( auto const& cid : cids )
                 {
-                    BC_ASSERT( kmap.exists( cid ) );
-                    BC_ASSERT( kmap.is_child( pid
+                    BC_ASSERT( nw->exists( cid ) );
+                    BC_ASSERT( nw->is_child( pid
                                             , cid ) );
                 }
             }
@@ -107,7 +107,7 @@ auto StatementPreparer::commit_children( Kmap& kmap )
 
     if( !children_prep_.empty() )
     {
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
         {
             auto ct = children::children{};
@@ -123,7 +123,7 @@ auto StatementPreparer::commit_children( Kmap& kmap )
                 }
             }
 
-            db.execute( inserter );
+            db->execute( inserter );
         }
         // {
         //     using sqlpp::sqlite3::insert_or_replace_into;
@@ -162,7 +162,7 @@ auto StatementPreparer::commit_headings( Kmap& kmap )
         {
             for( auto const& [ id, h ] : headings_prep_ )
             {
-                BC_ASSERT( kmap.exists( id ) );
+                BC_ASSERT( nw->exists( id ) );
                 BC_ASSERT( is_valid_heading( h ) );
             }
         })
@@ -170,7 +170,7 @@ auto StatementPreparer::commit_headings( Kmap& kmap )
         {
             for( auto const& [ id, h ] : headings_prep_ )
             {
-                BC_ASSERT( kmap.fetch_heading( id )
+                BC_ASSERT( nw->fetch_heading( id )
                                .has_value() );
             }
         })
@@ -178,7 +178,7 @@ auto StatementPreparer::commit_headings( Kmap& kmap )
 
     if( !headings_prep_.empty() )
     {
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
         {
             using sqlpp::sqlite3::insert_or_replace_into;
@@ -193,7 +193,7 @@ auto StatementPreparer::commit_headings( Kmap& kmap )
                                    , ht.heading = h );
             }
 
-            db.execute( inserter );
+            db->execute( inserter );
         }
 
         headings_prep_ = {};
@@ -208,7 +208,7 @@ auto StatementPreparer::commit_titles( Kmap& kmap )
         {
             for( auto const& [ id, t ] : titles_prep_ )
             {
-                BC_ASSERT( kmap.exists( id ) );
+                BC_ASSERT( nw->exists( id ) );
             }
         })
         BC_POST([ & ]
@@ -223,7 +223,7 @@ auto StatementPreparer::commit_titles( Kmap& kmap )
 
     if( !titles_prep_.empty() )
     {
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
         {
             using sqlpp::sqlite3::insert_or_replace_into;
@@ -238,7 +238,7 @@ auto StatementPreparer::commit_titles( Kmap& kmap )
                                    , tt.title = t );
             }
 
-            db.execute( inserter );
+            db->execute( inserter );
         }
 
         titles_prep_ = {};
@@ -253,14 +253,14 @@ auto StatementPreparer::commit_bodies( Kmap& kmap )
         {
             for( auto const& [ id, t ] : bodies_prep_ )
             {
-                BC_ASSERT( kmap.exists( id ) );
+                BC_ASSERT( nw->exists( id ) );
             }
         })
         BC_POST([ & ]
         {
             for( auto const& [ id, b ] : bodies_prep_ )
             {
-                BC_ASSERT( kmap.fetch_body( id )
+                BC_ASSERT( nw->fetch_body( id )
                                .has_value() );
             }
         })
@@ -268,7 +268,7 @@ auto StatementPreparer::commit_bodies( Kmap& kmap )
 
     if( !bodies_prep_.empty() )
     {
-        auto& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
         {
             using sqlpp::sqlite3::insert_or_replace_into;
@@ -283,7 +283,7 @@ auto StatementPreparer::commit_bodies( Kmap& kmap )
                                    , bt.body = b );
             }
 
-            db.execute( inserter );
+            db->execute( inserter );
         }
 
         bodies_prep_ = {};

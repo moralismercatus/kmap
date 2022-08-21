@@ -13,7 +13,6 @@
 #include "cmd/definition.hpp"
 #include "cmd/dotlang.hpp"
 // #include "cmd/echo.hpp"
-#include "cmd/log.hpp"
 #include "cmd/next_fork.hpp"
 #include "cmd/node_manip.hpp"
 #include "cmd/project.hpp"
@@ -23,13 +22,12 @@
 // #include "cmd/script.hpp"
 #include "cmd/search.hpp"
 #include "cmd/select_node.hpp"
-#include "cmd/state.hpp"
-#include "cmd/tag.hpp"
 #include "contract.hpp"
 #include "io.hpp"
 #include "kmap.hpp"
 #include "path.hpp"
 #include "test/master.hpp"
+#include "com/text_area/text_area.hpp"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -60,7 +58,7 @@ namespace kmap::cmd { namespace {
 // TODO: These helper functions belong in utility.cpp, or, if applicable, Kmap:://conveniences.
 
 template< size_t Index >
-auto fetch_leaf( CliCommand::Args const& args
+auto fetch_leaf( com::CliCommand::Args const& args
                , Kmap const& kmap )
     -> Optional< Uuid >
 {
@@ -68,16 +66,18 @@ auto fetch_leaf( CliCommand::Args const& args
 
     if( args.size() >= Index + 1 )
     {
-        auto const& p = kmap.fetch_descendants( args[ Index ]  );
+        auto const p = view::make( kmap.root_node_id() )
+                     | view::desc( args[ Index ]  )
+                     | view::to_node_set();
         
-        rv = p ? p.value().back() : Optional< Uuid >{}; // TODO: This is clearly wrong. Simply selected the "last" possible path returned is not good practice!
+        rv = !p.empty() ? *p.value().begin() : Optional< Uuid >{}; // TODO: This is clearly wrong. Simply selected the "first" possible path returned is not good practice!
     }
 
     return rv;
 }
 
 template< size_t Index >
-auto fetch_leaf_or_selected( CliCommand::Args const& args
+auto fetch_leaf_or_selected( com::CliCommand::Args const& args
                            , Kmap const& kmap )
     -> Optional< Uuid >
 {
@@ -86,43 +86,15 @@ auto fetch_leaf_or_selected( CliCommand::Args const& args
     if( !rv
      && args.size() < Index + 1 )
     {
-        rv = kmap.selected_node();
+        rv = nw->selected_node();
     }
 
     return rv;
 }
 
-auto absolute_path( Kmap& kmap )
-{
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
-    {
-        BC_CONTRACT()
-            BC_PRE([ & ]
-            {
-                BC_ASSERT( args.size() <= 1 );
-            })
-        ;
-
-        auto rv = KMAP_MAKE_RESULT( std::string );
-        auto const& target = fetch_leaf_or_selected< 0 >( args, kmap );
-
-        if( !target )
-        {
-            rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
-                                    , fmt::format( "Target node not found: {}", args[ 0 ] ) );
-        }
-        else
-        {
-            rv = kmap.absolute_path_flat( *target );
-        }
-
-        return rv;
-    };
-}
-
 auto list_commands( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         (void)args;
         
@@ -130,8 +102,8 @@ auto list_commands( Kmap& kmap )
         {
             return c.command;
         };
-        auto const cmds = kmap.cli()
-                              .valid_commands();
+        auto const cli = KTRYE( kmap.fetch_component< com::Cli >() );
+        auto const cmds = cli->valid_commands();
         auto const keys = cmds
                         | views::transform( filter_key )
                         | to_vector
@@ -139,12 +111,12 @@ auto list_commands( Kmap& kmap )
         auto flat = keys
                   | views::join( '\n' )
                   | to< std::string >();
-        auto& tv = kmap.text_area();
+        auto const tv = KTRYE( kmap.fetch_component< com::TextArea >() );
 
-        tv.clear();
-        tv.show_preview( flat );
-        kmap.network()
-            .focus();
+        tv->clear();
+        tv->show_preview( flat );
+        // kmap.network()
+        //     .focus();
 
         return std::string{ "list-command" };
     };
@@ -152,7 +124,7 @@ auto list_commands( Kmap& kmap )
 
 auto help( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -187,10 +159,11 @@ auto help( Kmap& kmap )
                                   , format_help_msg( c ) );
             };
 
+            auto const cli = KTRYE( kmap.fetch_component< com::Cli >() );
+
             if( args.empty() )
             {
-                auto const cmds = kmap.cli()
-                                      .valid_commands();
+                auto const cmds = cli->valid_commands();
                 auto const ts = cmds
                               | views::transform( format_no_args )
                               | to_vector;
@@ -203,13 +176,12 @@ auto help( Kmap& kmap )
             }
             else
             {
-                auto const cmds = kmap.cli()
-                                      .valid_commands();
+                auto const cmds = cli->valid_commands();
                 auto const cmd_it = find_if( cmds
                                            , [ & ]( auto const& e ){ return e.command == args[ 0 ]; } );
 
                 // TODO: Handle fail case (need to return failure with
-                // unrecognized command? Or Should CliCommand->is_malformed
+                // unrecognized command? Or Should com::CliCommand->is_malformed
                 // ensure if we get here it's guaranteed to be a valid command.
                 if( cmd_it == end( cmds ) )
                 {
@@ -245,11 +217,11 @@ auto help( Kmap& kmap )
             }
         }();
 
-        auto& tv = kmap.text_area();
+        auto const tv = KTRYE( kmap.fetch_component< com::TextArea >() );
 
-        tv.clear();
-        tv.hide_editor();
-        tv.show_preview( markdown_to_html( out_text ) );
+        tv->clear();
+        tv->hide_editor();
+        tv->show_preview( markdown_to_html( out_text ) );
 
         return std::string{ "See preview" };
     };
@@ -257,7 +229,7 @@ auto help( Kmap& kmap )
 
 auto jump_in( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -266,12 +238,13 @@ auto jump_in( Kmap& kmap )
             })
         ;
 
+        auto const nw = KTRYE( fetch_component< com::Network >() );
         auto& js = kmap.jump_stack(); 
         auto const rv = [ & ] // TODO: Try to reuse kmap::jump_out
         {
             // auto nid = js.jump_in();
 
-            // BC_ASSERT( nid == kmap.selected_node() );
+            // BC_ASSERT( nid == nw->selected_node() );
 
             // (void)nid;
 
@@ -286,14 +259,14 @@ auto jump_in( Kmap& kmap )
         {
             KMAP_TRY( kmap.jump_to( *rv ) );
 
-            return fmt::format( "{} entered", kmap.fetch_title( *rv ).value() );
+            return fmt::format( "{} entered", KTRYE( nw->fetch_title( *rv ) ) );
         }
     };
 }
 
 auto jump_out( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -307,7 +280,7 @@ auto jump_out( Kmap& kmap )
         {
             // auto nid = js.jump_out();
 
-            // BC_ASSERT( nid == kmap.selected_node() );
+            // BC_ASSERT( nid == nw->selected_node() );
 
             // (void)nid;
 
@@ -329,7 +302,7 @@ auto jump_out( Kmap& kmap )
 
 auto edit_title( Kmap& kmap )
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -347,17 +320,17 @@ auto edit_title( Kmap& kmap )
         }
         else
         {
-            auto& cli = kmap.cli();
+            auto const cli = KTRYE( kmap.fetch_component< com::Cli >() );
 
-            cli.clear_input();
-            cli.show_popup( "enter title" );
+            cli->clear_input();
+            cli->show_popup( "enter title" );
 
-            auto const text = cli.get_input();
+            auto const text = cli->get_input();
 
             // TODO: this needs to ensure that any aliases dependent on this
             // get dynamically updated as well. The body isn't an issue, as the
             // preview will resolve the alias to the original/real node.
-            KMAP_TRY( kmap.update_title( *target, text ) );
+            KMAP_TRY( nw->update_title( *target, text ) );
 
             return std::string{ "node title open for editing" };
         }
@@ -367,19 +340,19 @@ auto edit_title( Kmap& kmap )
 } // anonymous ns
 
 auto make_core_commands( Kmap& kmap )
-    -> std::vector< CliCommand >
+    -> std::vector< com::CliCommand >
 {
-    return std::vector< CliCommand >
+    return std::vector< com::CliCommand >
     {
-        { "absolute.path"
-        , "displays full node path"
-        , ArgumentList{}
-            | HeadingPathArg{ "node path"
-                            , "displays path for <_>" 
-                            , kmap }
-                | Attr::optional
-        , absolute_path( kmap )
-        }
+        // { "absolute.path"
+        // , "displays full node path"
+        // , ArgumentList{}
+        //     | HeadingPathArg{ "node path"
+        //                     , "displays path for <_>" 
+        //                     , kmap }
+        //         | Attr::optional
+        // , absolute_path( kmap )
+        // }
     ,   { "activate.project" 
         , "places selected project in open and activated status"
         , ArgumentList{}
@@ -394,15 +367,15 @@ auto make_core_commands( Kmap& kmap )
     //     , ArgumentList{}
     //     , add_daily_task( kmap )
     //     }
-    ,   { "add.definition"
-        , "associates node with given definition"
-        , ArgumentList{}
-             | InvertedPathArg{ "inverted definition path"
-                             , "associates <_> with selected node" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-                             , "/definitions"
-                             , kmap }
-        , add_definition( kmap )
-        }
+    // ,   { "add.definition"
+    //     , "associates node with given definition"
+    //     , ArgumentList{}
+    //          | InvertedPathArg{ "inverted definition path"
+    //                          , "associates <_> with selected node" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
+    //                          , "/definitions"
+    //                          , kmap }
+    //     , add_definition( kmap )
+    //     }
     ,   { "add.objection" 
         , "adds a reference to an existing conclusion, as a objection of the present conclusion"
         , ArgumentList{}
@@ -592,28 +565,6 @@ auto make_core_commands( Kmap& kmap )
     //                   , "inserts <_> adjacent to selected node" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
     //     , create_sibling( kmap )
     //     }
-    // ,   { "create.tag"
-    //     , "creates a new tag definition"
-    //     , ArgumentList{}
-    //         | TagPathArg{ "heading"
-    //                     , "creates tag <_>" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-    //                     , kmap }
-    //     , create_tag( kmap )
-    //     }
-    // ,   { "create.task" 
-    //     , "creates a new project, as a task of the present project"
-    //     , ArgumentList{}
-    //         | TitleArg{ "title" 
-    //                   , "creates a new project, <_>, as a task of the present project" }
-    //     , create_task( kmap )
-    //     }
-    // ,   { "create.taint.project" 
-    //     , "creates a new taint analysis project"
-    //     , ArgumentList{}
-    //         | TitleArg{ "title" 
-    //                   , "creates a new taint anlaysis project" }
-    //     , create_taint_project( kmap )
-    //     }
     // ,   { "echo" 
     //     , "repeats argument to command line"
     //     , ArgumentList{}
@@ -643,13 +594,13 @@ auto make_core_commands( Kmap& kmap )
     //                         , kmap }
     //     , copy_body( kmap )
     //     }
-    ,   { "copy.state"
-        , "copies present kmap state to a new location"
-        , ArgumentList{}
-            | FsPathArg{ "destination file path"
-                       , "copies current state to <_>" } // TODO: replace "<_>" with user input.
-        , copy_state( kmap )
-        }
+    // ,   { "copy.state"
+    //     , "copies present kmap state to a new location"
+    //     , ArgumentList{}
+    //         | FsPathArg{ "destination file path"
+    //                    , "copies current state to <_>" } // TODO: replace "<_>" with user input.
+    //     , copy_state( kmap )
+    //     }
     // ,   { "count.ancestors"
     //     , "Returns the number of nodes in the selected path"
     //     , ArgumentList{}
@@ -737,13 +688,13 @@ auto make_core_commands( Kmap& kmap )
                        , "Render the <_> as a node hierarchy" }
         , load_dot( kmap )
         }
-    ,   { "load.state"
-        , "replaces present state with one from target database"
-        , ArgumentList{}
-            | FsPathArg{ "source file path"
-                       , "replaces current state with <_>" } // TODO: replace "<_>" with user input.
-        , load_state( kmap )
-        }
+    // ,   { "load.state"
+    //     , "replaces present state with one from target database"
+    //     , ArgumentList{}
+    //         | FsPathArg{ "source file path"
+    //                    , "replaces current state with <_>" } // TODO: replace "<_>" with user input.
+    //     , load_state( kmap )
+    //     }
     // ,   { "load.kscript"
     //     , "loads and executes a kmap script"
     //     , ArgumentList{}
@@ -814,14 +765,14 @@ auto make_core_commands( Kmap& kmap )
     //     , ArgumentList{}
     //     , move_up( kmap )
     //     }
-    ,   { "new"
-        , "starts kmap state from scratch"
-        , ArgumentList{}
-            | FsPathArg{ "new database path"
-                       , "creates new kmap state at <_>" }
-                | Attr::optional
-        , new_state( kmap )
-        }
+    // ,   { "new"
+    //     , "starts kmap state from scratch"
+    //     , ArgumentList{}
+    //         | FsPathArg{ "new database path"
+    //                    , "creates new kmap state at <_>" }
+    //             | Attr::optional
+    //     , new_state( kmap )
+    //     }
     // ,   { "propagate.taint.backward"
     //     , "performs backward taint propagation"
     //     , ArgumentList{}
@@ -866,13 +817,13 @@ auto make_core_commands( Kmap& kmap )
                       , "searches all node headings for <_>" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
         , search_headings( kmap )
         }
-    ,   { "search.leaf.bodies"
-        , "searches only leaf node bodies for regex comparison"
-        , ArgumentList{}
-            | TitleArg{ "regex string"
-                      , "searches all leaf node bodies for <_>" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-        , search_leaf_bodies( kmap )
-        }
+    // ,   { "search.leaf.bodies"
+    //     , "searches only leaf node bodies for regex comparison"
+    //     , ArgumentList{}
+    //         | TitleArg{ "regex string"
+    //                   , "searches all leaf node bodies for <_>" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
+    //     , search_leaf_bodies( kmap )
+    //     }
     // ,   { "select.bookmark"
     //     , "selects bookmark"
     //     , ArgumentList{}

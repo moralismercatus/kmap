@@ -10,6 +10,7 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
 #include "util/macro.hpp"
 
 #include <emscripten.h>
@@ -37,8 +38,8 @@ kmap.select_node( contact.value() );
 return kmap.success( "contact '" + args.get( 0 ) + "' created" );
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "";
 auto const arguments = std::vector< Argument >{ Argument{ "name"
@@ -48,14 +49,14 @@ auto const guard = Guard{ "unconditional"
                         , guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    create.contact
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     create.contact
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace create_contact_def
 

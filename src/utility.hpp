@@ -54,7 +54,11 @@ namespace util
     template< typename... Ts > Dispatch( Ts... ) -> Dispatch< Ts... >; // Deducation guide.
 }
 
-class Database;
+namespace com
+{
+    class Database;
+    class Network;
+}
 
 enum class Color
 {
@@ -121,7 +125,7 @@ auto to_ordering_id( Uuid const& id )
     -> std::string;
 [[ nodiscard ]]
 auto to_uuids( HeadingPath const& path
-             , Database& db
+             , com::Database& db
              , Uuid const& root )
     -> std::vector< Uuid >;
 [[ nodiscard ]]
@@ -225,7 +229,7 @@ auto fetch_completions( std::string const& unknown
 [[ nodiscard ]]
 auto file_exists( FsPath const& p ) // Use in lieu of fs::exists to work around MSYS lstat issue.
     -> bool;
-auto merge_trees( Kmap& kmap
+auto merge_trees( com::Network& kmap
                 , Uuid const& src 
                 , Uuid const& dst )
     -> void;
@@ -242,12 +246,12 @@ auto print_tree( Kmap const& kmap
                , Uuid const& root )
     -> Result< void >;
 [[ nodiscard ]]
-auto copy_body( Kmap& kmap
+auto copy_body( com::Network& nw
               , Uuid const& src
               , Uuid const& dst )
     -> Result< void >;
 [[ nodiscard ]]
-auto move_body( Kmap& kmap
+auto move_body( com::Network& kmap
               , Uuid const& src
               , Uuid const& dst )
     -> Result< void >;
@@ -292,11 +296,6 @@ auto flatten( StringVec const& v
 [[ nodiscard ]]
 auto flatten( HeadingPath const& path )
     -> Heading;
-[[ nodiscard ]]
-auto is_direct_descendant( Kmap const& kmap
-                         , Uuid const& root
-                         , Heading const& lineage )
-    -> bool;
 auto is_ordered( Kmap const& kmap
                , Uuid const& former 
                , Uuid const& latter )

@@ -78,10 +78,12 @@ struct Child;
 struct Desc;
 struct DirectDesc;
 struct Leaf;
+struct Lineage;
 struct RLineage;
 struct Parent;
 struct Resolve;
 struct Sibling;
+struct SiblingIncl;
 struct Single;
 struct Tag;
 
@@ -92,10 +94,12 @@ using OperatorVariant = std::variant< Alias
                                     , Desc
                                     , DirectDesc
                                     , Leaf
+                                    , Lineage
                                     , RLineage
                                     , Parent
                                     , Resolve
                                     , Sibling
+                                    , SiblingIncl
                                     , Single
                                     , Tag >;
 
@@ -270,6 +274,25 @@ struct Leaf
     auto to_string() const
         -> std::string;
 };
+struct Lineage // = Ancestor + current node
+{
+    std::optional< SelectionVariant > selection = std::nullopt;
+
+    Lineage() = default;
+    explicit Lineage( SelectionVariant const& sel ) : selection{ sel } {}
+
+    auto operator()() const {}
+    auto operator()( SelectionVariant const& sel ) const { return Ancestor{ sel }; }
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    auto create( Kmap& kmap
+               , Uuid const& root ) const
+        -> Result< Uuid >;
+    auto to_string() const
+        -> std::string;
+};
 struct RLineage
 {
     Uuid leaf;
@@ -317,6 +340,19 @@ struct Resolve
 struct Sibling
 {
     Sibling() = default;
+
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    auto operator()() {};
+
+    auto to_string() const
+        -> std::string;
+};
+struct SiblingIncl
+{
+    SiblingIncl() = default;
 
     auto operator()( Kmap const& kmap
                    , Uuid const& node ) const
@@ -439,10 +475,12 @@ auto const child = Child{};
 auto const desc = Desc{};
 auto const direct_desc = DirectDesc{};
 auto const leaf = Leaf{};
+auto const lineage = Lineage{}; // Ancestor + current (i.e., "ancestor_inclusive")
 auto const rlineage = RLineage{}; // TODO: "Lineage" doesn't specify direction. It assumes ascending, but why not descending? A "lineage" can go both ways. Perhaps l_lineage, r_lineage? (left,right/asc/desc?)
 auto const parent = Parent{};
 auto const resolve = Resolve{};
 auto const sibling = Sibling{};
+auto const sibling_incl = SiblingIncl{};
 // TODO: auto const sibling_inclusive = view::parent | view::child; 
 auto const single = Single{};
 auto const tag = Tag{};
@@ -450,6 +488,15 @@ auto const tag = Tag{};
 // Post-Result Operations
 auto const to_single = ToSingle{};
 
+// TODO: Should actions take Kmap&, or individual components?
+//       e.g., `view::child | to_node_set( nw )` and `view::child | view::tag | to_node_set( nw, tstore )`
+//       It is not to say that the Kmap& option wouldn't still be available.
+//       Why might this less convenient, more verbose requirement be preferable?
+//       It is a way of ensuring that components are initialized as dependents among dependents.
+//       For example, MyComponent : public Component< Network, TagStore >
+//       wherein Component provides accessors for network() and tag_store(), and also auto-registers them as requisites.
+//       In this way, by convention, components only access other components via the Component::<accessor> way (perhaps not even making kmap_inst() available)
+//       and calling actions with those accessor instances to perform all operations. In effect, Components would always auto-register all their requisites they use.
 auto count( Kmap const& kmap ) -> Count;
  // TODO: A bit more on the linguistic debate. "lineage" doesn't roll quite like "node".
  //       Regardless, the fact that all other ops use the singular to represent 1+ (child, alias, attr, erase_node, etc.) means this represents something of a
@@ -482,10 +529,12 @@ auto operator|( Intermediary const& i, Count const& op ) -> uint32_t;
 auto operator|( Intermediary const& i, Desc const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, DirectDesc const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Leaf const& op ) -> Intermediary;
+auto operator|( Intermediary const& i, Lineage const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, RLineage const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Parent const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Resolve const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Sibling const& op ) -> Intermediary;
+auto operator|( Intermediary const& i, SiblingIncl const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Single const& op ) -> Intermediary;
 auto operator|( Intermediary const& i, Tag const& op ) -> Intermediary;
 // Actions

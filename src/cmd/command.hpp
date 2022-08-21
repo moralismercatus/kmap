@@ -13,6 +13,7 @@
 #include <emscripten.h>
 #include <emscripten/bind.h>
 
+#if 0
 #define REGISTER_COMMAND( path, desc, args, guard, action ) \
     namespace binding \
     { \
@@ -26,6 +27,7 @@
             emscripten::function( format_heading( "register_cmd_"#path ).c_str(), &KMAP_CONCAT( register_cmd_, __LINE__ ) ); \
         } \
     }
+#endif // 0
 
 #define REGISTER_ARGUMENT( path, desc, guard, completion ) \
     namespace binding \
@@ -41,7 +43,7 @@
         } \
     }
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 #include <functional>
 
 namespace kmap {
@@ -51,7 +53,7 @@ class Kmap;
 namespace kmap::cmd {
 
 auto execute_command( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto execute_command( Kmap& kmap
                     , Uuid const& cmd_id
                     , std::string const& arg )
@@ -68,7 +70,7 @@ auto execute_javascript( Uuid const& node
                        , StringVec const& arg )
     -> Result< std::string >;
 [[ nodiscard ]]
-auto evaluate_guard( Kmap& kmap
+auto evaluate_guard( Kmap const& kmap
                    , Uuid const& guard_node
                    , std::string const& arg )
     -> Result< std::string >;

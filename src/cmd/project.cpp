@@ -10,11 +10,12 @@
 #include "../emcc_bindings.hpp"
 #include "../error/master.hpp"
 #include "../error/project.hpp"
-#include "../db.hpp"
+#include "com/database/db.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "../lineage.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <emscripten.h>
@@ -63,9 +64,9 @@ auto is_project( Kmap const& kmap
 {
     auto const target = node.leaf();
 
-    return kmap.is_child( target
+    return nw->is_child( target
                         , "problem_statement" )
-        && kmap.is_child( target
+        && nw->is_child( target
                         , "result" );
 }
 
@@ -109,7 +110,7 @@ auto are_all_tasks_closed( Kmap const& kmap
         })
     ;
 
-    if( auto const cs = kmap.fetch_children( project, "tasks.open" )
+    if( auto const cs = nw->fetch_children( project, "tasks.open" )
       ; cs.empty() )
     {
         rv = true;
@@ -129,7 +130,7 @@ auto get_result_node( Kmap const& kmap
         })
     ;
 
-    return kmap.fetch_child( project, "result" ).value();
+    return nw->fetch_child( project, "result" ).value();
 }
 
 auto fetch_projects_root( Kmap const& kmap )
@@ -156,7 +157,7 @@ auto fetch_project_root( Kmap const& kmap
         {
             if( rv )
             {
-                BC_ASSERT( kmap.exists( rv.value() ) );
+                BC_ASSERT( nw->exists( rv.value() ) );
             }
         })
     ;
@@ -169,7 +170,7 @@ auto fetch_project_root( Kmap const& kmap
     {
         auto des = KMAP_TRY( make< Lineal >( kmap
                                            , root
-                                           , kmap.fetch_parent( target ).value() ) );
+                                           , nw->fetch_parent( target ).value() ) );
 
         rv = fetch_project_root( kmap, des );
     }
@@ -202,7 +203,7 @@ auto fetch_project_status_root( Kmap const& kmap
 
 
     if( auto const it = find_if( roots
-                               , [ & ]( auto const& e ){ return kmap.is_lineal( e, node ); } )
+                               , [ & ]( auto const& e ){ return nw->is_lineal( e, node ); } )
       ; it != roots.end() )
     {
         rv = *it;
@@ -229,7 +230,7 @@ auto fetch_or_create_project_root( Kmap& kmap
 
 
     if( auto const it = find_if( roots
-                               , [ & ]( auto const& e ){ return kmap.is_lineal( e, node ); } )
+                               , [ & ]( auto const& e ){ return nw->is_lineal( e, node ); } )
       ; it != roots.end() )
     {
         rv = *it;
@@ -277,8 +278,8 @@ auto fetch_nearest_project_category( Kmap& kmap
         {
             if( rv )
             {
-                BC_ASSERT( kmap.exists( rv.value() ) );
-                // BC_ASSERT( root == rv || kmap.is_lineal( root, rv ) ); // TODO: Re-enable when compiler support for lambda capture of structured bindings.
+                BC_ASSERT( nw->exists( rv.value() ) );
+                // BC_ASSERT( root == rv || nw->is_lineal( root, rv ) ); // TODO: Re-enable when compiler support for lambda capture of structured bindings.
                 // BC_ASSERT( is_project_category( kmap, root, rv ) ); // TODO: Re-enable when compiler support for lambda capture of structured bindings.
             }
         })
@@ -292,7 +293,7 @@ auto fetch_nearest_project_category( Kmap& kmap
     {
         auto const nn = KMAP_TRY( make< Lineal >( kmap
                                                 , root
-                                                , KMAP_TRY( kmap.fetch_parent( target ) ) ) );
+                                                , KMAP_TRY( nw->fetch_parent( target ) ) ) );
         rv = fetch_nearest_project_category( kmap
                                            , nn );
     }
@@ -408,7 +409,7 @@ auto update_project_status( Kmap& kmap
     auto const projects_root = KMAP_TRY( fetch_projects_root( kmap ) );
     auto const all_cat = KMAP_TRY( kmap.fetch_descendant( projects_root, projects_root, "all" ) );
     auto const status_cat = KMAP_TRY( kmap.fetch_or_create_descendant( projects_root, new_stat_heading ) );
-    auto const parent = KMAP_TRY( kmap.fetch_parent( project ) );
+    auto const parent = KMAP_TRY( nw->fetch_parent( project ) );
     auto const a_to_p = KMAP_TRY( make< Lineal >( kmap, all_cat, parent ) );
     auto const a_to_p_range = KMAP_TRY( make< LinealRange >( kmap, a_to_p ) );
     auto const src_cats = a_to_p_range | views::drop( 1 ) | to_lineal_range();
@@ -467,7 +468,7 @@ auto create_project( Kmap& kmap
         })
     ;
 
-    if( !kmap.is_child( parent, heading ) )
+    if( !nw->is_child( parent, heading ) )
     {
         auto const proj = KMAP_TRY( kmap.create_child( parent, heading ) );
         
@@ -489,7 +490,7 @@ auto create_project( Kmap& kmap
     -> Result< Uuid > 
 {
     auto const parent = KMAP_TRY( fetch_appropriate_project_category( kmap
-                                                                    , kmap.selected_node() ) );
+                                                                    , nw->selected_node() ) );
     auto const heading = format_heading( title );
 
     return create_project( kmap
@@ -502,24 +503,24 @@ auto tasks_of( Kmap const& kmap
     -> std::vector< Uuid >
 {
     auto rv = std::vector< Uuid >{};
-    auto const& db = kmap.database();
+    auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
-    if( auto const tasks = db.fetch_child( project, "tasks" )
+    if( auto const tasks = db->fetch_child( project, "tasks" )
       ; tasks )
     {
-        if( auto const open = db.fetch_child( tasks.value(), "open" )
+        if( auto const open = db->fetch_child( tasks.value(), "open" )
           ; open )
         {
-            auto const cids = kmap.fetch_children( open.value() );
+            auto const cids = nw->fetch_children( open.value() );
 
             rv.insert( rv.begin()
                      , cids.begin()
                      , cids.end() );
         }
-        if( auto const closed = db.fetch_child( tasks.value(), "closed" )
+        if( auto const closed = db->fetch_child( tasks.value(), "closed" )
           ; closed )
         {
-            auto const cids = kmap.fetch_children( closed.value() );
+            auto const cids = nw->fetch_children( closed.value() );
 
             rv.insert( rv.begin()
                      , cids.begin()
@@ -544,12 +545,12 @@ auto fetch_project_status( Kmap const& kmap
             && active_root
             && closed_root );
 
-    if( kmap.is_child( *inactive_root
+    if( nw->is_child( *inactive_root
                      , heading ) )
     {
         return *inactive_root;
     }
-    else if( kmap.is_child( *active_root
+    else if( nw->is_child( *active_root
                           , heading ) )
     {
         return *active_root;
@@ -575,12 +576,12 @@ auto fetch_project_status( Kmap const& kmap
             && active_root
             && closed_root );
 
-    if( kmap.is_child( *inactive_root
+    if( nw->is_child( *inactive_root
                      , id ) )
     {
         return *inactive_root;
     }
-    else if( kmap.is_child( *active_root
+    else if( nw->is_child( *active_root
                           , id ) )
     {
         return *active_root;
@@ -689,7 +690,7 @@ auto update_task_statuses( Kmap& kmap
         }
     }();
 
-    if( kmap.fetch_heading( *present_status ).value() != status )
+    if( nw->fetch_heading( *present_status ).value() != status )
     {
         kmap.move_node( project, fmt::format( "/projects.{}", full_status ) ).value();
 
@@ -704,14 +705,14 @@ auto update_task_statuses( Kmap& kmap
                                                       , task );
             BC_ASSERT( task_status );
 
-            if( kmap.fetch_heading( *task_status ).value() != status )
+            if( nw->fetch_heading( *task_status ).value() != status )
             {
                 auto const tasks_root = kmap.fetch_ancestor( *task_status
                                                            , "tasks" );
                 BC_ASSERT( tasks_root );
                 auto const task_dst = kmap.fetch_or_create_leaf( *tasks_root
                                                                , fmt::format( ".{}.{}"
-                                                                            , kmap.fetch_heading( *tasks_root ).value()
+                                                                            , nw->fetch_heading( *tasks_root ).value()
                                                                             , top_status ) );
                 BC_ASSERT( task_dst );
 
@@ -727,9 +728,9 @@ auto fetch_project( Kmap& kmap
 {
     auto const status_root = fetch_project_status( kmap
                                                  , heading );
-    auto const& db = kmap.database();
+    auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
-    if( auto const child = db.fetch_child( *status_root, heading )
+    if( auto const child = db->fetch_child( *status_root, heading )
       ; child )
     {
         return child.value();
@@ -750,13 +751,13 @@ auto fetch_categorical_lineage( Kmap const& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.is_lineal( root, node ) );
+            BC_ASSERT( nw->is_lineal( root, node ) );
         })
         BC_POST([ & ]
         {
             for( auto const& e : rv )
             {
-                BC_ASSERT( kmap.is_lineal( root, e ) );
+                BC_ASSERT( nw->is_lineal( root, e ) );
                 BC_ASSERT( !is_project( kmap, e ) );
             }
         })
@@ -766,7 +767,7 @@ auto fetch_categorical_lineage( Kmap const& kmap
     {
         if( is_project( kmap, node ) )
         {
-            return kmap.fetch_parent( node ).value();
+            return nw->fetch_parent( node ).value();
         }
         else
         {
@@ -778,7 +779,7 @@ auto fetch_categorical_lineage( Kmap const& kmap
     {
         rv.emplace_back( current );
 
-        current = kmap.fetch_parent( current ).value();
+        current = nw->fetch_parent( current ).value();
     }
 
     return rv | views::reverse | to< UuidVec >();
@@ -794,14 +795,14 @@ auto fetch_categorical_lineage( Kmap const& kmap
         BC_PRE([ & ]
         {
             auto const root = *kmap.fetch_leaf( "/projects" );
-            BC_ASSERT( kmap.is_lineal( root, node ) );
+            BC_ASSERT( nw->is_lineal( root, node ) );
         })
         BC_POST([ & ]
         {
             for( auto const& e : rv )
             {
                 auto const root = *kmap.fetch_leaf( "/projects" );
-                BC_ASSERT( kmap.is_lineal( root, e ) );
+                BC_ASSERT( nw->is_lineal( root, e ) );
                 BC_ASSERT( !is_project( kmap, e ) );
             }
         })
@@ -826,14 +827,14 @@ auto fetch_user_categorical_lineage( Kmap const& kmap
         BC_PRE([ & ]
         {
             auto const root = *kmap.fetch_leaf( "/projects" );
-            BC_ASSERT( kmap.is_lineal( root, node ) );
+            BC_ASSERT( nw->is_lineal( root, node ) );
         })
         BC_POST([ & ]
         {
             for( auto const& e : rv )
             {
                 auto const root = *kmap.fetch_leaf( "/projects" );
-                BC_ASSERT( kmap.is_lineal( root, e ) );
+                BC_ASSERT( nw->is_lineal( root, e ) );
                 BC_ASSERT( !is_project( kmap, e ) );
             }
         })
@@ -878,26 +879,26 @@ auto launder_categories( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( kmap.exists( leaf_category ) );
+            BC_ASSERT( nw->exists( leaf_category ) );
             BC_ASSERT( is_category( kmap, leaf_category ) );
         })
     ;
 
-    if( auto const child_ps = kmap.fetch_children( leaf_category )
+    if( auto const child_ps = nw->fetch_children( leaf_category )
       ; child_ps.empty() )
     {
         if( auto const lin = fetch_user_categorical_lineage( kmap, leaf_category )
           ; !lin.empty() )
         {
-            kmap.erase_node( lin.front() ).value();
+            nw->erase_node( lin.front() ).value();
         }
     }
 }
 
 auto activate_project( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -912,7 +913,7 @@ auto activate_project( Kmap& kmap )
             if( args.size() == 0 )
             {
                 if( auto const pp = fetch_project_root( kmap
-                                                      , kmap.selected_node() )
+                                                      , nw->selected_node() )
                   ; pp )
                 {
                     return { pp.value() };
@@ -938,9 +939,9 @@ auto activate_project( Kmap& kmap )
 
         auto const status = fetch_project_status( kmap
                                                 , *pid );
-        auto const& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
-        if( db.fetch_heading( *status ).value() != "active" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
+        if( db->fetch_heading( *status ).value() != "active" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
         {
             update_task_statuses( kmap
                                 , *pid
@@ -953,9 +954,9 @@ auto activate_project( Kmap& kmap )
 }
 
 auto deactivate_project( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -970,7 +971,7 @@ auto deactivate_project( Kmap& kmap )
             if( args.size() == 0 )
             {
                 if( auto const pp = fetch_project_root( kmap
-                                                      , kmap.selected_node() )
+                                                      , nw->selected_node() )
                   ; pp )
                 {
                     return { pp.value() };
@@ -996,9 +997,9 @@ auto deactivate_project( Kmap& kmap )
 
         auto const status = fetch_project_status( kmap
                                                 , *pid );
-        auto const& db = kmap.database();
+        auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
-        if( KMAP_TRY( db.fetch_heading( *status ) ) != "inactive" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
+        if( KMAP_TRY( db->fetch_heading( *status ) ) != "inactive" ) // TODO: Probably unnecessary. Self-moves should be disregarded automatically.
         {
             // kmap.move_node( *pid
             //               , "/projects.open.inactive" );
@@ -1017,7 +1018,7 @@ namespace {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.is_in_project( kmap.selected_node() ) )
+if( kmap.is_in_project( nw->selected_node() ) )
 {
     return kmap.success( 'success' );
 }
@@ -1029,7 +1030,7 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const selected = kmap.selected_node();
+const selected = nw->selected_node();
 const res = kmap.close_project( selected );
 
 if( res.has_value() )
@@ -1044,23 +1045,22 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "closes nearest parent project";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_in_project"
-                        , guard_code };
+auto const guard = Guard{ "is_in_project", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    close.project
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     close.project
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace close_project_def
@@ -1070,7 +1070,7 @@ namespace {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.is_in_project( kmap.selected_node() ) )
+if( kmap.is_in_project( nw->selected_node() ) )
 {
     return kmap.success( 'success' );
 }
@@ -1082,7 +1082,7 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const selected = kmap.selected_node();
+const selected = nw->selected_node();
 const res = kmap.reorder_by_heading( [ 'problem_statement'
                                      , 'tasks'
                                      , 'result' ] );
@@ -1099,23 +1099,22 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "reorders project nodes according to standard form";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_in_project"
-                        , guard_code };
+auto const guard = Guard{ "is_in_project", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    dress
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     dress
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace dress_project_def
@@ -1125,7 +1124,7 @@ namespace {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.is_in_project( kmap.selected_node() ) )
+if( kmap.is_in_project( nw->selected_node() ) )
 {
     return kmap.success( 'success' );
 }
@@ -1137,7 +1136,7 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const selected = kmap.selected_node();
+const selected = nw->selected_node();
 const res = kmap.open_project( selected );
 
 if( res.has_value() )
@@ -1152,23 +1151,22 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "opens nearest parent project";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_in_project"
-                        , guard_code };
+auto const guard = Guard{ "is_in_project", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    open.project
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     open.project
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace open_project_def
@@ -1183,7 +1181,7 @@ return kmap.success( 'success' );
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const selected = kmap.selected_node();
+const selected = nw->selected_node();
 const title = args.get( 0 );
 const project = kmap.create_project( selected, title )
 
@@ -1203,25 +1201,24 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates a project at nearest project category";
 auto const arguments = std::vector< Argument >{ Argument{ "project_title"
                                                         , "title for project"
                                                         , "unconditional" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    create.project
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     create.project
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace create_project_def
@@ -1231,7 +1228,7 @@ namespace {
 
 auto const guard_code =
 R"%%%(```javascript
-const selected = kmap.selected_node();
+const selected = nw->selected_node();
 if( kmap.is_project( selected )
  && kmap.is_single_parent_project( selected ) )
 {
@@ -1245,16 +1242,16 @@ else
 auto const action_code =
 R"%%%(```javascript
 let rv = null;
-const selected = kmap.selected_node();
-const parent_project = kmap.fetch_parent_project( selected ).value();
+const selected = nw->selected_node();
+const parent_project = nw->fetch_parent_project( selected ).value();
 
 rv = kmap.success( 'parent project selected' );
 
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "selects the parent project of selected node";
 auto const arguments = std::vector< Argument >{};
@@ -1262,14 +1259,14 @@ auto const guard = Guard{ "unique_child_project" // Note: If a project is a subt
                         , guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    select.parent.project
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     select.parent.project
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace select_parent_project_def
@@ -1304,7 +1301,7 @@ auto create_project( Uuid const& at
 
     if( id )
     {
-        KMAP_TRY( kmap.update_title( id.value(), title ) ); // TODO: This probably doesn't belong here. Either in the JS, or cmd::create_project. This should only be an interface wrapper.
+        KMAP_TRY( nw->update_title( id.value(), title ) ); // TODO: This probably doesn't belong here. Either in the JS, or cmd::create_project. This should only be an interface wrapper.
     }
 
     return id;

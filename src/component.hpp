@@ -9,7 +9,8 @@
 
 #include "common.hpp"
 #include "emcc_bindings.hpp"
-#include "event/event_clerk.hpp"
+// #include "event/event_clerk.hpp"
+#include "kmap.hpp"
 #include "util/macro.hpp"
 
 #include <emscripten/bind.h>
@@ -17,80 +18,132 @@
 #include <any>
 #include <compare>
 #include <memory>
+#include <set>
+#include <string_view>
 
-#define REGISTER_COMPONENT( name, desc, requisites, type ) \
+namespace kmap
+{
+    class Kmap;
+}
+
+// TODO: I have a hesitance about supplying the requisites manually, in that it burdens the developer with keeping track.
+//       I wonder if there is a way to leverage the "clerk"-system, such that clerks, on creation, register their respective requisite. Bit of a tall order, but a thought.
+// Note: Using the simple register_component_<line> as a function name should be generalizable, so long as REGISTER_COMPONENT is called from an anonymous namespace.
+#define REGISTER_COMPONENT( type, reqs, desc ) \
     namespace binding \
     { \
         auto KMAP_CONCAT( register_component_, __LINE__ )() \
         { \
             auto& kmap = kmap::Singleton::instance(); \
-            KTRYE( kmap.component_store().register_component( kmap::Component{ #name, desc, requisites, ( std::make_shared< type >( kmap ) ) } ) ); \
+            struct KMAP_CONCAT( component_ctor, __LINE__ ) : public kmap::ComponentConstructor \
+            { \
+                using ComponentConstructor::ComponentConstructor; \
+                virtual auto construct( kmap::Kmap& km ) const -> std::shared_ptr< kmap::Component > override { return std::static_pointer_cast< kmap::Component >( std::make_shared< type >( km, requisites(), description() ) ); } \
+                virtual ~KMAP_CONCAT( component_ctor, __LINE__ )() = default; \
+            }; \
+            auto cctor = std::make_shared< KMAP_CONCAT( component_ctor, __LINE__ ) >( type::id, reqs, desc ); \
+            auto bptr = std::static_pointer_cast< kmap::ComponentConstructor >( cctor ); \
+            KTRYE( kmap.component_store().register_component( bptr ) ); \
         } \
         EMSCRIPTEN_BINDINGS( kmap_component ) \
         { \
-            emscripten::function( "register_component_"#name, &KMAP_CONCAT( register_component_, __LINE__ ) ); \
+            emscripten::function( fmt::format( "register_component_{}", kmap::format_heading( type::id ) ).c_str(), &KMAP_CONCAT( register_component_, __LINE__ ) ); \
         } \
     }
 
 namespace kmap {
 
-class Kmap;
-
-auto register_components()
+auto register_components( std::set< std::string > const& components )
+    -> Result< void >;
+auto register_all_components()
     -> Result< void >;
 
-struct ComponentBase
+/**
+ * There's a problem with destruction and dependence. Currently, a Component is constructed - but not initialized - until its dependencies are resolved.
+ * Then it is initialized. Fine, I suppose. A bit disjointed in terms of construction and initialization and destruction, but otherwise ok.
+ * The trouble comes when destructing in e.g., EventClerk, in whose dtor the EventStore component is expected to exist. But EventStore may be destructed before
+ * the Component holding an EventClerk. Even uninitialized, a destructor will still be called, and unless that component has been initialized and is not destroyed before,
+ * fetch_component<>() will fail.
+ * The only solution to this problem that I see is to not construct until initialization. This does not mean that initialize() is fully redundant, as it is still useful
+ * for returning error results, as ctors can only throw.
+ * It means separating a Component from its requisites(). Rather, it doesn't need to deprive a Component of it, but in addition to.
+ * { name, requisites, Type }. But how exactly do I communicate the type without construction?
+ * In this case, the uninitialized is actually Starter/Constructor which when "initializing", `construct()`s and `initialize`()s.
+ * Thereby, no destructor will be called for uninitialized. But what if initialize() fails...? Well, it is still considered constructed, and therefore its requisites should have
+ * been initialized already, so destruction should still be safe.
+ */
+class Component
 {
+    Kmap& kmap_;
+    std::set< std::string > requisites_;
+    std::string description_;
+
+public:
+    Component( Kmap& kmap // TODO: is Kmap essential to Component?
+             , std::set< std::string > const& requisites
+             , std::string const& description );
+    virtual ~Component() = default;
+
+    [[ nodiscard ]]
+    constexpr virtual auto name() const -> std::string_view = 0;
     virtual auto initialize() -> Result< void > = 0;
-    virtual ~ComponentBase() = default;
+    virtual auto load() -> Result< void > = 0;
+
+    auto kmap_inst()
+        -> Kmap&;
+    auto kmap_inst() const
+        -> Kmap const&;
+    auto description() const
+        -> std::string const&;
+    auto requisites() const
+        -> std::set< std::string > const&;
+
+    template< typename Component >
+    auto fetch_component()
+    {
+        return kmap_inst().fetch_component< Component >();
+    }
+    template< typename Component >
+    auto fetch_component() const
+    {
+        return kmap_inst().fetch_component< Component >();
+    }
 };
 
-// TODO: What is this for...?
-class ComponentClerk
+class ComponentConstructor
 {
-    Kmap& kmap_;
-    std::string component_name;
+    std::string name_;
+    std::set< std::string > requisites_;
+    std::string description_;
 
 public:
-    ComponentClerk( std::string const& name );
-};
+    ComponentConstructor( std::string const& name
+                        , std::set< std::string > const& requisites
+                        , std::string const& description )
+        : name_{ name }
+        , requisites_{ requisites }
+        , description_{ description }
+    {
+    }
 
-struct Component // TODO: Why not include this info in the Component itself? Part of ComponentBase? Then, this can be removed and ComponentBase can be named Component
-{
-    std::string name = {};
-    std::string description = {};
-    std::set< std::string > requisites = {};
-    std::shared_ptr< ComponentBase > inst = {}; // TODO: Should probably be unique_ptr that is moved around...
+    auto name() const
+        -> std::string const&
+    {
+        return name_;
+    }
+    auto description() const
+        -> std::string const&
+    {
+        return description_;
+    }
+    auto requisites() const
+        -> std::set< std::string > const
+    {
+        return requisites_;
+    }
 
-    // std::strong_ordering operator<=>( Component const& ) const = default;
-};
-
-class ComponentStore
-{
-    Kmap& kmap_;
-    event::EventClerk eclerk_;
-    std::set< std::string > received_inits_ = {};
-    std::map< std::string, Component > uninitialized_components_ = {};
-    // std::set< Component > initialized_components_ = {};
-    // std::map< std::string, std::any > initialized_components_ = {};
-    std::map< std::string, Component > initialized_components_ = {};
-
-public:
-    ComponentStore( Kmap& kmap );
-
-    // So... when we get an requisite subject.component, we first add it to the received_init_requisites_ set.
-    // Then, we check each uninitialized_component to see if its requisites are all in received_init_requisites.
-    // If so, we call initialize on the component, and move it to the initialized_components set.
-    auto install_default_events()
-        -> Result< void >;
-    auto register_component( Component const& comp )
-        -> Result< void >;
-    auto fire_initialized( std::string const& id )
-        -> Result< void >;
-
-    template< typename T >
-    auto fetch_component( std::string const& id )
-        -> Result< T >;
+    // std::shared_ptr< T > type = std::make_shared< T >{};
+    virtual auto construct( Kmap& kmap ) const -> std::shared_ptr< Component > = 0; // This means that each component needs a Starter and Component. Maybe the Starter can be automated...
 };
 
 } // namespace kmap

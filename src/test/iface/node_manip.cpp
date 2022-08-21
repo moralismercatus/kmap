@@ -6,6 +6,8 @@
 #include "../../kmap.hpp"
 #include "../master.hpp"
 
+#include "com/alias/alias.hpp"
+
 #include <boost/test/unit_test.hpp>
 
 namespace utf = boost::unit_test;
@@ -31,8 +33,8 @@ BOOST_AUTO_TEST_CASE( move_node
     BOOST_TEST( kmap.move_node( c1.value()
                               , c2.value() ) );
 
-    BOOST_TEST( !kmap.exists( "/1" ) );
-    BOOST_TEST( kmap.exists( "/2.1" ) );
+    BOOST_TEST( !nw->exists( "/1" ) );
+    BOOST_TEST( nw->exists( "/2.1" ) );
 }
 
 BOOST_AUTO_TEST_CASE( move_node_into_descendant
@@ -48,7 +50,7 @@ BOOST_AUTO_TEST_CASE( move_node_into_descendant
     BOOST_TEST( false == kmap.move_node( nodes[ "1" ]
                                        , nodes[ "2" ] )
                        . has_value() );
-    BOOST_TEST( kmap.exists( "/1.2" ) );
+    BOOST_TEST( nw->exists( "/1.2" ) );
 }
 
 BOOST_AUTO_TEST_CASE( move_node_alias
@@ -58,29 +60,27 @@ BOOST_AUTO_TEST_CASE( move_node_alias
                     * utf::fixture< ClearMapFixture >() )
 {
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    auto const c1 = kmap.create_child( kmap.root_node_id()
-                                     , "1" );
-    auto const c2 = kmap.create_child( kmap.root_node_id()
-                                     , "2" );
-    auto c2_c1 = kmap.create_alias( c1.value()
-                                  , c2.value() );
+    auto const c1 = kmap.create_child( kmap.root_node_id(), "1" );
+    auto const c2 = kmap.create_child( kmap.root_node_id(), "2" );
+    auto c2_c1 = nw->alias_store().create_alias( c1.value(), c2.value() );
     BOOST_REQUIRE( c2_c1 );
-    BOOST_TEST( kmap.exists( "/1" ) );
-    BOOST_TEST( kmap.exists( "/2" ) );
-    BOOST_TEST( kmap.exists( "/2.1" ) );
-    BOOST_TEST( c1.value() == kmap.resolve( *kmap.fetch_leaf( "/2.1" ) ) );
+    BOOST_TEST( nw->exists( "/1" ) );
+    BOOST_TEST( nw->exists( "/2" ) );
+    BOOST_TEST( nw->exists( "/2.1" ) );
+    BOOST_TEST( c1.value() == nw->alias_store().resolve( *kmap.fetch_leaf( "/2.1" ) ) );
 
     auto const c3 = kmap.create_child( kmap.root_node_id()
                                      , "3" );
     BOOST_TEST( kmap.move_node( c2_c1.value(), c3.value() ) );
-    BOOST_TEST( !kmap.exists( "/2.1" ) );
-    BOOST_TEST( kmap.exists( "/3.1" ) );
+    BOOST_TEST( !nw->exists( "/2.1" ) );
+    BOOST_TEST( nw->exists( "/3.1" ) );
 
     BOOST_TEST( kmap.select_node( *kmap.fetch_leaf( "/2" ) ) );
-    BOOST_TEST( c2.value() == kmap.selected_node() );
+    BOOST_TEST( c2.value() == nw->selected_node() );
     BOOST_TEST( kmap.select_node( *kmap.fetch_leaf( "/3.1" ) ) );
-    BOOST_TEST( c1.value() == kmap.resolve( kmap.selected_node() ) );
+    BOOST_TEST( c1.value() == nw->alias_store().resolve( nw->selected_node() ) );
 }
 
 BOOST_AUTO_TEST_CASE( move_node_duplicate_heading
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE( move_node_duplicate_heading
     BOOST_TEST( kmap.move_node( nodes[ "2.5" ], nodes[ "1" ] ) );
     BOOST_TEST( !kmap.move_node( nodes[ "3.5" ], nodes[ "1" ] ) );
 
-    BOOST_TEST( kmap.fetch_children( nodes[ "1" ] ).size() == 1 );
+    BOOST_TEST( nw->fetch_children( nodes[ "1" ] ).size() == 1 );
 }
 
 BOOST_AUTO_TEST_CASE( copy_body
@@ -114,12 +114,12 @@ BOOST_AUTO_TEST_CASE( copy_body
     create_lineages( "1"
                    , "2" );
     
-    BOOST_TEST( !kmap.update_body( nodes[ "1" ], content_1 ).has_error() );
-    BOOST_TEST( !kmap.update_body( nodes[ "2" ], content_2 ).has_error() );
+    BOOST_TEST( !nw->update_body( nodes[ "1" ], content_1 ).has_error() );
+    BOOST_TEST( !nw->update_body( nodes[ "2" ], content_2 ).has_error() );
     BOOST_TEST( !kmap.copy_body( nodes[ "1" ], nodes[ "2" ] ).has_error() );
-    BOOST_TEST( kmap.fetch_body( nodes[ "1" ] ).has_value() );
-    BOOST_TEST( content_1 == kmap.fetch_body( nodes[ "1" ] ).value() );
-    BOOST_TEST( content_1 == kmap.fetch_body( nodes[ "2" ] ).value() );
+    BOOST_TEST( nw->fetch_body( nodes[ "1" ] ).has_value() );
+    BOOST_TEST( content_1 == nw->fetch_body( nodes[ "1" ] ).value() );
+    BOOST_TEST( content_1 == nw->fetch_body( nodes[ "2" ] ).value() );
 }
 
 BOOST_AUTO_TEST_CASE( move_body
@@ -135,16 +135,16 @@ BOOST_AUTO_TEST_CASE( move_body
     create_lineages( "1"
                    , "2" );
     
-    kmap.update_body( nodes[ "1" ]
+    nw->update_body( nodes[ "1" ]
                     , content_1 );
-    kmap.update_body( nodes[ "2" ]
+    nw->update_body( nodes[ "2" ]
                     , content_2 );
     kmap.copy_body( nodes[ "1" ]
                   , nodes[ "2" ] );
     
-    BOOST_TEST( kmap.fetch_body( nodes[ "1" ] ).has_value() );
-    BOOST_TEST( content_1 == kmap.fetch_body( nodes[ "1" ] ).value() );
-    BOOST_TEST( content_1 == kmap.fetch_body( nodes[ "2" ] ).value() );
+    BOOST_TEST( nw->fetch_body( nodes[ "1" ] ).has_value() );
+    BOOST_TEST( content_1 == nw->fetch_body( nodes[ "1" ] ).value() );
+    BOOST_TEST( content_1 == nw->fetch_body( nodes[ "2" ] ).value() );
 }
 
 BOOST_AUTO_TEST_SUITE_END( /* node_manip */ )

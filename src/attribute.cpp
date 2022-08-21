@@ -6,7 +6,8 @@
 #include "attribute.hpp"
 
 #include "contract.hpp"
-#include "db.hpp"
+#include "com/database/db.hpp"
+#include "com/network/network.hpp"
 #include "error/network.hpp"
 #include "kmap.hpp"
 #include "path/node_view.hpp"
@@ -29,7 +30,9 @@ auto is_attr( Kmap const& kmap
             , Uuid const& node )
     -> bool
 {
-    return kmap.database().attr_exists( node );
+    auto const db = KTRYE( kmap.fetch_component< com::Database >() );
+
+    return db->attr_exists( node );
 }
 
 /// Returns whether 'node' is a descendant of an attribute node.
@@ -49,13 +52,14 @@ auto is_in_order( Kmap const& kmap
     -> bool
 {
     auto rv = false;
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     if( auto const ordern = view::make( parent )
                           | view::attr
                           | view::child( "order" )
                           | view::fetch_node( kmap ) )
     {
-        if( auto const ob = kmap.fetch_body( ordern.value() )
+        if( auto const ob = nw->fetch_body( ordern.value() )
           ; ob )
         {
             auto const split = ob.value()
@@ -73,6 +77,7 @@ auto push_genesis( Kmap& kmap
     -> Result< Uuid >
 {
 	auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -90,7 +95,7 @@ auto push_genesis( Kmap& kmap
                                   | view::create_node( kmap )
                                   | view::to_single );
 
-    KMAP_TRY( kmap.update_body( genesisn, std::to_string( present_time() ) ) );
+    KMAP_TRY( nw->update_body( genesisn, std::to_string( present_time() ) ) );
 
     rv = genesisn;
 
@@ -103,12 +108,13 @@ auto push_order( Kmap& kmap
     -> Result< Uuid >
 {
 	auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !kmap.is_alias( parent ) );
-            BC_ASSERT( !kmap.is_alias( child ) );
+            BC_ASSERT( !nw->alias_store().is_alias( parent ) );
+            BC_ASSERT( !nw->alias_store().is_alias( child ) );
         })
         BC_POST([ & ]
         {
@@ -126,20 +132,20 @@ auto push_order( Kmap& kmap
                                 | view::child( "order" )
                                 | view::fetch_or_create_node( kmap ) );
 
-    if( auto const b = kmap.fetch_body( ordern )
+    if( auto const b = nw->fetch_body( ordern )
       ; b && !b.value().empty() )
     {
         auto const ub = fmt::format( "{}\n{}", b.value(), to_string( child ) );
 
-        KMAP_TRY( kmap.update_body( ordern, ub ) );
+        KMAP_TRY( nw->update_body( ordern, ub ) );
 
-        auto const test_body = KMAP_TRY( kmap.fetch_body( ordern ) );
+        auto const test_body = KMAP_TRY( nw->fetch_body( ordern ) );
     }
     else
     {
         auto const ub = fmt::format( "{}", to_string( child ) );
 
-        KMAP_TRY( kmap.update_body( ordern, ub ) );
+        KMAP_TRY( nw->update_body( ordern, ub ) );
     }
 
     rv = ordern;
@@ -153,12 +159,13 @@ auto pop_order( Kmap& kmap
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !kmap.is_alias( parent ) );
-            BC_ASSERT( !kmap.is_alias( child ) );
+            BC_ASSERT( !nw->alias_store().is_alias( parent ) );
+            BC_ASSERT( !nw->alias_store().is_alias( child ) );
         })
         BC_POST([ & ]
         {
@@ -175,7 +182,7 @@ auto pop_order( Kmap& kmap
                                  | view::attr
                                  | view::child( "order" )
                                  | view::fetch_node( kmap ) );
-    auto const ob = KMAP_TRY( kmap.fetch_body( pordern ) );
+    auto const ob = KMAP_TRY( nw->fetch_body( pordern ) );
     auto const split = ob
                      | views::split( '\n' )
                      | to< std::vector< std::string > >();
@@ -184,7 +191,7 @@ auto pop_order( Kmap& kmap
                         | to< std::vector >();
     if( filtered.empty() )
     {
-        KTRY( kmap.erase_node( pordern ) );
+        KTRY( nw->erase_node( pordern ) );
     }
     else
     {
@@ -192,7 +199,7 @@ auto pop_order( Kmap& kmap
                     | views::join( '\n' )
                     | to< std::string >();
 
-        KTRY( kmap.update_body( pordern, nb ) );
+        KTRY( nw->update_body( pordern, nb ) );
     }
 
     rv = pordern;

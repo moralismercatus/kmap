@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "../../db/cache.hpp"
+#include "com/database/cache.hpp"
 #include "../master.hpp"
 #include "test/util.hpp"
 

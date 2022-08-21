@@ -9,8 +9,6 @@
 
 namespace kmap {
 
-auto complete_filesystem_path( std::string const& raw )
-    -> StringVec;
 auto stream_size( std::istream& fs )
     -> std::istream::pos_type;
 auto init_ems_nodefs()

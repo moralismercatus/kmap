@@ -8,7 +8,9 @@
 #define KMAP_TEST_MASTER_HPP
 
 #include "../kmap.hpp"
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
+#include "com/network/network.hpp"
+#include "path/act/abs_path.hpp"
 #include "util/concepts.hpp"
 
 #include <boost/test/unit_test.hpp>
@@ -51,13 +53,17 @@ auto create_lineages( T&&... args )
     auto rv = std::map< Heading, Uuid >{};
     auto const paths = std::vector< std::string >{ std::forward< T >( args )... };
     auto& kmap = Singleton::instance();
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     for( auto const& path : paths )
     {
-        for( auto const desc = kmap.create_descendants( path ).value()
+        for( auto const desc = create_descendants( kmap, kmap.root_node_id(), nw->selected_node(), path ).value()
            ; auto const& node : desc )
         {
-            rv.emplace( kmap.absolute_path_flat( node ), node );
+            rv.emplace( KTRYE( view::make( kmap.root_node_id() )
+                             | view::desc( node )
+                             | act::abs_path_flat( kmap ) )
+                      , node );
         }
     }
 

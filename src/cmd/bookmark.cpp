@@ -10,6 +10,7 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
 
 namespace kmap::cmd {
 
@@ -68,23 +69,22 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates a bookmark of selected node";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "nonbookmark"
-                        , guard_code };
+auto const guard = Guard{ "nonbookmark", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    create.bookmark
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     create.bookmark
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace create_bookmark_def
@@ -105,7 +105,7 @@ if( bm_root.has_value() )
 {
     if( arg.length === 0 )
     {
-        const children = kmap.fetch_children( bm_root.value() );
+        const children = nw->fetch_children( bm_root.value() );
 
         rv = kmap.map_headings( children );
     }
@@ -122,13 +122,13 @@ auto const description = "bookmark heading";
 auto const guard = guard_code;
 auto const completion = completion_code;
 
-REGISTER_ARGUMENT
-(
-    bookmark_heading
-,   description 
-,   guard
-,   completion
-);
+// REGISTER_ARGUMENT
+// (
+//     bookmark_heading
+// ,   description 
+// ,   guard
+// ,   completion
+// );
 
 } // namespace anon
 } // namespace bookmark_heading_def
@@ -147,7 +147,7 @@ const bm_root = kmap.fetch_node( '.root.meta.bookmarks' );
 
 if( bm_root.has_value() )
 {
-    const bm = kmap.fetch_child( bm_root.value(), args.get( 0 ) );
+    const bm = nw->fetch_child( bm_root.value(), args.get( 0 ) );
 
     if( bm.has_value() )
     {
@@ -170,25 +170,24 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "creates a bookmark of selected node";
 auto const arguments = std::vector< Argument >{ Argument{ "bookmark_heading"
                                                         , "heading of bookmark"
                                                         , "bookmark_heading" } };
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    select.bookmark
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     select.bookmark
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace select_bookmark_def

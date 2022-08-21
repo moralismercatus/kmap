@@ -11,12 +11,6 @@
 
 namespace kmap {
 
-auto root_dir()
-    -> std::string
-{
-    return kmap_root_dir.string();
-}
-
 } // namespace kmap
 
 auto operator<<( std::ostream& os

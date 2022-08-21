@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_DEFINITION_HPP
 #define KMAP_CMD_DEFINITION_HPP
 
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 #include <functional>
 
 namespace kmap {
@@ -17,9 +17,9 @@ class Kmap;
 namespace kmap::cmd {
 
 auto create_definition( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto add_definition( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

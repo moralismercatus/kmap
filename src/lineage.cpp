@@ -5,10 +5,12 @@
  ******************************************************************************/
 #include "lineage.hpp"
 
+#include "com/network/network.hpp"
 #include "common.hpp"
+#include "error/network.hpp"
 #include "kmap.hpp"
 #include "path.hpp"
-#include "error/network.hpp"
+#include "path/act/abs_path.hpp"
 
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
@@ -106,8 +108,9 @@ auto to_heading_path( Kmap const& kmap
                     , LinealRange const& lr )
     -> std::string
 {
+    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const ts = lr
-                  | views::transform( [ & ]( auto const& e ){ return kmap.fetch_heading( e ).value(); } )
+                  | views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
                   | to< StringVec >();
 
     return ts
@@ -127,7 +130,9 @@ Lineal::Lineal( Kmap const& kmap
 auto Lineal::root() const
     -> Uuid const&
 {
-    if( !( kmap_.get().is_lineal( root_, leaf_ ) ) )
+    auto const nw = KTRYE( kmap_.get().fetch_component< com::Network >() );
+
+    if( !( nw->is_lineal( root_, leaf_ ) ) )
     {
         KMAP_THROW_EXCEPTION_MSG( io::format( "nodes are not lineal: {}, {}", root_, leaf_ ) );
     }
@@ -138,7 +143,9 @@ auto Lineal::root() const
 auto Lineal::leaf() const
     -> Uuid const&
 {
-    if( !( kmap_.get().is_lineal( root_, leaf_ ) ) )
+    auto const nw = KTRYE( kmap_.get().fetch_component< com::Network >() );
+
+    if( !( nw->is_lineal( root_, leaf_ ) ) )
     {
         KMAP_THROW_EXCEPTION_MSG( io::format( "nodes are not lineal: {}, {}", root_, leaf_ ) );
     }
@@ -152,8 +159,9 @@ auto Lineal::make( Kmap const& kmap
     -> Result< Lineal >
 {
     auto rv = KMAP_MAKE_RESULT( Lineal );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
-    if( kmap.is_lineal( root, leaf ) )
+    if( nw->is_lineal( root, leaf ) )
     {
         rv = Lineal{ kmap, root, leaf };
     }
@@ -172,7 +180,7 @@ auto Descendant::make( Kmap const& kmap
 {
     auto rv = KMAP_MAKE_RESULT( Descendant );
 
-    if( kmap.is_ancestor( ancestor, descendant ) )
+    if( is_ancestor( kmap, ancestor, descendant ) )
     {
         rv = Descendant{ kmap, ancestor, descendant };
     }
@@ -201,7 +209,9 @@ auto LinealRange::make( Kmap const& kmap
     -> Result< LinealRange >
 {
     auto rv = KMAP_MAKE_RESULT( LinealRange );
-    auto lineage = kmap.absolute_path_uuid( lin );
+    auto const lineage = KTRY( view::make( lin.root() )
+                             | view::desc( lin.leaf() )
+                             | act::abs_path( kmap ) );
 
     rv = LinealRange{ lineage };
 

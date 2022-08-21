@@ -5,12 +5,15 @@
  ******************************************************************************/
 #include "resource.hpp"
 
-#include "../common.hpp"
-#include "../contract.hpp"
-#include "../db.hpp"
-#include "../error/master.hpp"
-#include "../io.hpp"
-#include "../kmap.hpp"
+#include "com/alias/alias.hpp"
+#include "com/database/db.hpp"
+#include "com/filesystem/filesystem.hpp"
+#include "com/network/network.hpp"
+#include "common.hpp"
+#include "contract.hpp"
+#include "error/master.hpp"
+#include "io.hpp"
+#include "kmap.hpp"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -20,9 +23,9 @@ namespace fs = boost::filesystem;
 namespace kmap::cmd {
 
 auto add_resource( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -31,6 +34,7 @@ auto add_resource( Kmap& kmap )
             })
         ;
 
+        auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
         auto const& source = [ & ]
         {
             if( args.size() == 1 )
@@ -52,13 +56,15 @@ auto add_resource( Kmap& kmap )
         {
             if( args.size() == 2 )
             {
-                auto const& rv = kmap.fetch_descendant( kmap.root_node_id(), args[ 1 ] );
+                auto const rv = kmap.root_view()
+                              | view::desc( args[ 1] )
+                              | view::fetch_node( kmap );
                 
                 return rv ? rv.value() : Uuid{};
             }
             else
             {
-                return { kmap.selected_node() };
+                return { nw->selected_node() };
             }
         }();
 
@@ -70,24 +76,22 @@ auto add_resource( Kmap& kmap )
         {
             auto ref_parent = [ & ]
             {
-                if( kmap.is_child( *target, "resources" ) )
+                if( nw->is_child( *target, "resources" ) )
                 {
-                    return kmap.database()
-                               .fetch_child( *target, "resources" )
-                               .value();
+                    auto const db = KTRYE( kmap.fetch_component< com::Database >() );
+
+                    return db->fetch_child( *target, "resources" ).value();
                 }
                 else
                 {
-                    return kmap.create_child( *target
-                                            , "resources" ).value();
+                    return KTRYE( nw->create_child( *target, "resources" ) );
                 }
             }();
 
-            if( auto const alias = kmap.create_alias( *source 
-                                                    , ref_parent )
+            if( auto const alias = nw->alias_store().create_alias( *source, ref_parent )
               ; alias )
             {
-                KMAP_TRY( kmap.select_node( *target ) ); // We don't want to move to the newly added alias.
+                KTRY( kmap.select_node( *target ) ); // We don't want to move to the newly added alias.
 
                 return "resource reference added";
             }
@@ -101,9 +105,9 @@ auto add_resource( Kmap& kmap )
 
 /// TODO: Use mmap instead of reading from file into local buffer.
 auto store_resource( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -112,7 +116,7 @@ auto store_resource( Kmap& kmap )
             })
         ;
 
-        auto const& p = kmap_root_dir / FsPath{ args[ 0 ] };
+        auto const& p = com::kmap_root_dir / FsPath{ args[ 0 ] };
 
         if( !file_exists( p ) )
         {
@@ -153,7 +157,7 @@ auto store_resource( Kmap& kmap )
             }
         }();
 
-        if( kmap.is_child( *resources, heading ) )
+        if( nw->is_child( *resources, heading ) )
         {
             return KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, fmt::format( "{} already exists", heading ) );
         }
@@ -176,9 +180,9 @@ auto store_resource( Kmap& kmap )
 }
 
 auto store_url_resource( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]

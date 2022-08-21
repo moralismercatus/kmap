@@ -3,16 +3,16 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "text_area.hpp"
-
 #include "../common.hpp"
 #include "../contract.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
 
 namespace kmap::cmd {
 
+#if 0
 namespace { 
 namespace edit_body_def {
 
@@ -84,35 +84,35 @@ rv = kmap.success( 'editor opened' );
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "Opens body editor for selected node";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    edit.body
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     edit.body
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 namespace edit_def {
-    REGISTER_COMMAND // TODO: Use REGISTER_COMMAND_ALIAS instead.
-    (
-        edit
-    ,   description 
-    ,   arguments
-    ,   guard
-    ,   action
-    );
+    // REGISTER_COMMAND // TODO: Use REGISTER_COMMAND_ALIAS instead.
+    // (
+    //     edit
+    // ,   description 
+    // ,   arguments
+    // ,   guard
+    // ,   action
+    // );
 } // namespace edit_def 
 } // namespace edit_body_def 
 } // namespace anon
+#endif // 0
 
 } // namespace kmap::cmd

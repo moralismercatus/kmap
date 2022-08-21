@@ -9,6 +9,7 @@
 #include "../contract.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
+#include "com/filesystem/filesystem.hpp"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
@@ -519,9 +520,9 @@ auto process( ast::dotlang::Dot const& dot
 }
 
 auto load_dot( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
-    return [ &kmap ]( CliCommand::Args const& args ) -> Result< std::string >
+    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
         BC_CONTRACT()
             BC_PRE([ & ]
@@ -530,7 +531,7 @@ auto load_dot( Kmap& kmap )
             })
         ;
         
-        auto const fp = kmap_root_dir / args[ 0 ];
+        auto const fp = com::kmap_root_dir / args[ 0 ];
 
         if( file_exists( fp ) )
         {
@@ -587,7 +588,7 @@ auto load_dot( Kmap& kmap )
               ; dot )
             {
                 fmt::print( "graph_label: {}\n", dot->graph_label );
-                auto const graph_root = kmap.create_child( kmap.selected_node()
+                auto const graph_root = kmap.create_child( nw->selected_node()
                                                          , format_heading( dot->graph_label ) );
 
                 if( auto prep = process( *dot

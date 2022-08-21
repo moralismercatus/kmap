@@ -7,7 +7,7 @@
 #ifndef KMAP_CMD_HPP
 #define KMAP_CMD_HPP
 
-#include "cli.hpp"
+#include "com/cli/cli.hpp"
 
 #include <string>
 #include <vector>
@@ -19,7 +19,7 @@ class Kmap;
 namespace kmap::cmd {
 
 auto make_core_commands( Kmap& kmap )
-    -> std::vector< CliCommand >;
+    -> std::vector< com::CliCommand >;
 
 } // namespace kmap::cmd
 

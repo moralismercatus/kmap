@@ -36,8 +36,6 @@ namespace bmi = boost::multi_index;
 
 namespace kmap {
 
-class Kmap;
-
 using StringSet = std::set< std::string >;
 using StringVec = std::vector< std::string >;
 using Uuid = boost::uuids::uuid;
@@ -65,7 +63,6 @@ using IdHeadingSet = bmi::multi_index_container< IdStrPair
                                                                                                      , decltype( IdStrPair::second )
                                                                                                      , &IdStrPair::second > > > >;
 template< typename T > using Result = error_code::Result< T >;
-auto const kmap_root_dir = FsPath{ "/kmap" };
 inline auto const nullopt = boost::none; // To be replaced by std::nullopt if boost::optional is replaced with std::optional.
 template< typename T > struct always_false : std::false_type {};
 
@@ -97,9 +94,6 @@ auto hash_value( StrongType< T, Tag > const& item )
 {
     return boost::hash< T >{}( item.value() );
 }
-
-auto root_dir()
-    -> std::string;
 
 } // namespace kmap
 

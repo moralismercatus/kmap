@@ -10,9 +10,11 @@
 #include "../io.hpp"
 #include "../kmap.hpp"
 #include "command.hpp"
+#include "com/cmd/command.hpp"
 
 namespace kmap::cmd {
 
+#if 0
 namespace count_ancestors_def {
 namespace { 
 
@@ -38,13 +40,12 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "displays descendants of selected";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
 REGISTER_COMMAND
@@ -58,7 +59,9 @@ REGISTER_COMMAND
 
 } // namespace anon
 } // namespace count_ancestors_def
+#endif // 0
 
+#if 0 
 namespace count_descendants_def {
 namespace { 
 
@@ -84,25 +87,25 @@ else
 return rv;
 ```)%%%";
 
-using Guard = PreregisteredCommand::Guard;
-using Argument = PreregisteredCommand::Argument;
+using Guard = com::Command::Guard;
+using Argument = com::Command::Argument;
 
 auto const description = "displays descendants of selected";
 auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional"
-                        , guard_code };
+auto const guard = Guard{ "unconditional", guard_code };
 auto const action = action_code;
 
-REGISTER_COMMAND
-(
-    count.descendants
-,   description 
-,   arguments
-,   guard
-,   action
-);
+// REGISTER_COMMAND
+// (
+//     count.descendants
+// ,   description 
+// ,   arguments
+// ,   guard
+// ,   action
+// );
 
 } // namespace anon
 } // namespace count_descendants_def
+#endif // 0
 
 } // namespace kmap::cmd

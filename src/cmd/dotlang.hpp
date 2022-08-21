@@ -8,7 +8,7 @@
 #define KMAP_CMD_DOTLANG_HPP
 
 #include <functional>
-#include "../cli.hpp"
+#include "com/cli/cli.hpp"
 
 namespace kmap {
 class Kmap;
@@ -17,7 +17,7 @@ class Kmap;
 namespace kmap::cmd {
 
 auto load_dot( Kmap& kmap )
-    -> std::function< Result< std::string >( CliCommand::Args const& args ) >;
+    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 
 } // namespace kmap::cmd
 

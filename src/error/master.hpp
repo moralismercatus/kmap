@@ -36,6 +36,13 @@
 #define KMAP_MAKE_ERROR( ec ) KMAP_MAKE_ERROR_MSG( ec, "" )
 #define KMAP_MAKE_RESULT_EC( type, ec ) Result< type >{ KMAP_MAKE_ERROR( ( ec ) ) }
 #define KMAP_MAKE_RESULT( type ) KMAP_MAKE_RESULT_EC( type, kmap::error_code::common::uncategorized  )
+#define KMAP_MAKE_RESULT_MSG( type, msg ) Result< type >{ KMAP_MAKE_ERROR_MSG( kmap::error_code::common::uncategorized, msg ) }
+#define KMAP_PROPAGATE_FAILURE_MSG( result, msg ) \
+    ({ \
+        auto res = ( result ); \
+        res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( msg ) ) ); \
+        res.as_failure(); \
+    })
 #define KMAP_PROPAGATE_FAILURE( ... ) \
     ({ \
         auto res = ( __VA_ARGS__ ); \
@@ -54,8 +61,14 @@
     }
 #define KMAP_ENSURE( pred, ec ) KMAP_ENSURE_MSG( ( pred ), ( ec ), "" )
 // Inspired by BOOST_OUTCOME_TRYX, with the addition of appending to the stack.
+#if KMAP_LOG_KTRY
+    #define KMAP_KTRY_LOG() kmap::log_ktry_line( __FUNCTION__, __LINE__, __FILE__ )
+#else 
+    #define KMAP_KTRY_LOG()
+#endif // KMAP_LOG_KTRY
 #define KMAP_TRY( ... ) \
     ({ \
+        KMAP_KTRY_LOG(); \
         auto&& res = ( __VA_ARGS__ ); \
         if( BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
             ; \
@@ -325,5 +338,12 @@ auto operator<<( std::ostream& os, kmap::error_code::Result< T > const& lhs )
 
 } // namespace kmap::error_code
 
+namespace kmap
+{
+    auto log_ktry_line( std::string const& func
+                      , uint32_t const& line
+                      , std::string const& file )
+        -> void;
+} // namespace kmap
 
 #endif // KMAP_EC_MASTER_HPP

@@ -6,7 +6,9 @@
 #include "../../kmap.hpp"
 #include "../../path/node_view.hpp"
 #include "../master.hpp"
-#include "canvas.hpp"
+#include "com/alias/alias.hpp"
+#include "com/canvas/canvas.hpp"
+#include "com/network/network.hpp"
 #include "js_iface.hpp"
 #include "test/util.hpp"
 
@@ -20,7 +22,7 @@ using namespace kmap::test;
 
 SCENARIO( "node_view view::exists", "[path][node_view]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
 
     auto& kmap = kmap::Singleton::instance();
     auto const root = kmap.root_node_id();
@@ -44,17 +46,17 @@ SCENARIO( "node_view view::exists", "[path][node_view]" )
 
 SCENARIO( "node_view view::alias", "[path][node_view]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
 
     auto& kmap = kmap::Singleton::instance();
+    auto const nw= REQUIRE_TRY( kmap.fetch_component< com::Network >() );
+    auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
     auto const root = kmap.root_node_id();
 
     GIVEN( "/1 and /2" )
     {
-        auto const c1r = kmap.create_child( root, "1" ); REQUIRE( succ( c1r ) );
-        auto const c2r = kmap.create_child( root, "2" ); REQUIRE( succ( c2r ) );
-        auto const c1 = c1r.value();
-        auto const c2 = c2r.value();
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
 
         WHEN( "view::alias( Uuid ) is used to create an alias" )
         {
@@ -71,13 +73,14 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             }
             THEN( "alias placed where expected" )
             {
-                auto const desc = kmap.fetch_descendant( "/1.2" );
+                auto const desc = REQUIRE_TRY( kmap.root_view()
+                                             | view::direct_desc( "1.2" )
+                                             | view::fetch_node( kmap ) );
 
-                REQUIRE( succ( desc ) );
-                REQUIRE( desc.value() == a1.value() );
+                REQUIRE( desc == a1.value() );
             }
 
-            REQUIRE( succ( kmap.erase_node( a1.value() ) ) );
+            REQUIRE( succ( nw->erase_node( a1.value() ) ) );
         }
         WHEN( "view::alias( Intermediary ) is used to create an alias" )
         {
@@ -95,25 +98,26 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             }
             THEN( "alias placed where expected" )
             {
-                auto const desc = kmap.fetch_descendant( "/1.2" );
+                auto const desc = REQUIRE_TRY( kmap.root_view()
+                                             | view::direct_desc( "1.2" )
+                                             | view::fetch_node( kmap ) );
 
-                REQUIRE( succ( desc ) );
-                REQUIRE( desc.value() == a1.value() );
+                REQUIRE( desc == a1.value() );
             }
 
-            REQUIRE( succ( kmap.erase_node( a1.value() ) ) );
+            REQUIRE( succ( nw->erase_node( a1.value() ) ) );
         }
 
-        REQUIRE( succ( kmap.erase_node( c2 ) ) );
-        REQUIRE( succ( kmap.erase_node( c1 ) ) );
+        REQUIRE( succ( nw->erase_node( c2 ) ) );
+        REQUIRE( succ( nw->erase_node( c1 ) ) );
     }
     GIVEN( "kmap blank state" )
     {
         WHEN( "single alias created" )
         {
-            auto const c1 = kmap.create_child( root, "1" ); REQUIRE( succ( c1 ) );
-            auto const c2 = kmap.create_child( root, "2" ); REQUIRE( succ( c2 ) );
-            auto const a1 = kmap.create_alias( c2.value(), c1.value() ); REQUIRE( succ( a1 ) ); // a1 => /1.2
+            auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+            auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+            auto const a1 = nw->alias_store().create_alias( c2, c1 ); REQUIRE( succ( a1 ) ); // a1 => /1.2
 
             THEN( "unspecified view::alias finds" )
             {
@@ -145,9 +149,9 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
                 REQUIRE( *( v | view::to_node_set( kmap ) ).begin() == a1.value() );
             }
 
-            REQUIRE( succ( kmap.erase_node( a1.value() ) ) );
-            REQUIRE( succ( kmap.erase_node( c2.value() ) ) );
-            REQUIRE( succ( kmap.erase_node( c1.value() ) ) );
+            REQUIRE( succ( nw->erase_node( a1.value() ) ) );
+            REQUIRE( succ( nw->erase_node( c2 ) ) );
+            REQUIRE( succ( nw->erase_node( c1 ) ) );
         }
         WHEN( "two aliases exists" )
         {
@@ -158,14 +162,15 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
 
 SCENARIO( "node_view view::desc", "[path][node_view]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
 
     auto& kmap = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
     auto const root = kmap.root_node_id();
 
     GIVEN( "single descendant" )
     {
-        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "1" ) );
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
         auto const vr = view::make( root );
 
         WHEN( "no selection specifier" )
@@ -231,7 +236,7 @@ SCENARIO( "node_view view::desc", "[path][node_view]" )
         {
         }
 
-        REQUIRE( succ( kmap.erase_node( c1 ) ) );
+        REQUIRE( succ( nw->erase_node( c1 ) ) );
     }
     GIVEN( "/event.[object,verb,subject,outlet]" )
     {
@@ -302,7 +307,7 @@ SCENARIO( "node_view view::desc", "[path][node_view]" )
 
 SCENARIO( "node_view view::create_node", "[path][node_view]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
 
     auto& kmap = kmap::Singleton::instance();
     auto const root = kmap.root_node_id();
@@ -323,7 +328,7 @@ SCENARIO( "node_view view::create_node", "[path][node_view]" )
 
 SCENARIO( "node_view view::single", "[path][node_view]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
 
     auto& kmap = kmap::Singleton::instance();
     auto const root = kmap.root_node_id();
@@ -372,15 +377,16 @@ SCENARIO( "node_view view::single", "[path][node_view]" )
 
 SCENARIO( "node_view view::erase", "[path][node_view]" )
 {
-    KMAP_BLANK_STATE_FIXTURE_SCOPED();
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
 
     auto& kmap = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
     auto const root = kmap.root_node_id();
 
     GIVEN( "two siblings" )
     {
-        auto const c1 = REQUIRE_TRY( kmap.create_child( root, "c1" ) );
-        auto const c2 = REQUIRE_TRY( kmap.create_child( root, "c2" ) );
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "c1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "c2" ) );
 
         WHEN( "siblings erased" )
         {
@@ -394,7 +400,7 @@ SCENARIO( "node_view view::erase", "[path][node_view]" )
 
             WHEN( "child is created" )
             {
-                auto const c3 = REQUIRE_TRY( kmap.create_child( root, "c3" ) );
+                auto const c3 = REQUIRE_TRY( nw->create_child( root, "c3" ) );
 
                 THEN( "child exists" )
                 {
@@ -402,8 +408,12 @@ SCENARIO( "node_view view::erase", "[path][node_view]" )
                 }
                 THEN( "child is ordered" )
                 {
-                    REQUIRE_NOTHROW( kmap.fetch_children_ordered( root ) );
-                    auto const ordered = kmap.fetch_children_ordered( root );
+                    auto const vordo = view::make( root )
+                                     | view::child;
+                    REQUIRE_NOTHROW( vordo | view::to_node_set( kmap ) | act::order( kmap ) );
+                    auto const ordered = vordo
+                                       | view::to_node_set( kmap )
+                                       | act::order( kmap );
 
                     REQUIRE( ordered == std::vector{ c3 } );
                 }
@@ -425,7 +435,7 @@ auto to_headings( Kmap const& kmap
                 , auto const& rng )
 {
     return rng
-         | ranges::views::transform( [ & ]( auto const& e ){ return kmap.fetch_heading( e ).value(); } )
+         | ranges::views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
          | ranges::to< std::set< std::string > >();
 };
 

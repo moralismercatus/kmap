@@ -7,7 +7,6 @@
 #ifndef KMAP_CMD_ECHO_HPP
 #define KMAP_CMD_ECHO_HPP
 
-#include "../cli.hpp"
 #include <functional>
 
 namespace kmap {
