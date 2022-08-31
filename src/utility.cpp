@@ -518,6 +518,8 @@ auto is_valid_heading( Heading const& heading )
     return !fetch_first_invalid( heading );
 }
 
+// TODO: Belongs in path.cpp, not common utility.
+// TODO: Might this not be better to call the path parser (Boost.Spirit (probably doesn't exist yet...)), and check that way?
 auto is_valid_heading_path( std::string const& path )
     -> bool
 {
@@ -1141,9 +1143,9 @@ auto print_tree( Kmap const& km
 {
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
-    if( nw->alias_store().is_top_alias( root ) )
+    if( nw->is_top_alias( root ) )
     {
-        fmt::print( "{}[{}]\n", absolute_path_flat( km, root ), absolute_path_flat( km, nw->alias_store().resolve( root ) ) );
+        fmt::print( "{}[{}]\n", absolute_path_flat( km, root ), absolute_path_flat( km, nw->resolve( root ) ) );
     }
     else
     {

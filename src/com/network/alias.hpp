@@ -105,24 +105,19 @@ public:
     AliasStore( Kmap& km );
 
     // Core
-    auto create_alias( Uuid const& src
-                     , Uuid const& dst )
-        -> Result< Uuid >;
     auto erase_alias( Uuid const& id )
         -> Result< Uuid >;
     [[ nodiscard ]]
     auto is_alias( Uuid const& id ) const
         -> bool;
-    auto update_alias( Uuid const& from
-                     , Uuid const& to )
-        -> Result< Uuid >;
     
     // Util
+    auto aliases() const
+        -> AliasSet const&;
+    auto child_aliases() const
+        -> AliasChildSet const&;
     auto erase_aliases_to( Uuid const& id )
         -> Result< void >;
-    [[ nodiscard ]]
-    auto fetch_aliased_ancestry( Uuid const& id ) const // TODO: Replace with `view::make( id ) | view::ancestor( view::alias ) | view::to_node_set()`, or equivalent.
-        -> std::vector< Uuid >;
     [[ nodiscard ]]
     auto fetch_alias_children( Uuid const& parent ) const
         -> std::vector< Uuid >;
@@ -138,19 +133,12 @@ public:
     [[ nodiscard ]]
     auto has_alias( Uuid const& node ) const
         -> bool;
-    [[ nodiscard ]]
-    auto is_top_alias( Uuid const& id ) const
-        -> bool;
+    auto push_alias( Uuid const& src
+                   , Uuid const& dst )
+        -> Result< Uuid >;
     [[ nodiscard ]]
     auto resolve( Uuid const& id ) const
         -> Uuid;
-    auto update_aliases( Uuid const& descendant )
-        -> Result< void >;
-
-protected:
-    auto create_internal_alias( Uuid const& src
-                              , Uuid const& dst )
-        -> Result< Uuid >;
 };
 
 } // namespace kmap

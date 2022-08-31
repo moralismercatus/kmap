@@ -12,6 +12,7 @@
 
 #include <optional>
 #include <set>
+#include <string>
 #include <string_view>
 
 namespace kmap::com {
@@ -30,11 +31,15 @@ struct EventClerk
     std::vector< Uuid > subjects = {};
     std::vector< Uuid > verbs = {};
     std::vector< Uuid > objects = {};
+    std::vector< Uuid > components = {};
     std::vector< Uuid > outlets = {};
     std::vector< Uuid > outlet_transitions = {};
     std::optional< std::string > payload = std::nullopt;
+    std::set< std::string > outlet_com_requisites = {};
 
     EventClerk( Kmap& km );
+    EventClerk( Kmap& km
+              , std::set< std::string > const& outlet_com_reqs ); // TODO: Rather template< Args... >( Component::id... )? That is, supplying Component classes.
     ~EventClerk();
 
     auto fire_event( std::set< std::string > const& requisites )
@@ -47,6 +52,8 @@ struct EventClerk
     auto install_verb( Heading const& heading )
         -> Result< Uuid >;
     auto install_object( Heading const& heading )
+        -> Result< Uuid >;
+    auto install_component( Heading const& heading )
         -> Result< Uuid >;
     auto install_outlet( com::Leaf const& leaf ) 
         -> Result< void >;

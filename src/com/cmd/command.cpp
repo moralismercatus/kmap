@@ -45,7 +45,7 @@ auto CommandStore::argument_root()
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
-    rv = KTRY( view::make( km.root_node_id() )
+    rv = KTRY( view::abs_root
              | view::direct_desc( "meta.setting.argument" )
              | view::fetch_or_create_node( km ) );
 
@@ -58,7 +58,7 @@ auto CommandStore::command_root()
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
-    rv = KTRY( view::make( km.root_node_id() )
+    rv = KTRY( view::abs_root
              | view::direct_desc( "meta.setting.command" )
              | view::fetch_or_create_node( km ) );
 
@@ -71,7 +71,7 @@ auto CommandStore::install_argument( Argument const& arg )
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     
-    auto const arg_root = KTRY( view::make( km.root_node_id() )
+    auto const arg_root = KTRY( view::abs_root
                               | view::direct_desc( "meta.setting.argument" )
                               | view::fetch_or_create_node( km ) );
     auto const vargn = view::make( arg_root ) 
@@ -140,7 +140,7 @@ auto CommandStore::install_command( Command const& cmd )
         auto const nw = KTRY( fetch_component< com::Network >() );
 
         KTRY( nw->update_body( arg_dst, arg.description ) );
-        KTRY( nw->alias_store().create_alias( arg_src, arg_dst ) );
+        KTRY( nw->create_alias( arg_src, arg_dst ) );
     }
 
     auto const actn = KTRY( vguard
@@ -258,6 +258,7 @@ auto CommandStore::uninstall_command( Uuid const& cmdn )
 
     KMAP_ENSURE( is_command( cmdn ), error_code::common::uncategorized );
 
+    // auto const abspath = KTRY( view::abs_root
     auto const abspath = KTRY( view::make( km.root_node_id() )
                              | view::desc( cmdn )
                              | act::abs_path_flat( km ) );

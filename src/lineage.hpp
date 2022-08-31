@@ -61,6 +61,8 @@ private:
 // Assured that such a lineal relationship exists.
 // For this reason, LinealPair should probably not be stored long term.
 // TODO: Consider sanity checking on access that relationship still exists.
+// TODO: I think one way to "ensure" that a Lineal node remains so throughout the lifetime of the Lineal object is to provide a "Context" with Lineal that
+//       contains a `Kmap const&`, and expect that only that const kmap reference is used along with Lineal.
 class Lineal // TOOD: `public : ExistentNode`, where ExistentNode guarantees a node's existence upon creation.
 {
 public:

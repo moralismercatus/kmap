@@ -249,7 +249,7 @@ public:
 
             for( auto const& ti_key : update_set )
             {
-                KMAP_TRYE( table.update( ti_key, update_fn ) );
+                KTRYE( table.update( ti_key, update_fn ) );
             }
         }
         {
@@ -259,7 +259,7 @@ public:
                 {
                     fmt::print( "table.erase( {} )\n", to_string( ti_key ) );
                 }
-                KMAP_TRYE( table.erase( ti_key ) );
+                KTRYE( table.erase( ti_key ) );
             }
         }
     }

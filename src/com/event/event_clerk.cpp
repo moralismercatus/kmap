@@ -15,12 +15,22 @@
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/reverse.hpp>
 #include <range/v3/view/split.hpp>
+#include <range/v3/view/transform.hpp>
 
 namespace kmap::com {
 
 EventClerk::EventClerk( Kmap& km )
     : kmap{ km }
 {
+}
+
+EventClerk::EventClerk( Kmap& km
+                      , std::set< std::string > const& outlet_com_reqs )
+    : EventClerk{ km }
+{
+    outlet_com_requisites = outlet_com_reqs
+                          | ranges::views::transform( []( auto const& c ){ return fmt::format( "component.{}", c ); } )
+                          | ranges::to< decltype( outlet_com_requisites ) >();
 }
 
 EventClerk::~EventClerk()
@@ -46,6 +56,7 @@ EventClerk::~EventClerk()
             for( auto const& e : outlet_transitions | ranges::views::reverse ) { handle_result( estore->uninstall_outlet( e ) ); }
             for( auto const& e : outlets | ranges::views::reverse ) { handle_result( estore->uninstall_outlet( e ) ); }
             for( auto const& e : objects | ranges::views::reverse ) { handle_result( estore->uninstall_object( e ) ); }
+            for( auto const& e : components | ranges::views::reverse ) { handle_result( estore->uninstall_component( e ) ); }
             for( auto const& e : verbs | ranges::views::reverse ) { handle_result( estore->uninstall_verb( e ) ); }
             for( auto const& e : subjects | ranges::views::reverse ) { handle_result( estore->uninstall_subject( e ) ); }
         }
@@ -138,16 +149,36 @@ auto EventClerk::install_object( Heading const& heading )
     return rv;
 }
 
+auto EventClerk::install_component( Heading const& heading )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
+    auto const com = KTRY( estore->install_component( heading ) );
+
+    components.emplace_back( com );
+
+    rv = com;
+
+    return rv;
+}
+
 auto EventClerk::install_outlet( Leaf const& leaf ) 
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
+    auto const amended_leaf = [ & ]
+    {
+        auto al = leaf;
+        al.requisites.insert( outlet_com_requisites.begin(), outlet_com_requisites.end() );
+        return al;
+    }();
 
-    KTRY( install_requisites( leaf.requisites ) );
+    KTRY( install_requisites( amended_leaf.requisites ) );
 
     {
-        auto const outlet = KTRY( estore->install_outlet( leaf ) );
+        auto const outlet = KTRY( estore->install_outlet( amended_leaf ) );
 
         outlets.emplace_back( outlet );
     }
@@ -219,6 +250,10 @@ auto EventClerk::install_requisites( std::set< std::string > const& requisites )
             else if( req.starts_with( "object" ) )
             {
                 KTRY( install_object( ps ) );
+            }
+            else if( req.starts_with( "component" ) )
+            {
+                KTRY( install_component( ps ) );
             }
             else
             {

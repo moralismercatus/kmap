@@ -94,7 +94,7 @@ auto is_argument( Kmap const& km
     auto rv = bool{};
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = view::make( km.root_node_id() )
+    if( auto const cmd_root = view::abs_root
                             | view::direct_desc( "meta.setting.argument" )
                             | view::fetch_node( km )
       ; cmd_root )
@@ -340,7 +340,7 @@ auto has_unconditional_arg( Kmap const& kmap
         {
             auto const arg = *descr_children.begin();
 
-            rv = nw->alias_store().resolve( arg ) == unconditional;
+            rv = nw->resolve( arg ) == unconditional;
 
             if( rv )
             {
@@ -406,9 +406,9 @@ auto fetch_args( Kmap& kmap
                     if( arg_descr_children.size() == 1 )
                     {
                         if( auto const arg_node = *arg_descr_children.begin()
-                          ; is_argument( kmap, nw->alias_store().resolve( arg_node ) ) )
+                          ; is_argument( kmap, nw->resolve( arg_node ) ) )
                         {
-                            if( nw->alias_store().resolve( arg_node ) == unconditional )
+                            if( nw->resolve( arg_node ) == unconditional )
                             {
                                 io::print( "arg is unconditinoal\n" );
                                 validated_args.emplace_back( split_args

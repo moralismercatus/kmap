@@ -128,7 +128,7 @@ auto has_geometry( Kmap const& kmap
 auto is_absolute( Heading const& heading )
     -> bool;
 [[ nodiscard ]]
-auto is_ancestor( Kmap const& kmap
+auto is_ancestor( com::Network const& nw
                 , Uuid const& ancestor
                 , Uuid const& descendant )
     -> bool;
@@ -136,13 +136,14 @@ auto is_ancestor( Kmap const& kmap
 auto is_leaf( Kmap const& kmap
             , Uuid const& node )
     -> bool;
+// TODO: Move to Network.hpp
 [[ nodiscard ]]
-auto is_lineal( Kmap const& kmap
+auto is_lineal( com::Network const& nw
               , Uuid const& ancestor
               , Uuid const& descendant )
     -> bool;
 [[ nodiscard ]]
-auto is_lineal( Kmap const& kmap
+auto is_lineal( com::Network const& nw
               , Uuid const& ancestor
               , Heading const& descendant )
     -> bool;

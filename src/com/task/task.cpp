@@ -23,7 +23,7 @@ namespace kmap::com {
 auto fetch_task_root( Kmap const& kmap )
     -> Result< Uuid >
 {
-    return KTRY( view::make( kmap.root_node_id() )
+    return KTRY( view::abs_root
                | view::child( "task" )
                | view::fetch_node( kmap ) );
 }
@@ -31,7 +31,7 @@ auto fetch_task_root( Kmap const& kmap )
 auto fetch_task_root( Kmap& kmap )
     -> Result< Uuid >
 {
-    return KTRY( view::make( kmap.root_node_id() )
+    return KTRY( view::abs_root
                | view::child( "task" )
                | view::fetch_or_create_node( kmap ) );
 }
@@ -266,7 +266,7 @@ auto TaskStore::is_task( Uuid const& node ) const
         auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
         rv = view::make( troot.value() )
-           | view::child( nw->alias_store().resolve( node ) )
+           | view::child( nw->resolve( node ) )
            | view::exists( km );
     }
 

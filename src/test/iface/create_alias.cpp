@@ -30,10 +30,10 @@ BOOST_AUTO_TEST_CASE( leaf
     create_lineages( "1"
                    , "2" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
     BOOST_TEST( nw->exists( "/2.1" ) );
     BOOST_TEST( nw->fetch_children( nodes[ "/2.1" ] ).empty() );
-    BOOST_TEST( nw->alias_store().resolve( nodes[ "/2.1" ] ) == nodes[ "/1" ] );
+    BOOST_TEST( nw->resolve( nodes[ "/2.1" ] ) == nodes[ "/1" ] );
 
     BOOST_TEST( kmap.select_node( nodes[ "/2.1" ] ) );
     BOOST_TEST( nw->selected_node() == nodes[ "/2.1" ] );
@@ -51,7 +51,7 @@ BOOST_AUTO_TEST_CASE( delete_alias
     create_lineages( "1"
                    , "2" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
     BOOST_TEST( nw->erase_node( nodes[ "/2.1" ] ) );
     BOOST_TEST( !nw->exists( "/2.1" ) );
     BOOST_TEST( nw->fetch_children( nodes[ "/2" ] ).empty() );
@@ -74,10 +74,10 @@ BOOST_AUTO_TEST_CASE( alias_from_alias
                    , "3"
                    , "4" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/3.1" ], nodes[ "/4" ] ) );
-    BOOST_TEST( nw->alias_store().resolve( nodes[ "/4.1" ] ) == nodes[ "/1" ] );
-    BOOST_TEST( nw->alias_store().resolve( nodes[ "/4.1.2" ] ) == nodes[ "/1.2" ] );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/3.1" ], nodes[ "/4" ] ) );
+    BOOST_TEST( nw->resolve( nodes[ "/4.1" ] ) == nodes[ "/1" ] );
+    BOOST_TEST( nw->resolve( nodes[ "/4.1.2" ] ) == nodes[ "/1.2" ] );
 }
 
 BOOST_AUTO_TEST_CASE( alias_has_alias_child
@@ -93,9 +93,9 @@ BOOST_AUTO_TEST_CASE( alias_has_alias_child
                    , "3"
                    , "4" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/3" ], nodes[ "/4" ] ) );
-    BOOST_TEST( nw->alias_store().resolve( nodes[ "/4.3.1" ] ) == nodes[ "/1" ] );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/3" ], nodes[ "/4" ] ) );
+    BOOST_TEST( nw->resolve( nodes[ "/4.3.1" ] ) == nodes[ "/1" ] );
 
     BOOST_TEST( kmap.select_node( nodes[ "/4" ] ) );
     BOOST_TEST( nw->selected_node() == nodes[ "/4" ] );
@@ -118,10 +118,10 @@ BOOST_AUTO_TEST_CASE( has_child
                    , "3"
                    , "4" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
     BOOST_TEST( nw->exists( "/3.1.2" ) );
     BOOST_TEST( nw->fetch_children( nodes[ "/3.1" ] ).size() == 1 );
-    BOOST_TEST( nw->alias_store().resolve( nodes[ "/3.1" ] ) == nodes[ "/1" ] );
+    BOOST_TEST( nw->resolve( nodes[ "/3.1" ] ) == nodes[ "/1" ] );
     BOOST_TEST( kmap.select_node( nodes[ "/3.1" ] ) );
     BOOST_TEST( nw->selected_node() == nodes[ "/3.1" ] );
 }
@@ -138,7 +138,7 @@ BOOST_AUTO_TEST_CASE( update_alias_create_child
     create_lineages( "1"
                    , "2" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
     create_lineages( "1.3" );
     BOOST_TEST( nw->exists( "/2.1.3" ) );
     BOOST_TEST( kmap.select_node( nodes[ "/2.1.3" ] ) );
@@ -157,7 +157,7 @@ BOOST_AUTO_TEST_CASE( update_alias_delete_child
     create_lineages( "1.2"
                    , "3" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/3" ] ) );
     BOOST_TEST( nw->erase_node( nodes[ "/1.2" ] ) );
     BOOST_TEST( !nw->exists( "/3.1.2" ) );
     BOOST_TEST( kmap.select_node( nodes[ "/3.1" ] ) );
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE( update_alias_delete_source
     create_lineages( "1"
                    , "2" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ], nodes[ "/2" ] ) );
     BOOST_TEST( nw->erase_node( nodes[ "/1" ] ) );
     BOOST_TEST( !nw->exists( "/1" ) );
     BOOST_TEST( !nw->exists( "/2.1" ) );
@@ -197,8 +197,8 @@ BOOST_AUTO_TEST_CASE( create_alias_nested_outside_in
                    , "2" 
                    , "3" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/3" ], nodes[ "/2" ] ) );
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/2" ], nodes[ "/1" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/3" ], nodes[ "/2" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/2" ], nodes[ "/1" ] ) );
     BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
     BOOST_TEST( nw->travel_right() );
     BOOST_TEST( nw->travel_right() );
@@ -218,8 +218,8 @@ BOOST_AUTO_TEST_CASE( create_alias_nested_inside_out
                    , "2" 
                    , "3" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/2" ], nodes[ "/1" ] ) );
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/3" ], nodes[ "/2" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/2" ], nodes[ "/1" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/3" ], nodes[ "/2" ] ) );
     BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
     BOOST_TEST( nw->travel_right() );
     BOOST_TEST( nw->travel_right() );
@@ -239,8 +239,8 @@ BOOST_AUTO_TEST_CASE( create_alias_from_alias
                    , "2" 
                    , "3" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/2" ], nodes[ "/1" ] ) ); // Alias 2 to 1
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/3" ], nodes[ "/1.2" ] ) ); // Alias 3 to the alias 2 (1.2).
+    BOOST_TEST( nw->create_alias( nodes[ "/2" ], nodes[ "/1" ] ) ); // Alias 2 to 1
+    BOOST_TEST( nw->create_alias( nodes[ "/3" ], nodes[ "/1.2" ] ) ); // Alias 3 to the alias 2 (1.2).
 }
 
 BOOST_AUTO_TEST_SUITE_END( /*create_alias*/ )

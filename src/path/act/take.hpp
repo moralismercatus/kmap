@@ -34,6 +34,7 @@ auto take( uint32_t const& count )
     -> Take;
 
 // TODO: Is there any real difference between this and ranges::actions::take? This makes a copy, whereas copies with ranges version must be explictly copied, but is that desirable? Probably not...
+//       Of course, there is a valid need for Result< RT >.
 template< concepts::Range RT >
 auto operator|( RT const& range, Take const& op )
     -> RT

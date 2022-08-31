@@ -133,7 +133,7 @@ auto select_source( Kmap& kmap )
 
         if( nw->alias_store().is_alias( selected ) )
         {
-            KTRYE( nw->select_node( nw->alias_store().resolve( selected ) ) );
+            KTRYE( nw->select_node( nw->resolve( selected ) ) );
 
             return "alias source selected";
         }

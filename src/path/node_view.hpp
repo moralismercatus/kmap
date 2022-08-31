@@ -71,6 +71,7 @@ struct exactly
     std::set< std::string > data;
 };
 
+struct AbsRoot;
 struct Alias;
 struct Ancestor;
 struct Attr;
@@ -87,7 +88,8 @@ struct SiblingIncl;
 struct Single;
 struct Tag;
 
-using OperatorVariant = std::variant< Alias
+using OperatorVariant = std::variant< AbsRoot
+                                    , Alias
                                     , Ancestor
                                     , Attr
                                     , Child
@@ -133,6 +135,18 @@ auto operator==( SelectionVariant const& lhs
     -> bool;
 
 // Intermediate Operations
+struct AbsRoot
+{
+    AbsRoot() = default;
+
+    auto operator()() const {}
+    auto operator()( Kmap const& kmap
+                   , Uuid const& node ) const
+        -> UuidSet;
+
+    auto to_string() const
+        -> std::string;
+};
 struct Ancestor
 {
     std::optional< SelectionVariant > selection = std::nullopt;
@@ -282,7 +296,7 @@ struct Lineage // = Ancestor + current node
     explicit Lineage( SelectionVariant const& sel ) : selection{ sel } {}
 
     auto operator()() const {}
-    auto operator()( SelectionVariant const& sel ) const { return Ancestor{ sel }; }
+    auto operator()( SelectionVariant const& sel ) const { return Lineage{ sel }; }
     auto operator()( Kmap const& kmap
                    , Uuid const& node ) const
         -> UuidSet;
@@ -468,6 +482,7 @@ struct ToSingle
 {
 };
 
+extern Intermediary const abs_root;
 auto const alias = Alias{};
 auto const ancestor = Ancestor{};
 auto const attr = Attr{};
@@ -481,7 +496,7 @@ auto const parent = Parent{};
 auto const resolve = Resolve{};
 auto const sibling = Sibling{};
 auto const sibling_incl = SiblingIncl{};
-// TODO: auto const sibling_inclusive = view::parent | view::child; 
+// TODO: auto const sibling_incl = view::parent | view::child; // TODO: How to make sibling_incl capable of consuming predicates and dispatching them to RHS e.g., sibling_incl( "victor" )?
 auto const single = Single{};
 auto const tag = Tag{};
 

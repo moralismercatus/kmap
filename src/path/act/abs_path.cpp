@@ -50,9 +50,16 @@ auto operator|( Intermediary const& i, AbsPath const& op )
     -> Result< UuidVec >
 {
     auto rv = KMAP_MAKE_RESULT( UuidVec );
+    // TODO: Something isn't quite right here relating to view::abs_root
     auto const nw = KTRY( op.km.fetch_component< com::Network >() );
     auto const lhs = KTRY( [ & ] -> Result< Uuid >
     {
+        // Ugh... what do I do here... conundrum. 
+        // lhs just takes root,
+        // whilst rhs resolves the chain. It makes perfect sense, until I threw a wrench in by making root possibly invalid, and the first chain representing the root. Bleh...
+        // One solution to the problem is to only allow chain items. That means, even Root becomes a chain item.
+        // Effectively, Intermediary::root always has a placeholder for the first item in the chain.
+        // Means altering the actions, but there aren't that many.
         if( i.root.size() == 1 )
         {
             return { *i.root.begin() };
@@ -76,11 +83,11 @@ auto operator|( Intermediary const& i, AbsPath const& op )
     }() );
     auto const [ root, desc ] = KTRY( [ & ] -> Result< std::pair< Uuid, Uuid > >
     {
-        if( is_ancestor( op.km, lhs, rhs ) )
+        if( is_ancestor( *nw, lhs, rhs ) )
         {
             return { lhs, rhs };
         }
-        else if( is_ancestor( op.km, rhs, lhs ) )
+        else if( is_ancestor( *nw, rhs, lhs ) )
         {
             return { rhs, lhs };
         }
@@ -113,7 +120,7 @@ auto operator|( Intermediary const& i, AbsPath const& op )
 
 SCENARIO( "act::abs_path", "[node_view][abs_path]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& km = Singleton::instance();
     auto const rn = REQUIRE_TRY( km.fetch_component< com::RootNode >() );
@@ -214,6 +221,17 @@ auto operator|( Intermediary const& i, AbsPathFlat const& op )
     -> Result< std::string >
 {
     auto rv = KMAP_MAKE_RESULT( std::string );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( is_valid_heading_path( rv.value() ) );
+            }
+        })
+    ;
+
     auto const rn = KTRY( op.km.fetch_component< com::RootNode >() );
     auto const nw = KTRY( op.km.fetch_component< com::Network >() );
     auto const root = rn->root_node();
@@ -231,7 +249,7 @@ auto operator|( Intermediary const& i, AbsPathFlat const& op )
 
 SCENARIO( "act::abs_path_flat", "[node_view][abs_path]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& km = Singleton::instance();
     auto const rn = REQUIRE_TRY( km.fetch_component< com::RootNode >() );

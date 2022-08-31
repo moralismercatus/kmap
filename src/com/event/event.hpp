@@ -85,6 +85,8 @@ public:
         -> Result< Uuid >;
     auto install_subject( Heading const& heading )
         -> Result< Uuid >;
+    auto install_component( Heading const& heading )
+        -> Result< Uuid >;
     // auto install_outlet( std::string const& prefix_path
     //                    , Transition const& transition ) 
     //     -> Result< Uuid >;
@@ -110,6 +112,8 @@ public:
     auto uninstall_object( std::string const& heading )
         -> Result< void >;
     auto uninstall_object( Uuid const& node )
+        -> Result< void >;
+    auto uninstall_component( Uuid const& node )
         -> Result< void >;
     auto uninstall_outlet( std::string const& heading )
         -> Result< void >;

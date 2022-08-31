@@ -32,7 +32,7 @@ auto ordered_children( Kmap const& km
 
 SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& kmap = Singleton::instance();
     auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
@@ -97,7 +97,7 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
         WHEN( "child 1 aliases child 2" )
         {
             REQUIRE( !nw->alias_store().is_alias( c2v, c1v ) );
-            REQUIRE( succ( nw->alias_store().create_alias( c2v, c1v ) ) );
+            REQUIRE( succ( nw->create_alias( c2v, c1v ) ) );
 
             THEN( "alias is a child of 1" )
             {
@@ -107,7 +107,7 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
 
                 REQUIRE( nw->alias_store().is_alias( ac ) );
                 REQUIRE( nw->alias_store().is_alias( c2v, c1v ) );
-                REQUIRE( nw->alias_store().is_top_alias( ac ) );
+                REQUIRE( nw->is_top_alias( ac ) );
                 REQUIRE( nw->erase_node( ac ) );
             }
         }
@@ -124,7 +124,7 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
         auto const root = kmap.root_node_id();
         auto const c1 = nw->create_child( root, "h1" ).value();
         auto const c2 = nw->create_child( root, "h2" ).value();
-        auto const ac = nw->alias_store().create_alias( c2, c1 ).value();
+        auto const ac = nw->create_alias( c2, c1 ).value();
 
         WHEN( "alias deleted" )
         {
@@ -143,7 +143,7 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
 
 SCENARIO( "resolve alias", "[kmap_iface]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& kmap = Singleton::instance();
     auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
@@ -153,7 +153,7 @@ SCENARIO( "resolve alias", "[kmap_iface]" )
     {
         auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
         auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
-        auto const a21 = REQUIRE_TRY( nw->alias_store().create_alias( c1, c2 ) );
+        auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
 
         REQUIRE( !nw->alias_store().is_alias( c1 ) );
         REQUIRE( !nw->alias_store().is_alias( c2 ) );
@@ -161,7 +161,7 @@ SCENARIO( "resolve alias", "[kmap_iface]" )
 
         THEN( "resolves to source" )
         {
-            REQUIRE( nw->alias_store().resolve( a21 ) == c1 );
+            REQUIRE( nw->resolve( a21 ) == c1 );
         }
     }
     GIVEN( "nested alias" )
@@ -170,7 +170,7 @@ SCENARIO( "resolve alias", "[kmap_iface]" )
         auto const c11 = REQUIRE_TRY( nw->create_child( c1, "1" ) );
         auto const c111 = REQUIRE_TRY( nw->create_child( c11, "1" ) );
         auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
-        auto const a21 = REQUIRE_TRY( nw->alias_store().create_alias( c1, c2 ) );
+        auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
         auto const a211 = REQUIRE_TRY( nw->fetch_child( a21, "1" ) );
         auto const a2111 = REQUIRE_TRY( nw->fetch_child( a211, "1" ) );
 
@@ -184,16 +184,16 @@ SCENARIO( "resolve alias", "[kmap_iface]" )
 
         THEN( "resolves to source" )
         {
-            REQUIRE( nw->alias_store().resolve( a21 ) == c1 );
-            REQUIRE( nw->alias_store().resolve( a211 ) == c11 );
-            REQUIRE( nw->alias_store().resolve( a2111 ) == c111 );
+            REQUIRE( nw->resolve( a21 ) == c1 );
+            REQUIRE( nw->resolve( a211 ) == c11 );
+            REQUIRE( nw->resolve( a2111 ) == c111 );
         }
     }
 }
 
 SCENARIO( "child ordering", "[kmap_iface]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& kmap = Singleton::instance();
     auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
@@ -269,7 +269,7 @@ SCENARIO( "child ordering", "[kmap_iface]" )
 
 SCENARIO( "alias creates attr::order", "[kmap_iface]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& kmap = Singleton::instance();
     auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
@@ -282,15 +282,15 @@ SCENARIO( "alias creates attr::order", "[kmap_iface]" )
 
         WHEN( "create one alias" )
         {
-            auto const a1 = REQUIRE_TRY( nw->alias_store().create_alias( c2, c1 ) );
+            auto const a1 = REQUIRE_TRY( nw->create_alias( c2, c1 ) );
 
             THEN( "resolved alias is in order of parent" )
             {
-                REQUIRE( attr::is_in_order( kmap, c1, nw->alias_store().resolve( a1 ) ) );
+                REQUIRE( attr::is_in_order( kmap, c1, nw->resolve( a1 ) ) );
             }
 
             REQUIRE( succ( nw->erase_node( a1 ) ) );
-            REQUIRE( !attr::is_in_order( kmap, c1, nw->alias_store().resolve( a1 ) ) );
+            REQUIRE( !attr::is_in_order( kmap, c1, nw->resolve( a1 ) ) );
         }
 
         REQUIRE( succ( nw->erase_node( c2 ) ) );
@@ -304,19 +304,19 @@ SCENARIO( "alias creates attr::order", "[kmap_iface]" )
 
         WHEN( "create two aliases" )
         {
-            auto const a1 = REQUIRE_TRY( nw->alias_store().create_alias( c2, c1 ) );
-            auto const a2 = REQUIRE_TRY( nw->alias_store().create_alias( c3, c1 ) );
+            auto const a1 = REQUIRE_TRY( nw->create_alias( c2, c1 ) );
+            auto const a2 = REQUIRE_TRY( nw->create_alias( c3, c1 ) );
 
             THEN( "resolved alias is in order of parent" )
             {
-                REQUIRE( attr::is_in_order( kmap, c1, nw->alias_store().resolve( a1 ) ) );
-                REQUIRE( attr::is_in_order( kmap, c1, nw->alias_store().resolve( a2 ) ) );
+                REQUIRE( attr::is_in_order( kmap, c1, nw->resolve( a1 ) ) );
+                REQUIRE( attr::is_in_order( kmap, c1, nw->resolve( a2 ) ) );
             }
 
             REQUIRE( succ( nw->erase_node( a1 ) ) );
-            REQUIRE( !attr::is_in_order( kmap, c1, nw->alias_store().resolve( a1 ) ) );
+            REQUIRE( !attr::is_in_order( kmap, c1, nw->resolve( a1 ) ) );
             REQUIRE( succ( nw->erase_node( a2 ) ) );
-            REQUIRE( !attr::is_in_order( kmap, c1, nw->alias_store().resolve( a2 ) ) );
+            REQUIRE( !attr::is_in_order( kmap, c1, nw->resolve( a2 ) ) );
         }
 
         REQUIRE( succ( nw->erase_node( c3 ) ) );
@@ -327,7 +327,7 @@ SCENARIO( "alias creates attr::order", "[kmap_iface]" )
 
 SCENARIO( "fetch ordered children of alias", "[kmap_iface]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& kmap = Singleton::instance();
     auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
@@ -337,7 +337,7 @@ SCENARIO( "fetch ordered children of alias", "[kmap_iface]" )
     {
         auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
         auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
-        auto const a1 = REQUIRE_TRY( nw->alias_store().create_alias( c2, c1 ) );
+        auto const a1 = REQUIRE_TRY( nw->create_alias( c2, c1 ) );
 
         WHEN( "ordered children fetched" )
         {
@@ -358,7 +358,7 @@ SCENARIO( "fetch ordered children of alias", "[kmap_iface]" )
         auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
         auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
         auto const c21 = REQUIRE_TRY( nw->create_child( c2, "1" ) );
-        auto const a1 = REQUIRE_TRY( nw->alias_store().create_alias( c2, c1 ) );
+        auto const a1 = REQUIRE_TRY( nw->create_alias( c2, c1 ) );
 
         WHEN( "ordered children fetched" )
         {
@@ -367,7 +367,7 @@ SCENARIO( "fetch ordered children of alias", "[kmap_iface]" )
             THEN( "alias has no children" )
             {
                 REQUIRE( !ordered_children( kmap, a1 ).empty() );
-                REQUIRE( nw->alias_store().resolve( ordered_children( kmap, a1 ).at( 0 ) ) == c21 );
+                REQUIRE( nw->resolve( ordered_children( kmap, a1 ).at( 0 ) ) == c21 );
             }
         }
 
@@ -379,7 +379,7 @@ SCENARIO( "fetch ordered children of alias", "[kmap_iface]" )
 
 SCENARIO( "erase nested alias source", "[kmap_iface]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
     auto& kmap = Singleton::instance();
     auto const root = kmap.root_node_id();

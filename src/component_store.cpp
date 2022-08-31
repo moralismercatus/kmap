@@ -131,6 +131,12 @@ auto ComponentStore::install_standard_events()
     return rv;
 }
 
+auto ComponentStore::is_initialized( std::string const& id ) const
+    -> bool
+{
+    return initialized_components_.contains( id );
+}
+
 // TODO: This needs to ensure that a component does not have a circular requisite set, either itself as a requisite, or that scenario transitively.
 auto ComponentStore::register_component( ComponentCtorPtr const& cctor )
     -> Result< void >

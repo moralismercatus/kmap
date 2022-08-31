@@ -56,6 +56,9 @@ public:
         -> AliasStore&;
     auto alias_store() const
         -> AliasStore const&;
+    auto create_alias( Uuid const& src
+                     , Uuid const& dst )
+        -> Result< Uuid >;
     auto create_child( Uuid const& parent
                      , Uuid const& child
                      , Heading const& heading
@@ -79,6 +82,8 @@ public:
     [[ nodiscard ]]
     auto exists( Uuid const& node ) const
         -> bool;
+    auto fetch_aliased_ancestry( Uuid const& id ) const // TODO: Replace with `view::make( id ) | view::ancestor( view::alias ) | view::to_node_set()`, or equivalent.
+        -> std::vector< Uuid >;
     auto fetch_attr_node( Uuid const& id ) const
         -> Result< Uuid >;
     auto fetch_body( Uuid const& id ) const
@@ -98,6 +103,8 @@ public:
         -> Result< uint32_t >;
     auto fetch_parent( Uuid const& child ) const
         -> Result< Uuid >;
+    auto resolve( Uuid const& node ) const
+        -> Uuid;
     auto select_node( Uuid const& id )
         -> Result< Uuid >;
     auto select_node_initial( Uuid const& node )
@@ -107,6 +114,11 @@ public:
         -> Uuid;
     auto set_ordering_position( Uuid const& id
                               , uint32_t pos )
+        -> Result< void >;
+    auto update_alias( Uuid const& from
+                     , Uuid const& to )
+        -> Result< Uuid >;
+    auto update_aliases( Uuid const& node )
         -> Result< void >;
     auto update_body( Uuid const& id
                     , std::string const& contents )
@@ -181,6 +193,11 @@ public:
     [[ nodiscard ]]
     auto is_root( Uuid const& node ) const
         -> bool;
+    [[ nodiscard ]]
+    auto is_top_alias( Uuid const& id ) const
+        -> bool;
+    auto load_aliases()
+        -> Result< void >;
     auto move_body( Uuid const& src
                   , Uuid const& dst )
         -> Result< void >;
@@ -190,6 +207,9 @@ public:
     auto reorder_children( Uuid const& parent
                          , std::vector< Uuid > const& children )
         -> Result< void >;
+    [[ nodiscard ]]
+    auto root_node()
+        -> Uuid;
     [[ maybe_unused ]]
     auto swap_nodes( Uuid const& t1
                     , Uuid const& t2 )
@@ -211,6 +231,9 @@ public:
         -> Result< Uuid >;
 
 protected:
+    auto create_internal_alias( Uuid const& src
+                              , Uuid const& dst )
+        -> Result< Uuid >;
     auto create_child_internal( Uuid const& parent
                               , Uuid const& child
                               , Heading const& heading

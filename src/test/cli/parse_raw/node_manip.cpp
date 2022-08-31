@@ -35,9 +35,9 @@ BOOST_AUTO_TEST_CASE( move_vertical
                    , "2"
                    , "3.4" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/1" ]
+    BOOST_TEST( nw->create_alias( nodes[ "/1" ]
                                     , nodes[ "/3" ] ) );
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/2" ]
+    BOOST_TEST( nw->create_alias( nodes[ "/2" ]
                                     , nodes[ "/3" ] ) );
     BOOST_TEST( kmap.select_node( nodes[ "/3.2" ] ) );
     // 3.[4,1,2]
@@ -67,7 +67,7 @@ BOOST_AUTO_TEST_CASE( sort_children_with_alias
                    , "1.2"
                    , "4" );
 
-    BOOST_TEST( nw->alias_store().create_alias( nodes[ "/4" ], nodes[ "/1" ] ) );
+    BOOST_TEST( nw->create_alias( nodes[ "/4" ], nodes[ "/1" ] ) );
     BOOST_TEST( kmap.select_node( nodes[ "/1" ] ) );
     BOOST_TEST( cli->parse_raw( ":sort.children" )  );
     BOOST_TEST( ( ( view::make( nodes[ "/1" ] ) | view::child | view::to_node_set( kmap ) | act::order( kmap ) ) ) == std::vector< Uuid >{ nodes[ "/1.2" ]

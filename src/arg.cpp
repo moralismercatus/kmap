@@ -256,7 +256,7 @@ auto HeadingPathArg::complete( std::string const& raw ) const
     auto rv = StringVec{};
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-    if( auto const root = view::make( kmap_.root_node_id() )
+    if( auto const root = view::abs_root
                         | view::desc( root_ )
                         | view::fetch_node( kmap_ )
       ; root )
@@ -429,7 +429,7 @@ auto DailyLogArg::is_fmt_malformed( std::string const& raw ) const
 auto DailyLogArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const log_root = view::make( kmap_.root_node_id() )
+    auto const log_root = view::abs_root
                         | view::direct_desc( "log.daily" )
                         | view::fetch_node( kmap_ );
 
@@ -444,7 +444,7 @@ auto DailyLogArg::complete( std::string const& raw ) const
     auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
     auto to_headings = views::transform( [ & ]( auto const& e )
     {
-        return db->fetch_heading( nw->alias_store().resolve( e ) ).value();
+        return KTRYE( db->fetch_heading( nw->resolve( e ) ) );
     } );
     auto rm_disparate = views::remove_if( [ & ]( auto const& e )
     {
@@ -562,7 +562,7 @@ auto DefinitionPathArg::complete( std::string const& raw ) const
     -> StringVec 
 {
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-    auto const defs_root = view::make( kmap_.root_node_id() )
+    auto const defs_root = view::abs_root
                          | view::direct_desc( "definitions" )
                          | view::fetch_node( kmap_ );
 
@@ -608,7 +608,7 @@ auto ResourcePathArg::complete( std::string const& raw ) const
     -> StringVec 
 {
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-    auto const resources_root = view::make( kmap_.root_node_id() )
+    auto const resources_root = view::abs_root
                               | view::direct_desc( "resources" )
                               | view::fetch_node( kmap_ );
 
@@ -685,7 +685,7 @@ auto ProjectArg::complete( std::string const& raw ) const
                     , auto const& raw ) -> StringVec
     {
         auto const nw = KTRYE( kmap.template fetch_component< com::Network >() );
-        auto const root = view::make( kmap.root_node_id() )
+        auto const root = view::abs_root
                         | view::direct_desc( rel_root )
                         | view::fetch_node( kmap );
 
@@ -860,7 +860,7 @@ auto CommandPathArg::complete( std::string const& raw ) const
     auto const cmd_abs_path = "/setting.command";
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = view::make( kmap_.root_node_id() )
+    if( auto const cmd_root = view::abs_root
                             | view::desc( cmd_abs_path )
                             | view::fetch_node( kmap_ )
       ; cmd_root )

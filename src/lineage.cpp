@@ -179,8 +179,9 @@ auto Descendant::make( Kmap const& kmap
     -> Result< Descendant >
 {
     auto rv = KMAP_MAKE_RESULT( Descendant );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
-    if( is_ancestor( kmap, ancestor, descendant ) )
+    if( is_ancestor( *nw, ancestor, descendant ) )
     {
         rv = Descendant{ kmap, ancestor, descendant };
     }

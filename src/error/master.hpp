@@ -55,7 +55,7 @@
         if( !( res ) ) \
         { \
             { \
-                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( msg ) ) ); \
+                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( fmt::format( "predicate: {}\n\tmessage: {}", #pred, msg ) ) ) ); \
             } \
         } \
     }

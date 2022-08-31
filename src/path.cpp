@@ -15,6 +15,7 @@
 #include "kmap.hpp"
 #include "kmap.hpp"
 #include "lineage.hpp"
+#include "path/node_view2.hpp"
 #include "path/act/abs_path.hpp"
 #include "path/sm.hpp"
 #include "utility.hpp"
@@ -476,7 +477,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
                     for( auto const cid : cids )
                     {
-                        if( ev.size() == match_length( ev, KTRYE( nw->fetch_heading( nw->alias_store().resolve( cid ) ) ) ) )
+                        if( ev.size() == match_length( ev, KTRYE( nw->fetch_heading( nw->resolve( cid ) ) ) ) )
                         {
                             rv.emplace_back( path )
                               .emplace_back( cid );
@@ -713,17 +714,21 @@ auto absolute_path_flat( Kmap const& km
                        , Uuid const& node )
     -> Result< std::string >
 {
+    auto rv = KMAP_MAKE_RESULT( std::string );
+
     if( km.root_node_id() == node )
     {
-        return view::make( km.root_node_id() )
-             | act::abs_path_flat( km );
+        rv = KTRY( view2::abs_root
+                 | view2::abs_path_flat( km ) );
     }
     else
     {
-        return view::make( km.root_node_id() )
-            | view::desc( node )
-            | act::abs_path_flat( km );
+        rv = KTRY( view2::abs_root
+                 | view2::desc( node )
+                 | view2::abs_path_flat( km ) );
     }
+
+    return rv;
 }
 
 auto complete_any( Kmap const& kmap
@@ -1276,13 +1281,13 @@ auto complete_selection( Kmap const& kmap
     return rv;
 }
 
-auto is_ancestor( Kmap const& kmap
+auto is_ancestor( com::Network const& nw
                 , Uuid const& ancestor
                 , Uuid const& descendant )
     -> bool
 {
     return ancestor != descendant
-        && is_lineal( kmap, ancestor, descendant );
+        && is_lineal( nw, ancestor, descendant );
 }
 
 auto is_leaf( Kmap const& km
@@ -1294,14 +1299,13 @@ auto is_leaf( Kmap const& km
     return nw->fetch_children( node ).empty();
 }
 
-auto is_lineal( Kmap const& kmap
+auto is_lineal( com::Network const& nw
               , Uuid const& ancestor
               , Uuid const& descendant )
     -> bool
 {
-    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto child = descendant;
-    auto parent = nw->fetch_parent( child );
+    auto parent = nw.fetch_parent( child );
 
     while( parent )
     {
@@ -1312,7 +1316,7 @@ auto is_lineal( Kmap const& kmap
         else
         {
             child = parent.value();
-            parent = nw->fetch_parent( child );
+            parent = nw.fetch_parent( child );
         }
     }
 
@@ -1326,20 +1330,18 @@ auto is_lineal( Kmap const& kmap
     }
 }
 
-auto is_lineal( Kmap const& kmap
+auto is_lineal( com::Network const& nw
               , Uuid const& ancestor
               , Heading const& descendant )
     -> bool
 {
-    auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
-
-    for( auto const& c : nw->fetch_children( ancestor ) )
+    for( auto const& c : nw.fetch_children( ancestor ) )
     {
-        if( KTRYE( nw->fetch_heading( c ) ) == descendant )
+        if( KTRYE( nw.fetch_heading( c ) ) == descendant )
         {
             return true;
         }
-        else if( is_lineal( kmap
+        else if( is_lineal( nw
                           , c 
                           , descendant ) )
         {

@@ -88,7 +88,7 @@ auto add_resource( Kmap& kmap )
                 }
             }();
 
-            if( auto const alias = nw->alias_store().create_alias( *source, ref_parent )
+            if( auto const alias = nw->create_alias( *source, ref_parent )
               ; alias )
             {
                 KTRY( kmap.select_node( *target ) ); // We don't want to move to the newly added alias.

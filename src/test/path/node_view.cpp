@@ -117,7 +117,7 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
         {
             auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
             auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
-            auto const a1 = nw->alias_store().create_alias( c2, c1 ); REQUIRE( succ( a1 ) ); // a1 => /1.2
+            auto const a1 = nw->create_alias( c2, c1 ); REQUIRE( succ( a1 ) ); // a1 => /1.2
 
             THEN( "unspecified view::alias finds" )
             {

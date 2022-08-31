@@ -56,7 +56,7 @@ auto OptionStore::option_root()
 {
     auto& km = kmap_inst();
 
-    return KTRYE( view::make( km.root_node_id() )
+    return KTRYE( view::abs_root
                 | view::direct_desc( "meta.setting.option" )
                 | view::fetch_or_create_node( km ) );
 }
@@ -164,7 +164,6 @@ auto OptionStore::apply( Uuid const& option )
     KMAP_ENSURE( is_option( option ), error_code::network::invalid_node );
 
     // auto const action = KTRY( view::make_view( kmap_, option ) | view::child( "action" ) | view::try_to_single );
-    auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const action = KTRY( nw->fetch_child( option, "action" ) );
     // auto const action_body = KTRY( action.fetch_body() );

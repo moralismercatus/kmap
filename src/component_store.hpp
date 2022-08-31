@@ -55,6 +55,9 @@ public:
     // If so, we call initialize on the component, and move it to the initialized_components set.
     auto install_standard_events()
         -> Result< void >;
+    [[ nodiscard ]]
+    auto is_initialized( std::string const& id ) const
+        -> bool;
     auto register_component( ComponentCtorPtr const& comp )
         -> Result< void >;
 

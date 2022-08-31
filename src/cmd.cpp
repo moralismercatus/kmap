@@ -66,7 +66,7 @@ auto fetch_leaf( com::CliCommand::Args const& args
 
     if( args.size() >= Index + 1 )
     {
-        auto const p = view::make( kmap.root_node_id() )
+        auto const p = view::abs_root
                      | view::desc( args[ Index ]  )
                      | view::to_node_set();
         

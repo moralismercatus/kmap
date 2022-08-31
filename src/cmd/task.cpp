@@ -175,10 +175,10 @@ SCENARIO( "cmd::cascade_tags" , "[cmd][task]" )
             {
                 REQUIRE_RES( cli->parse_raw( ":cascade.tags" ) );
 
-                auto const tagn = REQUIRE_TRY( view::make( kmap.root_node_id() )
-                                                | view::direct_desc( "meta.tag.cat" )
-                                                | view::fetch_node( kmap ) );
-                REQUIRE(( view::make( kmap.root_node_id() )
+                auto const tagn = REQUIRE_TRY( view::abs_root
+                                             | view::direct_desc( "meta.tag.cat" )
+                                             | view::fetch_node( kmap ) );
+                REQUIRE(( view::abs_root
                         | view::direct_desc( "task.super.subtask.sub" )
                         | view::tag( tagn )
                         | view::exists( kmap ) ));

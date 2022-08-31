@@ -24,7 +24,7 @@ TextArea::TextArea( Kmap& kmap
                   , std::set< std::string > const& requisites
                   , std::string const& description )
     : Component( kmap, requisites, description )
-    , eclerk_{ kmap }
+    , eclerk_{ kmap, { TextArea::id } }
 {
 }
 
@@ -114,13 +114,12 @@ auto TextArea::load_preview( Uuid const& id )
         })
     ;
 
-    auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network > () );
     auto const db = KTRY( fetch_component< com::Database >() );
 
     KMAP_ENSURE( nw->exists( id ), error_code::network::invalid_node );
 
-    auto const body = db->fetch_body( nw->alias_store().resolve( id ) ) | act::value_or( std::string{} ); // TODO: Why not use Kmap::fetch_body? Advantage?
+    auto const body = db->fetch_body( nw->resolve( id ) ) | act::value_or( std::string{} ); // TODO: Why not use Kmap::fetch_body? Advantage?
 
     KTRY( show_preview( markdown_to_html( body ) ) );
 
@@ -395,6 +394,6 @@ REGISTER_COMPONENT
 );
 
 } // namespace text_area_def 
-}
+} // namespace anon
 
 } // namespace kmap::com

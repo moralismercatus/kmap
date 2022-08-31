@@ -316,7 +316,7 @@ SCENARIO( "create.alias", "[cmd][create.alias]" )
                         auto const dst = REQUIRE_TRY( kmap.fetch_descendant( "/1.2.2" ) );
                         auto const src = REQUIRE_TRY( kmap.fetch_descendant( "/2.1.2" ) );
 
-                        REQUIRE( nw->alias_store().resolve( dst ) == src );
+                        REQUIRE( nw->resolve( dst ) == src );
                     }
                 }
                 WHEN( "create.alias 2'1'2" )
@@ -1244,7 +1244,7 @@ auto create_reference( Uuid const& src
                          | view::child( "references" )
                          | view::fetch_or_create_node( km ) );
 
-    return nw->alias_store().create_alias( src, ref );
+    return nw->create_alias( src, ref );
 }
 
 EMSCRIPTEN_BINDINGS( kmap_node_manip )

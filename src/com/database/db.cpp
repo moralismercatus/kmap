@@ -140,6 +140,7 @@ auto Database::initialize()
     return rv;
 }
 
+// TODO: Shouldn't the load-from-db-file functionality actually be in DatabaseFilesystem?
 auto Database::load()
     -> Result< void >
 {
@@ -273,8 +274,15 @@ auto Database::load()
                 static_assert( always_false< Table >::value, "non-exhaustive visitor!" );
             }
         };
+        auto apply_delta = [ & ]( auto&& table ) mutable
+        {
+            using Table = std::decay_t< decltype( table ) >;
+
+            cache_.apply_delta_to_cache< Table >();
+        };
 
         boost::hana::for_each( boost::hana::reverse( cache_.tables() ), proc_table );
+        boost::hana::for_each( boost::hana::reverse( cache_.tables() ), apply_delta );
     }
     KMAP_LOG_LINE();
 
@@ -1369,9 +1377,20 @@ auto Database::erase_alias( Uuid const& src
 auto Database::flush_delta_to_disk()
     -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( !has_delta() );
+            }
+        })
+    ;
+
     KMAP_ENSURE( has_file_on_disk(), error_code::common::uncategorized );
 
-    auto rv = KMAP_MAKE_RESULT( void );
     auto proc_table = [ & ]( auto&& table ) mutable
     {
         using namespace db;
@@ -1557,98 +1576,7 @@ auto Database::flush_delta_to_disk()
     };
 
     boost::hana::for_each( cache_.tables(), proc_table );
-#if 0
-    for( auto const& [ tbl, delta_map ] : cache_.delta() )
-    {
-        for( auto const& [ key, delta_seq ] : delta_map )
-        {
-            using namespace db;
 
-            auto const& id = key;
-
-            for( auto const& delta_item : delta_seq )
-            {
-                BC_ASSERT( id == delta_item.key );
-
-                auto const& value = delta_item.value;
-
-                //auto const value = KMAP_TRYE( cache_.fetch( tbl, id ) );
-                // TODO: Clean up. Rather clunky way to add each row type, but allows for multi-row insert which is better for performance. Must be a cleaner way.
-                auto nt = nodes::nodes{};
-                auto nt_ins = insert_into( nt ).columns( nt.uuid );
-                auto ht = headings::headings{};
-                auto ht_ins = insert_into( ht ).columns( ht.uuid, ht.heading );
-                auto tt = titles::titles{};
-                auto tt_ins = insert_into( tt ).columns( tt.uuid, tt.title );
-                auto bt = bodies::bodies{};
-                auto bt_ins = insert_into( bt ).columns( bt.uuid, bt.body );
-                auto ct = children::children{};
-                auto ct_ins = insert_into( ct ).columns( ct.parent_uuid, ct.child_uuid );
-                auto at = aliases::aliases{};
-                auto at_ins = insert_into( at ).columns( at.src_uuid, at.dst_uuid );
-                auto att = attributes::attributes{};
-                auto att_ins = insert_into( att ).columns( att.uuid, att.attribute_list );
-
-                std::visit( [ & ]( auto const& arg )
-                            {
-                                using T = std::decay_t< decltype( arg ) >;
-
-                                if constexpr( std::is_same_v< T, NodeValue > )
-                                {
-                                    nt_ins.values.add( nt.uuid = to_string( std::get< Uuid >( id ) ) );
-                                }
-                                else if constexpr( std::is_same_v< T, HeadingValue > )
-                                {
-                                    ht_ins.values.add( ht.uuid = to_string( std::get< Uuid >( id ) ), ht.heading = arg.val );
-                                }
-                                else if constexpr( std::is_same_v< T, TitleValue > )
-                                {
-                                    tt_ins.values.add( tt.uuid = to_string( std::get< Uuid >( id ) ), tt.title = arg.val );
-                                }
-                                else if constexpr( std::is_same_v< T, BodyValue > )
-                                {
-                                    bt_ins.values.add( bt.uuid = to_string( std::get< Uuid >( id ) ), bt.body = arg.val );
-                                }
-                                else if constexpr( std::is_same_v< T, ChildValue > )
-                                {
-                                    auto const [ pid, cid ] = std::get< std::pair< Uuid, Uuid > >( id );
-
-                                    ct_ins.values.add( ct.parent_uuid = to_string( pid ), ct.child_uuid = to_string( cid ) );
-                                }
-                                else if constexpr( std::is_same_v< T, AliasValue > )
-                                {
-                                    at_ins.values.add( at.src_uuid = to_string( std::get< Uuid >( id ) ), at.dst_uuid = to_string( arg.val ) );
-                                }
-                                else if constexpr( std::is_same_v< T, AttributeValue > )
-                                {
-                                    att_ins.values.add( att.uuid = to_string( std::get< Uuid >( id ) ), att.attribute_list = arg.val );
-                                }
-                                else if constexpr( std::is_same_v< T, ResourceValue > )
-                                {
-                                    // Frankly... this one is a bit of a toughy because the size of the resource may be very large.
-                                    // It may make more general sense to pass around a file string, res heading, or some such that, at this point,
-                                    // the file may be stored into the db, so we don't have huge binaries sitting around in the cache. It'll take some thought.
-                                    assert( false && "TODO" );
-                                }
-                                else
-                                {
-                                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                                }
-                            }
-                        , value );
-                
-                execute( nt_ins );
-                execute( ht_ins );
-                execute( tt_ins );
-                execute( bt_ins );
-                execute( ct_ins );
-                execute( at_ins );
-                execute( att_ins );
-            }
-        }
-    }
-#endif
-    // cache_.flush();
     rv = outcome::success();
 
     return rv;
@@ -1661,10 +1589,15 @@ auto Database::has_delta() const
 
     auto const fn = [ & ]( auto const& table )
     {
-        if( std::distance( table.begin(), table.end() ) > 0 )
+        // TODO: Very inefficient, iterating through _all_ items in _all_ tables, looking for a delta.
+        //       Makes more sense to keep a delta flag in each table to consult.
+        for( auto const& item : table )
         {
-            rv = true;
-            // TODO: break? Is there a way with Boost.Hana?
+            if( !item.delta_items.empty() )
+            {
+                rv = true;
+                // TODO: break? Is there a way with Boost.Hana?
+            }
         }
     };
 
@@ -1789,9 +1722,16 @@ struct Database
     auto flush_delta_to_disk()
         -> kmap::binding::Result< void >
     {
-        auto const db = KTRY( kmap_.fetch_component< com::Database >() );
+        try
+        {
+            auto const db = KTRY( kmap_.fetch_component< com::Database >() );
 
-        return db->flush_delta_to_disk();
+            return db->flush_delta_to_disk();
+        }
+        catch( std::exception const& e )
+        {
+            return kmap::Result< void >{ KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, e.what() ) };
+        }
     }
 
     auto has_file_on_disk()

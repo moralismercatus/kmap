@@ -64,12 +64,12 @@ BOOST_AUTO_TEST_CASE( move_node_alias
 
     auto const c1 = kmap.create_child( kmap.root_node_id(), "1" );
     auto const c2 = kmap.create_child( kmap.root_node_id(), "2" );
-    auto c2_c1 = nw->alias_store().create_alias( c1.value(), c2.value() );
+    auto c2_c1 = nw->create_alias( c1.value(), c2.value() );
     BOOST_REQUIRE( c2_c1 );
     BOOST_TEST( nw->exists( "/1" ) );
     BOOST_TEST( nw->exists( "/2" ) );
     BOOST_TEST( nw->exists( "/2.1" ) );
-    BOOST_TEST( c1.value() == nw->alias_store().resolve( *kmap.fetch_leaf( "/2.1" ) ) );
+    BOOST_TEST( c1.value() == nw->resolve( *kmap.fetch_leaf( "/2.1" ) ) );
 
     auto const c3 = kmap.create_child( kmap.root_node_id()
                                      , "3" );
@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE( move_node_alias
     BOOST_TEST( kmap.select_node( *kmap.fetch_leaf( "/2" ) ) );
     BOOST_TEST( c2.value() == nw->selected_node() );
     BOOST_TEST( kmap.select_node( *kmap.fetch_leaf( "/3.1" ) ) );
-    BOOST_TEST( c1.value() == nw->alias_store().resolve( nw->selected_node() ) );
+    BOOST_TEST( c1.value() == nw->resolve( nw->selected_node() ) );
 }
 
 BOOST_AUTO_TEST_CASE( move_node_duplicate_heading

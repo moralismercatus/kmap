@@ -686,7 +686,7 @@ auto VisualNetwork::get_appropriate_node_font_face( Uuid const& id ) const
 
     auto const nw = KTRYE( fetch_component< com::Network >() );
 
-    if( nw->alias_store().is_top_alias( id ) )
+    if( nw->is_top_alias( id ) )
     {
         rv = "ariel";
     }

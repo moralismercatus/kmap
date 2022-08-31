@@ -123,7 +123,7 @@ auto process_search_results( Kmap& kmap
                                         , view::make( id ) | view::ancestor | view::count( kmap ) );
 
         KTRY( nw->update_body( iid.value(), details ) );
-        KTRY( nw->alias_store().create_alias( id, iid.value() ) );
+        KTRY( nw->create_alias( id, iid.value() ) );
     }
 
     KTRY( kmap.select_node( *search_root ) );

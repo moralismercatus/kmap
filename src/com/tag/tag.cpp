@@ -157,7 +157,7 @@ auto TagStore::fetch_tag_root() const
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
-    rv = KTRY( view::make( km.root_node_id() )
+    rv = KTRY( view::abs_root
              | view::direct_desc( "meta.tag" )
              | view::fetch_node( km ) );
 
@@ -170,7 +170,7 @@ auto TagStore::fetch_tag_root()
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
-    rv = KTRY( view::make( km.root_node_id() )
+    rv = KTRY( view::abs_root
              | view::direct_desc( "meta.tag" )
              | view::fetch_or_create_node( km ) );
 
@@ -293,9 +293,9 @@ auto TagStore::tag_node( Uuid const& target
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const troot = KTRY( fetch_tag_root() );
-    auto const rtag = nw->alias_store().resolve( tag ); // TODO: Verify resolve() is the right thing to do. Use case: when tagging nodes based on other tags (which are aliases).;
+    auto const rtag = nw->resolve( tag ); // TODO: Verify resolve() is the right thing to do. Use case: when tagging nodes based on other tags (which are aliases).;
 
-    KMAP_ENSURE( is_ancestor( km, troot, rtag ), error_code::network::invalid_lineage );
+    KMAP_ENSURE( is_ancestor( *nw, troot, rtag ), error_code::network::invalid_lineage );
 
     rv = KTRY( view::make( target )
              | view::attr
@@ -325,7 +325,7 @@ auto TagStore::tag_node( Uuid const& target
 
 SCENARIO( "tag_node", "[tag]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "tag_store", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "tag_store" );
 
     auto& km = Singleton::instance();
     auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
@@ -351,7 +351,7 @@ SCENARIO( "tag_node", "[tag]" )
                                         | view::fetch_node( km ) );
 
                     REQUIRE( attr_tag == dtag );
-                    REQUIRE( nw->alias_store().resolve( attr_tag ) == atag );
+                    REQUIRE( nw->resolve( attr_tag ) == atag );
                 }
             }
         }

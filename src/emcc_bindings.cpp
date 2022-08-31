@@ -221,7 +221,7 @@ auto create_alias( Uuid const& src
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
-    return nw->alias_store().create_alias( src, dst );
+    return nw->create_alias( src, dst );
 }
 
 // TODO: Move to com//network.cpp
@@ -633,7 +633,7 @@ auto resolve_alias( Uuid const& node )
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    return nw->alias_store().resolve( node );
+    return nw->resolve( node );
 }
 
 auto root_node()

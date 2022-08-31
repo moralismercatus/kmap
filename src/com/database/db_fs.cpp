@@ -208,11 +208,40 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
         auto const cache = db->cache();
         auto const disk_path = com::kmap_root_dir / ".db_fs_test.kmap";
 
+        if( exists( disk_path ) )
         {
-            // REQUIRE_RES( db->init_db_on_disk( disk_path ) );
-            // REQUIRE_RES( db->flush_delta_to_disk() );
+            boost::filesystem::remove( disk_path );
         }
-        // db.tables
+
+        GIVEN( "init_db_on_disk" )
+        {
+            REQUIRE_RES( db->init_db_on_disk( disk_path ) );
+            REQUIRE( exists( disk_path ) );
+            REQUIRE( db->has_delta() ); // At least has command_store delta.
+
+            GIVEN( "flush_delta_to_disk" )
+            {
+                REQUIRE_RES( db->flush_delta_to_disk() );
+                
+                THEN( "!has_delta" )
+                {
+                    REQUIRE( !db->has_delta() );
+                }
+
+                GIVEN( "load state from db flushed to disk" )
+                {
+                    // TODO: 
+                    //     kmap.throw_load_signal( path );
+                    //     Well, that's a little challenging, to throw a load signal would cause leaving the test...
+                    //     I think maybe we can manually call db->load with the path... 
+
+                    GIVEN( "save state" )
+                    {
+                        // TODO: once loaded from saved state, save again.
+                    }
+                }
+            }
+        }
 
         if( exists( disk_path ) )
         {

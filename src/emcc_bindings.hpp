@@ -143,6 +143,8 @@ struct Result< void >
     {
         if( has_error() )
         {
+            fmt::print( "[log] kmap::binding::Result::throw_on_error():\n", error_message() );
+
             KMAP_THROW_EXCEPTION_MSG( error_message() );
         }
     }

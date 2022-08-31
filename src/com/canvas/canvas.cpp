@@ -22,7 +22,6 @@
 #include "path/node_view.hpp"
 #include "util/macro.hpp"
 #include "util/window.hpp"
-#include "utility.hpp"
 
 #include <emscripten.h>
 #include <emscripten/val.h>
@@ -127,10 +126,9 @@ Canvas::~Canvas()
         }
 
         auto const& km = kmap_inst();
-        auto const rnc = KTRYE( fetch_component< com::RootNode >() );
         auto const nw = KTRYE( fetch_component< com::Network >() );
 
-        if( auto const croot = view::make( rnc->root_node() ) // Not using fetch_canvas_root(), because don't want to create if not already made.
+        if( auto const croot = view::abs_root // Not using fetch_canvas_root(), because don't want to create if not already made.
                              | view::direct_desc( "meta.setting.window.canvas" )
                              | view::fetch_node( km )
           ; croot )
@@ -173,6 +171,12 @@ auto Canvas::load()
 
     KTRY( install_events() );
 
+    // TODO: Not sure this is the best way to achieve this. Basically, at this point, Network is already loaded, but Canvas still needs to render current selected node.
+    //       Perhaps a Network.canvas component needed?
+    auto const nw = KTRY( fetch_component< com::Network >() );
+
+    KTRY( nw->select_node( nw->root_node() ) );
+
     rv = outcome::success();
 
     return rv;
@@ -183,7 +187,7 @@ auto Canvas::fetch_canvas_root()
 {
     auto& km = kmap_inst();
 
-    return KTRY( view::make( km.root_node_id() )
+    return KTRY( view::abs_root
                | view::direct_desc( "meta.setting.window.canvas" )
                | view::fetch_or_create_node( km ) );
 }
@@ -193,7 +197,7 @@ auto Canvas::fetch_canvas_root() const
 {
     auto const& km = kmap_inst();
 
-    return KTRY( view::make( km.root_node_id() )
+    return KTRY( view::abs_root
                | view::direct_desc( "meta.setting.window.canvas" )
                | view::fetch_node( km ) );
 }
@@ -459,11 +463,12 @@ auto Canvas::is_overlay( Uuid const& node )
 {
     auto rv = false;
     auto const& km = kmap_inst();
+    auto const nw = KTRYE( fetch_component< com::Network >() );
 
     if( auto const overlay_root = fetch_overlay_root( km )
       ; overlay_root )
     {
-        rv = is_ancestor( km, overlay_root.value(), node );
+        rv = is_ancestor( *nw, overlay_root.value(), node );
     }
 
     return rv;
@@ -1036,7 +1041,7 @@ auto Canvas::create_overlay( Uuid const& id
 
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
-    auto const canvas_root = KTRY( fetch_canvas_root() );
+    // auto const canvas_root = KTRY( fetch_canvas_root() );
     auto const overlay_root = KTRY( fetch_overlay_root( km ) );
     auto const overlay = KTRY( nw->create_child( overlay_root, id, heading ) );
 
@@ -1702,7 +1707,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::Canvas
-,   std::set({ "command_store"s, "event_store"s, "option_store"s, "root_node"s })
+,   std::set({ "command_store"s, "event_store"s, "option_store"s, "network"s, "root_node"s })
 ,   "canvas related functionality"
 );
 

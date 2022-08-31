@@ -143,6 +143,7 @@ add_executable( emcc.index.html
                 path/act/to_string.cpp path/act/to_string.hpp
                 path/act/update_body.cpp path/act/update_body.hpp
                 path/node_view.cpp path/node_view.hpp
+                path/node_view2.cpp path/node_view2.hpp
                 path/sm.cpp
                 # stmt_prep.cpp
                 test/autosave.cpp

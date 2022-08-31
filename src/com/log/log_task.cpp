@@ -158,7 +158,7 @@ fmt::print( "open_tasks.size(): {}\n", open_tasks.size() );
 
 SCENARIO( "push open tasks to log", "[cmd][log][task]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "log_task", "cli", "alias_store" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "log_task", "cli" );
 
     auto& kmap = Singleton::instance();
     auto const cli = REQUIRE_TRY( kmap.fetch_component< com::Cli >() );
@@ -196,7 +196,7 @@ SCENARIO( "push open tasks to log", "[cmd][log][task]" )
                                                     | view::alias
                                                     | view::fetch_node( kmap ) );
 
-                        REQUIRE( task == nw->alias_store().resolve( dlt ) );
+                        REQUIRE( task == nw->resolve( dlt ) );
                     }
                 }
             }
@@ -216,7 +216,7 @@ SCENARIO( "push open tasks to log", "[cmd][log][task]" )
                                                 | view::alias
                                                 | view::fetch_node( kmap ) );
 
-                    REQUIRE( task == nw->alias_store().resolve( dlt ) );
+                    REQUIRE( task == nw->resolve( dlt ) );
                 }
             }
         }
@@ -247,7 +247,7 @@ SCENARIO( "push open tasks to log", "[cmd][log][task]" )
                                                 | view::alias
                                                 | view::fetch_node( kmap ) );
 
-                    REQUIRE( task == nw->alias_store().resolve( dlt ) );
+                    REQUIRE( task == nw->resolve( dlt ) );
                 }
             }
         }

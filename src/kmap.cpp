@@ -283,7 +283,7 @@ auto Kmap::on_leaving_editor()
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const tv = KTRY( fetch_component< com::TextArea >() );
     auto const contents = tv->editor_contents();
-    auto const rid = nw->alias_store().resolve( nw->selected_node() );
+    auto const rid = nw->resolve( nw->selected_node() );
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
     auto const db = KTRY( fetch_component< com::Database >() );
 
