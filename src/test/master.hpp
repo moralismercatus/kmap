@@ -57,8 +57,9 @@ auto create_lineages( T&&... args )
 
     for( auto const& path : paths )
     {
-        for( auto const desc = create_descendants( kmap, kmap.root_node_id(), nw->selected_node(), path ).value()
-           ; auto const& node : desc )
+        auto const desc = create_descendants( kmap, kmap.root_node_id(), nw->selected_node(), path ); BC_ASSERT( desc && !desc.value().empty() );
+        auto const descv = desc.value();
+        for( auto const& node : descv )
         {
             rv.emplace( KTRYE( view::make( kmap.root_node_id() )
                              | view::desc( node )

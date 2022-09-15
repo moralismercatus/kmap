@@ -102,7 +102,7 @@ public:
     // CacheDeciderSm( CacheDeciderSm&& ) = default;
 
     // Table
-    auto operator()() 
+    auto operator()()
     {
         using namespace boost::sml;
         using namespace kmap::db::sm::ev::detail;
@@ -261,8 +261,15 @@ private:
 #endif // KMAP_LOGGING_PATH
 using CacheDeciderSmDriverPtr = std::shared_ptr< CacheDeciderSmDriver >;
 
+struct CacheDecider
+{
+    std::shared_ptr< CacheDeciderSm > sm;
+    CacheDeciderSmDriverPtr driver;
+    CacheDeciderSm::OutputPtr output;
+};
+
 auto make_unique_cache_decider( Cache const& cache )
-    -> std::pair< CacheDeciderSmDriverPtr, CacheDeciderSm::OutputPtr >;
+    -> CacheDecider;
 
 } // namespace kmap::db
 

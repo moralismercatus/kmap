@@ -197,6 +197,9 @@ return rv;
     return rv;
 }
 
+// TODO: Simply put, I believe there is a bug in emscripten's ___syscall_newfstatat that is called by fs::exists, that will trigger in Debug builds
+//       because there assertions are included. It doesn't seem to be a real problem, but a false positive "assert()", so testing on files cannot proceed
+//       in Debug mode. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
 SCENARIO( "save and load results in identical state", "[db][fs]")
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem" );

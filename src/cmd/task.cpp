@@ -107,10 +107,14 @@ SCENARIO( "cmd::create_subtask" , "[cmd][task]" )
     {
         REQUIRE_RES( cli->parse_raw( ":create.task Super" ) );
 
-        WHEN( "create.subtask" )
+        GIVEN( "create.subtask" )
         {
             REQUIRE_RES( cli->parse_raw( ":create.subtask Subtask to Super" ) );
             // Rest of the testing is done in `TaskStore::create_subtask`.
+        }
+        GIVEN( "create.subtask from subtask" )
+        {
+            REQUIRE_RES( cli->parse_raw( ":create.subtask Subsubtask to subtask" ) );
         }
     }
 }

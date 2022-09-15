@@ -9,7 +9,7 @@
 #define KMAP_EC_MASTER_HPP
 
 #if KMAP_DEBUG
-    #define KMAP_LOG_EXCEPTION
+    #define KMAP_LOG_EXCEPTION 1
     #define KMAP_DISABLE_EXCEPTION_LOG_SCOPED() auto const disable_exception_log = kmap::log::ScopedDisabler{ kmap::log::flag::log_exception }
 #else
     #define KMAP_DISABLE_EXCEPTION_LOG_SCOPED() (void)0;
@@ -82,6 +82,7 @@
 // Throw exception on failure.
 #define KMAP_TRYE( ... ) \
     ({ \
+        KMAP_KTRY_LOG(); \
         auto&& res = ( __VA_ARGS__ ); \
         if( BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
             ; \
@@ -116,7 +117,7 @@
 
 namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
 
-#if KMAP_DEBUG
+#if KMAP_DEBUG || 1
 namespace kmap::log
 {
     namespace flag // Allows dynamic switch.
@@ -131,8 +132,8 @@ namespace kmap::log
         ScopedDisabler( bool& flag ) : flag_{ flag }, prev_value{ flag } { flag_ = false; }
         ~ScopedDisabler(){ flag_ = prev_value; }
     };
-}
-#endif // kmap::log
+} // kmap::log
+#endif // KMAP_DEBUG
 
 namespace kmap {
 
@@ -143,7 +144,7 @@ auto log_exception( std::string const& msg
                   , uint64_t const& line )
     -> void
 {
-#ifdef KMAP_LOG_EXCEPTION
+#if KMAP_LOG_EXCEPTION
     if( kmap::log::flag::log_exception )
     {
         fmt::print( stderr, "exception:\n\tmessage: {}\n\tfunction: {}\n\tfile: {}\nline: {}\n", msg, fn, file, line );

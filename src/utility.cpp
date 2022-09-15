@@ -1138,18 +1138,22 @@ auto print_stacktrace()
 }
 
 auto print_tree( Kmap const& km
-               , Uuid const& root )
+               , Uuid const& root
+               , std::string const& indent )
     -> Result< void >
 {
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
     if( nw->is_top_alias( root ) )
     {
-        fmt::print( "{}[{}]\n", absolute_path_flat( km, root ), absolute_path_flat( km, nw->resolve( root ) ) );
+        auto const abs_path = KTRY( nw->fetch_heading( root ) );
+        auto const alias_abs_path = KTRY( absolute_path_flat( km, nw->resolve( root ) ) );
+
+        fmt::print( "{}{}[{}]\n", indent, abs_path, alias_abs_path );
     }
     else
     {
-        fmt::print( "{}\n", absolute_path_flat( km, root ) );
+        fmt::print( "{}{}\n", indent, KTRY( nw->fetch_heading( root ) ) );
     }
 
     for( auto const children = view::make( root )
@@ -1158,7 +1162,37 @@ auto print_tree( Kmap const& km
                              | act::order( km )
        ; auto const& child : children )
     {
-        KTRY( print_tree( km, child ) );
+        KTRY( print_tree( km, child, indent + "-" ) );
+    }
+
+    return outcome::success();
+}
+
+auto print_tree( Kmap const& km
+               , Uuid const& root )
+    -> Result< void >
+{
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
+
+    if( nw->is_top_alias( root ) )
+    {
+        auto const abs_path = KTRY( absolute_path_flat( km, root ) );
+        auto const alias_abs_path = KTRY( absolute_path_flat( km, nw->resolve( root ) ) );
+
+        fmt::print( ">{}[{}]\n", abs_path, alias_abs_path );
+    }
+    else
+    {
+        fmt::print( ">{}\n", KTRY( absolute_path_flat( km, root ) ) );
+    }
+
+    for( auto const children = view::make( root )
+                             | view::child
+                             | view::to_node_set( km )
+                             | act::order( km )
+       ; auto const& child : children )
+    {
+        KTRY( print_tree( km, child, "-" ) );
     }
 
     return outcome::success();

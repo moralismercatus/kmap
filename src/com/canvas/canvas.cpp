@@ -1573,13 +1573,13 @@ struct Canvas
     }
 
     auto fetch_base( Uuid const& pane ) const
-        -> Result< float >
+        -> kmap::binding::Result< float >
     {
         return KTRYE( km.fetch_component< kmap::com::Canvas >() )->pane_base( pane );
     }
 
     auto fetch_orientation( Uuid const& pane ) const
-        -> Result< kmap::com::Orientation >
+        -> kmap::binding::Result< kmap::com::Orientation >
     {
         return KTRYE( km.fetch_component< kmap::com::Canvas >() )->pane_orientation( pane );
     }

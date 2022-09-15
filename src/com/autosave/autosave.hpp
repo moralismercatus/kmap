@@ -40,6 +40,8 @@ public:
     auto load()
         -> Result< void > override;
 
+    auto has_event_outlet( std::set< std::string > const& requisites )
+        -> bool;
     auto install_event_outlet( std::string const& unit )
         -> Result< void >;
     auto uninstall_event_outlet()

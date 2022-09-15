@@ -14,6 +14,7 @@
 #include "path/act/erase.hpp"
 #include "path/act/update_body.hpp"
 #include "path/node_view.hpp"
+#include "path.hpp"
 
 namespace kmap::com {
 

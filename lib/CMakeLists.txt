@@ -219,29 +219,29 @@ ExternalProject_Add(
 )
 
 # TODO: Remove. The decoding that XED provides should be part of a plugin, not core KMAP.
-ExternalProject_Add(
-    xed 
+# ExternalProject_Add(
+#     xed 
 
-    BUILD_IN_SOURCE 1
-    GIT_REPOSITORY
-        https://github.com/intelxed/xed.git 
-    GIT_TAG
-        main
-    CONFIGURE_COMMAND 
-        git clone https://github.com/intelxed/mbuild.git ../mbuild
-    BUILD_COMMAND 
-        python3 mfile.py --compiler=clang --cc=emcc --cxx=emcc --static --host-cpu=ia32 # wasm doesn't support x64 yet
-    UPDATE_COMMAND ""
-    INSTALL_COMMAND 
-		${CMAKE_COMMAND} -E copy
-            ${CMAKE_BINARY_DIR}/lib/xed-prefix/src/xed/obj/libxed.a
-            ${CMAKE_BINARY_DIR}/lib/libxed.bc
-     && emranlib ${CMAKE_BINARY_DIR}/lib/libxed.bc
-	 && ${CMAKE_COMMAND} -E copy
-            ${CMAKE_BINARY_DIR}/lib/xed-prefix/src/xed/obj/libxed-ild.a
-            ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
-     && emranlib ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
-)
+#     BUILD_IN_SOURCE 1
+#     GIT_REPOSITORY
+#         https://github.com/intelxed/xed.git 
+#     GIT_TAG
+#         main
+#     CONFIGURE_COMMAND 
+#         git clone https://github.com/intelxed/mbuild.git ../mbuild
+#     BUILD_COMMAND 
+#         python3 mfile.py --compiler=clang --cc=emcc --cxx=emcc --static --host-cpu=ia32 # wasm doesn't support x64 yet
+#     UPDATE_COMMAND ""
+#     INSTALL_COMMAND 
+# 		${CMAKE_COMMAND} -E copy
+#             ${CMAKE_BINARY_DIR}/lib/xed-prefix/src/xed/obj/libxed.a
+#             ${CMAKE_BINARY_DIR}/lib/libxed.bc
+#      && emranlib ${CMAKE_BINARY_DIR}/lib/libxed.bc
+# 	 && ${CMAKE_COMMAND} -E copy
+#             ${CMAKE_BINARY_DIR}/lib/xed-prefix/src/xed/obj/libxed-ild.a
+#             ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
+#      && emranlib ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
+# )
 
 ExternalProject_Add(
     catch2

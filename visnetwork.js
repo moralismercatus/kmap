@@ -105,7 +105,11 @@ class Network
         {
             this.redraw();
 
+            console.assert( this.network );
+
             let pos = this.network.getPositions( [ node_id ] )[ node_id ];
+
+            console.assert( pos );
 
             this.network.moveTo( { position: { x: pos.x
                                              , y: pos.y } } );

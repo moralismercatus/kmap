@@ -7,6 +7,7 @@
 
 #include "cmd/parser.hpp"
 #include "com/network/network.hpp"
+#include "common.hpp"
 #include "error/network.hpp"
 #include "error/parser.hpp"
 #include "js_iface.hpp"
@@ -28,9 +29,12 @@
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/remove_if.hpp>
+#include <range/v3/view/set_algorithm.hpp>
 #include <range/v3/view/split.hpp>
 
 #include <vector>
+
+namespace rvs = ranges::views;
 
 namespace kmap::com {
 
@@ -249,11 +253,11 @@ auto EventStore::install_outlet( Leaf const& leaf )
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
-    auto const oroot = KMAP_TRY( view::make( eroot )
-                               | view::child( "outlet" )
-                               | view::desc( fmt::format( ".{}", leaf.heading ) )
-                               | view::create_node( km )
-                               | view::to_single );
+    auto const oroot = KTRY( view::make( eroot )
+                           | view::child( "outlet" )
+                           | view::direct_desc( leaf.heading )
+                           | view::create_node( km )
+                           | view::to_single );
 
     KTRY( install_outlet_internal( oroot, leaf ) );
     KTRY( reset_transitions( oroot ) );
@@ -303,7 +307,7 @@ auto EventStore::install_outlet( Branch const& branch )
     auto const eroot = KTRY( event_root() );
     auto const oroot = KMAP_TRY( view::make( eroot )
                                | view::child( "outlet" )
-                               | view::desc( fmt::format( ".{}", branch.heading ) )
+                               | view::direct_desc( branch.heading )
                                | view::create_node( km )
                                | view::to_single );
 
@@ -670,6 +674,71 @@ auto EventStore::execute_body( Uuid const& node )
     rv = outcome::success();
     
     return rv;
+}
+
+// TODO: Convenience, but non-core, so maybe free function? IDK...
+auto EventStore::fetch_matching_outlets( std::set< std::string > const& requisites )
+    -> Result< UuidSet >
+{
+    auto rv = KMAP_MAKE_RESULT( UuidSet );
+    auto const& km = kmap_inst();
+    auto const nw = KTRYE( fetch_component< com::Network >() );
+    auto const ver = view::make( KTRYE( event_root() ) );
+    auto const sreqs = ver
+                     | view::direct_desc( view::all_of( requisites ) ) // TODO: is view::all_of an all or nothing operation? Verify. Needs to be for this case.
+                     | view::to_node_set( km );
+
+    KMAP_ENSURE( sreqs.size() == requisites.size(), error_code::common::uncategorized );
+
+    auto const reqs_match = [ & ]( auto const& outlet )
+    {
+        auto const oreqs = view::make( outlet )
+                         | view::child( "requisite" )
+                         | view::alias
+                         | view::resolve
+                         | view::to_node_set( km );
+
+        return ranges::distance( rvs::set_intersection( sreqs, oreqs ) ) == sreqs.size();
+    };
+    auto const all_outlets = ver
+                           | view::child( "outlet" )
+                           | view::child // TODO: This only accounts for immediate child nodes. I actually want view::desc( is_outlet )
+                           | view::to_node_set( km );
+
+    rv = all_outlets
+       | rvs::filter( reqs_match )
+       | ranges::to< UuidSet >();
+
+    return rv;
+}
+
+SCENARIO( "EventStore::fetch_matching_outlets", "[event]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "event_store" );
+
+    auto& kmap = Singleton::instance();
+    auto const estore = REQUIRE_TRY( kmap.fetch_component< com::EventStore >() );
+
+    GIVEN( "one requisite" )
+    {
+        REQUIRE_RES( estore->install_subject( "victor" ) );
+
+        GIVEN( "outlet for requisite" )
+        {
+            auto const ores = estore->install_outlet( Leaf{ .heading = "1"
+                                                          , .requisites = { "subject.victor" }
+                                                          , .description = "test"
+                                                          , .action = "" } );
+            REQUIRE_RES( ores );
+
+            THEN( "matching outlet found" )
+            {
+                auto const mos = REQUIRE_TRY( estore->fetch_matching_outlets( { "subject.victor" } ) );
+
+                REQUIRE( *mos.begin() == ores.value() );
+            }
+        }
+    }
 }
 
 // TODO: If the requested subject, verb, or object is missing, don't err, it just means one hasn't been installed yet, so there'll be nothing to match against.

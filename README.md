@@ -2,6 +2,8 @@
 Knowledge Map
 
 ## Prerequisites
+
+### Packages
 ```bash
 sudo apt install build-essential
 sudo apt install libgdk-pixbuf2.0-dev
@@ -9,11 +11,28 @@ sudo apt install libgtk3.0-cil-dev
 sudo apt install libnss3-dev
 sudo apt install libtool
 sudo apt install tcl
+```
+
+### Install emsdk
+Ensure Emscripten's emcc is accessible via your $PATH.
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git
+git pull
+./emsdk install 3.1.15
+./emsdk activate 3.1.15
+source ./emsdk_env.sh
+```
+
+> 3.1.15 is latest known working version, but other versions may work as well.
+
+### Clone Kmap
+
+```bash
 git clone https://github.com/moralismercatus/kmap.git
 cd kmap
 npm install
 ```
-Ensure Emscripten's emcc is accessible via your $PATH.
 
 ## Building - Linux
 >Note: Replace all instances of 'Debug' with 'Release' (case-respective) for release build.

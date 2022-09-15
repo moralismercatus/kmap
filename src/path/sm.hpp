@@ -120,6 +120,12 @@ public:
     };
     using OutputPtr = std::shared_ptr< Output >;
 
+private:
+    Kmap const& kmap_;
+    Uuid const root_;
+    OutputPtr output_;
+
+public:
     UniquePathDeciderSm( Kmap const& kmap
                        , Uuid const& root
                        , Uuid const& start
@@ -155,7 +161,7 @@ public:
             BC_ASSERT( !output_->prospect.empty() );
 
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-            return nw->fetch_heading( output_->prospect.back() ).value() == ev.heading;
+            return KTRYE( nw->fetch_heading( output_->prospect.back() ) ) == ev.heading;
         };
         auto const parent_exists = [ & ]( auto const& ev )
         {
@@ -190,7 +196,7 @@ public:
                 auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
                 auto const parent = nw->fetch_parent( output_->disambiguation.back() );
 
-                return parent && nw->fetch_heading( parent.value() ).value() == ev.heading;
+                return parent && KTRYE( nw->fetch_heading( parent.value() ) ) == ev.heading;
             }
         };
 
@@ -203,8 +209,8 @@ public:
             auto& back = output_->prospect.back();
 
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-            auto const child = nw->fetch_child( back, ev.heading ); BC_ASSERT( child );
-            output_->prospect.emplace_back( child.value() );
+            auto const child = KTRYE( nw->fetch_child( back, ev.heading ) );
+            output_->prospect.emplace_back( child );
         };
         auto const push_parent = [ & ]( auto const& ev )
         {
@@ -212,8 +218,8 @@ public:
             BC_ASSERT( !output_->prospect.empty() );
 
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-            auto const parent = nw->fetch_parent( output_->prospect.back() ); BC_ASSERT( parent );
-            output_->prospect.emplace_back( parent.value() );
+            auto const parent = KTRYE( nw->fetch_parent( output_->prospect.back() ) );
+            output_->prospect.emplace_back( parent );
         };
         auto const prime_disam = [ & ]( auto const& ev )
         {
@@ -231,12 +237,12 @@ public:
 
             auto& disam = output_->disambiguation;
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-            auto const parent = nw->fetch_parent( disam.back() ); BC_ASSERT( parent );
-            auto const pheading = nw->fetch_heading( parent.value() ); BC_ASSERT( pheading );
+            auto const parent = KTRYE( nw->fetch_parent( disam.back() ) );
+            auto const pheading = KTRYE( nw->fetch_heading( parent ) );
 
-            BC_ASSERT( pheading.value() == ev.heading );
+            BC_ASSERT( pheading == ev.heading );
 
-            disam.emplace_back( parent.value() );
+            disam.emplace_back( parent );
         };
         auto const reset_disambig = [ & ]( auto const& ev )
         {
@@ -315,11 +321,6 @@ public:
         ,   Error + unexpected = Error  
         );
     }
-
-private:
-    Kmap const& kmap_;
-    Uuid const root_;
-    OutputPtr output_;
 };
 
 #if KMAP_LOGGING_PATH || 0
@@ -329,19 +330,25 @@ private:
 #endif // KMAP_LOGGING_PATH
 using UniquePathDeciderSmDriverPtr = std::shared_ptr< UniquePathDeciderSmDriver >;
 
+struct UniquePathDecider
+{
+    std::shared_ptr< UniquePathDeciderSm > sm;
+    UniquePathDeciderSmDriverPtr driver;
+    UniquePathDeciderSm::OutputPtr output;
+};
+
 auto make_unique_path_decider( Kmap const& kmap
                              , Uuid const& root
                              , Uuid const& start )
-    -> std::pair< UniquePathDeciderSmDriverPtr, UniquePathDeciderSm::OutputPtr >;
+    -> UniquePathDecider;
 
 // TODO: Introduce class-wide constraint that it cannot be in a "Complete" state with prospects.empty().
 class PathDeciderSm
 {
 public:
-    using UniqueDeciderPair = std::pair< UniquePathDeciderSmDriverPtr, UniquePathDeciderSm::OutputPtr >;
     struct Output
     {
-        std::vector< UniqueDeciderPair > prospects = {};
+        std::vector< UniquePathDecider > prospects = {};
         std::string error_msg = "unknown error";
     };
     using OutputPtr = std::shared_ptr< Output >;
@@ -385,9 +392,9 @@ public:
         {
             BC_ASSERT( output_ );
 
-            for( auto&& [ driver, output ] : output_->prospects )
+            for( auto const& decider : output_->prospects )
             {
-                if( !driver->is( boost::sml::state< sm::state::Error > ) )
+                if( !decider.driver->is( boost::sml::state< sm::state::Error > ) )
                 {
                     return true;
                 }
@@ -411,14 +418,14 @@ public:
         auto const start_selected = [ & ]( auto const& ev ) -> void
         {
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, selected_node_ ) );
-            output_->prospects.back().first->process_event( sm::ev::Fwd{} );
+            output_->prospects.back().driver->process_event( sm::ev::Fwd{} );
         };
         auto const start_selected_parent = [ & ]( auto const& ev ) -> void
         {
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-            auto const parent = nw->fetch_parent( selected_node_ ); BC_ASSERT( parent );
-            output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, parent.value() ) );
-            output_->prospects.back().first->process_event( sm::ev::Bwd{} );
+            auto const parent = KTRYE( nw->fetch_parent( selected_node_ ) );
+            output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, parent ) );
+            output_->prospects.back().driver->process_event( sm::ev::Bwd{} );
         };
         auto const start_any_leads = [ & ]( auto const& ev ) -> void
         {
@@ -427,8 +434,8 @@ public:
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto const filter_heading = views::filter( [ & ]( auto const& e )
             {
-                auto const heading = nw->fetch_heading( e ); BC_ASSERT( heading );
-                return ev.heading == heading.value();
+                auto const heading = KTRYE( nw->fetch_heading( e ) );
+                return ev.heading == heading;
             } );
             auto const filter_lineal = views::filter( [ & ]( auto const& e )
             {
@@ -441,19 +448,19 @@ public:
                                   | filter_lineal )
             {
                 output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, node ) );
-                output_->prospects.back().first->process_event( sm::ev::Heading{ ev.heading } );
+                output_->prospects.back().driver->process_event( sm::ev::Heading{ ev.heading } );
             }
         };
         auto const start_root = [ & ]( auto const& ev ) -> void
         {
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, root_ ) );
-            output_->prospects.back().first->process_event( sm::ev::Fwd{} );
+            output_->prospects.back().driver->process_event( sm::ev::Fwd{} );
         };
         auto const propagate = [ & ]( auto const& ev ) -> void
         {
-            for( auto&& [ driver, output ] : output_->prospects )
+            for( auto&& decider : output_->prospects )
             {
-                driver->process_event( ev );
+                decider.driver->process_event( ev );
             }
         };
         #if 0
@@ -522,200 +529,23 @@ private:
 #endif // KMAP_LOGGING_PATH
 using PathDeciderSmDriverPtr = std::shared_ptr< PathDeciderSmDriver >;
 
+struct PathDecider
+{
+    std::shared_ptr< PathDeciderSm > sm;
+    PathDeciderSmDriverPtr driver;
+    PathDeciderSm::OutputPtr output;
+};
+
 auto make_path_decider( Kmap const& kmap
                       , Uuid const& root
                       , Uuid const& selected )
-    -> std::pair< PathDeciderSmDriverPtr, PathDeciderSm::OutputPtr >;
-
-class PathCompleterSm
-{
-public:
-    PathCompleterSm( Kmap const& kmap
-                   , Uuid const& root
-                   , Uuid const& selected
-                   , std::string const& path );
-
-    auto completed()
-        -> std::map< std::string, Uuid >
-    {
-        return {};
-        // return *completed_;
-        // auto rv = std::map< std::string, Uuid >{};
-        // auto const cmplted = completed_.first.prospects();
-
-        // return rv;
-    }
-
-    auto operator()() 
-    {
-        using namespace boost::sml;
-        using namespace kmap::sm::ev::detail;
-        using namespace kmap::sm::state::detail;
-        using namespace ranges;
-
-        /* Guards */
-        // auto const is_decider_in_error = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return decider_.second.is( state< sm::state::Error > );
-        // };
-        // auto const has_propsects = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return !decider_.first->prospects().empty();
-        // };
-        // auto const has_ambiguous = [ & ]( auto const& ev ) -> bool
-        // {
-        //     auto const paths = ( *completed_ ) | views::transform( &CompletionNode::path ) | to< std::set< std::string > >();
-
-        //     return completed_->size() == paths.size();
-        // };
-        // auto const has_disambig_paths = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return decider_.first->disambiguation_paths().size() > 0;
-        // };
-        // auto const is_decider_in_incomplete = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return decider_.second.is( state< sm::state::Incomplete > );
-        // };
-        // auto const ends_with_delim = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return std::set< std::string >{ ".", ",", "'" }.contains( tokens_.back() );
-        // };
-        // auto const ends_with_bwd = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return tokens_.back() == ",";
-        // };
-        // auto const ends_with_fwd = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return tokens_.back() == ".";
-        // };
-        // auto const ends_with_dis = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return tokens_.back() == "\'";
-        // };
-        // auto const ends_with_root = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return tokens_.back() == "/";
-        // };
-        // auto const ends_with_heading = [ & ]( auto const& ev ) -> bool
-        // {
-        //     return is_valid_heading( tokens_.back() );
-        // };
-        // /* Actions */
-        // auto const complete_delayed_prospects = [ & ]( auto const& env ) -> void
-        // {
-        //     // auto const disambig_map = decider.first.disambiguation_paths();
-        //     auto const dps = decider_.first.delayed_prospects();
-        //     auto const ps = decider_.first.prospects()
-        //                    | views::transform( [](auto const& e ){ return e.back(); } )
-        //                    | to< std::set< Uuid > >();
-        //     for( auto const& dp : dps )
-        //     {
-        //         BC_ASSERT( !dp.empty() );
-
-        //         for( auto const child : nw->fetch_children( dp.back() ) )
-        //         {
-        //             auto const cheading = nw->fetch_heading( child ).value();
-
-        //             if( cheading.starts_with( tokens_.back() ) )
-        //             {
-        //                 // TODO: What if we're in the process of disambiguating? I.e., `x.y'a'b?
-        //                 //       We can't just drop_last( 1 ).
-        //                 //       We can know some things, though. If any of the paths have disambig paths, then they all should.
-        //                 //       If that's the case, we know we're in the process of disambiguating.
-        //                 // completed_->emplace( fmt::format( "{}{}"
-        //                 //                                 , tokens_ | views::drop_last( 1 ) | views::join | to< std::string >()
-        //                 //                                 , cheading )
-        //                 //                    , child
-        //                 //                    , {} );
-        //             }
-        //         }
-        //     }
-        // };
-        // auto const disambiguate = [ & ]( auto const& env ) -> void
-        // {
-        //     // Transform into { count=duplicate#, compnode }, filter(count>1) = ambiguous
-        //     auto const ambiguous = *completed_
-        //                          | views::filter( []( auto const& e ){ return e; } )
-        //                          | to< std::vector< Uuid > >();
-        //     for( auto const& comps = *completed_
-        //        ; auto const& comp : comps )
-        //     {
-        //         // TODO: do disambig...
-        //     }
-        // };
-
-        // while( !( sm.is( state< Done > ) || sm.is( state< Error > ) ) ) sm.process( event::cmplt )
-        // Done: `complete_delayed_prospects`: Should we filter the decided out? Probably. ,. completions will let the user know they're on a decided.
-        // TODO: Take case: `/meta` and `/metamorph` where completion required at `/meta`. Results will be `/meta.`, `/meta,` and `/metamorph`. That's acceptable, no?
-        // TODO: `complete_delayed_prospects`: What about the case where the "prospect" is followed by a chain of dis delims? I can't simply complete the children of those.
-        /**
-         * S -> normal
-         * S -> disambiguating
-         * 
-         * normal -> complete_delayed
-         * normal -> 
-         * 
-         * disambiguating -> 
-         * 
-         * not_disambiguating -> delayed
-         * not_disambiguating -> decided
-         * 
-         * delayed -> decided
-         * 
-         **/
-        return make_transition_table
-        (
-        // (  * Start ) [ token_ends_heading ] / process_to_penult = Next
-        // ,    Start                          / process_all = Next
-
-        // ,    FwdNode / 
-        // * Start + cmplt [ is_decider_in_error ] = Error // Ill formed path. Nothing to be done but to propagate error.
-        // , Start + cmplt [ has_disambig_paths ] / complete_delayed_prospects = Disam
-        // , Start + cmplt                         / complete_delayed_prospects = Disam
-
-        // // , Disambig = Done
-        // // , Normal = Done
-
-        // , Disam + cmplt [ has_ambiguous ]  / disambiguate = Disam
-        // , Disam + cmplt [ !has_ambiguous ] = Decided
-        // , Disam + cmplt                                     = Done
-        // , Start + cmplt [ is_decider_in_incomplete ] = Undecided
-        // , Start + cmplt [  ]                             = Decided
-
-        // , Undecided + cmplt = Disasm
-
-        // , Decided + cmplt [ ends_with_bwd ] / complete_bwd = Done
-        // , Decided + cmplt [ ends_with_fwd ] / complete_fwd = Done
-        // , Decided + cmplt [ ends_with_dis ] / complete_dis = Done
-        // , Decided + cmplt [ ends_with_root ] / complete_from_root = Done
-        // , Decided + cmplt [ ends_with_heading ] / complete_decided_heading = Done
-
-        // , Done + cmplt = Done
-        // , Done + any = Error
-        // , Done + unexpected_event< boost::sml::_ > = Error  
-
-        // , Error + any                               = Error  
-        // , Error + unexpected_event< boost::sml::_ > = Error  
-        );
-    }
-
-protected:
-
-private:
-    Kmap const& kmap_;
-    Uuid const root_;
-    Uuid const selected_;
-    std::string const path_;
-    StringVec const tokens_;
-    std::pair< PathDeciderSm, PathDeciderSmDriver > decider_;
-    std::shared_ptr< std::set< CompletionNode > > completed_ = std::make_shared< std::set< CompletionNode > >();
-};
+    -> PathDecider;
 
 auto walk( Kmap const& kmap
          , Uuid const& root
          , Uuid const& selected
          , StringVec const& tokens )
-    -> std::pair< PathDeciderSmDriverPtr, PathDeciderSm::OutputPtr >;
+    -> PathDecider;
 
 } // namespace kmap
 

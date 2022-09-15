@@ -7,13 +7,20 @@
 
 #include "com/database/db.hpp"
 #include "com/event/event.hpp"
+#include "com/network/network.hpp"
 #include "com/option/option.hpp"
 #include "common.hpp"
 #include "emcc_bindings.hpp"
 #include "kmap.hpp"
 
+#include <catch2/catch_test_macros.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/filter.hpp>
+
 #include <set>
 #include <string>
+
+namespace rvs = ranges::views;
 
 namespace kmap::com {
 
@@ -33,8 +40,21 @@ auto Autosave::initialize()
     {
         auto const script = 
 R"%%%(
-kmap.autosave().uninstall_event_outlet();
-kmap.autosave().install_event_outlet( option_value ).throw_on_error();
+const asave = kmap.autosave();
+
+if( asave.has_event_outlet_unit( option_value ) )
+{
+    // Do nothing. Already exists.
+}
+else if( asave.has_event_outlet() )
+{
+    asave.uninstall_event_outlet().throw_on_error();
+    asave.install_event_outlet( option_value ).throw_on_error();
+}
+else
+{
+    asave.install_event_outlet( option_value ).throw_on_error();
+}
 )%%%";
         KTRY( ostore->install_option( "database.autosave.interval.unit"
                                     , "Autosave interval unit type from available timer types (second, minute, etc.)"
@@ -67,6 +87,33 @@ auto Autosave::load()
     return rv;
 }
 
+auto Autosave::has_event_outlet( std::set< std::string > const& requisites )
+    -> bool
+{
+    auto rv = false;
+    auto const estore = KTRYE( fetch_component< com::EventStore >() );
+    auto const nw = KTRYE( fetch_component< com::Network >() );
+    auto const mos = estore->fetch_matching_outlets( requisites );
+
+    if( mos )
+    {
+        auto const mosv = mos.value();
+        auto const matching_outlets = mosv
+                                    | rvs::filter( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ) == "autosave"; } )
+                                    | ranges::to< UuidSet >();
+
+        if( !matching_outlets.empty() )
+        {
+            // TODO: Unit test for this. Can occur when more than one outlet named "autosave" somewhere in the outlet tree.
+            KMAP_ENSURE_EXCEPT( matching_outlets.size() == 1 );
+
+            rv = true;
+        }
+    }
+
+    return rv;
+}
+
 // TODO: Question here: this depends on Timer - not that there'll be an error if Timer doesn't exist or that this is created before Timer,
 //       but rather what happens if Timer never gets created? Autosave interval() will never fire. Not a big deal, but would kind of be nice
 //       to know that autosave is effectively inoperable without Timer.
@@ -92,7 +139,21 @@ kmap.autosave().interval();
                           , .action = action };
 
 
+// What I know so far:
+
+// option_store->apply_all()
+// -OptionStore::apply( "database.autosave.interval.unit" )
+// --Autosave::uinstall_event_outlet
+// --Autosave::install_event_outlet( "minute" )
+// ---Kaboom!
+// ---Here, actually:
+//    There are a couple of questions I have about this:
+//    1. Why is it failing?
+//    2. Why is the failure being reported as a catastrophic error? throw_on_error() somehow not getting caught? Not even not getting caught, it's a fatal error; abort.
+//    (2) is the more important of the two. It's only a matter of time before the next mysterious failure and bug hunt ensues....
+KMAP_LOG_LINE();
     KTRY( estore->install_outlet( leaf ) );
+KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -161,28 +222,44 @@ struct Autosave
         : km{ kmap }
     {
     }
+
+    auto has_event_outlet()
+        -> bool
+    {
+        return KTRYE( km.fetch_component< kmap::com::Autosave >() )->has_event_outlet( { "subject.chrono.timer", "verb.intervaled" } );
+    }
+
+    auto has_event_outlet_unit( std::string const& unit )
+        -> bool
+    {
+        return KTRYE( km.fetch_component< kmap::com::Autosave >() )->has_event_outlet( { "subject.chrono.timer", "verb.intervaled", fmt::format( "object.chrono.{}", unit ) } );
+    }
     
     auto interval()
         -> kmap::binding::Result< void >
     {
+        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->interval();
     }
 
     auto install_event_outlet( std::string const& unit )
         -> kmap::binding::Result< void >
     {
+        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->install_event_outlet( unit );
     }
 
     auto uninstall_event_outlet()
         -> kmap::binding::Result< void >
     {
+        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->uninstall_event_outlet();
     }
 
     auto set_threshold( uint32_t const threshold )
         -> void
     {
+        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->set_threshold( threshold );
     }
 };
@@ -197,6 +274,8 @@ EMSCRIPTEN_BINDINGS( kmap_autosave )
 {
     function( "autosave", &kmap::com::binding::autosave );
     class_< kmap::com::binding::Autosave >( "Autosave" )
+        .function( "has_event_outlet", &kmap::com::binding::Autosave::has_event_outlet )
+        .function( "has_event_outlet_unit", &kmap::com::binding::Autosave::has_event_outlet_unit )
         .function( "interval", &kmap::com::binding::Autosave::interval )
         .function( "install_event_outlet", &kmap::com::binding::Autosave::install_event_outlet )
         .function( "uninstall_event_outlet", &kmap::com::binding::Autosave::uninstall_event_outlet )

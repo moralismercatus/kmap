@@ -324,15 +324,6 @@ auto fetch_children( Uuid const& parent )
     return nw->fetch_children( parent ) | to< UuidVec >();
 }
 
-auto has_delta()
-    -> bool 
-{
-    auto const& km = Singleton::instance();
-    auto const db = KTRYE( km.fetch_component< com::Database >() );
-
-    return db->has_delta();
-}
-
 auto is_alias( Uuid const& node )
     -> bool 
 {
@@ -804,7 +795,6 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "fetch_node", &kmap::binding::fetch_node ); // This fetches a single node and errors if ambiguous.
     function( "fetch_or_create_node", &kmap::binding::fetch_or_create_node );
     function( "fetch_parent", &kmap::binding::fetch_parent );
-    function( "has_delta", &kmap::binding::has_delta );
     function( "is_alias", &kmap::binding::is_alias );
     function( "is_alias_pair", &kmap::binding::is_alias_pair );
     function( "is_ancestor", &kmap::binding::is_ancestor );

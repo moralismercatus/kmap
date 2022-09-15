@@ -21,21 +21,21 @@ CacheDeciderSm::CacheDeciderSm( Cache const& cache
 }
 
 auto make_unique_cache_decider( Cache const& cache )
-    -> std::pair< CacheDeciderSmDriverPtr, CacheDeciderSm::OutputPtr >
+    -> CacheDecider
 {
     auto output = std::make_shared< CacheDeciderSm::Output >();
-    auto sm = CacheDeciderSm{ cache, output };
+    auto sm = std::make_shared< CacheDeciderSm >( cache, output );
     auto driver = [ & ]
     {
 #if KMAP_LOGGING_PATH || 0
         auto sm_logger = SmlLogger{};
-        return std::make_shared< CacheDeciderSmDriver >( sm, sm_logger );
+        return std::make_shared< CacheDeciderSmDriver >( *sm, sm_logger );
 #else
-        return std::make_shared< CacheDeciderSmDriver >( sm );
+        return std::make_shared< CacheDeciderSmDriver >( *sm );
 #endif // KMAP_LOGGING_PATH
     }();
 
-    return { driver, output };
+    return CacheDecider{ sm, driver, output };
 }
 
 // auto walk( Kmap const& kmap

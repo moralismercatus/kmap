@@ -4,7 +4,9 @@ project( emcc.index.html )
 
 set( CMAKE_CXX_STANDARD 20 )
 
-add_compile_definitions( ZLIB_CONST=1 )
+add_compile_definitions( ZLIB_CONST=1
+                         BOOST_SML_CFG_DISABLE_MIN_SIZE # See https://github.com/boost-ext/sml/issues/249. Without this defined, UB detected.
+                       )
 
 
 # Note: With WASM=0, source-mappings are preserved; however, it is considerably slower.
@@ -26,19 +28,20 @@ add_link_options( --bind
 # Note: Resorted to using -02, rather than -03, due to experience of UB. Follow-up: UB persisted in -02.
 if (CMAKE_BUILD_TYPE MATCHES "Release")
     add_compile_definitions( ZLIB_CONST=1
-                             BOOST_CONTRACT_NO_PRECONDITIONS=1
-                             BOOST_CONTRACT_NO_POSTCONDITIONS=1
+                            #  BOOST_CONTRACT_NO_PRECONDITIONS=1
+                            #  BOOST_CONTRACT_NO_POSTCONDITIONS=1
                              KMAP_DEBUG=0
                              KMAP_PROFILE=0
                              KMAP_LOGGING_PATH=0
                              KMAP_LOGGING_DB=0
+                             KMAP_LOG_EXCEPTION=0
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -Wall
                          -O2 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sWASM=1 )
     add_link_options()
-else()
+else() # Warning: There is a known but in which a false-positive assert is triggered in DEBUG builds for file operations, so avoid using those in this mode.
     add_compile_definitions( KMAP_DEBUG=1 
                              KMAP_LOGGING_PATH=0 
                              KMAP_LOGGING_DB=0
@@ -51,9 +54,9 @@ else()
                          -sSAFE_HEAP=1 
                          -sASSERTIONS=2 
                          -sSTACK_OVERFLOW_CHECK=2 
-                         -sWASM=1 
-                         --profiling 
-                         --profiling-funcs 
+                         -sWASM=1
+                        #  --profiling 
+                        #  --profiling-funcs 
                         #  -finstrument-functions
                         #  -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
                         #  -sALLOW_MEMORY_GROWTH=1
@@ -61,14 +64,14 @@ else()
                         #  -fsanitize=undefined # Even More Dramatically decreases runtime performance
                         #  -sINITIAL_MEMORY=400MB # Needed for -fsanitize=undefined
                          --emit-symbol-map )
-        # TODO: I was unable to make these work, but they provide additional checks not completely covered by -s checks.
-        # -fsanitize=undefined \
-        # -fsanitize=address \
 add_link_options( -sALLOW_MEMORY_GROWTH=1 
                 #   -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
-                #   -fsanitize=address
-                #   -fsanitize=undefined
-                #   -sINITIAL_MEMORY=400MB
+                  # -fsanitize=address
+                  # -fsanitize=undefined
+                         -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
+                         -sASSERTIONS=2 
+                         -sSTACK_OVERFLOW_CHECK=2 
+                  -sINITIAL_MEMORY=400MB
                    ) # Flag must be present in both compile and link options
 endif()
 
@@ -118,6 +121,7 @@ add_executable( emcc.index.html
                 com/log/log.cpp com/log/log.hpp
                 com/log/log_task.cpp
                 com/network/alias.cpp com/network/alias.hpp
+                com/network/command.cpp com/network/command.hpp
                 com/network/network.cpp com/network/network.hpp
                 com/network/visnetwork.cpp com/network/visnetwork.hpp
                 com/option/option.cpp
@@ -196,7 +200,7 @@ add_dependencies( emcc.index.html
                   fmtlib
                   openssl 
                   range
-                  xed
+                  # xed
 				  zlib )
 
 link_directories( ${CMAKE_BINARY_DIR}/lib )
@@ -209,8 +213,8 @@ target_link_libraries( emcc.index.html
                       ${CMAKE_BINARY_DIR}/lib/libboost_unit_test_framework.bc
                       ${CMAKE_BINARY_DIR}/lib/libcrypto.bc
                       ${CMAKE_BINARY_DIR}/lib/libfmt.bc
-                      ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
-                      ${CMAKE_BINARY_DIR}/lib/libxed.bc
+                      # ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
+                      # ${CMAKE_BINARY_DIR}/lib/libxed.bc
                       ${CMAKE_BINARY_DIR}/lib/libz.bc
                       ${CMAKE_BINARY_DIR}/lib/libsqlite3.bc
                       ${CMAKE_BINARY_DIR}/lib/libCatch2.a

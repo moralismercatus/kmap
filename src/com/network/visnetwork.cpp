@@ -323,39 +323,19 @@ auto VisualNetwork::format_node_label( Uuid const& node )
     auto const tag_line = tag_hs
                         | views::join( '#' )
                         | ranges::to< std::string >();
-    auto const is_alias = nw->alias_store().is_alias( node );
 
     if( !tags.empty() )
     {
-        if( is_alias )
-        {
-            rv = fmt::format( "<i>{} ({})</i>\n<i>#{}</i>"
-                            , db_title
-                            , child_count
-                            , tag_line );
-        }
-        else
-        {
-            rv = fmt::format( "{} ({})\n<i>#{}</i>"
-                            , db_title
-                            , child_count
-                            , tag_line );
-        }
+        rv = fmt::format( "{} ({})\n<i>#{}</i>"
+                        , db_title
+                        , child_count
+                        , tag_line );
     }
     else
     {
-        if( is_alias )
-        {
-            rv = fmt::format( "<i>{} ({})</i>"
-                            , db_title
-                            , child_count );
-        }
-        else
-        {
-            rv = fmt::format( "{} ({})"
-                            , db_title
-                            , child_count );
-        }
+        rv = fmt::format( "{} ({})"
+                        , db_title
+                        , child_count );
     }
 
     return rv;
@@ -686,13 +666,13 @@ auto VisualNetwork::get_appropriate_node_font_face( Uuid const& id ) const
 
     auto const nw = KTRYE( fetch_component< com::Network >() );
 
-    if( nw->is_top_alias( id ) )
+    if( nw->alias_store().is_alias( id ) )
     {
-        rv = "ariel";
+        rv = "courier new"; // TODO: Draw from option_store
     }
     else
     {
-        rv = "verdana";
+        rv = "verdana"; // TODO: Draw from option_store
     }
 
     return rv;
@@ -712,7 +692,7 @@ auto VisualNetwork::install_standard_options()
     {
         auto const script = 
 R"%%%(
-kmap.network().scale_viewport( option_value ).throw_on_error();
+kmap.visnetwork().scale_viewport( option_value ).throw_on_error();
 )%%%";
         KMAP_TRY( oclerk_.install_option( "network.viewport_scale"
                                         , "Sets network's viewport scale after resize"
@@ -780,7 +760,7 @@ auto VisualNetwork::install_standard_events()
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.select_node"
                                       , .requisites = { "subject.kmap", "verb.selected", "object.node" }
                                       , .description = "updates network with selected node"
-                                      , .action = fmt::format( R"%%%(debounce( function(){{ kmap.network().select_node( kmap.selected_node() ); }}, 'debounce_timer_{}', 50 )();)%%%", gen_uuid() ) } ) );
+                                      , .action = fmt::format( R"%%%(debounce( function(){{ kmap.visnetwork().select_node( kmap.selected_node() ); }}, 'debounce_timer_{}', 50 )();)%%%", gen_uuid() ) } ) );
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.travel_left.h"
                                       , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
                                       , .description = "travel to parent node"
@@ -847,11 +827,11 @@ auto VisualNetwork::install_standard_events()
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.update_viewport_scale_on_network_resize"
                                       , .requisites = { "subject.network", "verb.scaled", "object.viewport" }
                                       , .description = "updates network viewport scale option value"
-                                      , .action = R"%%%(kmap.option_store().update_value( 'network.viewport_scale', kmap.network().viewport_scale() ).throw_on_error();)%%%" } ) );
+                                      , .action = R"%%%(kmap.option_store().update_value( 'network.viewport_scale', kmap.visnetwork().viewport_scale() ).throw_on_error();)%%%" } ) );
     KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.refresh_on_window_resize"
                                       , .requisites = { "subject.window", "verb.scaled" }
                                       , .description = "resizes network when window resized"
-                                      , .action = R"%%%(kmap.option_store().apply( 'network.viewport_scale' ).throw_on_error(); kmap.network().center_viewport_node( kmap.root_node() );)%%%" } ) );
+                                      , .action = R"%%%(kmap.option_store().apply( 'network.viewport_scale' ).throw_on_error(); kmap.viswnetwork().center_viewport_node( kmap.root_node() );)%%%" } ) );
     {
         // TODO: Too general to belong in Network, but placing here temporarily until more appropriate home is found.
         auto const script =
@@ -1136,15 +1116,15 @@ namespace binding
         }
     };
 
-    auto network()
+    auto visnetwork()
         -> binding::VisualNetwork
     {
         return binding::VisualNetwork{ kmap::Singleton::instance() };
     }
 
-    EMSCRIPTEN_BINDINGS( kmap_network )
+    EMSCRIPTEN_BINDINGS( kmap_visnetwork )
     {
-        function( "network", &kmap::com::binding::network );
+        function( "visnetwork", &kmap::com::binding::visnetwork );
         class_< kmap::com::binding::VisualNetwork >( "VisualNetwork" )
             .function( "center_viewport_node", &kmap::com::binding::VisualNetwork::center_viewport_node )
             .function( "scale_viewport", &kmap::com::binding::VisualNetwork::scale_viewport )

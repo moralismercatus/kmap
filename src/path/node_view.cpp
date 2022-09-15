@@ -1019,11 +1019,19 @@ auto Desc::create( Kmap& kmap
 
         if( std::holds_alternative< char const* >( sv ) )
         {
-            rv = KTRY( create_descendants( kmap, root, root, std::get< char const* >( sv ) ) ).back();
+            auto const ds = KTRY( create_descendants( kmap, root, root, std::get< char const* >( sv ) ) );
+
+            BC_ASSERT( !ds.empty() );
+            
+            rv = ds.back();
         }
         else if( std::holds_alternative< std::string >( sv ) )
         {
-            rv = KTRY( create_descendants( kmap, root, root, std::get< std::string >( sv ) ) ).back();
+            auto const ds = KTRY( create_descendants( kmap, root, root, std::get< std::string >( sv ) ) );
+
+            BC_ASSERT( !ds.empty() );
+            
+            rv = ds.back();
         }
         // TODO: Others?
     }
@@ -1206,11 +1214,20 @@ auto DirectDesc::create( Kmap& kmap
 
         if( std::holds_alternative< char const* >( sv ) )
         {
-            rv = KTRY( create_descendants( kmap, root, root, fmt::format( ".{}", std::get< char const* >( sv ) ) ) ).back();
+            auto const ds = KTRY( create_descendants( kmap, root, root, fmt::format( "/{}", std::get< char const* >( sv ) ) ) );
+
+            BC_ASSERT( !ds.empty() );
+
+            rv = ds.back();
+
         }
         else if( std::holds_alternative< std::string >( sv ) )
         {
-            rv = KTRY( create_descendants( kmap, root, root, fmt::format( ".{}", std::get< std::string >( sv ) ) ) ).back();
+            auto const ds = KTRY( create_descendants( kmap, root, root, fmt::format( "/{}", std::get< std::string >( sv ) ) ) );
+
+            BC_ASSERT( !ds.empty() );
+
+            rv = ds.back();
         }
         // TODO: Others?
     }
@@ -2080,7 +2097,7 @@ auto operator|( Intermediary const& i
             // Create if not found.
             if( fd.empty() )
             {
-                auto const r = KMAP_TRY( create_lineages( c_op.kmap, node, op ) );
+                auto const r = KTRY( create_lineages( c_op.kmap, node, op ) );
 
                 cumulative.insert( r.begin(), r.end() );
             }
@@ -2249,11 +2266,11 @@ auto operator|( Intermediary const& i
                                                           || std::is_same_v< T, DirectDesc >
                                                           || std::is_same_v< T, Tag > )
                                                {
-                                                   vrv = UuidSet{ KMAP_TRY( vop.create( foc_op.kmap, node ) ) };
+                                                   vrv = UuidSet{ KTRY( vop.create( foc_op.kmap, node ) ) };
                                                }
                                                else if constexpr( std::is_same_v< T, Alias > )
                                                {
-                                                   vrv = KMAP_TRY( vop.create( foc_op.kmap, node ) );
+                                                   vrv = KTRY( vop.create( foc_op.kmap, node ) );
                                                }
                                            }
                                            else

@@ -16,6 +16,7 @@
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <emscripten.h>
 #include <range/v3/action/join.hpp>
 #include <range/v3/action/reverse.hpp>
 #include <range/v3/action/sort.hpp>
@@ -39,6 +40,8 @@
 #include <range/v3/view/take_last.hpp>
 
 using namespace ranges;
+namespace rvs = ranges::views;
+namespace ras = ranges::actions;
 
 namespace kmap::com {
 
@@ -59,7 +62,6 @@ auto Network::initialize()
     selected_node_ = rn->root_node();
     
     rv = outcome::success();
-    // network.cmd, not install_commands here, as that would create a dep on "command_store", which would be cyclic..
 
     return rv;
 }
@@ -224,7 +226,7 @@ auto Network::create_child( Uuid const& parent
                 BC_ASSERT( exists( rvv ) );
                 BC_ASSERT( is_child( parent, heading ) );
                 BC_ASSERT( is_valid_heading( KTRYE( fetch_heading( rvv ) ) ) );
-                BC_ASSERT( KTRYE( fetch_parent( rvv ) ) == parent );
+                BC_ASSERT( KTRYE( fetch_parent( rvv ) ) == resolve( parent ) );
 
                 if( !attr::is_in_attr_tree( km, child ) )
                 {
@@ -244,12 +246,12 @@ auto Network::create_child( Uuid const& parent
 
     auto const rpid = alias_store().resolve( parent );
 
-    KMAP_TRY( create_child_internal( rpid, child, heading, title ) );
+    KTRY( create_child_internal( rpid, child, heading, title ) );
 
     if( !attr::is_in_attr_tree( km, child ) ) // TODO: What is the purpose of this check? And what's with it's name? Something feels half-baked about this...
     {
-        KMAP_TRY( attr::push_genesis( km, child ) );
-        KMAP_TRY( attr::push_order( km, parent, child ) );
+        KTRY( attr::push_genesis( km, child ) );
+        KTRY( attr::push_order( km, rpid, child ) );
     }
 
     KTRY( update_aliases( parent ) );
@@ -617,7 +619,7 @@ auto Network::erase_node( Uuid const& id )
     return rv;
 }
 
-SCENARIO( "erase_node erases attributes", "[iface]" )
+SCENARIO( "erase_node erases attributes", "[nw][iface]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "database", "network", "root_node" );
 
@@ -1022,7 +1024,7 @@ auto Network::fetch_ordering_position( Uuid const& node ) const
     return rv;
 }
 
-SCENARIO( "fetch_ordering_position", "[iface][order]" )
+SCENARIO( "fetch_ordering_position", "[nw][iface][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1265,16 +1267,31 @@ auto Network::reorder_children( Uuid const& parent
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+    auto& km = kmap_inst();
 
     BC_CONTRACT()
         BC_POST([ & ]
         {
+            if( rv )
+            {
+                auto const ordern = KTRYE( view::make( parent )
+                                         | view::attr
+                                         | view::child( "order" )
+                                         | view::fetch_node( km ) );
+                auto const body = KTRYE( fetch_body( ordern ) );
+                auto const split = body
+                               | rvs::split( '\n' )
+                               | ranges::to< std::vector< std::string > >();
+                auto const ids = split
+                               | rvs::transform( [ & ](auto const& e ){ return KTRYE( uuid_from_string( e ) ); } )
+                               | ranges::to< UuidSet >();
+                BC_ASSERT( ids == ( children | rvs::transform( [ & ]( auto const& e ){ return resolve( e ); } ) | ranges::to< UuidSet >() ) );
+            }
         })
     ;
 
     KMAP_ENSURE( fetch_children( parent ) == ( children | to< std::set >() ), error_code::network::invalid_ordering );
 
-    auto& km = kmap_inst();
     auto const osv = children
                    | views::transform( [ & ]( auto const& e ){ return to_string( alias_store().resolve( e ) ); } )
                    | to< std::vector >();
@@ -1354,7 +1371,7 @@ auto Network::swap_nodes( Uuid const& t1
     return rv;
 }
 
-SCENARIO( "swap two sibling aliases", "[iface][swap_nodes][order]" )
+SCENARIO( "swap two sibling aliases", "[nw][iface][swap_nodes][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1368,7 +1385,9 @@ SCENARIO( "swap two sibling aliases", "[iface][swap_nodes][order]" )
         auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
         auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
         auto const a31 = REQUIRE_TRY( nw->create_alias( c1, c3 ) );
+            KMAP_LOG_LINE();
         auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
+            KMAP_LOG_LINE();
 
         THEN( "aliases are ordered properly" )
         {
@@ -1380,6 +1399,7 @@ SCENARIO( "swap two sibling aliases", "[iface][swap_nodes][order]" )
 
         WHEN( "swap aliases" )
         {
+            REQUIRE_RES( print_tree( kmap, root ) );
             REQUIRE_RES( nw->swap_nodes( a31, a32 ) );
 
             THEN( "aliases swapped" )
@@ -1507,7 +1527,7 @@ auto Network::set_ordering_position( Uuid const& id
             }
         })
     ;
-    
+
     if( auto siblings = ( view::make( id ) 
                         | view::parent
                         | view::child
@@ -1522,7 +1542,9 @@ auto Network::set_ordering_position( Uuid const& id
 
         std::iter_swap( it, begin( siblings ) + pos );
 
+KMAP_LOG_LINE();
         KTRY( reorder_children( parent, siblings ) );
+KMAP_LOG_LINE();
 
         rv = outcome::success();
     }
@@ -2020,6 +2042,73 @@ auto Network::fetch_visible_nodes_from( Uuid const& id ) const
 
     return rv;
 }
+
+auto Network::is_alias( Uuid const& node ) const
+    -> bool
+{
+    return alias_store().is_alias( node );
+}
+
+namespace binding {
+
+using namespace emscripten;
+
+struct Network
+{
+    Kmap& kmap_;
+
+    Network( Kmap& kmap )
+        : kmap_{ kmap }
+    {
+    }
+
+    auto create_child( Uuid const& parent
+                     , std::string const& title )
+        -> kmap::binding::Result< Uuid >
+    {
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+
+        return nw->create_child( parent, format_heading( title ), title );
+    }
+    auto fetch_parent( Uuid const& node )
+        -> kmap::binding::Result< Uuid >
+    {
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+
+        return nw->fetch_parent( node );
+    }
+    auto selected_node()
+        -> Uuid
+    {
+        return KTRYE( kmap_.fetch_component< com::Network >() )->selected_node();
+    }
+    auto select_node( Uuid const& node )
+        -> kmap::binding::Result< Uuid >
+    {
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+
+        return nw->select_node( node );
+    }
+};
+
+auto network()
+    -> binding::Network
+{
+    return binding::Network{ Singleton::instance() };
+}
+
+EMSCRIPTEN_BINDINGS( kmap_network )
+{
+    function( "network", &kmap::com::binding::network );
+    class_< kmap::com::binding::Network >( "Network" )
+        .function( "create_child", &kmap::com::binding::Network::create_child )
+        .function( "fetch_parent", &kmap::com::binding::Network::fetch_parent )
+        .function( "selected_node", &kmap::com::binding::Network::selected_node )
+        .function( "select_node", &kmap::com::binding::Network::select_node )
+        ;
+}
+
+} // namespace binding
 
 namespace {
 namespace network_def {

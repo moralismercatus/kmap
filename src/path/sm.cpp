@@ -33,24 +33,24 @@ UniquePathDeciderSm::UniquePathDeciderSm( Kmap const& kmap
 auto make_unique_path_decider( Kmap const& kmap
                              , Uuid const& root
                              , Uuid const& start )
-    -> std::pair< UniquePathDeciderSmDriverPtr, UniquePathDeciderSm::OutputPtr >
+    -> UniquePathDecider
 {
     auto output = std::make_shared< UniquePathDeciderSm::Output >();
-    auto sm = UniquePathDeciderSm{ kmap 
-                                 , root
-                                 , start
-                                 , output };
+    auto sm = std::make_shared< UniquePathDeciderSm >( kmap 
+                                                     , root
+                                                     , start
+                                                     , output );
     auto driver = [ & ]
     {
 #if KMAP_LOGGING_PATH || 0
         auto sm_logger = SmlLogger{};
-        return std::make_shared< UniquePathDeciderSmDriver >( sm, sm_logger );
+        return std::make_shared< UniquePathDeciderSmDriver >( *sm, sm_logger );
 #else
-        return std::make_shared< UniquePathDeciderSmDriver >( sm );
+        return std::make_shared< UniquePathDeciderSmDriver >( *sm );
 #endif // KMAP_LOGGING_PATH
     }();
 
-    return { driver, output };
+    return UniquePathDecider{ sm, driver, output };
 }
 
 PathDeciderSm::PathDeciderSm( Kmap const& kmap
@@ -67,45 +67,45 @@ PathDeciderSm::PathDeciderSm( Kmap const& kmap
 auto make_path_decider( Kmap const& kmap
                       , Uuid const& root
                       , Uuid const& selected )
-    -> std::pair< PathDeciderSmDriverPtr, PathDeciderSm::OutputPtr >
+    -> PathDecider
 {
     auto output = std::make_shared< PathDeciderSm::Output >();
-    auto sm = PathDeciderSm{ kmap 
-                           , root
-                           , selected
-                           , output };
+    auto sm = std::make_shared< PathDeciderSm >( kmap 
+                                               , root
+                                               , selected
+                                               , output );
     auto driver = [ & ]
     {
 #if KMAP_LOGGING_PATH
         auto sm_logger = SmlLogger{};
-        return std::make_shared< PathDeciderSmDriver >( sm, sm_logger );
+        return std::make_shared< PathDeciderSmDriver >( *sm, sm_logger );
 #else
-        return std::make_shared< PathDeciderSmDriver >( sm );
+        return std::make_shared< PathDeciderSmDriver >( *sm );
 #endif // KMAP_LOGGING_PATH
     }();
 
-    return { driver, output };
+    return { sm, driver, output };
 }
 
 auto walk( Kmap const& kmap
          , Uuid const& root
          , Uuid const& selected
          , StringVec const& tokens )
-    -> std::pair< PathDeciderSmDriverPtr, PathDeciderSm::OutputPtr >
+    -> PathDecider
 {
-    auto [ driver, output ] = make_path_decider( kmap, root, selected );
+    auto decider = make_path_decider( kmap, root, selected );
 
     for( auto const& token : tokens )
     {
-        if( driver->is( boost::sml::state< sm::state::Error > ) )
+        if( decider.driver->is( boost::sml::state< sm::state::Error > ) )
         {
             break;
         }
 
-        process_token( *driver, token );
+        process_token( *decider.driver, token );
     }
 
-    return { driver, output };
+    return decider;
 }
 
 } // namespace kmap

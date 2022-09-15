@@ -268,24 +268,24 @@ public:
         -> Result< void >
     {
         auto rv = KMAP_MAKE_RESULT( void );
-        auto [ decider, output ] = make_unique_cache_decider( *this );
+        auto decider = make_unique_cache_decider( *this );
 
         {
             for( auto const ev = sm::ev::Push{ .table = Table{}, .key = ukey, .value = ukey }
-               ; !output->done
+               ; !decider.output->done
                ; )
             {
-                decider->process_event( ev );
+                decider.driver->process_event( ev );
             }
         }
 
-        if( decider->is( boost::sml::state< sm::state::CreateDelta > ) )
+        if( decider.driver->is( boost::sml::state< sm::state::CreateDelta > ) )
         {
             auto&& table = std::get< Table >( cache_tables_ );
 
             KMAP_TRY( table.create( ukey ) );
         }
-        else if( decider->is( boost::sml::state< sm::state::UpdateDelta > ) )
+        else if( decider.driver->is( boost::sml::state< sm::state::UpdateDelta > ) )
         {
             // Q: Is it logical that a key-only entry cannot be updated? The key would change and therefore the entry,
             //    but what if movement happens? I don't think that works. It's a UUID, meaning one should never have to move from one unique to another unique,
@@ -295,14 +295,14 @@ public:
 
             KMAP_THROW_EXCEPTION_MSG( "should never reach; doesn't make sense to update delta on a key-only table" );
         }
-        else if( decider->is( boost::sml::state< sm::state::Nop > ) )
+        else if( decider.driver->is( boost::sml::state< sm::state::Nop > ) )
         {
             // Nothing to do.
         }
         else
         {
             // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
-            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state: {}", output->error_msg ) );
+            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state: {}", decider.output->error_msg ) );
         }
 
         rv = outcome::success();
@@ -338,22 +338,22 @@ public:
                 return ValueVariant{ right };
             }
         }();
-        auto [ decider, output ] = make_unique_cache_decider( *this );
+        auto decider = make_unique_cache_decider( *this );
 
         for( auto const ev = sm::ev::Push{ .table = Table{}, .key = key, .value = value }
-           ; !output->done
+           ; !decider.output->done
            ; )
         {
-            decider->process_event( ev );
+            decider.driver->process_event( ev );
         }
 
-        if( decider->is( boost::sml::state< sm::state::CreateDelta > ) )
+        if( decider.driver->is( boost::sml::state< sm::state::CreateDelta > ) )
         {
             auto&& table = std::get< Table >( cache_tables_ );
 
-            KMAP_TRY( table.create( left, right ) );
+            KTRY( table.create( left, right ) );
         }
-        else if( decider->is( boost::sml::state< sm::state::UpdateDelta > ) )
+        else if( decider.driver->is( boost::sml::state< sm::state::UpdateDelta > ) )
         {
             auto&& table = std::get< Table >( cache_tables_ );
 
@@ -365,7 +365,7 @@ public:
                     table_item.delta_items.emplace_back( typename Table::DeltaItem{ .value = ukey, .action = DeltaType::changed, .transaction_id = {} } );
                 };
 
-                KMAP_TRY( table.update( ukey, update_fn ) );
+                KTRY( table.update( ukey, update_fn ) );
             }
             else
             {
@@ -374,17 +374,17 @@ public:
                     table_item.delta_items.emplace_back( typename Table::DeltaItem{ .value = right, .action = DeltaType::changed, .transaction_id = {} } );
                 };
 
-                KMAP_TRY( table.update( left, update_fn ) );
+                KTRY( table.update( left, update_fn ) );
             }
         }
-        else if( decider->is( boost::sml::state< sm::state::Nop > ) )
+        else if( decider.driver->is( boost::sml::state< sm::state::Nop > ) )
         {
             // Nothing to do.
         }
         else
         {
             // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
-            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state: {}", output->error_msg ) );
+            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state: {}", decider.output->error_msg ) );
         }
 
         rv = outcome::success();
@@ -396,22 +396,22 @@ public:
         -> Result< void >
     {
         auto rv = KMAP_MAKE_RESULT( void );
-        auto [ decider, output ] = make_unique_cache_decider( *this );
+        auto decider = make_unique_cache_decider( *this );
 
         for( auto const ev = sm::ev::Erase{ .table = Table{}, .key = ukey }
-           ; !output->done
+           ; !decider.output->done
            ; )
         {
-            decider->process_event( ev );
+            decider.driver->process_event( ev );
         }
 
-        if( decider->is( boost::sml::state< sm::state::Error > ) )
+        if( decider.driver->is( boost::sml::state< sm::state::Error > ) )
         {
-            rv = KMAP_MAKE_ERROR_MSG( error_code::db::erase_failed, output->error_msg );
+            rv = KMAP_MAKE_ERROR_MSG( error_code::db::erase_failed, decider.output->error_msg );
         }
         else
         {
-            if( decider->is( boost::sml::state< sm::state::EraseDelta > ) )
+            if( decider.driver->is( boost::sml::state< sm::state::EraseDelta > ) )
             {
                 auto&& table = std::get< Table >( cache_tables_ );
                 auto const update_fn = [ & ]( auto&& table_item )
@@ -421,7 +421,7 @@ public:
 
                 KMAP_TRY( table.update( ukey, update_fn ) );
             }
-            else if( decider->is( boost::sml::state< sm::state::ClearDelta > ) )
+            else if( decider.driver->is( boost::sml::state< sm::state::ClearDelta > ) )
             {
                 auto&& table = std::get< Table >( cache_tables_ );
 
@@ -430,7 +430,7 @@ public:
             else
             {
                 // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
-                KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state", output->error_msg ) );
+                KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state", decider.output->error_msg ) );
             }
 
             rv = outcome::success();
@@ -455,22 +455,22 @@ public:
                 return UniqueKeyVariant{ left };
             }
         }();
-        auto [ decider, output ] = make_unique_cache_decider( *this );
+        auto decider = make_unique_cache_decider( *this );
 
         for( auto const ev = sm::ev::Erase{ .table = Table{}, .key = key }
-           ; !output->done
+           ; !decider.output->done
            ; )
         {
-            decider->process_event( ev );
+            decider.driver->process_event( ev );
         }
         for( auto const ev = sm::ev::Erase{ .table = Table{}, .key = key }
-           ; !output->done
+           ; !decider.output->done
            ; )
         {
-            decider->process_event( ev );
+            decider.driver->process_event( ev );
         }
 
-        if( decider->is( boost::sml::state< sm::state::EraseDelta > ) )
+        if( decider.driver->is( boost::sml::state< sm::state::EraseDelta > ) )
         {
             auto&& table = std::get< Table >( cache_tables_ );
             auto const ukey = typename Table::unique_key_type{ left, right };
@@ -482,7 +482,7 @@ public:
 
             KMAP_TRY( table.update( ukey, update_fn ) );
         }
-        else if( decider->is( boost::sml::state< sm::state::ClearDelta > ) )
+        else if( decider.driver->is( boost::sml::state< sm::state::ClearDelta > ) )
         {
             auto&& table = std::get< Table >( cache_tables_ );
 
@@ -491,7 +491,7 @@ public:
         else
         {
             // TODO: Not really an exception, more like an assertion. We should never reach here, so long as SM is defined properly.
-            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state", output->error_msg ) );
+            KMAP_THROW_EXCEPTION_MSG( fmt::format( "cache decider ended in invalid state", decider.output->error_msg ) );
         }
 
         rv = outcome::success();

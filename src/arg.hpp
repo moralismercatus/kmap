@@ -333,13 +333,12 @@ auto operator|( ArgumentList lhs
               , DerivedArg rhs )
     -> ArgumentList&&
 {
-    using std::move;
     using std::make_shared;
     using std::static_pointer_cast;
 
     lhs.push_back( make_shared< DerivedArg >( rhs ) );
 
-    return move( lhs );
+    return std::move( lhs );
 }
 
 enum class Attr
@@ -352,11 +351,9 @@ auto operator|( ArgumentList lhs
               , Attr rhs )
     -> ArgumentList&&
 {
-    using std::move;
-
     if( lhs.empty() )
     {
-        return move( lhs );
+        return std::move( lhs );
     }
     else
     {
@@ -371,7 +368,7 @@ auto operator|( ArgumentList lhs
             break;
         }
 
-        return move( lhs );
+        return std::move( lhs );
     }
 }
 

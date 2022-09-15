@@ -172,6 +172,9 @@ public:
         -> Result< Title >;
     auto fetch_visible_nodes_from( Uuid const& node ) const
         -> std::vector< Uuid >;
+    [[ nodiscard ]]
+    auto is_alias( Uuid const& node ) const
+        -> bool;
     // TODO [cleanup]: Can be replaced by node_view.
         template< typename... Nodes >
         [[ nodiscard ]]

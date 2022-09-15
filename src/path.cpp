@@ -825,13 +825,13 @@ auto complete_path( Kmap const& kmap
             }
             else
             {
-                auto [ decider, output ] = walk( kmap, root, selected, tokens | views::drop_last( 1 ) | to< StringVec >() );
+                auto decider = walk( kmap, root, selected, tokens | views::drop_last( 1 ) | to< StringVec >() );
 
-                for( auto&& prospect : output->prospects )
+                for( auto&& prospect : decider.output->prospects )
                 {
-                    if( prospect.first->is( boost::sml::state< sm::state::FwdNode > ) )
+                    if( prospect.driver->is( boost::sml::state< sm::state::FwdNode > ) )
                     {
-                        for( auto const& child : nw->fetch_children( prospect.second->prospect.back() ) )
+                        for( auto const& child : nw->fetch_children( prospect.output->prospect.back() ) )
                         {
                             auto const ch = nw->fetch_heading( child ).value();
 
@@ -843,11 +843,11 @@ auto complete_path( Kmap const& kmap
                             }
                         }
                     }
-                    else if( prospect.first->is( boost::sml::state< sm::state::BwdNode > ) )
+                    else if( prospect.driver->is( boost::sml::state< sm::state::BwdNode > ) )
                     {
-                        BC_ASSERT( !prospect.second->prospect.empty() );
+                        BC_ASSERT( !prospect.output->prospect.empty() );
 
-                        auto const p = prospect.second->prospect.back();
+                        auto const p = prospect.output->prospect.back();
                         auto const ph = nw->fetch_heading( p ); BC_ASSERT( ph );
 
                         if( ph.value().starts_with( tokens.back() ) )
@@ -857,20 +857,20 @@ auto complete_path( Kmap const& kmap
                             comps.emplace( CompletionNode{ .target=p, .path=np } );
                         }
                     }
-                    else if( prospect.first->is( boost::sml::state< sm::state::DisNode > ) )
+                    else if( prospect.driver->is( boost::sml::state< sm::state::DisNode > ) )
                     {
-                        BC_ASSERT( !prospect.second->disambiguation.empty() );
+                        BC_ASSERT( !prospect.output->disambiguation.empty() );
 
-                        auto const p = KTRY( nw->fetch_parent( prospect.second->disambiguation.back() ) );
+                        auto const p = KTRY( nw->fetch_parent( prospect.output->disambiguation.back() ) );
                         auto const ph = KTRY( nw->fetch_heading( p ) );
 
                         if( ph.starts_with( tokens.back() ) )
                         {
                             auto const joined = tokens | views::drop_last( 1 ) | views::join | to< std::string >();
                             auto const np = joined + ph;
-                            auto const target = prospect.second->prospect.back();
-                            BC_ASSERT( !prospect.second->disambiguation.empty() );
-                            auto const disp = KTRY( nw->fetch_parent( prospect.second->disambiguation.back() ) );
+                            auto const target = prospect.output->prospect.back();
+                            BC_ASSERT( !prospect.output->disambiguation.empty() );
+                            auto const disp = KTRY( nw->fetch_parent( prospect.output->disambiguation.back() ) );
                             comps.emplace( CompletionNode{ .target=target, .path=np, .disambig={ disp } } );
                         }
                     }
@@ -953,13 +953,13 @@ auto complete_path( Kmap const& kmap
         }
         else // ends in non-heading.
         {
-            auto [ decider, output ] = walk( kmap, root, selected, tokens );
+            auto decider = walk( kmap, root, selected, tokens );
 
-            for( auto&& prospect : output->prospects )
+            for( auto&& prospect : decider.output->prospects )
             {
-                if( prospect.first->is( boost::sml::state< sm::state::FwdNode > ) )
+                if( prospect.driver->is( boost::sml::state< sm::state::FwdNode > ) )
                 {
-                    for( auto const& child : nw->fetch_children( prospect.second->prospect.back() ) )
+                    for( auto const& child : nw->fetch_children( prospect.output->prospect.back() ) )
                     {
                         auto const joined = tokens | views::join | to< std::string >();
                         auto const np = joined + nw->fetch_heading( child ).value();
@@ -967,17 +967,17 @@ auto complete_path( Kmap const& kmap
                         comps.emplace( CompletionNode{ .target=child, .path=np } );
                     }
                 }
-                else if( prospect.first->is( boost::sml::state< sm::state::BwdNode > ) )
+                else if( prospect.driver->is( boost::sml::state< sm::state::BwdNode > ) )
                 {
-                    auto const target = prospect.second->prospect.back();
+                    auto const target = prospect.output->prospect.back();
                     auto const joined = tokens | views::join | to< std::string >();
                     auto const np = joined + nw->fetch_heading( target ).value();
 
                     comps.emplace( CompletionNode{ .target=target, .path=np } );
                 }
-                else if( prospect.first->is( boost::sml::state< sm::state::DisNode > ) )
+                else if( prospect.driver->is( boost::sml::state< sm::state::DisNode > ) )
                 {
-                    auto const target = prospect.second->disambiguation.back();
+                    auto const target = prospect.output->disambiguation.back();
                     auto const p = KTRYE( nw->fetch_parent( target ) );
                     auto const joined = tokens | views::join | to< std::string >();
                     auto const np = joined + KTRYE( nw->fetch_heading( p ) );
@@ -1055,21 +1055,21 @@ auto decide_path( Kmap const& kmap
     using boost::sml::logger;
 
     auto rv = KMAP_MAKE_RESULT( UuidVec );
-    auto const [ sm, output ] = walk( kmap
-                                    , root
-                                    , selected
-                                    , tokens );
+    auto const decider = walk( kmap
+                             , root
+                             , selected
+                             , tokens );
 
-    if( sm->is( boost::sml::state< sm::state::Error > ) )
+    if( decider.driver->is( boost::sml::state< sm::state::Error > ) )
     {
         auto const joined = tokens | views::join | to< std::string >();
-        rv = KMAP_MAKE_ERROR_MSG( error_code::node::invalid_path, io::format( "\n\terror: {}\n\theading: {}", output->error_msg, joined ) );
+        rv = KMAP_MAKE_ERROR_MSG( error_code::node::invalid_path, io::format( "\n\terror: {}\n\theading: {}", decider.output->error_msg, joined ) );
     }
     else
     {
-        rv = output->prospects
-           | views::filter( []( auto const& e ){ return !e.first->is( boost::sml::state< sm::state::Error > ); } ) // Note: b/c the SM allows a "delay" - perserving the failure for at least one cycle, must filter out manually.
-           | views::transform( []( auto const& e ){ BC_ASSERT( e.second && !e.second->prospect.empty() ); return e.second->prospect.back(); } )
+        rv = decider.output->prospects
+           | views::filter( []( auto const& e ){ return !e.driver->is( boost::sml::state< sm::state::Error > ); } ) // Note: b/c the SM allows a "delay" - perserving the failure for at least one cycle, must filter out manually.
+           | views::transform( []( auto const& e ){ BC_ASSERT( e.output && !e.output->prospect.empty() ); return e.output->prospect.back(); } )
            | to< UuidVec >();
     }
 
@@ -1517,6 +1517,11 @@ auto create_descendants( Kmap& kmap
     BC_CONTRACT()
         BC_POST( [ & ] 
         {
+            if( rv )
+            {
+                BC_ASSERT( !rv.has_error() );
+                // BC_ASSERT( ( !( rv.value().empty() ) ) ); // TODO: Very strange bug. Enable at own sanity's risk. Checking post-return inside dtor here gives different answer to empty() question than right before return statement and returned value to caller.
+            }
         } )
     ;
 
@@ -1530,25 +1535,29 @@ auto create_descendants( Kmap& kmap
     auto const all_tokens = tokenize_path( heading );
     auto walking_tokens = decltype( all_tokens ){};
     auto all_tokens_it = all_tokens.begin();
+    auto const all_tokens_eit = all_tokens.end();
     auto new_additions = UuidVec{};
 
-    while( walking_tokens.size() != all_tokens.size() )
+    BC_ASSERT( !rv );
+    BC_ASSERT( new_additions.empty() );
+
+    while( all_tokens_it != all_tokens_eit )
     {
         auto const curr_token = *all_tokens_it;
-        walking_tokens.emplace_back( curr_token );
         ++all_tokens_it;
+        walking_tokens.emplace_back( curr_token );
 
-        auto const [ sm, output ] = walk( kmap
-                                        , root
-                                        , selected
-                                        , walking_tokens );
+        auto const decider = walk( kmap
+                                 , root
+                                 , selected
+                                 , walking_tokens );
         auto const curr_path = walking_tokens | views::join | to< std::string >();
         
         // Ok, so here's the problem. I need a delayed state. I can't create a child based on the prospects.back() if the prospect disappears (is "laundered")
         // as soon as its found to be in error.
         //    (1) You must communicate "full" errors from UniqueDecider to Decider on the same event.
         //    (2) Launder should occur as a pre, not post, so errors are preserved, for at least one cycle.
-        if( sm->is( boost::sml::state< sm::state::Error > ) )
+        if( decider.driver->is( boost::sml::state< sm::state::Error > ) )
         {
             if( !is_valid_heading_path( curr_token ) )
             {
@@ -1556,19 +1565,19 @@ auto create_descendants( Kmap& kmap
 
                 break;
             }
-            else if( output->prospects.size() > 1 )
+            else if( decider.output->prospects.size() > 1 )
             {
                 auto const to_abs_path = [ & ]( auto const& prospect )
                 {
-                    KMAP_ENSURE_EXCEPT( prospect.second != nullptr );
-                    KMAP_ENSURE_EXCEPT( prospect.second->prospect.size() != 0 );
+                    KMAP_ENSURE_EXCEPT( prospect.output != nullptr );
+                    KMAP_ENSURE_EXCEPT( prospect.output->prospect.size() != 0 );
 
                     return KTRYE( kmap.root_view()
-                                | view::desc( prospect.second->prospect.back() )
+                                | view::desc( prospect.output->prospect.back() )
                                 | act::abs_path_flat( kmap ) );
                 };
 
-                auto const prospects_flattened = output->prospects
+                auto const prospects_flattened = decider.output->prospects
                                                | ranges::views::transform( to_abs_path )
                                                | ranges::views::join( ',' )
                                                | ranges::to< std::string >();
@@ -1577,7 +1586,7 @@ auto create_descendants( Kmap& kmap
 
                 break;
             }
-            else if( output->prospects.size() == 0 )
+            else if( decider.output->prospects.size() == 0 )
             {
                 rv = KMAP_MAKE_ERROR_MSG( error_code::network::invalid_heading, heading );
                 
@@ -1585,20 +1594,25 @@ auto create_descendants( Kmap& kmap
             }
             else
             {
-                BC_ASSERT( output->prospects.size() == 1 );
+                BC_ASSERT( decider.output->prospects.size() == 1 );
 
                 KMAP_ENSURE_EXCEPT( is_valid_heading( curr_token ) );
-                KMAP_ENSURE_EXCEPT( output->prospects.back().second != nullptr );
-                KMAP_ENSURE_EXCEPT( output->prospects.back().second->prospect.size() != 0 );
+                KMAP_ENSURE_EXCEPT( decider.output->prospects.back().output != nullptr );
+                KMAP_ENSURE_EXCEPT( decider.output->prospects.back().output->prospect.size() != 0 );
 
-                auto const ccr = nw->create_child( output->prospects.back().second->prospect.back(), curr_token );
+                auto const ccr = nw->create_child( decider.output->prospects.back().output->prospect.back(), curr_token );
 
                 if( ccr )
                 {
-                    auto pros = output->prospects.front().second->prospect;
-                    pros.emplace_back( ccr.value() );
-                    new_additions.insert( new_additions.end()
-                                        , pros.begin(), pros.end() );
+                    // auto pros = output->prospects.front().second->prospect;
+                    // pros.emplace_back( ccr.value() );
+                    // new_additions.insert( new_additions.end()
+                    //                     , pros.begin(), pros.end() );
+                    new_additions.emplace_back( ccr.value() );
+                    BC_ASSERT( !new_additions.empty() );
+
+                    rv = new_additions;
+                    BC_ASSERT( !rv.value().empty() );
                 }
                 else
                 {
@@ -1614,8 +1628,6 @@ auto create_descendants( Kmap& kmap
             //       In this case, the success case, no new node is created.
             // BC_ASSERT( !output->prospects.empty() );
         }
-
-        rv = new_additions;
     }
 
     return rv;

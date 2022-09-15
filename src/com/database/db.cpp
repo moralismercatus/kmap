@@ -457,10 +457,14 @@ CREATE TABLE IF NOT EXISTS resources
 auto Database::has_file_on_disk()
     -> bool
 {
-    return fs::exists( path() )
+    auto const p = path();
+
+    return !p.string().empty()
+        && fs::exists( p )
         && static_cast< bool >( con_ )
-        && path_ == sqlite3_db_filename( con_->native_handle(), nullptr );
-    // SCENARIO( "external actor alters file on disk" )
+        && p == sqlite3_db_filename( con_->native_handle(), nullptr );
+
+    // TODO: SCENARIO( "external actor alters file on disk" )
 }
 
 auto Database::push_child( Uuid const& parent 
@@ -1734,6 +1738,14 @@ struct Database
         }
     }
 
+    auto has_delta()
+        -> bool
+    {
+        auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
+
+        return db->has_delta();
+    }
+
     auto has_file_on_disk()
         -> bool
     {
@@ -1755,6 +1767,7 @@ EMSCRIPTEN_BINDINGS( kmap_database )
     class_< kmap::com::binding::Database >( "Database" )
         .function( "init_db_on_disk", &kmap::com::binding::Database::init_db_on_disk )
         .function( "flush_delta_to_disk", &kmap::com::binding::Database::flush_delta_to_disk )
+        .function( "has_delta", &kmap::com::binding::Database::has_delta )
         .function( "has_file_on_disk", &kmap::com::binding::Database::has_file_on_disk )
         ;
 }

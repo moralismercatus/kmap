@@ -115,8 +115,6 @@ auto list_commands( Kmap& kmap )
 
         tv->clear();
         tv->show_preview( flat );
-        // kmap.network()
-        //     .focus();
 
         return std::string{ "list-command" };
     };

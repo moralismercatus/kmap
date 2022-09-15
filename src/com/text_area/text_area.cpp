@@ -6,15 +6,20 @@
 #include "text_area.hpp"
 
 #include "com/canvas/canvas.hpp"
+#include "com/cli/cli.hpp"
 #include "com/database/db.hpp"
+#include "com/database/root_node.hpp"
 #include "com/network/network.hpp"
+#include "com/network/visnetwork.hpp"
 #include "emcc_bindings.hpp"
 #include "error/result.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/act/value_or.hpp"
+#include "test/util.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <emscripten/val.h>
 
@@ -25,6 +30,7 @@ TextArea::TextArea( Kmap& kmap
                   , std::string const& description )
     : Component( kmap, requisites, description )
     , eclerk_{ kmap, { TextArea::id } }
+    , cclerk_{ kmap }
 {
 }
 
@@ -35,6 +41,7 @@ auto TextArea::initialize()
 
     KTRY( install_event_outlets() );
     KTRY( install_event_sources() );
+    KTRY( install_commands() );
 
     rv = outcome::success();
 
@@ -49,6 +56,119 @@ auto TextArea::load()
     rv = outcome::success();
 
     return rv;
+}
+
+auto TextArea::install_commands()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    {
+        auto const guard_code =
+        R"%%%(```javascript
+            return kmap.success( 'success' );
+        ```)%%%";
+        auto const action_code =
+        R"%%%(```javascript
+        let rv = kmap.failure( 'failed to open editor' );
+        const selected = kmap.selected_node();
+        const body_text_res = kmap.fetch_body( selected );
+        let body_text = "";
+
+        // TODO: What if it failed for another reason other than uncreated? Should check failure kind if `has_error()`...
+        if( body_text_res.has_value() )
+        {
+            body_text = body_text_res.value();
+        }
+
+        const canvas = kmap.canvas();
+        const workspace_pane = canvas.workspace_pane();
+        const editor_pane = canvas.editor_pane();
+        const editor_pane_str = kmap.uuid_to_string( canvas.editor_pane() ).value();
+        const preview_pane = canvas.preview_pane();
+        const ta_pane = canvas.text_area_pane();
+        const ep_elem = document.getElementById( editor_pane_str );
+
+        ep_elem.value = body_text;
+
+        const old_ws_orient = canvas.fetch_orientation( workspace_pane ).value_or_throw();
+        const old_ta_base = canvas.fetch_base( ta_pane ).value_or_throw();
+
+        canvas.orient( workspace_pane, kmap.Orientation.vertical );
+        canvas.rebase( ta_pane, 0.33 ).throw_on_error();
+        canvas.rebase( preview_pane, 0.50 ).throw_on_error();
+        canvas.reveal( ta_pane ).throw_on_error();
+        canvas.reveal( editor_pane ).throw_on_error();
+        canvas.reveal( preview_pane ).throw_on_error();
+        kmap.option_store().apply( "network.viewport_scale" );
+        canvas.focus( editor_pane );
+
+        // Remove existing listeners before adding new.
+        {
+            const listeners = ep_elem.getEventListeners( 'focusout' );
+            if( listeners )
+            {
+                listeners.forEach( function( listener ){ ep_elem.removeEventListener( 'focusout', listener.listener ); } );
+            }
+        }
+
+        ep_elem.oninput = function( e )
+        {
+            const md_text = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
+            write_preview( convert_markdown_to_html( md_text.value ) );
+        };
+        ep_elem.addEventListener( 'focusout', function()
+        {
+            canvas.orient( workspace_pane, old_ws_orient ).throw_on_error();
+            canvas.rebase( ta_pane, old_ta_base ).throw_on_error();
+            kmap.on_leaving_editor();
+            kmap.option_store().apply( "network.viewport_scale" );
+        } );
+
+        rv = kmap.success( 'editor opened' );
+
+        return rv;
+        ```)%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "opens body editor pane";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "edit.body"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        KTRY( cclerk_.install_command( command ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+SCENARIO( "edit.body", "[cmd][text_area][edit.body]")
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "cli", "visnetwork" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+    auto const vnw = REQUIRE_TRY( km.fetch_component< com::VisualNetwork >() );
+
+    GIVEN( "root node selected" )
+    {
+        REQUIRE( nw->root_node() == nw->selected_node() );
+        // REQUIRE( nw->selected_node() == vnw->selected_node() );
+
+        WHEN( "edit.body executed" )
+        {
+            REQUIRE_RES( cli->parse_raw( ":edit.body" ) );
+        }
+    }
 }
 
 auto TextArea::install_event_outlets()
@@ -389,7 +509,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::TextArea
-,   std::set({ "canvas"s, "event_store"s })
+,   std::set({ "canvas"s, "command_store"s, "event_store"s, "visnetwork"s }) // TODO: rather than depend on visnetwork, fire events that visnetwork listens for, if initialized.
 ,   "text_area related functionality"
 );
 

@@ -11,6 +11,7 @@
 #include "error/network.hpp"
 #include "lineage.hpp"
 #include "util/concepts.hpp"
+#include "utility.hpp" // KMAP_LOG_LINE
 
 #include <functional>
 #include <optional>
@@ -330,7 +331,7 @@ struct Parent
     Parent() = default;
 
     auto operator()() {};
-    auto operator()( SelectionVariant const& sel ) {};
+    // auto operator()( SelectionVariant const& sel ) {}; // TODO: impl. e.g., `n | view::parent( "autosave" ) | view::exists( km );`
     auto operator()( Kmap const& kmap
                    , Uuid const& node ) const
         -> UuidSet;
