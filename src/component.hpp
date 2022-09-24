@@ -53,6 +53,8 @@ namespace kmap
 
 namespace kmap {
 
+auto fetch_listed_components()
+    -> Result< std::set< std::string > >;
 auto register_components( std::set< std::string > const& components )
     -> Result< void >;
 auto register_all_components()

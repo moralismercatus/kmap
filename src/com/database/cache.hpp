@@ -915,6 +915,9 @@ private:
     friend class kmap::db::CacheDeciderSm;
 };
 
+auto print_deltas( db::Cache const& cache )
+    -> void;
+
 } // namespace kmap::db
 
 #endif // KMAP_DB_HPP

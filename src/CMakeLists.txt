@@ -30,11 +30,14 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
     add_compile_definitions( ZLIB_CONST=1
                             #  BOOST_CONTRACT_NO_PRECONDITIONS=1
                             #  BOOST_CONTRACT_NO_POSTCONDITIONS=1
+                             NDEBUG=1
                              KMAP_DEBUG=0
-                             KMAP_PROFILE=0
-                             KMAP_LOGGING_PATH=0
                              KMAP_LOGGING_DB=0
-                             KMAP_LOG_EXCEPTION=0
+                             KMAP_LOGGING_PATH=0
+                             KMAP_LOG_EXCEPTION=1
+                             KMAP_LOG_KTRY=0
+                             KMAP_LOG_KTRYE=1
+                             KMAP_PROFILE=0
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -Wall
                          -O2 
@@ -43,8 +46,11 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
     add_link_options()
 else() # Warning: There is a known but in which a false-positive assert is triggered in DEBUG builds for file operations, so avoid using those in this mode.
     add_compile_definitions( KMAP_DEBUG=1 
-                             KMAP_LOGGING_PATH=0 
                              KMAP_LOGGING_DB=0
+                             KMAP_LOGGING_PATH=0 
+                             KMAP_LOG_KTRY=1
+                             KMAP_LOG_KTRYE=1
+                             KMAP_LOG_EXCEPTION=1
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -g3 
                          -O1 

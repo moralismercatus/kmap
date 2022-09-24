@@ -29,7 +29,7 @@ namespace kmap::com {
  */
 class Network : public Component//< Database >
 {
-    AliasStore astore_;
+    AliasStore astore_ = {};
     // TODO: Q: Should selected_node_ be a thing? Or does the notion of a selected node only make sense in reference to a visual?
     //       A: I think it makes sense outside the context of a visual. For example, commands operate on the assumption that there's a "current_node".
     //          A visual could be used to change the current node, but the current node shouldn't be dependent on the visual.
@@ -211,7 +211,7 @@ public:
                          , std::vector< Uuid > const& children )
         -> Result< void >;
     [[ nodiscard ]]
-    auto root_node()
+    auto root_node() const
         -> Uuid;
     [[ maybe_unused ]]
     auto swap_nodes( Uuid const& t1
@@ -242,6 +242,10 @@ protected:
                               , Heading const& heading
                               , Title const& title )
         -> kmap::Result< void >;
+    auto erase_alias( Uuid const& id )
+        -> Result< void >;
+    auto erase_aliases_to( Uuid const& id )
+        -> Result< void >;
     auto erase_node_internal( Uuid const& id )
         -> Result< void >;
     auto erase_node_leaf( Uuid const& id )

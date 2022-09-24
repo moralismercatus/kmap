@@ -12,6 +12,12 @@
 #include <range/v3/algorithm/all_of.hpp>
 #include <range/v3/algorithm/count_if.hpp>
 #include <range/v3/algorithm/find_if.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/map.hpp>
+
+#include <set>
+
+namespace rvs = ranges::views;
 
 namespace kmap {
 
@@ -38,6 +44,18 @@ ComponentStore::~ComponentStore()
         std::cerr << e.what() << '\n';
         std::terminate();
     }
+}
+
+auto ComponentStore::all_initialized_components()
+    -> std::set< std::string >
+{
+    auto rv = std::set< std::string >{};
+
+    rv = initialized_components_
+       | rvs::keys
+       | ranges::to< std::set >();
+
+    return rv;
 }
 
 auto ComponentStore::all_uninit_dependents( std::string const& component )
@@ -90,10 +108,12 @@ auto ComponentStore::clear()
     return rv;
 }
 
-auto ComponentStore::erase_component( ComponentPtr const& com )
+auto ComponentStore::erase_component( ComponentPtr const com )
     -> Result< void >
 {
     BC_ASSERT( com );
+
+    fmt::print( "[component] erasing component: {}\n", com->name() );
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto const depends_on_com = [ & ]( auto const& e ){ return e.second->requisites().contains( std::string{ com->name() } ); };
@@ -103,9 +123,9 @@ auto ComponentStore::erase_component( ComponentPtr const& com )
         KTRY( erase_component( ranges::find_if( initialized_components_, depends_on_com )->second ) );
     }
 
-    fmt::print( "[component] erasing component: {}\n", com->name() );
-
     initialized_components_.erase( std::string{ com->name() } );
+
+    fmt::print( "[component] erased component: {}\n", com->name() );
 
     rv = outcome::success();
 

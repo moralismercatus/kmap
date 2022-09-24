@@ -12,6 +12,7 @@ var kmap_components = // Curiously, failure occurs if `const` used instead of `v
 ,   "log_store"
 ,   "log_task"
 ,   "network"
+,   "network.command"
 ,   "option_store"
 ,   "root_node"
 ,   "tag_store"

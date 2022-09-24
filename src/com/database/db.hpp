@@ -14,86 +14,24 @@
 #include "path.hpp"
 #include "utility.hpp" // TODO: Remove. Only reason this is here is for testing.
 
-#include <sqlpp11/sqlpp11.h>
-#include <sqlpp11/ppgen.h>
-#include <sqlpp11/sqlite3/connection.h>
+// #include <sqlpp11/sqlite3/connection.h>
 
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-SQLPP_DECLARE_TABLE
-(
-    ( nodes )
-    ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( children )
-    ,
-    ( parent_uuid, text, SQLPP_NOT_NULL  )
-    ( child_uuid, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( headings )
-    ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-    ( heading, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( titles )
-    ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-    ( title, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( bodies )
-    ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-    ( body, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( aliases )
-    ,
-    ( src_uuid, text, SQLPP_NOT_NULL  )
-    ( dst_uuid, text, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( resources )
-    ,
-    ( uuid, text, SQLPP_NOT_NULL  )
-    ( resource, blob, SQLPP_NOT_NULL  )
-)
-
-SQLPP_DECLARE_TABLE
-(
-    ( attributes )
-    ,
-    ( parent_uuid, text, SQLPP_NOT_NULL  )
-    ( child_uuid, text, SQLPP_NOT_NULL  )
-)
+namespace sqlpp::sqlite3
+{
+    class connection;
+}
 
 namespace kmap::com {
-
-namespace sql = sqlpp::sqlite3;
 
 class Database : public Component
 {
     FsPath path_ = {};
-    std::unique_ptr< sql::connection > con_ = {}; // TODO: I think this actually belongs in com::DatabaseFilesystem. In the future.
+    std::unique_ptr< sqlpp::sqlite3::connection > con_ = {}; // TODO: I think this actually belongs in com::DatabaseFilesystem. In the future.
     mutable db::Cache cache_ = {}; // Needs to be mutable, as fetching/reading operations are const, but may update the cache. TODO: Really? I think what I had in mind was when it needed to be loaded from disk, but this all happens at one time via explicit command, so I don't think mutable is necessary.
 
 public:

@@ -24,6 +24,16 @@ auto make_alias_id( Uuid const& alias_src
     return xor_ids( alias_src, alias_dst );
 }
 
+auto make_alias_item( Uuid const& src
+                    , Uuid const& rsrc
+                    , Uuid const& dst )
+    ->AliasItem
+{
+    return AliasItem{ .src_id = AliasItem::src_type{ src }
+                    , .rsrc_id = AliasItem::rsrc_type{ rsrc }
+                    , .dst_id = AliasItem::dst_type{ dst } };
+}
+
 SCENARIO( "AliasSet basic ops", "[alias]" )
 {
     auto aliases = AliasSet{};
@@ -37,18 +47,19 @@ SCENARIO( "AliasSet basic ops", "[alias]" )
 
     GIVEN( "alias item" )
     {
-        auto const src = AliasItem::src_type{ gen_uuid() };
-        auto const dst = AliasItem::dst_type{ gen_uuid() };
-        auto const alias = make_alias_id( src.value(), dst.value() );
+        auto const src_id = gen_uuid();
+        auto const dst_id = gen_uuid();
+        auto const alias_item = make_alias_item( src_id, src_id, dst_id );
+        auto const alias = alias_item.alias();
 
-        aliases.emplace( AliasItem{ src, dst } );
+        aliases.emplace( alias_item );
                                   
         THEN( "duplicate alias insertion fails" )
         {
             auto const& v = aliases.get< AliasItem::alias_type >();
 
             REQUIRE( v.size() == 1 );
-            REQUIRE( !aliases.emplace( AliasItem{ src, dst } ).second );
+            REQUIRE( !aliases.emplace( alias_item ).second );
             REQUIRE( v.size() == 1 );
         }
         THEN( "items exist from alias view" )
@@ -62,167 +73,184 @@ SCENARIO( "AliasSet basic ops", "[alias]" )
             auto const item = *it;
 
             REQUIRE( item.alias() == alias );
-            REQUIRE( item.src() == src );
-            REQUIRE( item.dst() == dst );
+            REQUIRE( item.src() == alias_item.src() );
+            REQUIRE( item.dst() == alias_item.dst() );
         }
         THEN( "items exist from src view" )
         {
             auto const& v = aliases.get< AliasItem::src_type >();
 
             REQUIRE( v.size() == 1 );
-            REQUIRE( v.contains( src ) );
+            REQUIRE( v.contains( alias_item.src() ) );
 
-            auto const it = v.find( src ); REQUIRE( it != v.end() );
+            auto const it = v.find( alias_item.src() ); REQUIRE( it != v.end() );
             auto const item = *it;
 
             REQUIRE( item.alias() == alias );
-            REQUIRE( item.src() == src );
-            REQUIRE( item.dst() == dst );
+            REQUIRE( item.src() == alias_item.src() );
+            REQUIRE( item.dst() == alias_item.dst() );
         }
         THEN( "items exist from dst view" )
         {
             auto const& v = aliases.get< AliasItem::dst_type >();
 
             REQUIRE( v.size() == 1 );
-            REQUIRE( v.contains( dst ) );
+            REQUIRE( v.contains( alias_item.dst() ) );
 
-            auto const it = v.find( dst ); REQUIRE( it != v.end() );
+            auto const it = v.find( alias_item.dst() ); REQUIRE( it != v.end() );
             auto const item = *it;
 
             REQUIRE( item.alias() == alias );
-            REQUIRE( item.src() == src );
-            REQUIRE( item.dst() == dst );
+            REQUIRE( item.src() == alias_item.src() );
+            REQUIRE( item.dst() == alias_item.dst() );
         }
     }
 }
 
-AliasStore::AliasStore( Kmap& km )
-    : km_{ km }
-{
-}
-
 auto AliasStore::erase_alias( Uuid const& id )
-    -> Result< Uuid >
+    -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const nw = KTRY( km_.fetch_component< com::Network >() );
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( id != km_.root_node_id() );
-            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
-        })
         BC_POST([ &
-                , prev_as_size = BC_OLDOF( alias_set_.size() )
-                , prev_acs_size = BC_OLDOF( alias_child_set_.size() ) ]
+                , prev_as_size = BC_OLDOF( alias_set_.size() ) ]
         {
             if( rv )
             {
                 BC_ASSERT( !is_alias( id ) );
-                BC_ASSERT( !nw->exists( id ) );
-                BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
-                BC_ASSERT( alias_set_.size() + 1 == *prev_as_size );
-                BC_ASSERT( alias_child_set_.size() + 1 == *prev_acs_size );
+                BC_ASSERT( alias_set_.size() < *prev_as_size );
             }
         })
     ;
 
     KMAP_ENSURE_MSG( is_alias( id ), error_code::node::invalid_alias, to_string( id ) );
-
-    auto const next_sel = KTRY( nw->fetch_next_selected_as_if_erased( id ) );
-    auto const dst = KTRY( nw->fetch_parent( id ) );
-
-    if( nw->is_top_alias( id ) ) // Must precede erasing alias from the cache, as it is dependent on it.
+    
+    auto const child_items = [ & ]
     {
-        auto const src = resolve( id );
-        auto const db = KTRY( km_.fetch_component< com::Database >() );
+        auto cis = std::set< Uuid >{};
+        auto const& dv = alias_set_.get< AliasItem::dst_type >();
+        for( auto cits = dv.equal_range( AliasItem::dst_type{ id } )
+           ; cits.first != cits.second
+           ; ++cits.first )
+        {
+            cis.emplace( cits.first->alias() );
+        }
 
-        KTRY( db->erase_alias( src, dst ) );
+        return cis;
+    }();
 
-        KTRY( attr::pop_order( km_, KTRY( nw->fetch_parent( id ) ), resolve( id ) ) ); // Resolved src is in order, rather than alias ID.
+    for( auto const& ci : child_items ) // TODO: Needs to be sorted by reverse order, so erasures are done in proper order (bottom to top).
+    {
+        KTRY( erase_alias( ci ) );
     }
 
+    auto&& av = alias_set_.get< AliasItem::alias_type >();
+
+    if( 1 == av.erase( id ) )
     {
-        auto&& av = alias_set_.get< AliasItem::alias_type >();
-        auto const it = av.find( id );
-
-        BC_ASSERT( it != av.end() );
-
-        av.erase( it );
+        rv = outcome::success();
     }
-    {
-        auto&& av = alias_child_set_.get< AliasChildItem::child_type >();
-        auto const er = av.equal_range( AliasChildItem::child_type{ id } );
-
-        av.erase( er.first, er.second );
-    }
-    {
-        auto&& av = alias_child_set_.get< AliasChildItem::parent_type >();
-        auto const er = av.equal_range( AliasChildItem::parent_type{ id } );
-
-        av.erase( er.first, er.second );
-    }
-
-    rv = next_sel;
 
     return rv;
 }
+
+// auto AliasStore::erase_alias_child( Uuid const& parent )
+//     -> Result< void >
+// {
+//         fmt::print( "erase_alias_child( {} ): {}\n", to_string( parent ), KTRYE( absolute_path_flat( kmap::Singleton::instance(), parent ) ) );
+//     auto rv = KMAP_MAKE_RESULT( void );
+
+//     // KMAP_ENSURE( has_alias_child( parent ), error_code::common::uncategorized );
+
+//     auto const children = [ & ] // Need copies of children, not iterators, so erasures of the underlying set doesn't invalidate iterators.
+//     {
+//         auto const& av = alias_child_set_.get< AliasChildItem::parent_type >();
+//         auto cs = UuidSet{};
+//         for( auto cr = av.equal_range( AliasChildItem::parent_type{ parent } )
+//            ; cr.first != cr.second
+//            ; ++cr.first )
+//         {
+//             cs.emplace( cr.first->child().value() );
+//         }
+//         return cs; // | act::ordered() TODO: This needs to erase aliases in the proper order, just like other nodes, regardless that they are aliases.
+//     }();
+
+//     for( auto const& child : children )
+//     {
+//         KTRY( erase_alias_child( child ) );
+//     }
+
+//     {
+//         auto&& av = alias_set_.get< AliasItem::alias_type >();
+
+//         av.erase( parent );
+//     }
+//     {
+//         auto&& av = alias_child_set_.get< AliasChildItem::parent_type >();
+
+//         av.erase( AliasChildItem::parent_type{ parent } );
+//     }
+
+//     // TODO: Don't we need to erase from alias_set as well? Or is it top alias v. the rest; the "children"?
+
+//     rv = outcome::success();
+
+//     return rv;
+// }
 
 auto AliasStore::aliases() const
     -> AliasSet const&
 {
     return alias_set_;
 }
-auto AliasStore::child_aliases() const
-    -> AliasChildSet const&
-{
-    return alias_child_set_;
-}
+// auto AliasStore::child_aliases() const
+//     -> AliasChildSet const&
+// {
+//     return alias_child_set_;
+// }
 
-auto AliasStore::erase_aliases_to( Uuid const& node )
-    -> Result< void >
+// auto AliasStore::erase_aliases_to( Uuid const& node )
+//     -> Result< void >
+// {
+//     auto rv = KMAP_MAKE_RESULT( void );
+
+//     BC_CONTRACT()
+//         BC_POST([ & ]
+//         {
+//             BC_ASSERT( !has_alias( node ) );
+//         })
+//     ;
+
+//     auto const rnode = resolve( node );
+//     auto aliases = std::vector< Uuid >{};
+//     auto const& av = alias_set_.get< AliasItem::src_type >();
+//     auto const er = av.equal_range( AliasItem::src_type{ rnode } );
+    
+//     for( auto it = er.first
+//        ; it != er.second
+//        ; ++it )
+//     {
+//         aliases.emplace_back( it->alias() );
+//     }
+//     for( auto const& n : aliases )
+//     {
+//         KTRY( erase_alias( n ) );
+//     }
+
+//     rv = outcome::success();
+
+//     return rv;
+// }
+
+auto AliasStore::fetch_alias_children( Uuid const& parent ) const
+    -> std::set< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = std::set< Uuid >{};
 
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            BC_ASSERT( !has_alias( node ) );
-        })
-    ;
-
-    auto const rnode = resolve( node );
-    auto nodes = std::vector< Uuid >{};
-    auto const& av = alias_set_.get< AliasItem::src_type >();
-    auto const er = av.equal_range( AliasItem::src_type{ rnode } );
-    
-    for( auto it = er.first
-       ; it != er.second
-       ; ++it )
-    {
-        nodes.emplace_back( it->alias() );
-    }
-    for( auto const& n : nodes )
-    {
-        KTRY( erase_alias( n ) );
-    }
-
-    rv = outcome::success();
-
-    return rv;
-}
-
-auto AliasStore::fetch_alias_children( Uuid const& parent ) const
-    -> std::vector< Uuid >
-{
-    auto rv = std::vector< Uuid >{};
-
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
-
             for( auto const& e : rv )
             {
                 BC_ASSERT( is_alias( e ) );
@@ -230,23 +258,23 @@ auto AliasStore::fetch_alias_children( Uuid const& parent ) const
         })
     ;
 
-    auto const& av = alias_child_set_.get< AliasChildItem::parent_type >();
-    auto const er = av.equal_range( AliasChildItem::parent_type{ parent } );
+    auto const& av = alias_set_.get< AliasItem::dst_type >();
+    auto const er = av.equal_range( AliasItem::dst_type{ parent } );
 
     for( auto it = er.first
        ; it != er.second
        ; ++it )
     {
-        rv.emplace_back( it->child().value() );
+        rv.emplace( it->alias() );
     }
 
     return rv;
 }
 
 auto AliasStore::fetch_aliases_to( Uuid const& src ) const
-    -> std::vector< Uuid > // TODO: Result< UuidSet > instead?
+    -> std::set< Uuid > 
 {
-    auto rv = std::vector< Uuid >{};
+    auto rv = std::set< Uuid >{};
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -265,7 +293,7 @@ auto AliasStore::fetch_aliases_to( Uuid const& src ) const
        ; it != er.second
        ; ++it )
     {
-        rv.emplace_back( it->alias() );
+        rv.emplace( it->alias() );
     }
 
     return rv;
@@ -275,12 +303,12 @@ auto AliasStore::fetch_parent( Uuid const& child ) const
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const& av = alias_child_set_.get< AliasChildItem::child_type >();
-    auto const er = av.equal_range( AliasChildItem::child_type{ child } ); // TODO: equal_range, BC_ASSERT size == 1?
+    auto const& av = alias_set_.get< AliasItem::alias_type >();
+    auto const er = av.equal_range( AliasItem::alias_type{ child } ); // TODO: equal_range, BC_ASSERT size == 1?
 
     if( std::distance( er.first, er.second ) == 1 )
     {
-        rv = er.first->parent().value();
+        rv = er.first->dst().value();
     }
 
     return rv;
@@ -348,6 +376,10 @@ SCENARIO( "aliased node has_alias()", "[alias]" )
             auto const a211 = REQUIRE_TRY( nw->fetch_child( a21, "1" ) );
             auto const a2111 = REQUIRE_TRY( nw->fetch_child( a211, "1" ) );
 
+            REQUIRE( nw->is_alias( a21 ) );
+            REQUIRE( nw->is_alias( a211 ) );
+            REQUIRE( nw->is_alias( a2111 ) );
+
             THEN( "first descs has_alias" )
             {
                 REQUIRE( nw->alias_store().has_alias( c1 ) );
@@ -364,17 +396,34 @@ SCENARIO( "aliased node has_alias()", "[alias]" )
     }
 }
 
-auto AliasStore::push_alias( Uuid const& src
-                           , Uuid const& dst )
+// auto AliasStore::has_alias_child( Uuid const& node ) const
+//     -> bool
+// {
+//     auto const& av = alias_child_set_.get< AliasChildItem::parent_type >();
+
+//     return av.contains( AliasChildItem::parent_type{ node } );
+// }
+
+auto AliasStore::push_alias( AliasItem const& item )
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const alias_id = make_alias_id( src, dst );
 
-    KMAP_ENSURE( alias_set_.emplace( AliasItem{ AliasItem::src_type{ src }, AliasItem::dst_type{ dst } } ).second, error_code::network::invalid_node );
-    KMAP_ENSURE( alias_child_set_.emplace( AliasChildItem{ AliasChildItem::parent_type{ dst }, AliasChildItem::child_type{ alias_id } } ).second, error_code::network::invalid_node );
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            // if( rv )
+            // {
+            //     BC_ASSERT( !is_alias( item.child().value() ) );
+            // }
+        })
+    ;
+    // auto const alias_id = make_alias_id( src, dst );
 
-    rv = alias_id;
+    KMAP_ENSURE( alias_set_.emplace( item ).second, error_code::network::invalid_node );
+    // KMAP_ENSURE( alias_child_set_.emplace( AliasChildItem{ AliasChildItem::parent_type{ dst }, AliasChildItem::child_type{ alias_id } } ).second, error_code::network::invalid_node );
+
+    rv = item.alias();
 
     return rv;
 }
@@ -387,10 +436,11 @@ auto AliasStore::is_alias( Uuid const& id ) const
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            if( rv )
-            {
-                BC_ASSERT( view::make( id ) | view::exists( km_ ) ); // Should never have an alias that doesn't exist as a node.
-            }
+            // Removing this, as view::exists has a dependency on Network, which could represent a cyclic dependency if Network hasn't yet been fully initialized.
+            // if( rv )
+            // {
+            //     BC_ASSERT( view::make( id ) | view::exists( km_ ) ); // Should never have an alias that doesn't exist as a node.
+            // }
         })
     ;
 
@@ -418,15 +468,14 @@ auto AliasStore::resolve( Uuid const& id ) const
         {
             BC_ASSERT( !is_alias( rv ) );
 
-            if( is_alias( id ) )
-            {
-                BC_ASSERT( view::make( id ) | view::exists( km_ ) );
-                BC_ASSERT( view::make( rv ) | view::exists( km_ ) );
-            }
+            // Can't do this. view::exists depends on com::Network, which depends on AliasStore, so cyclic.
+            // if( is_alias( id ) )
+            // {
+            //     BC_ASSERT( view::make( id ) | view::exists( km_ ) );
+            //     BC_ASSERT( view::make( rv ) | view::exists( km_ ) );
+            // }
         })
     ;
-
-    rv = id;
 
     if( is_alias( id ) )
     {
@@ -435,13 +484,16 @@ auto AliasStore::resolve( Uuid const& id ) const
         if( auto const it = av.find( id )
           ; it != av.end() )
         {
-            rv = it->src().value();
+            rv = it->rsrc().value();
         }
+    }
+    else
+    {
+        rv = id;
     }
 
     return rv;
 }
-
 
 // namespace {
 

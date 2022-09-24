@@ -14,6 +14,7 @@
 #include "path/act/order.hpp"
 #include "path/act/take.hpp"
 #include "test/util.hpp"
+#include "utility.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -49,7 +50,6 @@ Network::Network( Kmap& km
                 , std::set< std::string > const& requisites
                 , std::string const& description )
     : Component{ km, requisites, description }
-    , astore_{ km }
 {
 }
 
@@ -72,9 +72,12 @@ auto Network::load()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const rn = KTRY( fetch_component< com::RootNode >() );
 
+KMAP_LOG_LINE();
     selected_node_ = rn->root_node();
+KMAP_LOG_LINE();
 
     KTRY( load_aliases() );
+KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -87,6 +90,7 @@ auto Network::load_aliases()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const db = KTRY( fetch_component< com::Database >() );
 
+KMAP_LOG_LINE();
     for( auto const& entry : db->fetch< db::AliasTable >() )
     {
         auto const src = entry.left().value();
@@ -94,6 +98,7 @@ auto Network::load_aliases()
 
         KTRY( create_internal_alias( src, dst ) );
     }
+KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -127,28 +132,19 @@ auto Network::create_alias( Uuid const& src
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
+    auto const rsrc = resolve( src );
+    auto const rdst = resolve( dst );
+    auto const alias_id = make_alias_id( rsrc, rdst );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( astore_.aliases().size() == astore_.child_aliases().size() );
-        })
         BC_POST([ & ]
         {
-            BC_ASSERT( astore_.aliases().size() == astore_.child_aliases().size() );
-
             if( rv )
             {
                 BC_ASSERT( exists( rv.value() ) );
+                BC_ASSERT( fetch_parent( rv.value() ).has_value() );
+                BC_ASSERT( is_top_alias( rv.value() ) );
 
-                {
-                    auto const& av = astore_.child_aliases().get< AliasChildItem::child_type >();
-
-                    for( auto const& item : av )
-                    {
-                        BC_ASSERT( astore_.is_alias( item.child().value() ) );
-                    }
-                }
                 {
                     auto const src_cnt = view::make( src )
                                        | view::desc 
@@ -157,14 +153,15 @@ auto Network::create_alias( Uuid const& src
                                       | view::desc
                                       | view::count( km );
                     BC_ASSERT( src_cnt == rv_cnt );
+
+                    {
+                        auto const db = KTRYE( km.fetch_component< com::Database >() );
+                        BC_ASSERT( db->alias_exists( rsrc, rdst ) );
+                    }
                 }
             }
         })
     ;
-
-    auto const rsrc = resolve( src );
-    auto const rdst = resolve( dst );
-    auto const alias_id = make_alias_id( rsrc, rdst );
 
     KMAP_ENSURE( src != km.root_node_id(), error_code::network::invalid_node );
     KMAP_ENSURE( exists( rsrc ), error_code::create_alias::src_not_found );
@@ -183,21 +180,26 @@ auto Network::create_alias( Uuid const& src
         KTRY( attr::push_order( km, rdst, rsrc ) ); // Resolve src ID gets placed in ordering, rather than the alias ID.
     }
 
-    auto const pushed_id = KTRY( astore_.push_alias( rsrc, rdst ) );
+    // auto const alias_item = AliasItem{ .src_id = AliasItem::src_type{ rsrc }
+    //                                  , .dst_id = AliasItem::dst_type{ rdst }
+    //                                  , .parent_id = AliasItem::parent_type{ dst }
+    //                                  , .child_id = AliasItem::child_type{ make_alias_id( rsrc, dst ) } };
+    auto const alias_item = make_alias_item( src, rsrc, rdst );
+    auto const pushed_id = KTRY( astore_.push_alias( alias_item ) );
 
     for( auto const& e : fetch_children( rsrc ) )
     {
         KTRY( create_internal_alias( e, alias_id ) );
     }
 
-    BC_ASSERT( pushed_id == alias_id );
+    BC_ASSERT( pushed_id == alias_item.alias() );
 
     rv = pushed_id;
 
     return rv;
 }
 
-SCENARIO( "AliasStore::create_alias", "[alias]" )
+SCENARIO( "Network::create_alias", "[alias]" )
 {
     // TODO: ...mucho grande thorough testing...
 }
@@ -309,23 +311,28 @@ auto Network::create_internal_alias( Uuid const& src
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto const rsrc = resolve( src );
+    auto const alias_item = make_alias_item( src, rsrc, dst );
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( astore_.aliases().size() == astore_.child_aliases().size() );
         })
         BC_POST([ & ]
         {
-            BC_ASSERT( astore_.aliases().size() == astore_.child_aliases().size() );
+            if( rv )
+            {
+                BC_ASSERT( !is_top_alias( alias_item.alias() ) );
+                BC_ASSERT( fetch_parent( alias_item.alias() ).has_value() );
+                BC_ASSERT( fetch_parent( alias_item.alias() ).value() == dst );
+            }
         })
     ;
 
-    KMAP_ENSURE( exists( resolve( src ) ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( rsrc ), error_code::network::invalid_node );
     KMAP_ENSURE( exists( dst ), error_code::network::invalid_node );
 
-    auto const rsrc = resolve( src );
-    auto const alias_id = KTRY( astore_.push_alias( rsrc, dst ) );
+    auto const alias_id = KTRY( astore_.push_alias( alias_item ) );
 
     for( auto const& e : fetch_children( rsrc ) )
     {
@@ -388,23 +395,192 @@ SCENARIO( "Network::create_child", "[com][nw]" )
     }
 }
 
-auto Network::erase_node_internal( Uuid const& id )
+auto Network::erase_alias( Uuid const& id )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
     BC_CONTRACT()
-        BC_POST([ & ]
+        BC_POST([ &
+                , parent = fetch_parent( id ) ]
         {
             if( rv )
             {
                 BC_ASSERT( !exists( id ) );
 
-                if( auto const p = fetch_parent( id )
-                  ; p )
+                if( parent ) // Not root
                 {
-                    BC_ASSERT( !attr::is_in_order( km, p.value(), id ) );
+                    BC_ASSERT( exists( parent.value() ) );
+                    BC_ASSERT( !attr::is_in_order( km, parent.value(), id ) );
+                }
+            }
+        })
+    ;
+
+    KMAP_ENSURE_MSG( is_top_alias( id ), error_code::node::is_nontoplevel_alias, to_string( id ) );
+
+    BC_ASSERT( is_alias( id ) ); // top_alias implies alias.
+
+
+    auto const db = KTRY( fetch_component< com::Database >() );
+    auto const src = resolve( id );
+    auto const dst = KTRY( fetch_parent( id ) );
+    KMAP_LOG_LINE();
+
+    BC_ASSERT( dst == resolve( dst ) );
+
+    KMAP_LOG_LINE();
+    KTRY( alias_store().erase_alias( id ) );
+    KMAP_LOG_LINE();
+
+    fmt::print( "db.erase_alias( {}, {} )\n", to_string( src ), to_string( dst ) );
+    KMAP_LOG_LINE();
+    KTRY( db->erase_alias( src, dst ) );
+    KMAP_LOG_LINE();
+
+    KTRY( attr::pop_order( km, dst, src ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+SCENARIO( "Network::erase_alias", "[alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "3 siblings who each alias sibling above: 1, 2.1, 3.2.1" )
+    {
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        KMAP_LOG_LINE();
+        auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
+        KMAP_LOG_LINE();
+        auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
+        KMAP_LOG_LINE();
+        auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+        KMAP_LOG_LINE();
+
+        WHEN( "erase 3.2.1" )
+        {
+            THEN( "attempted erase fails; non-top-level alias" )
+            {
+        KMAP_LOG_LINE();
+                REQUIRE( test::fail( nw->erase_node( a321 ) ) );
+        KMAP_LOG_LINE();
+            }
+        }
+        WHEN( "erase 3.2 successful; erasing top-level alias" )
+        {
+            fmt::print( "a32:{}, resolve(a32):{}, c2:{}\n", to_string( a32 ), to_string( nw->resolve( a32 ) ), to_string( c2 ) );
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( a32 ) );
+        }
+        WHEN( "erase 3 successful" )
+        {
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( c3 ) );
+        }
+        WHEN( "erase 2.1" )
+        {
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( a21 ) );
+
+            THEN( "3.2.1 erased" )
+            {
+        KMAP_LOG_LINE();
+                REQUIRE( !nw->exists( a321 ) );
+            }
+        }
+        WHEN( "erase 2" )
+        {
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( c2 ) );
+
+            THEN( "3.2 erased" )
+            {
+        KMAP_LOG_LINE();
+                REQUIRE( !nw->exists( a32 ) );
+            }
+        }
+        WHEN( "erase 1" )
+        {
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( c1 ) );
+
+            THEN( "2.1 erased" )
+            {
+        KMAP_LOG_LINE();
+                REQUIRE( !nw->exists( a21 ) );
+            }
+            THEN( "3.2.1 erased" )
+            {
+        KMAP_LOG_LINE();
+                REQUIRE( !nw->exists( a321 ) );
+            }
+        }
+        GIVEN( "erase first alias source" )
+        {
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( c1 ) );
+        }
+        GIVEN( "erase middle alias source" )
+        {
+        KMAP_LOG_LINE();
+            REQUIRE_RES( nw->erase_node( c2 ) );
+        }
+    }
+}
+
+auto Network::erase_aliases_to( Uuid const& id )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+        })
+    ;
+
+    auto const rsrc = resolve( id );
+    auto const dsts = astore_.fetch_aliases_to( rsrc );
+
+    for( auto const& dst : dsts )
+    {
+        KTRY( erase_alias( dst ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Network::erase_node_internal( Uuid const& id )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& km = kmap_inst();
+    auto const db = KTRY( fetch_component< com::Database >() );
+
+    BC_CONTRACT()
+        BC_POST([ &
+                , parent = fetch_parent( id ) ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( !exists( id ) );
+
+                if( parent ) // Not root
+                {
+                    BC_ASSERT( exists( parent.value() ) );
+                    BC_ASSERT( !attr::is_in_order( km, parent.value(), id ) );
                 }
             }
         })
@@ -420,7 +596,17 @@ auto Network::erase_node_internal( Uuid const& id )
                              | act::order( km )
        ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
     {
-        KMAP_TRY( erase_node_internal( e ) );
+        BC_ASSERT( !is_alias( e ) || is_top_alias( e ) ); // A child of a regular node should be a top alias or not an alias.
+
+        if( is_top_alias( e ) )
+        {
+            fmt::print( "top alias child: {}\n", to_string( id ) );
+            KTRY( erase_alias( e ) );
+        }
+        else
+        {
+            KTRY( erase_node_internal( e ) );
+        }
     }
 
     KTRY( erase_node_leaf( id ) );
@@ -437,16 +623,21 @@ auto Network::erase_node_leaf( Uuid const& id )
     auto& km = kmap_inst();
 
     BC_CONTRACT()
-        BC_POST([ & ]
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( !is_alias( id ) ); // Should only be called with non-aliases. Others should be call erase_alias().
+        })
+        BC_POST([ &
+                , parent = fetch_parent( id ) ]
         {
             if( rv )
             {
                 BC_ASSERT( !exists( id ) );
 
-                if( auto const p = fetch_parent( id )
-                  ; p )
+                if( parent ) // Not root
                 {
-                    BC_ASSERT( !attr::is_in_order( km, p.value(), id ) );
+                    BC_ASSERT( exists( parent.value() ) );
+                    BC_ASSERT( !attr::is_in_order( km, parent.value(), id ) );
                 }
             }
         })
@@ -454,38 +645,36 @@ auto Network::erase_node_leaf( Uuid const& id )
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != km.root_node_id(), error_code::network::invalid_node );
-    KMAP_ENSURE( fetch_children( id ).empty(), error_code::network::invalid_node );
 
     auto const db = KTRY( fetch_component< com::Database >() );
 
     // Delete node.
-    if( alias_store().is_alias( id ) )
+    // TODO: OK, I think I have a notion of what's going on. I suspect that alias_child_set_ is getting (real parent, top level alias) entry,
+    //       that isn't being erased, so fetch_children is reporting a (alias) child that no longer exists.
+    //       I feel that I can test this by examining alias_store from the SCENARIO, but I'd rather not, actually, as that's internal.
+    // KTRYE( print_tree( km, id ) );
+    KMAP_ENSURE( fetch_children( id ).empty(), error_code::network::invalid_node ); // Only applies to non-top-alias. AliasStore::erase_alias destroys descendants.
+
+    for( auto const& alias : astore_.fetch_aliases_to( id ) )
     {
-        KMAP_TRY( alias_store().erase_alias( id ) );
+        KTRY( erase_alias( alias ) );
     }
-    else
+
+    if( !attr::is_in_attr_tree( km, id ) )
     {
-        if( alias_store().has_alias( id ) )
+        auto const parent = KTRY( fetch_parent( id ) );
+
+        KTRY( attr::pop_order( km, parent, id ) );
+
+        // TODO: What does this get us vs. erase_all, and why both called?
+        if( auto const at = fetch_attr_node( id )
+            ; at )
         {
-            KTRY( alias_store().erase_aliases_to( id ) );
+            KTRY( erase_attr( at.value() ) );
         }
-
-        if( !attr::is_in_attr_tree( km, id ) )
-        {
-            auto const parent = KTRY( fetch_parent( id ) );
-
-            KTRY( attr::pop_order( km, parent, id ) );
-
-            // TODO: What does this get us vs. erase_all, and why both called?
-            if( auto const at = fetch_attr_node( id )
-              ; at )
-            {
-                KTRY( erase_attr( at.value() ) );
-            }
-        }
-
-        db->erase_all( id );
     }
+
+    db->erase_all( id );
 
     rv = outcome::success();
 
@@ -591,7 +780,6 @@ auto Network::erase_node( Uuid const& id )
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != km.root_node_id(), error_code::node::is_root );
-    KMAP_ENSURE( !alias_store().is_alias( id ) || is_top_alias( id ), error_code::node::is_nontoplevel_alias );
 
     auto const selected = selected_node();
     auto next_selected = selected;
@@ -601,6 +789,9 @@ auto Network::erase_node( Uuid const& id )
     {
         auto const next_sel = KTRY( fetch_next_selected_as_if_erased( id ) );
 
+        // TODO: This placement is concerning. Selection is done before erasure completes. Meaning selected fires.
+        //       But to fire _before_ erasure would be premature. I doubt it would cause an error, but misleading, and the update
+        //       to state wouldn't be reflected properly.
         KTRY( select_node( next_sel ) );
 
         next_selected = next_sel;
@@ -610,10 +801,20 @@ auto Network::erase_node( Uuid const& id )
         next_selected = selected; // If not deleting selected, just return selected.
     }
 
-    KTRY( erase_node_internal( id ) );
+    if( is_alias( id ) )
+    {
+        KMAP_LOG_LINE();
+        KTRY( erase_alias( id ) );
+    }
+    else
+    {
+        KTRY( erase_node_internal( id ) );
+    }
 
     rv = next_selected;
 
+    // TODO: Since EventStore relies on Network, and fire_event relies on EventStore, can we make a network.event component that is queried for existence from here?
+    //       if( auto const nwe = fetch_component< com::NetworkEvent >(); nwe ){ nwe->fire... } //  Of course, NWE relies on Network, but that's why it's queried for existence before use.
     // TODO: fire_event( { "map", "verb.post", "verb.erased", "node" }, std::any< payload:id >? ) // after checks, but before anything is done? Or before checks, in case handler modifies something?
 
     return rv;
@@ -666,6 +867,9 @@ auto Network::exists( Uuid const& id ) const
 auto Network::exists( Heading const& heading ) const
     -> bool
 {
+    // TODO: Problem here. view::exists() fetches component com::Network, which if this is called before finishing being initialized, error!
+    //       Probably best to remove this exists( heading ) from network altogether, and leave it to node_view.
+    KMAP_LOG_LINE();
     return view::abs_root
          | view::desc( heading )
          | view::exists( kmap_inst() );
@@ -918,7 +1122,7 @@ auto Network::fetch_children( Uuid const& parent ) const
 
     auto const db_children = [ & ]
     {
-        if( alias_store().is_alias( parent ) )
+        if( is_alias( parent ) )
         {
             return kmap::UuidSet{};
         }
@@ -1098,23 +1302,130 @@ auto Network::resolve( Uuid const& node ) const
     return astore_.resolve( node );
 }
 
+SCENARIO( "Network::resolve", "[alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "3 siblings who each alias sibling above: 1, 2.1, 3.2.1" )
+    {
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
+        auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
+        auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+
+        THEN( "resolve 3.2.1 => /1" )
+        {
+            REQUIRE( c1 == nw->resolve( a321 ) );
+        }
+        THEN( "resolve 3.2 => /2" )
+        {
+            REQUIRE( c2 == nw->resolve( a32 ) );
+        }
+        THEN( "resolve 3 => /3" )
+        {
+            REQUIRE( c3 == nw->resolve( c3 ) );
+        }
+        THEN( "resolve 2.1 => /1" )
+        {
+            REQUIRE( c1 == nw->resolve( a21 ) );
+        }
+        THEN( "resolve 2 => /2" )
+        {
+            REQUIRE( c2 == nw->resolve( c2 ) );
+        }
+        THEN( "resolve 1 => /1" )
+        {
+            REQUIRE( c1 == nw->resolve( c1 ) );
+        }
+    }
+}
+
 auto Network::fetch_parent( Uuid const& child ) const
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::invalid_parent );
     auto const db = KTRY( fetch_component< com::Database >() );
 
-    if( auto const pid = db->fetch_parent( child )
-      ; pid )
-    {
-        rv = pid.value();
-    }
-    else if( alias_store().is_alias( child ) )
+    if( is_alias( child ) )
     {
         rv = KTRY( alias_store().fetch_parent( child ) );
     }
+    else
+    {
+        rv = KTRY( db->fetch_parent( child ) );
+    }
 
     return rv;
+}
+
+SCENARIO( "Network::fetch_parent", "[com][nw]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "root" )
+    {
+        THEN( "no parent" )
+        {
+            REQUIRE( test::fail( nw->fetch_parent( root ) ) );
+        }
+
+        GIVEN( "child 1" )
+        {
+            auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+
+            THEN( "parent is root" )
+            {
+                REQUIRE( root == REQUIRE_TRY( nw->fetch_parent( c1 ) ) );
+            }
+
+            GIVEN( "sibling 2" )
+            {
+                auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+
+                THEN( "parent is root " )
+                {
+                    auto const c1p = REQUIRE_TRY( nw->fetch_parent( c2 ) );
+                    REQUIRE( root == c1p );
+                }
+            }
+        }
+
+        GIVEN( "/[1,2,3] aliases: 2.1, 3.2.1" )
+        {
+            auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+            auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+            auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+            auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
+            auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
+            auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+
+            THEN( "2.1 parent is 2" )
+            {
+                auto const a21p = REQUIRE_TRY( nw->fetch_parent( a21 ) );
+                REQUIRE( c2 == a21p );
+            }
+            THEN( "3.2.1 parent is 2" )
+            {
+                auto const a321p = REQUIRE_TRY( nw->fetch_parent( a321 ) );
+                REQUIRE( a32 == a321p );
+            }
+            THEN( "3.2 parent is 3" )
+            {
+                auto const a32p = REQUIRE_TRY( nw->fetch_parent( a32 ) );
+                REQUIRE( c3 == a32p );
+            }
+        }
+    }
 }
 
 auto Network::fetch_title( Uuid const& id ) const
@@ -1216,11 +1527,12 @@ auto Network::move_node( Uuid const& from
     {
         rv = from; // Already moved "self-move". Nothing to do.
     }
-    else if( alias_store().is_alias( from ) )
+    else if( is_alias( from ) )
     {
+        auto const db = KTRY( fetch_component< com::Database >() );
         auto const rfrom = resolve( from );
 
-        KTRY( alias_store().erase_alias( from ) );
+        KTRY( erase_alias( from ) );
 
         auto const alias = KTRY( create_alias( rfrom, to ) );
 
@@ -1313,7 +1625,7 @@ auto Network::reorder_children( Uuid const& parent
 }
 
 // Note: Because Network requires RootNode, it is safe to provide this utility with naked result.
-auto Network::root_node()
+auto Network::root_node() const
     -> Uuid
 {
     auto const rn = KTRYE( fetch_component< com::RootNode >() );
@@ -1451,11 +1763,17 @@ auto Network::select_node( Uuid const& id )
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
 
+    // TODO: Calling upon com::EventStore is problematic, as EventStore relies on this, com::Network, in initialization order.
     auto const estore = KTRY( fetch_component< com::EventStore >() );
     auto const prev_selected = selected_node();
     selected_node_ = id;
 
+KMAP_LOG_LINE();
+    KTRY( estore->install_subject( "kmap" ) );
+    KTRY( estore->install_verb( "selected") );
+    KTRY( estore->install_object( "node") );
     KTRY( estore->fire_event( { "subject.kmap", "verb.selected", "object.node" } ) );
+KMAP_LOG_LINE();
 
     // TODO: breadcrumb should have its own handler listening for the fired event.
     // auto id_abs_path = absolute_path_uuid( id );
@@ -1557,15 +1875,15 @@ auto Network::update_alias( Uuid const& from
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto& km = kmap_inst();
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( view::make( from ) | view::exists( km ) );
-            BC_ASSERT( view::make( to ) | view::exists( km ) );
         })
     ;
+
+    KMAP_ENSURE( exists( from ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( to ), error_code::network::invalid_node );
 
     // TODO: Deleting and remaking all does not seem optimal way to update.
     // TODO: This may actually be a problematic way of updating the alias. Why not just check if it exists, and if not, create it?
@@ -1904,20 +2222,76 @@ auto Network::is_root( Uuid const& node ) const
 }
 
 // TODO: Better named "is_root_alias"? To be consistent?
+// TODO: Frankly, should probably be a non-member util function.
 /// Parent of alias is non-alias.
 auto Network::is_top_alias( Uuid const& id ) const
     -> bool
 {
-    if( !astore_.is_alias( id ) )
+    auto rv = false;
+
+    fmt::print( "is_top_alias: id has parent? {}\n", fetch_parent( id ).has_value() );
+
+    if( auto const pid = fetch_parent( id )
+      ; pid )
     {
-        return false;
+        fmt::print( "is_top_alias: is_alias(id)? {}, !is_alias(pid)? {}\n", is_alias( id ), !is_alias( pid.value() ) );
+        rv = is_alias( id ) && !is_alias( pid.value() ); // Top alias is one where the parent is non-alias and child is alias.
     }
 
-    auto const pid = fetch_parent( id );
-
-    return pid && !astore_.is_alias( pid.value() );
+    return rv;
 }
 
+SCENARIO( "Network::is_top_alias", "[com][nw][alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "nodes: 1, 2, 3" )
+    {
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+
+        THEN( "no top aliases" )
+        {
+            REQUIRE( !nw->is_top_alias( c1 ) );
+            REQUIRE( !nw->is_top_alias( c2 ) );
+            REQUIRE( !nw->is_top_alias( c3 ) );
+        }
+
+        GIVEN( "alias node: 2.1" )
+        {
+            auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
+
+            THEN( "only 2.1 is a top alias" )
+            {
+                REQUIRE( !nw->is_top_alias( c1 ) );
+                REQUIRE( !nw->is_top_alias( c2 ) );
+                REQUIRE( !nw->is_top_alias( c3 ) );
+                REQUIRE( nw->is_top_alias( a21 ) );
+            }
+
+            GIVEN( "alias node: 3.2.1" )
+            {
+                auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
+                auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+
+                THEN( "only 2.1 and 3.2 are top aliases" )
+                {
+                    REQUIRE( !nw->is_top_alias( c1 ) );
+                    REQUIRE( !nw->is_top_alias( c2 ) );
+                    REQUIRE( !nw->is_top_alias( c3 ) );
+                    REQUIRE( nw->is_top_alias( a21 ) );
+                    REQUIRE( nw->is_top_alias( a32 ) );
+                    REQUIRE( !nw->is_top_alias( a321 ) );
+                }
+            }
+        }
+    }
+}
 
 auto Network::fetch_child( Uuid const& parent 
                          , Heading const& heading ) const
@@ -1935,7 +2309,7 @@ auto Network::fetch_child( Uuid const& parent
     {
         for( auto const& e : fetch_children( parent ) )
         {
-            if( heading == KMAP_TRY( fetch_heading( e ) ) )
+            if( heading == KTRY( fetch_heading( e ) ) )
             {
                 rv = e;
 
@@ -2049,6 +2423,58 @@ auto Network::is_alias( Uuid const& node ) const
     return alias_store().is_alias( node );
 }
 
+SCENARIO( "Network::is_alias", "[com][nw][alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "nodes: 1, 2, 3" )
+    {
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+
+        THEN( "regular nodes are not aliases" )
+        {
+            REQUIRE( !nw->is_alias( c1 ) );
+            REQUIRE( !nw->is_alias( c2 ) );
+            REQUIRE( !nw->is_alias( c3 ) );
+        }
+
+        GIVEN( "alias node: 2.1" )
+        {
+            auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
+
+            THEN( "only 2.1 is a alias" )
+            {
+                REQUIRE( !nw->is_alias( c1 ) );
+                REQUIRE( !nw->is_alias( c2 ) );
+                REQUIRE( !nw->is_alias( c3 ) );
+                REQUIRE( nw->is_alias( a21 ) );
+            }
+
+            GIVEN( "alias node: 3.2.1" )
+            {
+                auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
+                auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+
+                THEN( "only 2.1, 3.2 and 3.2. are aliases" )
+                {
+                    REQUIRE( !nw->is_alias( c1 ) );
+                    REQUIRE( !nw->is_alias( c2 ) );
+                    REQUIRE( !nw->is_alias( c3 ) );
+                    REQUIRE( nw->is_alias( a21 ) );
+                    REQUIRE( nw->is_alias( a32 ) );
+                    REQUIRE( nw->is_alias( a321 ) );
+                }
+            }
+        }
+    }
+}
+
 namespace binding {
 
 using namespace emscripten;
@@ -2069,6 +2495,13 @@ struct Network
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 
         return nw->create_child( parent, format_heading( title ), title );
+    }
+    auto erase_node( Uuid const& node )
+        -> kmap::binding::Result< Uuid >
+    {
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+
+        return nw->erase_node( node );
     }
     auto fetch_parent( Uuid const& node )
         -> kmap::binding::Result< Uuid >
@@ -2102,6 +2535,7 @@ EMSCRIPTEN_BINDINGS( kmap_network )
     function( "network", &kmap::com::binding::network );
     class_< kmap::com::binding::Network >( "Network" )
         .function( "create_child", &kmap::com::binding::Network::create_child )
+        .function( "erase_node", &kmap::com::binding::Network::erase_node )
         .function( "fetch_parent", &kmap::com::binding::Network::fetch_parent )
         .function( "selected_node", &kmap::com::binding::Network::selected_node )
         .function( "select_node", &kmap::com::binding::Network::select_node )

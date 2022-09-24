@@ -639,7 +639,7 @@ auto to_string_elaborated( Kmap const& km
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
     auto const sid = to_string( node );
     auto const heading = nw->fetch_heading( node ) | act::value_or( std::string{ "n/a" } );
-    auto const path = [ & ] -> std::string
+    auto const path = [ & ]() -> std::string
     { 
         if( nw->exists( node ) )
         {

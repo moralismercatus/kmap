@@ -70,6 +70,9 @@ public:
     // TODO: Non-core utilities should probably not be in Kmap proper. 
     //       Q: Does copy/move not represent core?
     //       A: No, rather update_body() is the core.
+    auto load( FsPath const& db_path
+             , std::set< std::string > const& components )
+        -> Result< void >;
     [[ nodiscard ]]
     auto load( FsPath const& db_path )
         -> Result< void >;

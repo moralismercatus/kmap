@@ -53,8 +53,10 @@ auto is_in_order( Kmap const& kmap
 {
     auto rv = false;
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
+    auto const rparent = nw->resolve( parent );
+    auto const rchild = nw->resolve( child );
 
-    if( auto const ordern = view::make( parent )
+    if( auto const ordern = view::make( rparent )
                           | view::attr
                           | view::child( "order" )
                           | view::fetch_node( kmap ) )
@@ -65,7 +67,7 @@ auto is_in_order( Kmap const& kmap
             auto const split = ob.value()
                              | views::split( '\n' )
                              | to< std::vector< std::string > >();
-            rv = ( 0 != ranges::count( split, to_string( child ) ) );
+            rv = ( 0 != ranges::count( split, to_string( rchild ) ) );
         }
     }
 
@@ -111,11 +113,6 @@ auto push_order( Kmap& kmap
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( !nw->alias_store().is_alias( parent ) );
-            BC_ASSERT( !nw->alias_store().is_alias( child ) );
-        })
         BC_POST([ & ]
         {
             if( rv )
@@ -127,7 +124,12 @@ auto push_order( Kmap& kmap
 
     KMAP_ENSURE( !is_in_order( kmap, parent, child ), error_code::network::attribute );
 
-    auto const ordern = KMAP_TRY( view::make( parent )
+    auto const rparent = nw->resolve( parent );
+    auto const rchild = nw->resolve( child );
+
+    KMAP_ENSURE( !is_in_order( kmap, rparent, rchild ), error_code::network::attribute ); // TODO: Is this redundant with the other ensure on unresolved nodes?
+
+    auto const ordern = KMAP_TRY( view::make( rparent )
                                 | view::attr
                                 | view::child( "order" )
                                 | view::fetch_or_create_node( kmap ) );
@@ -135,7 +137,7 @@ auto push_order( Kmap& kmap
     if( auto const b = nw->fetch_body( ordern )
       ; b && !b.value().empty() )
     {
-        auto const ub = fmt::format( "{}\n{}", b.value(), to_string( child ) );
+        auto const ub = fmt::format( "{}\n{}", b.value(), to_string( rchild ) );
 
         KMAP_TRY( nw->update_body( ordern, ub ) );
 
@@ -143,7 +145,7 @@ auto push_order( Kmap& kmap
     }
     else
     {
-        auto const ub = fmt::format( "{}", to_string( child ) );
+        auto const ub = fmt::format( "{}", to_string( rchild ) );
 
         KMAP_TRY( nw->update_body( ordern, ub ) );
     }
@@ -162,11 +164,6 @@ auto pop_order( Kmap& kmap
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( !nw->alias_store().is_alias( parent ) );
-            BC_ASSERT( !nw->alias_store().is_alias( child ) );
-        })
         BC_POST([ & ]
         {
             if( rv )
@@ -178,7 +175,12 @@ auto pop_order( Kmap& kmap
 
     KMAP_ENSURE( is_in_order( kmap, parent, child ), error_code::network::attribute );
 
-    auto const pordern = KMAP_TRY( view::make( parent )
+    auto const rparent = nw->resolve( parent );
+    auto const rchild = nw->resolve( child );
+
+    KMAP_ENSURE( is_in_order( kmap, rparent, rchild ), error_code::network::attribute ); // TODO: Is this redundant with the other ensure on unresolved nodes?
+
+    auto const pordern = KMAP_TRY( view::make( rparent )
                                  | view::attr
                                  | view::child( "order" )
                                  | view::fetch_node( kmap ) );
@@ -187,7 +189,7 @@ auto pop_order( Kmap& kmap
                      | views::split( '\n' )
                      | to< std::vector< std::string > >();
     auto const filtered = split 
-                        | views::remove( to_string( child ) )
+                        | views::remove( to_string( rchild ) )
                         | to< std::vector >();
     if( filtered.empty() )
     {

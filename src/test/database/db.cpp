@@ -4,6 +4,7 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #include "com/database/db.hpp"
+#include "com/database/table_decl.hpp"
 #include "test/master.hpp"
 #include "test/util.hpp"
 
@@ -11,6 +12,7 @@
 #include <boost/test/unit_test.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/iterator/operations.hpp>
+#include <sqlpp11/sqlite3/connection.h>
 
 #include <iterator>
 

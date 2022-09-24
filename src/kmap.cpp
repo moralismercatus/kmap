@@ -298,7 +298,8 @@ auto Kmap::on_leaving_editor()
     return rv;
 }
 
-auto Kmap::load( FsPath const& db_path )
+auto Kmap::load( FsPath const& db_path
+               , std::set< std::string > const& components )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
@@ -312,7 +313,7 @@ auto Kmap::load( FsPath const& db_path )
     KMAP_LOG_LINE();
     init_component_store();
     KMAP_LOG_LINE();
-    KTRY( register_all_components() );
+    KTRY( register_components( components ) );
 
     database_path_ = full_path; // Set state, so Database::load can read.
     KMAP_LOG_LINE();
@@ -321,10 +322,32 @@ auto Kmap::load( FsPath const& db_path )
 
     {
         // TODO: Should this rather be an event outlet that fires after "all components initialized"?
-        auto const ostore = KTRY( fetch_component< com::OptionStore >() );
+        // TODO: ostore->apply_all() can cause problems, if not all components for which options were saved, are registered!
+        //       One thought is: Is it even necessary to apply_all()? For example, select_node() sends the event that applies related options.
+        // auto const ostore = KTRY( fetch_component< com::OptionStore >() );
 
-        KTRY( ostore->apply_all() );
+        // KTRY( ostore->apply_all() );
     }
+    /*
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        estore->fire_event( "initialization_done or something..." );
+    }
+    */
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Kmap::load( FsPath const& db_path )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const all_components = KTRY( fetch_listed_components() );
+
+    KTRY( load( db_path, all_components ) );
 
     rv = outcome::success();
 

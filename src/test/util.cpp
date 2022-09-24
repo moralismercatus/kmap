@@ -47,7 +47,7 @@ ComponentFixture::ComponentFixture( std::set< std::string > const& components
                   , components | ranges::views::join( ',' ) | ranges::to< std::string >()
                   , deps | ranges::views::join( ',' ) | ranges::to< std::string >() );
         // "component_store" is special, as it is never "registered", as the "root" component.
-        deps.erase( "component_store" );
+        deps.erase( "component_store" ); // TODO: Is this right? component_store isn't registered? What if it is?
         // Reset store.
         KTRYE( kmap.clear_component_store() );
         // Register and initialize only needed components.

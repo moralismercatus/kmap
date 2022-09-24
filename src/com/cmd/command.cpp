@@ -201,6 +201,24 @@ return kmap.complete_filesystem_path( arg );
                                         , .guard = guard_code
                                         , .completion = completion_code } ) );
     }
+    // arg.heading_path
+    {
+        auto const guard_code =
+R"%%%(```javascript
+return kmap.success( "success" );
+```)%%%";
+        auto const completion_code =
+R"%%%(```javascript
+return kmap.complete_heading_path( arg );
+```)%%%";
+
+        auto const description = "heading path";
+
+        KTRY( install_argument( Argument{ .path = "heading_path"
+                                        , .description = description
+                                        , .guard = guard_code
+                                        , .completion = completion_code } ) );
+    }
 
     rv = outcome::success();
 

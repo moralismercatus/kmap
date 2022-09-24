@@ -435,7 +435,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
                 {
                     auto all = nw->alias_store().fetch_aliases_to( nid );
 
-                    all.emplace_back( nid );
+                    all.emplace( nid );
 
                     return all;
                 }();
@@ -762,7 +762,7 @@ auto complete_any( Kmap const& kmap
         {
             auto all = nw->alias_store().fetch_aliases_to( nid );
 
-            all.emplace_back( nid );
+            all.emplace( nid );
 
             return all;
         }();

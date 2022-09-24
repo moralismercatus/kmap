@@ -11,6 +11,8 @@
 #include "error/db.hpp"
 #include "io.hpp"
 
+#include <boost/hana/for_each.hpp>
+#include <boost/hana/ext/std/tuple.hpp>
 #include <range/v3/algorithm/contains.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/filter.hpp>
@@ -605,6 +607,71 @@ auto fetch_deltas( Cache const& cache
                 , table );
 
     return rv;
+}
+
+auto print_deltas( db::Cache const& cache )
+    -> void
+{
+    auto proc_table = [ & ]( auto const& table )
+    {
+        using namespace db;
+        using Table = std::decay_t< decltype( table ) >;
+
+        fmt::print( "Delta items:\n" );
+
+        for( auto const& item : table )
+        {
+            if( item.delta_items.empty() )
+            {
+                continue;
+            }
+
+            auto const& di = item.delta_items.back();
+
+            if constexpr( std::is_same_v< Table, NodeTable > )
+            {
+                fmt::print( "node delta: {}\n", to_string( item.key() ) );
+            }
+            else if constexpr( std::is_same_v< Table, HeadingTable > )
+            {
+                fmt::print( "heading delta: {}\n", di.value );
+            }
+            else if constexpr( std::is_same_v< Table, TitleTable > )
+            {
+                fmt::print( "title delta: {}\n", di.value );
+            }
+            else if constexpr( std::is_same_v< Table, BodyTable > )
+            {
+                fmt::print( "body delta: {}\n", di.value );
+            }
+            else if constexpr( std::is_same_v< Table, ChildTable > )
+            {
+                fmt::print( "child delta: ({}, {})\n", to_string( di.value.first.value() ), to_string( di.value.second.value() ) );
+            }
+            else if constexpr( std::is_same_v< Table, AliasTable > )
+            {
+                fmt::print( "alias delta: ({}, {})\n", to_string( di.value.first.value() ), to_string( di.value.second.value() ) );
+            }
+            else if constexpr( std::is_same_v< Table, AttributeTable > )
+            {
+                fmt::print( "attribute delta: ({}, {})\n", to_string( di.value.first.value() ), to_string( di.value.second.value() ) );
+            }
+            else if constexpr( std::is_same_v< Table, ResourceTable > )
+            {
+                // Frankly... this one is a bit of a toughy because the size of the resource may be very large.
+                // It may make more general sense to pass around a file string, res heading, or some such that, at this point,
+                // the file may be stored into the db, so we don't have huge binaries sitting around in the cache. It'll take some thought.
+                assert( false && "TODO" );
+                KMAP_THROW_EXCEPTION_MSG( "TODO" );
+            }
+            else
+            {
+                static_assert( always_false< Table >::value, "non-exhaustive visitor!" );
+            }
+        }
+    };
+
+    boost::hana::for_each( cache.tables(), proc_table );
 }
 
 #if 0

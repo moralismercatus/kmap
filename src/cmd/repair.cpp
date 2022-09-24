@@ -8,6 +8,7 @@
 #include "common.hpp"
 #include "contract.hpp"
 #include "com/database/db.hpp"
+#include "com/database/table_decl.hpp"
 #include "com/filesystem/filesystem.hpp"
 #include "emcc_bindings.hpp"
 #include "error/filesystem.hpp"
@@ -27,6 +28,7 @@
 #include <range/v3/view/set_algorithm.hpp>
 #include <range/v3/view/take.hpp>
 #include <range/v3/view/transform.hpp>
+#include <sqlpp11/sqlite3/connection.h>
 
 #include <map>
 
@@ -174,7 +176,7 @@ auto back_up_state( FsPath const& fp )
     
     fs::copy_file( fp
                  , bkup_fp
-                 , fs::copy_option::overwrite_if_exists );
+                 , fs::copy_options::overwrite_existing );
 }
 
 auto check_state( com::Database const& db )

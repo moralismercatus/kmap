@@ -261,15 +261,6 @@ auto create_direct_descendant( Uuid const& parent
          | view::to_single;
 }
 
-auto delete_alias( Uuid const& node )
-    -> binding::Result< Uuid >
-{
-    auto& kmap = Singleton::instance();
-    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
-
-    return nw->alias_store().erase_alias( node );
-}
-
 auto delete_children( Uuid const& parent )
     -> binding::Result< std::string > // TODO: Why is this returning std::string? Think it should be void.
 {
@@ -778,7 +769,6 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "create_child", &kmap::binding::create_child );
     function( "create_descendant", &kmap::binding::create_descendant );
     function( "create_direct_descendant", &kmap::binding::create_direct_descendant );
-    function( "delete_alias", &kmap::binding::delete_alias );
     function( "delete_children", &kmap::binding::delete_children );
     function( "delete_node", &kmap::binding::delete_node );
     function( "eval_failure", &kmap::binding::make_eval_failure );

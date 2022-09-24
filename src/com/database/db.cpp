@@ -10,6 +10,7 @@
 #include "db.hpp"
 
 #include "contract.hpp"
+#include "com/database/table_decl.hpp"
 #include "com/filesystem/filesystem.hpp" // TODO: only present until sql db moves to DatabaseFilesystem.
 #include "emcc_bindings.hpp"
 #include "error/db.hpp"
@@ -34,6 +35,7 @@
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/remove.hpp>
 #include <range/v3/view/transform.hpp>
+#include <sqlpp11/sqlite3/connection.h>
 #include <sqlpp11/sqlite3/insert_or.h>
 #include <sqlpp11/sqlpp11.h>
 
@@ -46,6 +48,7 @@
 using namespace emscripten;
 using namespace ranges;
 namespace fs = boost::filesystem;
+namespace sql = sqlpp::sqlite3;
 
 namespace kmap::com {
 
@@ -189,7 +192,7 @@ auto Database::load()
 
                 for( auto const& e : rows )
                 {
-                    KTRYE( push_node( KTRYE( uuid_from_string(  e.uuid ) ) ) );
+                    KTRYE( push_node( KTRYE( uuid_from_string( e.uuid ) ) ) );
                 }
             }
             else if constexpr( std::is_same_v< Table, HeadingTable > )
@@ -459,6 +462,11 @@ auto Database::has_file_on_disk()
 {
     auto const p = path();
 
+#if _DEBUG
+    #warn False positive assertion in there is a bug in emscriptens ___syscall_newfstatat that is called by fs::exists. Recommend against \
+          doing FS ops in DEBUG mode until its fixed. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
+#endif // _DEBUG
+
     return !p.string().empty()
         && fs::exists( p )
         && static_cast< bool >( con_ )
@@ -483,7 +491,7 @@ auto Database::push_child( Uuid const& parent
     KMAP_ENSURE( node_exists( parent ), error_code::network::invalid_node );
     KMAP_ENSURE( node_exists( child ), error_code::network::invalid_node ); 
 
-    KMAP_TRY( cache_.push< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
+    KTRY( cache_.push< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
     // cache_.push( TableId::attributes, child, db::AttributeValue{ fmt::format( "order:{}", 1 ) } );
 
     rv = outcome::success();
@@ -498,7 +506,7 @@ auto Database::push_node( Uuid const& id )
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_TRY( cache_.push< db::NodeTable >( id ) );
+    KTRY( cache_.push< db::NodeTable >( id ) );
 
     rv = outcome::success();
 
@@ -513,7 +521,7 @@ auto Database::push_heading( Uuid const& node
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_TRY( cache_.push< db::HeadingTable >( node, heading ) );
+    KTRY( cache_.push< db::HeadingTable >( node, heading ) );
 
     rv = outcome::success();
 
@@ -528,7 +536,7 @@ auto Database::push_body( Uuid const& node
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_TRY( cache_.push< db::BodyTable >( node, body ) );
+    KTRY( cache_.push< db::BodyTable >( node, body ) );
 
     rv = outcome::success();
 
@@ -543,7 +551,7 @@ auto Database::push_title( Uuid const& node
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_TRY( cache_.push< db::TitleTable >( node, title ) );
+    KTRY( cache_.push< db::TitleTable >( node, title ) );
 
     rv = outcome::success();
 
@@ -558,7 +566,7 @@ auto Database::push_attr( Uuid const& parent
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_TRY( cache_.push< db::AttributeTable >( db::Left{ parent }, db::Right{ attr } ) );
+    KTRY( cache_.push< db::AttributeTable >( db::Left{ parent }, db::Right{ attr } ) );
 
     rv = outcome::success();
 
@@ -638,7 +646,7 @@ auto Database::push_alias( Uuid const& src
         })
     ;
 
-    KMAP_TRY( cache_.push< db::AliasTable >( db::Left{ src }, db::Right{ dst } ) );
+    KTRY( cache_.push< db::AliasTable >( db::Left{ src }, db::Right{ dst } ) );
 
     rv = outcome::success();
 
@@ -785,7 +793,7 @@ auto Database::fetch_parent( Uuid const& id ) const
         })
     ;
 
-    auto const parent = KMAP_TRY( cache_.fetch_values< db::ChildTable >( db::Child{ id } ) );
+    auto const parent = KTRY( cache_.fetch_values< db::ChildTable >( db::Child{ id } ) );
 
     BC_ASSERT( parent.size() == 1 );
 
@@ -803,9 +811,9 @@ auto Database::fetch_child( Uuid const& parent
 
     // TODO: This assumes that every node has a heading. Is this constraint enforced? The only way would be to force Database::create_node( id, heading );
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const children = KMAP_TRY( fetch_children( parent ) );
+    auto const children = KTRY( fetch_children( parent ) );
     auto const headings = children
-                        | views::transform( [ & ]( auto const& e ){ return std::make_pair( e, KMAP_TRYE( fetch_heading( e ) ) ); } )
+                        | views::transform( [ & ]( auto const& e ){ return std::make_pair( e, KTRYE( fetch_heading( e ) ) ); } )
                         | views::filter( [ & ]( auto const& e ){ return e.second == heading; } )
                         | to_vector;
     
@@ -826,7 +834,7 @@ auto Database::fetch_body( Uuid const& id ) const
 
     auto rv = KMAP_MAKE_RESULT( std::string );
 
-    rv = KMAP_TRY( cache_.fetch_value< db::BodyTable >( id ) );
+    rv = KTRY( cache_.fetch_value< db::BodyTable >( id ) );
 
     return rv;
 }
@@ -845,7 +853,7 @@ auto Database::fetch_heading( Uuid const& id ) const
         })
     ;
 
-    rv = KMAP_TRY( cache_.fetch_value< db::HeadingTable >( id ) );
+    rv = KTRY( cache_.fetch_value< db::HeadingTable >( id ) );
 
     return rv;
 }
@@ -864,7 +872,7 @@ auto Database::fetch_attr( Uuid const& id ) const
     ;
 
     // TODO: attr should only ever 1 parent, so the table type should represent this.
-    auto const attr = KMAP_TRY( cache_.fetch_values< db::AttributeTable >( db::Left{ id } ) );
+    auto const attr = KTRY( cache_.fetch_values< db::AttributeTable >( db::Left{ id } ) );
 
     BC_ASSERT( attr.size() == 1 );
 
@@ -881,7 +889,7 @@ auto Database::fetch_attr_owner( Uuid const& attrn ) const
     KMAP_ENSURE( node_exists( attrn ), error_code::network::invalid_node );
 
     // TODO: attr should only ever 1 parent, so the table type should represent this.
-    auto const attr = KMAP_TRY( cache_.fetch_values< db::AttributeTable >( db::Right{ attrn } ) );
+    auto const attr = KTRY( cache_.fetch_values< db::AttributeTable >( db::Right{ attrn } ) );
 
     BC_ASSERT( attr.size() == 1 );
 
@@ -936,7 +944,7 @@ auto Database::fetch_title( Uuid const& id ) const
 {
     auto rv = KMAP_MAKE_RESULT( std::string );
 
-    rv = KMAP_TRY( cache_.fetch_value< db::TitleTable >( id ) );
+    rv = KTRY( cache_.fetch_value< db::TitleTable >( id ) );
 
     // auto const& titles = cache_.fetch_titles();
     // auto const& map = titles.set.get< 1 >();
@@ -1027,7 +1035,7 @@ auto Database::update_heading( Uuid const& node
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
 
-    KMAP_TRY( cache_.push< db::HeadingTable >( node, heading ) );
+    KTRY( cache_.push< db::HeadingTable >( node, heading ) );
 
     rv = outcome::success();
 
@@ -1052,7 +1060,7 @@ auto Database::update_title( Uuid const& node
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
 
-    KMAP_TRY( cache_.push< db::TitleTable >( node, title ) );
+    KTRY( cache_.push< db::TitleTable >( node, title ) );
 
     rv = outcome::success();
 
@@ -1067,7 +1075,7 @@ auto Database::update_body( Uuid const& node
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
 
-    KMAP_TRY( cache_.push< db::BodyTable >( node, content ) );
+    KTRY( cache_.push< db::BodyTable >( node, content ) );
 
     rv = outcome::success();
 
@@ -1107,7 +1115,7 @@ auto Database::is_child( Uuid const& parent
                        , Uuid const& id ) const
     -> bool
 {
-    auto const& children = KMAP_TRYE( fetch_children( parent ) ); // TODO: Replace with KMAP_TRY().
+    auto const& children = KTRYE( fetch_children( parent ) ); // TODO: Replace with KMAP_TRY().
 
     return children.find( id ) != children.end();
 }
@@ -1147,35 +1155,35 @@ auto Database::erase_all( Uuid const& id )
         {
             if( contains< Table >( id ) )
             {
-                KMAP_TRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache_.erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::HeadingTable > )
         {
             if( contains< Table >( id ) )
             {
-                KMAP_TRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache_.erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::TitleTable > )
         {
             if( contains< Table >( id ) )
             {
-                KMAP_TRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache_.erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::BodyTable > )
         {
             if( cache_.contains< Table >( id ) )
             {
-                KMAP_TRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache_.erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::ResourceTable > )
         {
             if( cache_.contains< Table >( id ) )
             {
-                KMAP_TRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache_.erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::AttributeTable > )
@@ -1183,7 +1191,8 @@ auto Database::erase_all( Uuid const& id )
             if( auto const parent = fetch_attr_owner( id )
               ; parent )
             {
-                KMAP_TRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
+                KMAP_LOG_LINE();
+                KTRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::ChildTable > )
@@ -1191,7 +1200,7 @@ auto Database::erase_all( Uuid const& id )
             if( auto const parent = fetch_parent( id )
               ; parent )
             {
-                KMAP_TRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
+                KTRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::AliasTable > )
@@ -1205,7 +1214,7 @@ auto Database::erase_all( Uuid const& id )
 
                 for( auto const& dst : dstsv )
                 {
-                    KMAP_TRYE( cache_.erase< Table >( db::Src{ id }, db::Dst{ dst } ) );
+                    KTRYE( cache_.erase< Table >( db::Src{ id }, db::Dst{ dst } ) );
                 }
             }
         }
@@ -1365,25 +1374,24 @@ auto Database::erase_alias( Uuid const& src
         })
     ;
 
-    KMAP_TRY( cache_.erase< db::AliasTable >( db::Src{ src }, db::Dst{ dst } ) );
+    KTRY( cache_.erase< db::AliasTable >( db::Src{ src }, db::Dst{ dst } ) );
     
     rv = outcome::success();
 
     return rv;
-
-    // auto at = aliases::aliases{};
-
-    // execute( remove_from( at ) 
-    //        . where( at.src_uuid == to_string( src )
-    //              && at.dst_uuid == to_string( dst ) ) );
 }
 
+// TODO: This should probably be part of db_fs, and not db proper.
 auto Database::flush_delta_to_disk()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( con_ );
+        })
         BC_POST([ & ]
         {
             if( rv )
@@ -1399,30 +1407,33 @@ auto Database::flush_delta_to_disk()
     {
         using namespace db;
         using sqlpp::sqlite3::insert_or_replace_into;
-        using sqlpp::dynamic_remove_from;
+        // using sqlpp::dynamic_remove_from;
+        using sqlpp::remove_from;
+        using sqlpp::parameter;
         using Table = std::decay_t< decltype( table ) >;
 
+        auto delta_pushed = false;
         auto nt = nodes::nodes{};
         auto nt_ins = insert_into( nt ).columns( nt.uuid ); // Nodes should never be "replaced"/updated.
-        auto nt_rm = dynamic_remove_from( (*con_), nt ).dynamic_where();
+        auto nt_rm = con_->prepare( remove_from( nt ).where( nt.uuid == parameter( nt.uuid ) ) );
         auto ht = headings::headings{};
         auto ht_ins = insert_or_replace_into( ht ).columns( ht.uuid, ht.heading );
-        auto ht_rm = dynamic_remove_from( (*con_), ht ).dynamic_where();
+        auto ht_rm = con_->prepare( remove_from( ht ).where( ht.uuid == parameter( ht.uuid ) ) );
         auto tt = titles::titles{};
         auto tt_ins = insert_or_replace_into( tt ).columns( tt.uuid, tt.title );
-        auto tt_rm = dynamic_remove_from( (*con_), tt ).dynamic_where();
+        auto tt_rm = con_->prepare( remove_from( tt ).where( tt.uuid == parameter( tt.uuid ) ) );
         auto bt = bodies::bodies{};
         auto bt_ins = insert_or_replace_into( bt ).columns( bt.uuid, bt.body );
-        auto bt_rm = dynamic_remove_from( (*con_), bt ).dynamic_where();
+        auto bt_rm = con_->prepare( remove_from( bt ).where( bt.uuid == parameter( bt.uuid ) ) );
         auto ct = children::children{};
         auto ct_ins = insert_into( ct ).columns( ct.parent_uuid, ct.child_uuid );
-        auto ct_rm = dynamic_remove_from( (*con_), ct ).dynamic_where();
+        auto ct_rm = con_->prepare( remove_from( ct ).where( ct.parent_uuid == parameter( ct.parent_uuid ) && ct.child_uuid == parameter( ct.child_uuid ) ) );
         auto at = aliases::aliases{};
         auto at_ins = insert_into( at ).columns( at.src_uuid, at.dst_uuid );
-        auto at_rm = dynamic_remove_from( (*con_), at ).dynamic_where();
+        auto at_rm = con_->prepare( remove_from( at ).where( at.src_uuid == parameter( at.src_uuid ) && at.dst_uuid == parameter( at.dst_uuid ) ) );
         auto att = attributes::attributes{};
         auto att_ins = insert_into( att ).columns( att.parent_uuid, att.child_uuid );
-        auto att_rm = dynamic_remove_from( (*con_), att ).dynamic_where();
+        auto att_rm = con_->prepare( remove_from( att ).where( att.parent_uuid == parameter( att.parent_uuid ) && att.child_uuid == parameter( att.child_uuid ) ) );
 
         for( auto const& item : table )
         {
@@ -1433,7 +1444,9 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        nt_rm.where.add( nt.uuid == to_string( item.key() ) );
+                        nt_rm.params.uuid = to_string( item.key() );
+                        ( *con_ )( nt_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1448,7 +1461,9 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        ht_rm.where.add( ht.uuid == to_string( item.key() ) );
+                        ht_rm.params.uuid = to_string( item.key() );
+                        ( *con_ )( ht_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1463,7 +1478,9 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        tt_rm.where.add( tt.uuid == to_string( item.key() ) );
+                        tt_rm.params.uuid = to_string( item.key() );
+                        ( *con_ )( tt_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1478,7 +1495,9 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        bt_rm.where.add( bt.uuid == to_string( item.key() ) );
+                        bt_rm.params.uuid = to_string( item.key() );
+                        ( *con_ )( bt_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1493,8 +1512,10 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        ct_rm.where.add( ct.parent_uuid == to_string( item.left().value() )
-                                      && ct.child_uuid == to_string( item.right().value() ) );
+                        ct_rm.params.parent_uuid = to_string( item.left().value() );
+                        ct_rm.params.child_uuid = to_string( item.right().value() );
+                        ( *con_ )( ct_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1510,8 +1531,10 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        at_rm.where.add( at.src_uuid == to_string( item.left().value() )
-                                      && at.dst_uuid == to_string( item.right().value() ) );
+                        at_rm.params.src_uuid = to_string( item.left().value() );
+                        at_rm.params.dst_uuid = to_string( item.right().value() );
+                        ( *con_ )( at_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1527,8 +1550,10 @@ auto Database::flush_delta_to_disk()
                 {
                     if( dis.back().action == DeltaType::erased )
                     {
-                        att_rm.where.add( att.parent_uuid == to_string( item.left().value() )
-                                       && att.child_uuid == to_string( item.right().value() ) );
+                        att_rm.params.parent_uuid = to_string( item.left().value() );
+                        att_rm.params.child_uuid = to_string( item.right().value() );
+                        ( *con_ )( att_rm );
+                        delta_pushed = true;
                     }
                     else
                     {
@@ -1554,7 +1579,7 @@ auto Database::flush_delta_to_disk()
         auto push_to_db = [ & ]( auto const& ins, auto const& rm ) mutable
         {
             if( !ins.values._data._insert_values.empty()
-             || !rm.where._data._dynamic_expressions.empty() )
+             || delta_pushed )
             {
                 cache_.apply_delta_to_cache< Table >();
             }
@@ -1562,10 +1587,10 @@ auto Database::flush_delta_to_disk()
             {
                 execute( ins );
             }
-            if( !nt_rm.where._data._dynamic_expressions.empty() )
-            {
-                execute( rm );
-            }
+            // if( !nt_rm.where._data._dynamic_expressions.empty() )
+            // {
+            //     execute( rm );
+            // }
         };
 
         if constexpr( std::is_same_v< Table, NodeTable > ) { push_to_db( nt_ins, nt_rm ); }
@@ -1639,7 +1664,7 @@ auto Database::execute_raw( std::string const& stmt )
     {
         KMAP_ENSURE_EXCEPT( has_file_on_disk() );
 
-        KMAP_TRYE( flush_delta_to_disk() );
+        KTRYE( flush_delta_to_disk() );
     }
 
     auto rv = std::map< std::string, std::string >{};

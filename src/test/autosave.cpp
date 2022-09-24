@@ -8,6 +8,7 @@
 
 #include "com/chrono/timer.hpp"
 #include "com/database/db.hpp"
+#include "com/database/table_decl.hpp"
 #include "com/event/event.hpp"
 #include "com/network/network.hpp"
 #include "com/option/option.hpp"
@@ -19,6 +20,7 @@
 #include <boost/hana/ext/std/tuple.hpp>
 #include <boost/hana/for_each.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <sqlpp11/sqlite3/connection.h>
 
 using namespace kmap;
 using namespace kmap::test;

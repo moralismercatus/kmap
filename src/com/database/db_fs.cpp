@@ -8,8 +8,10 @@
 #include "com/cmd/cclerk.hpp"
 #include "com/database/db.hpp"
 #include "com/filesystem/filesystem.hpp"
+#include "db.hpp"
 #include "error/filesystem.hpp"
 #include "kmap.hpp"
+#include "table_decl.hpp"
 #include "test/util.hpp"
 #include "util/signal_exception.hpp"
 #include "utility.hpp"
@@ -18,11 +20,15 @@
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
 #include <range/v3/view/transform.hpp>
+#include <sqlpp11/sqlpp11.h>
+#include <sqlpp11/sqlite3/connection.h>
 
 #include <vector>
 
 namespace bfs = boost::filesystem;
+namespace rvs = ranges::views;
 
 namespace kmap::com {
 
@@ -58,6 +64,8 @@ auto DatabaseFilesystem::load()
     return rv;
 }
 
+// TODO: Should go under db.fs.cmd component, to alleviate dependence on command_store for db.fs (perhaps).
+//       And, to make standard practice out of isolating commands for a component, so it is not doing more than one job.
 auto DatabaseFilesystem::install_standard_commands()
     -> Result< void >
 {
@@ -197,58 +205,262 @@ return rv;
     return rv;
 }
 
-// TODO: Simply put, I believe there is a bug in emscripten's ___syscall_newfstatat that is called by fs::exists, that will trigger in Debug builds
-//       because there assertions are included. It doesn't seem to be a real problem, but a false positive "assert()", so testing on files cannot proceed
-//       in Debug mode. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
-SCENARIO( "save and load results in identical state", "[db][fs]")
+SCENARIO( "saved data mirrors runtime data", "[db][fs]")
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network" );
 
-    GIVEN( "minimal state" )
+    using namespace sqlpp;
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const db = REQUIRE_TRY( km.fetch_component< com::Database >() );
+    auto const disk_path = ".db_fs_test.kmap";
+    auto const abs_disk_path = com::kmap_root_dir / disk_path;
+    auto const root = nw->root_node();
+    auto nt = nodes::nodes{};
+    auto ht = headings::headings{};
+    auto ct = children::children{};
+    auto const exec_select = [ & ]( auto const& table
+                                  , auto const& key )
     {
-        auto& km = Singleton::instance();
-        auto const& db = REQUIRE_TRY( km.fetch_component< com::Database >() );
-        auto const cache = db->cache();
-        auto const disk_path = com::kmap_root_dir / ".db_fs_test.kmap";
+        return db->execute( select( all_of( table ) )
+                          . from( table )
+                          . where( key ) );
+    };
 
-        if( exists( disk_path ) )
+    GIVEN( "initit db on disk" )
+    {
+        if( exists( abs_disk_path ) )
         {
-            boost::filesystem::remove( disk_path );
+            boost::filesystem::remove( abs_disk_path );
         }
 
-        GIVEN( "init_db_on_disk" )
+        REQUIRE_RES( db->init_db_on_disk( abs_disk_path ) );
+
+        GIVEN( "root node flush" )
         {
-            REQUIRE_RES( db->init_db_on_disk( disk_path ) );
-            REQUIRE( exists( disk_path ) );
-            REQUIRE( db->has_delta() ); // At least has command_store delta.
+            REQUIRE_RES( db->flush_delta_to_disk() );
 
-            GIVEN( "flush_delta_to_disk" )
+            THEN( "root on disk" )
             {
-                REQUIRE_RES( db->flush_delta_to_disk() );
-                
-                THEN( "!has_delta" )
+                // nt
                 {
-                    REQUIRE( !db->has_delta() );
+                    auto rows = exec_select( nt, nt.uuid == to_string( root ) );
+                    REQUIRE( std::distance( rows.begin(), rows.end() ) == 1 );
                 }
-
-                GIVEN( "load state from db flushed to disk" )
+                // ht
                 {
-                    // TODO: 
-                    //     kmap.throw_load_signal( path );
-                    //     Well, that's a little challenging, to throw a load signal would cause leaving the test...
-                    //     I think maybe we can manually call db->load with the path... 
+                    auto rows = exec_select( ht, ht.uuid == to_string( root ) );
+                    REQUIRE( std::distance( rows.begin(), rows.end() ) == 1 );
+                }
+                {
+                    auto rows = exec_select( ht, ht.uuid == to_string( root ) );
+                    REQUIRE( rows.begin()->heading == "root" );
+                }
+            }
 
-                    GIVEN( "save state" )
+            GIVEN( "child node flush" )
+            {
+                auto const c1h = "1";
+                auto const c1 = REQUIRE_TRY( nw->create_child( root, c1h ) );
+                REQUIRE_RES( db->flush_delta_to_disk() );
+
+                THEN( "child on disk" )
+                {
+                    // nt
                     {
-                        // TODO: once loaded from saved state, save again.
+                        auto rows = exec_select( nt, nt.uuid == to_string( c1 ) );
+                        REQUIRE( std::distance( rows.begin(), rows.end() ) == 1 );
+                    }
+                    // ht
+                    {
+                        auto rows = exec_select( ht, ht.uuid == to_string( c1 ) );
+                        REQUIRE( std::distance( rows.begin(), rows.end() ) == 1 );
+                    }
+                    {
+                        auto rows = exec_select( ht, ht.uuid == to_string( c1 ) );
+                        REQUIRE( rows.begin()->heading == c1h );
+                    }
+                    // ct
+                    {
+                        auto rows = exec_select( ct, ct.child_uuid == to_string( c1 ) );
+                        REQUIRE( std::distance( rows.begin(), rows.end() ) == 1 );
+                    }
+                }
+                
+                GIVEN( "child erase flush" )
+                {
+                    REQUIRE_RES( nw->erase_node( c1 ) );
+                    REQUIRE_RES( db->flush_delta_to_disk() );
+
+                    THEN( "child NOT on disk" )
+                    {
+                        // nt
+                        {
+                            auto rows = exec_select( nt, nt.uuid == to_string( c1 ) );
+                            REQUIRE( std::distance( rows.begin(), rows.end() ) == 0 );
+                        }
+                        // ht
+                        {
+                            auto rows = exec_select( ht, ht.uuid == to_string( c1 ) );
+                            REQUIRE( std::distance( rows.begin(), rows.end() ) == 0 );
+                        }
+                        // ct
+                        {
+                            auto rows = exec_select( ct, ct.child_uuid == to_string( c1 ) );
+                            REQUIRE( std::distance( rows.begin(), rows.end() ) == 0 );
+                        }
                     }
                 }
             }
         }
 
-        if( exists( disk_path ) )
+        if( exists( abs_disk_path ) )
         {
-            boost::filesystem::remove( disk_path );
+            boost::filesystem::remove( abs_disk_path );
+        }
+    }
+}
+
+// TODO: Simply put, I believe there is a bug in emscripten's ___syscall_newfstatat that is called by fs::exists, that will trigger in Debug builds
+//       because there assertions are included. It doesn't seem to be a real problem, but a false positive "assert()", so testing on files cannot proceed
+//       in Debug mode. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
+SCENARIO( "save and load results in identical state", "[db][fs]")
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network", "event_store"/*nw->select_node() fires an event*/, "option_store" ); // TODO: option_store needed because Kmap::load() applies options after loading. That whole dependency needs to be sorted out.
+
+    GIVEN( "minimal state" )
+    {
+        auto& km = Singleton::instance();
+        // Using these helpers to ensure always drawing on the latest component (which are destroyed by reloads).
+        auto const db = [ & ] { return REQUIRE_TRY( km.fetch_component< com::Database >() ); };
+        auto const nw = [ & ] { return REQUIRE_TRY( km.fetch_component< com::Network >() ); };
+        auto initialized_coms = km.component_store().all_initialized_components();
+        auto const disk_path = ".db_fs_test.kmap";
+        auto const abs_disk_path = com::kmap_root_dir / disk_path;
+
+        if( exists( abs_disk_path ) )
+        {
+            boost::filesystem::remove( abs_disk_path );
+        }
+
+        GIVEN( "init_db_on_disk" )
+        {
+            REQUIRE_RES( db()->init_db_on_disk( abs_disk_path ) );
+            REQUIRE( exists( abs_disk_path ) );
+            REQUIRE( db()->has_delta() ); // At least has command_store delta, given current db.fs dependence.
+
+            GIVEN( "flush_delta_to_disk" )
+            {
+                REQUIRE_RES( db()->flush_delta_to_disk() );
+                
+                THEN( "!has_delta" )
+                {
+                    REQUIRE( !db()->has_delta() );
+                }
+
+                GIVEN( "load state from db flushed to disk" )
+                {
+                    REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                    THEN( "!has_delta" )
+                    {
+                        REQUIRE( !db()->has_delta() );
+                    }
+
+                    GIVEN( "create child /1")
+                    {
+                        auto const c1 = REQUIRE_TRY( nw()->create_child( nw()->root_node(), "1" ) );
+
+                        GIVEN( "flush_delta_to_disk" )
+                        {
+                            REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                            GIVEN( "erase 1" )
+                            {
+                                REQUIRE_RES( nw()->erase_node( c1 ) );
+
+                                GIVEN( "flush_delta_to_disk" )
+                                {
+                                    REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                                    GIVEN( "load state from db flushed to disk" )
+                                    {
+                                        REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                                        THEN( "!has_delta" )
+                                        {
+                                            REQUIRE( !db()->has_delta() );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        GIVEN( "create child /2")
+                        {
+                            auto const c2 = REQUIRE_TRY( nw()->create_child( nw()->root_node(), "2" ) );
+
+                            GIVEN( "create_alias( src=/1 dst=/2 )" )
+                            {
+                                auto const a21 = REQUIRE_TRY( nw()->create_alias( c1, c2 ) );
+
+                                REQUIRE( nw()->exists( a21 ) );
+                                REQUIRE( !nw()->fetch_children( c2 ).empty() );
+
+                                GIVEN( "flush_delta_to_disk" )
+                                {
+                                    REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                                    GIVEN( "erase alias( src=/1 dst=/2 )" )
+                                    {
+                                        REQUIRE_RES( nw()->erase_node( a21 ) );
+
+                                        GIVEN( "flush_delta_to_disk" )
+                                        {
+                                            REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                                            REQUIRE( !nw()->exists( a21 ) );
+                                            REQUIRE( nw()->fetch_children( c2 ).empty() );
+
+                                            GIVEN( "load state from db flushed to disk" )
+                                            {
+                                                REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                                                THEN( "alias erased across save/load" )
+                                                {
+                                                    REQUIRE( !nw()->exists( a21 ) );
+                                                    REQUIRE( nw()->fetch_children( c2 ).empty() );
+                                                    REQUIRE_RES( nw()->select_node( c2 ) );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    GIVEN( "flush_delta_to_disk" )
+                    {
+                        REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                        GIVEN( "load state from db flushed to disk" )
+                        {
+                            REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                            THEN( "!has_delta" )
+                            {
+                                REQUIRE( !db()->has_delta() );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if( exists( abs_disk_path ) )
+        {
+            boost::filesystem::remove( abs_disk_path );
         }
     }
 }

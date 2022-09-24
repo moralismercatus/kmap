@@ -24,6 +24,23 @@
 
 namespace kmap {
 
+auto fetch_listed_components()
+    -> Result< std::set< std::string > >
+{
+    using emscripten::val;
+    using emscripten::vecFromJSArray;
+
+    auto rv = KMAP_MAKE_RESULT( std::set< std::string > );
+
+    KMAP_ENSURE( js::is_global_kmap_valid(), error_code::common::uncategorized );
+
+    auto const components = vecFromJSArray< std::string >( val::global( "kmap_components" ) );
+
+    rv = components | ranges::to< std::set >();
+
+    return rv;
+}
+
 auto register_components( std::set< std::string > const& components )
     -> Result< void >
 {
@@ -48,16 +65,13 @@ auto register_components( std::set< std::string > const& components )
 auto register_all_components()
     -> Result< void >
 {
-    using emscripten::val;
-    using emscripten::vecFromJSArray;
-
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( js::is_global_kmap_valid(), error_code::common::uncategorized );
 
-    auto const components = vecFromJSArray< std::string >( val::global( "kmap_components" ) );
+    auto const components = KTRY( fetch_listed_components() );
 
-    KTRY( register_components( components | ranges::to< std::set >() ) );
+    KTRY( register_components( components ) );
 
     rv = outcome::success();
 

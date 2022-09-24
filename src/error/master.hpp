@@ -66,6 +66,11 @@
 #else 
     #define KMAP_KTRY_LOG()
 #endif // KMAP_LOG_KTRY
+#if KMAP_LOG_KTRYE
+    #define KMAP_KTRYE_LOG() kmap::log_ktrye_line( __FUNCTION__, __LINE__, __FILE__ )
+#else 
+    #define KMAP_KTRYE_LOG()
+#endif // KMAP_LOG_KTRYE
 #define KMAP_TRY( ... ) \
     ({ \
         KMAP_KTRY_LOG(); \
@@ -82,12 +87,12 @@
 // Throw exception on failure.
 #define KMAP_TRYE( ... ) \
     ({ \
-        KMAP_KTRY_LOG(); \
         auto&& res = ( __VA_ARGS__ ); \
         if( BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
             ; \
         else \
         { \
+            KMAP_KTRYE_LOG(); \
             res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
             KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) ); \
         } \
@@ -341,9 +346,17 @@ auto operator<<( std::ostream& os, kmap::error_code::Result< T > const& lhs )
 
 namespace kmap
 {
+    auto format_line_log( std::string const& func
+                        , uint32_t const& line
+                        , std::string const& file )
+        -> std::string;
     auto log_ktry_line( std::string const& func
                       , uint32_t const& line
                       , std::string const& file )
+        -> void;
+    auto log_ktrye_line( std::string const& func
+                       , uint32_t const& line
+                       , std::string const& file )
         -> void;
 } // namespace kmap
 

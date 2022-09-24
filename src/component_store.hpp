@@ -40,11 +40,13 @@ public:
     ComponentStore( Kmap& km );
     ~ComponentStore();
 
+    auto all_initialized_components()
+        -> std::set< std::string >;
     auto all_uninit_dependents( std::string const& component )
         -> std::set< std::string >;
     auto clear()
         -> Result< void >;
-    auto erase_component( ComponentPtr const& com )
+    auto erase_component( ComponentPtr const com )
         -> Result< void >;
     auto fire_initialized( std::string const& id )
         -> Result< void >;
