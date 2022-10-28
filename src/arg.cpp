@@ -653,9 +653,9 @@ auto AliasDestArg::complete( std::string const& raw ) const
 {
     auto nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const selected = nw->selected_node();
-    auto const dsts = nw->alias_store().fetch_aliases_to( selected );
+    auto const dsts = nw->alias_store().fetch_aliases_dsts( selected );
     auto const map = dsts
-                   | views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
+                   | views::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ); } )
                    | to_vector;
 
     return map;

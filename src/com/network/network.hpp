@@ -242,9 +242,10 @@ protected:
                               , Heading const& heading
                               , Title const& title )
         -> kmap::Result< void >;
-    auto erase_alias( Uuid const& id )
+    auto erase_root_alias( Uuid const& id )
         -> Result< void >;
-    auto erase_aliases_to( Uuid const& id )
+    auto erase_desc_alias( Uuid const& src
+                         , Uuid const& dst )
         -> Result< void >;
     auto erase_node_internal( Uuid const& id )
         -> Result< void >;

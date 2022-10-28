@@ -204,44 +204,6 @@ auto AliasStore::aliases() const
 {
     return alias_set_;
 }
-// auto AliasStore::child_aliases() const
-//     -> AliasChildSet const&
-// {
-//     return alias_child_set_;
-// }
-
-// auto AliasStore::erase_aliases_to( Uuid const& node )
-//     -> Result< void >
-// {
-//     auto rv = KMAP_MAKE_RESULT( void );
-
-//     BC_CONTRACT()
-//         BC_POST([ & ]
-//         {
-//             BC_ASSERT( !has_alias( node ) );
-//         })
-//     ;
-
-//     auto const rnode = resolve( node );
-//     auto aliases = std::vector< Uuid >{};
-//     auto const& av = alias_set_.get< AliasItem::src_type >();
-//     auto const er = av.equal_range( AliasItem::src_type{ rnode } );
-    
-//     for( auto it = er.first
-//        ; it != er.second
-//        ; ++it )
-//     {
-//         aliases.emplace_back( it->alias() );
-//     }
-//     for( auto const& n : aliases )
-//     {
-//         KTRY( erase_alias( n ) );
-//     }
-
-//     rv = outcome::success();
-
-//     return rv;
-// }
 
 auto AliasStore::fetch_alias_children( Uuid const& parent ) const
     -> std::set< Uuid >
@@ -271,7 +233,7 @@ auto AliasStore::fetch_alias_children( Uuid const& parent ) const
     return rv;
 }
 
-auto AliasStore::fetch_aliases_to( Uuid const& src ) const
+auto AliasStore::fetch_aliases_dsts( Uuid const& src ) const
     -> std::set< Uuid > 
 {
     auto rv = std::set< Uuid >{};
@@ -299,17 +261,38 @@ auto AliasStore::fetch_aliases_to( Uuid const& src ) const
     return rv;
 }
 
+auto AliasStore::fetch_entry( Uuid const& id ) const
+    -> Result< AliasItem >
+{
+    auto rv = KMAP_MAKE_RESULT( AliasItem );
+    auto const& av = alias_set_.get< AliasItem::alias_type >();
+    auto const er = av.equal_range( AliasItem::alias_type{ id } );
+
+    if( std::distance( er.first, er.second ) == 1 )
+    {
+        rv = *( er.first );
+    }
+    else
+    {
+        fmt::print( "{} entries found for alias_id: {}\n", std::distance( er.first, er.second ), to_string( id ) );
+    }
+
+    return rv;
+}
+
 auto AliasStore::fetch_parent( Uuid const& child ) const
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const& av = alias_set_.get< AliasItem::alias_type >();
-    auto const er = av.equal_range( AliasItem::alias_type{ child } ); // TODO: equal_range, BC_ASSERT size == 1?
+    
+    rv = KTRY( fetch_entry( child ) ).dst().value();
+    // auto const& av = alias_set_.get< AliasItem::alias_type >();
+    // auto const er = av.equal_range( AliasItem::alias_type{ child } ); // TODO: equal_range, BC_ASSERT size == 1?
 
-    if( std::distance( er.first, er.second ) == 1 )
-    {
-        rv = er.first->dst().value();
-    }
+    // if( std::distance( er.first, er.second ) == 1 )
+    // {
+    //     rv = er.first->dst().value();
+    // }
 
     return rv;
 }
@@ -412,10 +395,10 @@ auto AliasStore::push_alias( AliasItem const& item )
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            // if( rv )
-            // {
-            //     BC_ASSERT( !is_alias( item.child().value() ) );
-            // }
+            if( rv )
+            {
+                BC_ASSERT( fetch_entry( item.alias() ).has_value() );
+            }
         })
     ;
     // auto const alias_id = make_alias_id( src, dst );

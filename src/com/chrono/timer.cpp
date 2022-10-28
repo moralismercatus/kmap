@@ -52,9 +52,7 @@ auto Timer::load()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-KMAP_LOG_LINE();
     KTRY( install_default_timers() );
-KMAP_LOG_LINE();
 
     rv = outcome::success();
 

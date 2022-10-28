@@ -36,7 +36,7 @@ auto select_destination( Kmap& kmap )
         auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
         auto const heading = args[ 0 ];
         auto const selected = nw->selected_node();
-        auto const dsts = nw->alias_store().fetch_aliases_to( selected );
+        auto const dsts = nw->alias_store().fetch_aliases_dsts( selected );
         auto const map = dsts
                        | views::transform( [ & ]( auto const& e ){ return std::pair{ e, KTRYE( nw->fetch_heading( e ) ) }; } )
                        | to_vector;

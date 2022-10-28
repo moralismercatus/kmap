@@ -228,8 +228,6 @@ auto Cli::parse_raw( std::string const& input )
         nw->focus();
     }
 
-    KMAP_LOG_LINE();
-    
     return rv;
 }
 

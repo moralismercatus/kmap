@@ -166,14 +166,11 @@ auto Database::load()
 
     fmt::print( "Database :: load: {}\n", path_.string() );
 
-    KMAP_LOG_LINE();
     // TODO: OK, load is failing here... reason? Have something to do with unmounting in filesystem::dtor?
     con_ = std::make_unique< sql::connection >( make_connection_confg( path_, SQLITE_OPEN_READONLY ) );
 
-    KMAP_LOG_LINE();
     auto const handle = con_->native_handle();
 
-    KMAP_LOG_LINE();
     // Sqlite3 disables extended error reporting by default. Enable it.
     sqlite3_extended_result_codes( handle, 1 );
 
@@ -287,7 +284,6 @@ auto Database::load()
         boost::hana::for_each( boost::hana::reverse( cache_.tables() ), proc_table );
         boost::hana::for_each( boost::hana::reverse( cache_.tables() ), apply_delta );
     }
-    KMAP_LOG_LINE();
 
     {
         con_ = std::make_unique< sql::connection >( make_connection_confg( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE ) );
@@ -297,7 +293,6 @@ auto Database::load()
         // Sqlite3 disables extended error reporting by default. Enable it.
         sqlite3_extended_result_codes( handle, 1 );
     }
-    KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -1191,7 +1186,6 @@ auto Database::erase_all( Uuid const& id )
             if( auto const parent = fetch_attr_owner( id )
               ; parent )
             {
-                KMAP_LOG_LINE();
                 KTRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
             }
         }

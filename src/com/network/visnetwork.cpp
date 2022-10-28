@@ -79,12 +79,8 @@ auto VisualNetwork::initialize()
         KMAP_THROW_EXCEPTION_MSG( "failed to initialize Network" ); // TODO: return Result
     }
 
-    KMAP_LOG_LINE();
-
     KTRY( install_standard_options() );
     KTRY( install_standard_events() );
-
-    KMAP_LOG_LINE();
 
     rv = outcome::success();
 

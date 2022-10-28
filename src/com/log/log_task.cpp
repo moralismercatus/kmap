@@ -104,7 +104,6 @@ struct LogTask : public Component
         -> Result< void >
     {
         auto rv = KMAP_MAKE_RESULT( void );
-        KMAP_LOG_LINE();
 
         auto& kmap = kmap_inst();
         auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );

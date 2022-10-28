@@ -160,8 +160,10 @@ public:
     auto fetch_alias_children( Uuid const& parent ) const
         -> std::set< Uuid >;
     [[ nodiscard ]]
-    auto fetch_aliases_to( Uuid const& src ) const
+    auto fetch_aliases_dsts( Uuid const& src ) const
         -> std::set< Uuid >;
+    auto fetch_entry( Uuid const& child ) const
+        -> Result< AliasItem >;
     auto fetch_parent( Uuid const& child ) const
         -> Result< Uuid >;
     [[ nodiscard ]]

@@ -192,8 +192,6 @@ auto Kmap::initialize()
         KTRY( component_store_->fire_initialized( "component_store" ) );
     }
 
-    KMAP_LOG_LINE();
-
     auto const nw = KTRY( fetch_component< com::Network >() );
 
     KTRY( nw->select_node( root_node_id() ) );
@@ -252,7 +250,6 @@ auto Kmap::clear()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KMAP_LOG_LINE();
     // TODO: Rather than maintaining a list of reset_*s, why not place all of these in Environment, in their dependent order, and thereby just reset env,
     //       and get the reset for free of all these?
     KTRY( clear_component_store() );
@@ -308,15 +305,11 @@ auto Kmap::load( FsPath const& db_path
     KMAP_ENSURE_MSG( fs::exists( full_path ), error_code::common::uncategorized, io::format( "unable to find file {}", full_path.string() ) );
 
     // 1. Clear existing state. This *should* - if components are implemented correctly - mean that all events, html elements, etc. are destroyed.
-    KMAP_LOG_LINE();
     KTRY( clear() );
-    KMAP_LOG_LINE();
     init_component_store();
-    KMAP_LOG_LINE();
     KTRY( register_components( components ) );
 
     database_path_ = full_path; // Set state, so Database::load can read.
-    KMAP_LOG_LINE();
 
     KTRY( component_store_->fire_loaded( "component_store" ) );
 

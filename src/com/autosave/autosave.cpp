@@ -151,9 +151,7 @@ kmap.autosave().interval();
 //    1. Why is it failing?
 //    2. Why is the failure being reported as a catastrophic error? throw_on_error() somehow not getting caught? Not even not getting caught, it's a fatal error; abort.
 //    (2) is the more important of the two. It's only a matter of time before the next mysterious failure and bug hunt ensues....
-KMAP_LOG_LINE();
     KTRY( estore->install_outlet( leaf ) );
-KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -238,28 +236,24 @@ struct Autosave
     auto interval()
         -> kmap::binding::Result< void >
     {
-        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->interval();
     }
 
     auto install_event_outlet( std::string const& unit )
         -> kmap::binding::Result< void >
     {
-        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->install_event_outlet( unit );
     }
 
     auto uninstall_event_outlet()
         -> kmap::binding::Result< void >
     {
-        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->uninstall_event_outlet();
     }
 
     auto set_threshold( uint32_t const threshold )
         -> void
     {
-        KMAP_LOG_LINE();
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->set_threshold( threshold );
     }
 };

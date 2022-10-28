@@ -19,11 +19,9 @@ CommandClerk::CommandClerk( Kmap& km )
 
 CommandClerk::~CommandClerk()
 {
-    KMAP_LOG_LINE();
     if( auto cstorer = kmap.fetch_component< CommandStore >() // TODO: What to do if fails?
       ; cstorer ) 
     {
-        KMAP_LOG_LINE();
         auto& cstore = cstorer.value();
         auto const handle_result = []( auto const& res )
         {
