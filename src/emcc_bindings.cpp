@@ -799,12 +799,12 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "move_node", &kmap::binding::move_node );
     function( "on_leaving_editor", &kmap::binding::on_leaving_editor );
     function( "present_time", &kmap::binding::present_time );
-    function( "std_exception_to_string", &kmap::binding::std_exception_to_string );
     function( "print_std_exception", &kmap::binding::print_std_exception );
     function( "resolve_alias", &kmap::binding::resolve_alias );
     function( "root_node", &kmap::binding::root_node );
     function( "run_unit_tests", &kmap::binding::run_unit_tests );
     function( "select_node", &kmap::binding::select_node );
+    function( "std_exception_to_string", &kmap::binding::std_exception_to_string );
     function( "selected_node", &kmap::binding::selected_node );
     function( "sort_children", &kmap::binding::sort_children );
     function( "success", &kmap::binding::make_success );

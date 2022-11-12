@@ -98,6 +98,20 @@
         } \
         BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
     })
+#define KMAP_TRYB( ... ) \
+    ({ \
+        auto&& res = ( __VA_ARGS__ ); \
+        if( BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
+            ; \
+        else \
+        { \
+            return false;\
+        } \
+        BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
+    })
+#define KTRY( ... ) KMAP_TRY( __VA_ARGS__ )
+#define KTRYE( ... ) KMAP_TRYE( __VA_ARGS__ )
+#define KTRYB( ... ) KMAP_TRYB( __VA_ARGS__ )
 #define KMAP_ENSURE_EXCEPT( pred ) \
     { \
         if( !( pred ) ) \
@@ -105,8 +119,14 @@
             KMAP_THROW_EXCEPTION_MSG( #pred ); \
         } \
     }
-#define KTRY( ... ) KMAP_TRY( __VA_ARGS__ )
-#define KTRYE( ... ) KMAP_TRYE( __VA_ARGS__ )
+#define KMAP_ENSURE_BOOL( pred ) \
+    { \
+        if( !( pred ) ) \
+        { \
+            return false; \
+        } \
+    }
+#define KENSURE_B( pred ) KMAP_ENSURE_BOOL( ( pred ) )
 
 #include <boost/outcome.hpp>
 #include <boost/system/error_code.hpp>

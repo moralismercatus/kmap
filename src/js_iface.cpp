@@ -21,6 +21,13 @@ using namespace ranges;
 
 namespace kmap::js {
 
+auto beautify( std::string const& code )
+    -> std::string
+{
+    // TODO: Strip leading whitespace. `beautify_javascript` will use first line indent as pattern for remaining line indent.
+    return KTRYE( js::call< std::string >( "beautify_javascript", code ) );
+}
+
 // TODO: Should probably de-constrain and rename to: create_html_elem_child( id=<'uuid'>, tag=<'e.g., body'> )
 auto create_html_canvas( std::string const& id )
     -> Result< void >
@@ -29,11 +36,11 @@ auto create_html_canvas( std::string const& id )
 
     KMAP_ENSURE( !element_exists( id ), error_code::js::element_already_exists );
 
-    KMAP_TRY( js::eval_void( io::format( "let canvas = document.createElement( 'canvas' );"
-                                         "canvas.id = '{}';"
-                                         "let body_tag = document.getElementsByTagName( 'body' )[ 0 ];"
-                                         "body_tag.appendChild( canvas );" 
-                                       ,  id ) ) ); 
+    KTRY( js::eval_void( io::format( "let canvas = document.createElement( 'canvas' );"
+                                     "canvas.id = '{}';"
+                                     "let body_tag = document.getElementsByTagName( 'body' )[ 0 ];"
+                                     "body_tag.appendChild( canvas );" 
+                                   ,  id ) ) );
 
     rv = outcome::success();
 

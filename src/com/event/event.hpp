@@ -42,6 +42,7 @@ struct Branch
 
 class EventStore : public Component
 {
+    std::vector< Transition > registered_outlets_ = {};
     struct TransitionState
     {
         UuidSet active;
@@ -101,6 +102,8 @@ public:
         -> bool;
     auto is_outlet( Uuid const& node )
         -> bool;
+    auto register_outlet( Transition const& transition )
+        -> Result< void >;
     auto uninstall_subject( std::string const& heading )
         -> Result< void >;
     auto uninstall_subject( Uuid const& node )

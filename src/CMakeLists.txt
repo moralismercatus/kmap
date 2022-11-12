@@ -40,7 +40,7 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
                              KMAP_PROFILE=0
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -Wall
-                         -O2 
+                         -O3 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sWASM=1 )
     add_link_options()
@@ -103,7 +103,6 @@ add_executable( emcc.index.html
                 # cmd/recipe.cpp
                 cmd/repair.cpp
                 # cmd/resource.cpp
-                cmd/script.cpp
                 # cmd/search.cpp
                 cmd/select_node.cpp
                 cmd/task.cpp 
@@ -147,6 +146,7 @@ add_executable( emcc.index.html
                 path.cpp
                 path/act/abs_path.cpp path/act/abs_path.hpp
                 path/act/erase.cpp path/act/erase.hpp
+                path/act/fetch_body.cpp path/act/fetch_body.hpp
                 path/act/front.cpp path/act/front.hpp
                 path/act/order.cpp path/act/order.hpp
                 path/act/take.cpp path/act/take.hpp
@@ -190,6 +190,7 @@ add_executable( emcc.index.html
                 test/util.cpp
                 test/util/util.cpp
                 util/profile.cpp
+                util/script/script.cpp util/script/script.hpp
                 util/window.cpp
                 utility.cpp
                 main.cpp )

@@ -43,6 +43,22 @@ OptionClerk::~OptionClerk()
     }
 }
 
+auto OptionClerk::apply_all()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const ostore = KTRY( kmap.fetch_component< com::OptionStore >() );
+
+    for( auto const& opt : options )
+    {
+        KTRY( ostore->apply( opt ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto OptionClerk::install_option( Heading const& heading
                                 , std::string const& descr
                                 , std::string const& value 

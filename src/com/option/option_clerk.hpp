@@ -32,7 +32,9 @@ struct OptionClerk
                        , std::string const& descr
                        , std::string const& value 
                        , std::string const& action )
-    -> Result< Uuid >;
+        -> Result< Uuid >;
+    auto apply_all()
+        -> Result< void >;
 };
 
 } // namespace kmap::option

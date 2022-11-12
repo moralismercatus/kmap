@@ -5,17 +5,28 @@
  ******************************************************************************/
 #include "com/event/event_clerk.hpp"
 
+#include "cmd/parser.hpp"
 #include "com/event/event.hpp"
 #include "contract.hpp"
 #include "error/master.hpp"
+#include "js_iface.hpp"
 #include "kmap.hpp"
+#include "path.hpp"
+#include "path/act/fetch_body.hpp"
+#include "path/node_view.hpp"
+#include "path/node_view2.hpp"
 
+#include <range/v3/algorithm/all_of.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
 #include <range/v3/view/reverse.hpp>
+#include <range/v3/view/set_algorithm.hpp>
 #include <range/v3/view/split.hpp>
 #include <range/v3/view/transform.hpp>
+
+namespace rvs = ranges::views;
 
 namespace kmap::com {
 
@@ -66,6 +77,181 @@ EventClerk::~EventClerk()
         std::cerr << e.what() << '\n';
         std::terminate();
     }
+}
+
+auto EventClerk::append_com_reqs( std::set< std::string > const& requisites )
+    -> std::set< std::string >
+{
+    auto nreqs = requisites;
+
+    nreqs.insert( outlet_com_requisites.begin(), outlet_com_requisites.end() );
+
+    return nreqs;
+}
+
+auto EventClerk::append_com_reqs( Leaf const& leaf )
+    -> Leaf
+{
+    auto nleaf = leaf;
+
+    nleaf.requisites = append_com_reqs( nleaf.requisites );
+
+    return nleaf;
+}
+
+auto EventClerk::append_com_reqs( Branch const& branch )
+    -> Branch
+{
+    auto nb = branch;
+
+    nb.requisites = append_com_reqs( nb.requisites );
+
+    return nb;
+}
+
+auto confirm_reinstall( std::string const& outlet_path )
+    -> Result< bool >
+{
+    return KTRY( js::eval< bool >( fmt::format( "return confirm( \"Outlet '{}' out of date.\\nRe-install outlet?\" );", outlet_path ) ) );
+}
+
+auto EventClerk::check_registered( Leaf const& leaf )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
+    auto const eroot = KTRY( estore->event_root() );
+
+    if( auto const lnode = view::make( eroot )
+                         | view::child( "outlet" )
+                         | view::direct_desc( leaf.heading )
+                         | view::fetch_node( kmap )
+      ; lnode )
+    {
+        auto const matches = is_action_consistent( kmap, lnode.value(), leaf.action )
+                          && match_requisites( kmap, eroot, lnode.value(), leaf.requisites )
+                          && is_description_consistent( kmap, lnode.value(), leaf.description )
+                           ;
+
+        if( !matches )
+        {
+            if( confirm_reinstall( leaf.heading ) )
+            {
+                KTRY( view::make( lnode.value() )
+                    | view::erase_node( kmap ) );
+                KTRY( install_outlet( leaf ) ); // Re-install outlet.
+            }
+        }
+    }
+    else
+    {
+        if( confirm_reinstall( leaf.heading ) )
+        {
+            KTRY( install_outlet( leaf ) );
+        }
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::check_registered( Branch const& branch )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
+    auto const eroot = KTRY( estore->event_root() );
+
+    if( auto const bnode = view::make( eroot )
+                         | view::child( "outlet" )
+                         | view::direct_desc( branch.heading )
+                         | view::fetch_node( kmap )
+      ; bnode )
+    {
+        auto const matches = match_requisites( kmap, eroot, bnode.value(), branch.requisites );
+
+        if( !matches )
+        {
+            if( KTRY( confirm_reinstall( branch.heading ) ) )
+            {
+                KTRY( view::make( bnode.value() )
+                    | view::erase_node( kmap ) );
+                KTRY( install_outlet( branch ) );
+            }
+        }
+        else
+        {
+            auto const dispatch = util::Dispatch
+            {
+                [ & ]( Branch const& arg )
+                {
+                    auto tbranch = arg;
+                    tbranch.heading = fmt::format( "{}.{}", branch.heading, arg.heading );
+                    return check_registered( tbranch );
+                }
+            ,   [ & ]( Leaf const& arg )
+                {
+                    auto tleaf = arg;
+                    tleaf.heading = fmt::format( "{}.{}", branch.heading, arg.heading );
+                    return check_registered( tleaf );
+                }
+            };
+
+            for( auto const& transition : branch.transitions )
+            {
+                KTRY( std::visit( dispatch, transition ) );
+            }
+        }
+    }
+    else
+    {
+        if( KTRY( confirm_reinstall( branch.heading ) ) )
+        {
+            KTRY( install_outlet( branch ) );
+        }
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::check_registered( std::string const& heading )
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_ENSURE( registered_outlets.contains( heading ), error_code::network::invalid_heading );
+
+    auto const r_entry = registered_outlets.at( heading );
+    auto const dispatch = util::Dispatch
+    {
+        [ & ]( Leaf const& arg ){ return check_registered( arg ); }
+    ,   [ & ]( Branch const& arg ){ return check_registered( arg ); }
+    };
+
+    KTRY( std::visit( dispatch, r_entry ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::check_registered()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    for( auto const& heading : registered_outlets
+                             | ranges::views::keys )
+    {
+        KTRY( check_registered( heading ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto EventClerk::fire_event( std::set< std::string > const& requisites )
@@ -164,40 +350,56 @@ auto EventClerk::install_component( Heading const& heading )
 }
 
 auto EventClerk::install_outlet( Leaf const& leaf ) 
-    -> Result< void >
+    -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
-    auto const amended_leaf = [ & ]
-    {
-        auto al = leaf;
-        al.requisites.insert( outlet_com_requisites.begin(), outlet_com_requisites.end() );
-        return al;
-    }();
+    auto const amended_leaf = append_com_reqs( leaf );
 
     KTRY( install_requisites( amended_leaf.requisites ) );
 
-    {
-        auto const outlet = KTRY( estore->install_outlet( amended_leaf ) );
+    auto const outlet = KTRY( estore->install_outlet( amended_leaf ) );
 
-        outlets.emplace_back( outlet );
-    }
+    outlets.emplace_back( outlet );
 
-    rv = outcome::success();
+    rv = outlet;
 
     return rv;
 }
 
 auto EventClerk::install_outlet( Branch const& branch ) 
-    -> Result< void >
+    -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
-    auto const outlet = KTRY( estore->install_outlet( branch ) );
+    auto const amended_branch = append_com_reqs( branch );
+
+    KTRY( install_requisites( gather_requisites( amended_branch ) ) );
+
+    auto const outlet = KTRY( estore->install_outlet( amended_branch ) );
 
     outlets.emplace_back( outlet );
 
-    rv = outcome::success();
+    rv = outlet;
+
+    return rv;
+}
+
+auto EventClerk::install_outlet( std::string const& path )
+    -> Result< Uuid >
+{
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    KMAP_ENSURE( registered_outlets.contains( path ), error_code::network::invalid_heading );
+
+    auto const r_entry = registered_outlets.at( path );
+    auto const dispatch = util::Dispatch
+    {
+        [ & ]( Leaf const& arg ){ return install_outlet( arg ); }
+    ,   [ & ]( Branch const& arg ){ return install_outlet( arg ); }
+    };
+
+    rv = KTRY( std::visit( dispatch, r_entry ) );
 
     return rv;
 }
@@ -263,6 +465,137 @@ auto EventClerk::install_requisites( std::set< std::string > const& requisites )
     }
 
     rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::install_registered()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    for( auto const& path : registered_outlets
+                             | ranges::views::keys )
+    {
+        KTRY( install_outlet( path ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto EventClerk::register_outlet( com::Transition const& t ) 
+    -> void
+{
+    std::visit( [ & ]( auto const& v ){ registered_outlets.emplace( v.heading, t ); }
+              , t );
+}
+
+auto gather_requisites( Transition const& t )
+    -> std::set< std::string >
+{
+    auto rv = std::set< std::string >{};
+    auto const dispatch = util::Dispatch
+    {
+        []( Leaf const& x )
+        {
+            return x.requisites;
+        }
+    ,   []( Branch const& x )
+        {
+            auto rs = x.requisites;
+            for( auto const& tt : x.transitions )
+            {
+                auto const grs = gather_requisites( tt );
+                rs.insert( grs.begin(), grs.end() );
+            }
+            return rs;
+        }
+    };
+
+    return std::visit( dispatch, t );
+}
+
+auto is_description_consistent( Kmap const& km
+                              , Uuid const& lnode
+                              , std::string const& content )
+    -> bool
+{
+    auto rv = false;
+
+    if( auto const db = view::make( lnode )
+                      | view::child( "description" )
+                      | act::fetch_body( km )
+      ; db )
+    {
+        rv = ( db.value() == content );
+    }
+
+    if( !rv ) 
+    {
+        fmt::print( "hmm.., it's description failing\n" );
+    }
+
+    return rv;
+}
+
+auto match_requisites( Kmap const& km
+                     , Uuid const eroot
+                     , Uuid const& lnode
+                     , std::set< std::string > const& alias_paths )
+    -> bool
+{
+    auto rv = false;
+    auto const rreq_srcs = view::make( eroot )
+                        | view::child( "requisite" )
+                        | view::direct_desc( view::all_of( alias_paths ) )
+                        | view::to_node_set( km );
+    auto const oreq_srcs = view::make( lnode )
+                         | view::child( "requisite" )
+                         | view::alias
+                         | view::resolve
+                         | view::to_node_set( km );
+
+    rv = ranges::distance( rvs::set_intersection( rreq_srcs, oreq_srcs ) ) == rreq_srcs.size();
+
+    return rv;
+}
+
+auto is_action_consistent( Kmap const& km
+                         , Uuid const& lnode
+                         , std::string const& content )
+    -> bool
+{
+    auto rv = false;
+    auto const beautified_content = js::beautify( content );
+
+    if( auto const ab = view::make( lnode )
+                      | view::child( "action" )
+                      | act::fetch_body( km )
+      ; ab )
+    {
+        auto const code = KTRYE( cmd::parser::parse_body_code( ab.value() ) );
+
+        boost::apply_visitor( [ & ]( auto const& e )
+                            {
+                                using T = std::decay_t< decltype( e ) >;
+
+                                if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                                {
+                                    rv = ( beautified_content == e.code ); 
+                                }
+                                else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+                                {
+                                    rv = ( beautified_content == e.code );
+                                }
+                                else
+                                {
+                                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                }
+                            }
+                            , code );
+    }
 
     return rv;
 }

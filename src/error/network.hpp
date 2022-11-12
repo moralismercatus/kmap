@@ -19,6 +19,7 @@ enum class network
 ,   attribute
 ,   child_already_exists
 ,   duplicate_node 
+,   invalid_alias
 ,   invalid_heading
 ,   invalid_lineage
 ,   invalid_instance
@@ -63,6 +64,7 @@ public:
         case network::attribute: return "attribute";
         case network::child_already_exists: return "child already exists";
         case network::duplicate_node: return "duplicate_node";
+        case network::invalid_alias: return "invalid alias";
         case network::invalid_heading: return "invalid heading";
         case network::invalid_lineage: return "invalid lineage";
         case network::invalid_instance: return "invalid instance";

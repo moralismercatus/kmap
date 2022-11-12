@@ -36,7 +36,7 @@ public:
     auto load()
         -> Result< void > override;
 
-    auto initialize_event_outlets()
+    auto register_event_outlets()
         -> Result< void >;
 
     // TODO: I think these probably don't belong? Jump stack reacts to selection events.

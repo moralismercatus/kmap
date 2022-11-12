@@ -219,10 +219,11 @@ public:
         -> void;
     auto erase_child( Uuid const& parent
                     , Uuid const& child )
-        -> void;
+        -> Result< void >;
     auto is_child( Uuid const& parent
                  , Uuid const& id ) const
         -> bool;
+    [[ deprecated( "non-core functionality" ) ]]
     auto is_child( Uuid const& parent
                  , Heading const& heading ) const
         -> bool;

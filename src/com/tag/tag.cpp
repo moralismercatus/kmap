@@ -27,6 +27,7 @@ TagStore::TagStore( Kmap& kmap
     : Component{ kmap, requisites, description }
     , cclerk_{ kmap }
 {
+    register_standard_commands();
 }
 
 auto TagStore::initialize()
@@ -34,7 +35,7 @@ auto TagStore::initialize()
 {
     auto rv = KMAP_MAKE_RESULT( void );
     
-    KTRY( install_standard_commands() );
+    KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -45,43 +46,43 @@ auto TagStore::load()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+
+    KTRY( cclerk_.check_registered() );
     
     rv = outcome::success();
 
     return rv;
 }
 
-auto TagStore::install_standard_commands()
-    -> Result< void >
+auto TagStore::register_standard_commands()
+    -> void
 {
-    auto rv = KMAP_MAKE_RESULT( void );
-
     // arg.tag_path
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.is_valid_heading_path( arg );
-```)%%%";
+        R"%%%(
+            return kmap.is_valid_heading_path( arg );
+        )%%%";
         auto const completion_code =
-R"%%%(```javascript
-const troot = kmap.fetch_node( "/meta.tag" );
+        R"%%%(
+            const troot = kmap.fetch_node( "/meta.tag" );
 
-if( troot.has_error() )
-{
-    return new kmap.VectorString();
-}
-else
-{
-    return kmap.complete_heading_path_from( troot.value(), troot.value(), arg );
-}
-```)%%%";
+            if( troot.has_error() )
+            {
+                return new kmap.VectorString();
+            }
+            else
+            {
+                return kmap.complete_heading_path_from( troot.value(), troot.value(), arg );
+            }
+        )%%%";
 
         auto const description = "tag heading path";
         
-        KTRY( cclerk_.install_argument( com::Argument{ .path = "tag_path"
-                                                     , .description = description
-                                                     , .guard = guard_code
-                                                     , .completion = completion_code } ) );
+        cclerk_.register_argument( com::Argument{ .path = "tag_path"
+                                                , .description = description
+                                                , .guard = guard_code
+                                                , .completion = completion_code } );
     }
 
     using Guard = com::Command::Guard;
@@ -90,65 +91,61 @@ else
     // create.tag
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'unconditional' );
-```)%%%";
-        auto const action_code =
-R"%%%(```javascript
-const tagn = kmap.tag_store().create_tag( args.get( 0 ) );
+        R"%%%(
+            return kmap.success( 'unconditional' );
+        )%%%";
+                auto const action_code =
+        R"%%%(
+            const tagn = kmap.tag_store().create_tag( args.get( 0 ) );
 
-if( tagn.has_value() )
-{
-    kmap.select_node( tagn.value() );
+            if( tagn.has_value() )
+            {
+                kmap.select_node( tagn.value() );
 
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( tagn.error_message() );
-}
-```)%%%";
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( tagn.error_message() );
+            }
+        )%%%";
         auto const description = "creates tag";
         // TODO: err.. need argument created, prior to calling install_command, but that's done in task_store, ATM.
         auto const arguments = std::vector< Argument >{ Argument{ "tag_title"
                                                                 , "tag title"
                                                                 , "unconditional" } };
 
-        KTRY( cclerk_.install_command( com::Command{ .path = "create.tag"
-                                                   , .description = description
-                                                   , .arguments = arguments 
-                                                   , .guard = Guard{ "unconditional", guard_code }
-                                                   , .action = action_code } ) );
+        cclerk_.register_command( com::Command{ .path = "create.tag"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "unconditional", guard_code }
+                                              , .action = action_code } );
     }
     // tag.node
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'unconditional' );
-```)%%%";
+        R"%%%(
+            return kmap.success( 'unconditional' );
+        )%%%";
         auto const action_code =
-R"%%%(```javascript
-kmap.tag_store().tag_node( kmap.selected_node(), args.get( 0 ) ).throw_on_error();
+        R"%%%(
+            kmap.tag_store().tag_node( kmap.selected_node(), args.get( 0 ) ).throw_on_error();
 
-kmap.select_node( kmap.selected_node() );
+            kmap.select_node( kmap.selected_node() );
 
-return kmap.success( 'success' );
-```)%%%";
+            return kmap.success( 'success' );
+        )%%%";
         auto const description = "appends tag to node";
         auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
                                                                 , "path to target tag"
                                                                 , "tag_path" } };
 
-        KTRY( cclerk_.install_command( com::Command{ .path = "tag.node"
-                                                   , .description = description
-                                                   , .arguments = arguments 
-                                                   , .guard = Guard{ "unconditional", guard_code }
-                                                   , .action = action_code } ) );
+        cclerk_.register_command( com::Command{ .path = "tag.node"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "unconditional", guard_code }
+                                              , .action = action_code } );
     }
-
-    rv = outcome::success();
-
-    return rv;
 }
 
 auto TagStore::fetch_tag_root() const

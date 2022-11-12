@@ -23,6 +23,8 @@
 
 namespace kmap::js {
 
+auto beautify( std::string const& code )
+    -> std::string;
 auto create_html_canvas( std::string const& id )
     -> Result< void >;
 auto erase_child_element( std::string const& doc_id )

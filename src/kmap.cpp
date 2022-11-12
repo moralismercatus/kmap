@@ -192,16 +192,12 @@ auto Kmap::initialize()
         KTRY( component_store_->fire_initialized( "component_store" ) );
     }
 
-    auto const nw = KTRY( fetch_component< com::Network >() );
-
-    KTRY( nw->select_node( root_node_id() ) );
-
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
     {
-        auto const ostore = KTRY( fetch_component< com::OptionStore >() );
-
-        // TODO: Should this rather be an event outlet that fires after "all components initialized"?
-        KTRY( ostore->apply_all() );
+        KTRY( estore.value()->fire_event( { "subject.kmap", "verb.initialized" } ) );
     }
+
     {
         // TODO: 'shutdown' component? Definitely.
         //       I can add a flag to kmap.js to disable check-before-close events for dev purposes.
@@ -312,22 +308,12 @@ auto Kmap::load( FsPath const& db_path
     database_path_ = full_path; // Set state, so Database::load can read.
 
     KTRY( component_store_->fire_loaded( "component_store" ) );
-
-    {
-        // TODO: Should this rather be an event outlet that fires after "all components initialized"?
-        // TODO: ostore->apply_all() can cause problems, if not all components for which options were saved, are registered!
-        //       One thought is: Is it even necessary to apply_all()? For example, select_node() sends the event that applies related options.
-        // auto const ostore = KTRY( fetch_component< com::OptionStore >() );
-
-        // KTRY( ostore->apply_all() );
-    }
-    /*
+    
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {
-        estore->fire_event( "initialization_done or something..." );
+        KTRY( estore.value()->fire_event( { "subject.kmap", "verb.loaded" } ) );
     }
-    */
 
     rv = outcome::success();
 

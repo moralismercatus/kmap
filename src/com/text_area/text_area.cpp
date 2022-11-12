@@ -31,7 +31,10 @@ TextArea::TextArea( Kmap& kmap
     : Component( kmap, requisites, description )
     , eclerk_{ kmap, { TextArea::id } }
     , cclerk_{ kmap }
+    , oclerk_{ kmap }
 {
+    register_standard_commands();
+    register_standard_outlets();
 }
 
 auto TextArea::initialize()
@@ -39,9 +42,12 @@ auto TextArea::initialize()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( install_event_outlets() );
     KTRY( install_event_sources() );
-    KTRY( install_commands() );
+    KTRY( cclerk_.install_registered() );
+    KTRY( eclerk_.install_registered() );
+    KTRY( install_standard_options() );
+
+    KTRY( apply_static_options() );
 
     rv = outcome::success();
 
@@ -53,23 +59,47 @@ auto TextArea::load()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
+    KTRY( install_event_sources() );
+    KTRY( apply_static_options() );
+    KTRY( cclerk_.check_registered() );
+    KTRY( eclerk_.check_registered() );
+
     rv = outcome::success();
 
     return rv;
 }
 
-auto TextArea::install_commands()
+auto TextArea::apply_static_options()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+    auto const ostore = KTRY( fetch_component< com::OptionStore >() );
 
+    KTRY( ostore->apply( "canvas.editor.background.color" ) );
+    KTRY( ostore->apply( "canvas.editor.scrollbar" ) );
+    KTRY( ostore->apply( "canvas.editor.text.color" ) );
+    KTRY( ostore->apply( "canvas.editor.text.size" ) );
+    KTRY( ostore->apply( "canvas.editor.whitespace_wrap" ) );
+    KTRY( ostore->apply( "canvas.preview.background.color" ) );
+    KTRY( ostore->apply( "canvas.preview.text.color" ) );
+    KTRY( ostore->apply( "canvas.preview.text.size" ) );
+    KTRY( ostore->apply( "canvas.preview.whitespace_wrap" ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto TextArea::register_standard_commands()
+    -> void
+{
     {
         auto const guard_code =
-        R"%%%(```javascript
-            return kmap.success( 'success' );
-        ```)%%%";
+        R"%%%(
+        return kmap.success( 'success' );
+        )%%%";
         auto const action_code =
-        R"%%%(```javascript
+        R"%%%(
         let rv = kmap.failure( 'failed to open editor' );
         const selected = kmap.selected_node();
         const body_text_res = kmap.fetch_body( selected );
@@ -128,7 +158,7 @@ auto TextArea::install_commands()
         rv = kmap.success( 'editor opened' );
 
         return rv;
-        ```)%%%";
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -142,15 +172,11 @@ auto TextArea::install_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
-
-    rv = outcome::success();
-
-    return rv;
 }
 
-SCENARIO( "edit.body", "[cmd][text_area][edit.body]")
+SCENARIO( "edit.body", "[cmd][text_area][edit.body]" ) // TODO: Move to text_area.cmd component?
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "cli", "visnetwork" );
 
@@ -171,19 +197,13 @@ SCENARIO( "edit.body", "[cmd][text_area][edit.body]")
     }
 }
 
-auto TextArea::install_event_outlets()
-    -> Result< void >
+auto TextArea::register_standard_outlets()
+    -> void
 {
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    KTRY( eclerk_.install_outlet( Leaf{ .heading = "text_area.load_preview_on_select_node"
-                                      , .requisites = { "subject.kmap", "verb.selected", "object.node" }
-                                      , .description = "loads select node body in preview pane"
-                                      , .action = R"%%%(kmap.text_area().load_preview( kmap.selected_node() );)%%%" } ) );
-
-    rv = outcome::success();
-
-    return rv;
+    eclerk_.register_outlet( Leaf{ .heading = "text_area.load_preview_on_select_node"
+                                 , .requisites = { "subject.network", "verb.selected", "object.node" }
+                                 , .description = "loads select node body in preview pane"
+                                 , .action = R"%%%(kmap.text_area().load_preview( kmap.selected_node() );)%%%" } );
 }
 
 auto TextArea::install_event_sources()
@@ -206,6 +226,7 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() 
     if(   key == 27/*esc*/
      || ( key == 67/*c*/ && is_ctrl ) )
     {
+        console.warn( "TODO: Send leave editor event that is handled by an outlet rather than calling network focus explicitly here in outlet.source." );
         // Focus on network. There's already a callback to call 'on_leaving_editor' on focusout event.
         kmap.canvas().focus( kmap.canvas().network_pane() );
         e.preventDefault();
@@ -216,6 +237,59 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() 
 
         scoped_events_.emplace_back( ctor, dtor );
     }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto TextArea::install_standard_options()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    // Preview
+    KTRY( oclerk_.install_option( "canvas.preview.background.color"
+                                , "Sets the background color for the preview pane."
+                                , "\"#222222\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.preview.text.color"
+                                , "Sets the text color for the preview pane."
+                                , "\"white\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.color = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.preview.text.size"
+                                , "Text size."
+                                , "\"x-large\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.preview.scrollbar"
+                                , "Specify scroll bar."
+                                , "\"auto\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.preview.whitespace_wrap"
+                                , "Specify scroll behavior."
+                                , "\"normal\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
+    // Editor
+    KTRY( oclerk_.install_option( "canvas.editor.background.color"
+                                , "Sets the background color for the editor pane."
+                                , "\"#222222\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.editor.text.color"
+                                , "Sets the text color for the editor pane."
+                                , "\"white\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.color = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.editor.text.size"
+                                , "Text size."
+                                , "\"x-large\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.editor.scrollbar"
+                                , "Specify scroll behavior."
+                                , "\"auto\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
+    KTRY( oclerk_.install_option( "canvas.editor.whitespace_wrap"
+                                , "Specify scroll behavior."
+                                , "\"normal\""
+                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
 
     rv = outcome::success();
 

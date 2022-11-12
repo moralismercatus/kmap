@@ -8,6 +8,7 @@
 #define KMAP_TEXT_AREA_HPP
 
 #include "com/cmd/cclerk.hpp"
+#include "com/option/option_clerk.hpp"
 #include "com/event/event_clerk.hpp"
 #include "common.hpp"
 #include "component.hpp"
@@ -28,6 +29,7 @@ class TextArea : public Component
     com::EventClerk eclerk_;
     std::vector< js::ScopedCode > scoped_events_ = {};
     com::CommandClerk cclerk_;
+    option::OptionClerk oclerk_;
 
 public:
     static constexpr auto id = "text_area";
@@ -43,13 +45,17 @@ public:
     auto load()
         -> Result< void > override;
 
+    auto apply_static_options()
+        -> Result< void >;
     auto clear()
         -> void;
-    auto install_commands()
-        -> Result< void >;
-    auto install_event_outlets()
-        -> Result< void >;
+    auto register_standard_commands()
+        -> void;
+    auto register_standard_outlets()
+        -> void;
     auto install_event_sources()
+        -> Result< void >;
+    auto install_standard_options()
         -> Result< void >;
     auto load_preview( Uuid const& node )
         -> Result< void >;

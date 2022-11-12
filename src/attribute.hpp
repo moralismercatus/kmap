@@ -29,6 +29,7 @@ auto is_in_order( Kmap const& kmap
                 , Uuid const& parent
                 , Uuid const& child )
     -> bool;
+// TODO: genesis a component? Add on creation via event outlet?
 auto push_genesis( Kmap& kmap
                  , Uuid const& node )
     -> Result< Uuid >;

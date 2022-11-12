@@ -71,6 +71,8 @@ public:
     auto add_edge( Uuid const& from
                  , Uuid const& to )
         -> Result< void >;
+    auto apply_static_options()
+        -> Result< void >;
     auto center_viewport_node( Uuid const& id )
         -> void;
     [[ nodiscard ]]
@@ -103,8 +105,6 @@ public:
     [[ nodiscard ]]
     auto fetch_position( Uuid const& id ) const
         -> Result< Position2D >;
-    auto viewport_scale() const
-        -> float;
     auto focus()
         -> void;
     auto format_node_label( Uuid const& node )
@@ -114,8 +114,6 @@ public:
         -> std::string;
     auto install_standard_options()
         -> Result< void >;
-    auto install_standard_events()
-        -> Result< void >;
     [[ nodiscard ]]
     auto nodes() const
         -> std::vector< Uuid >;
@@ -123,6 +121,8 @@ public:
     auto position( Uuid const& id ) const
         -> Position2D;
     auto erase_node( Uuid const& id )
+        -> Result< void >;
+    auto register_standard_events()
         -> Result< void >;
     auto remove_nodes()
         -> void;
@@ -140,6 +140,8 @@ public:
     auto update_title( Uuid const& id
                      , Title const& title )
         -> void;
+    auto viewport_scale() const
+        -> float;
 
     // Convenience.
     auto child_titles( Uuid const& parent ) const

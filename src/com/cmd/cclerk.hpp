@@ -11,6 +11,7 @@
 #include "component.hpp"
 #include "com/cmd/command.hpp"
 
+#include <map>
 #include <set>
 #include <string>
 
@@ -21,15 +22,34 @@ namespace kmap
 
 namespace kmap::com {
 
-struct CommandClerk
+class CommandClerk
 {
+public:
     Kmap& kmap;
-    std::vector< Uuid > arguments;
-    std::vector< Uuid > commands;
+    std::map< std::string, Argument > registered_arguments = {};
+    std::map< std::string, Command > registered_commands = {};
+    std::map< std::string, Uuid > installed_arguments;
+    std::map< std::string, Uuid > installed_commands;
 
     CommandClerk( Kmap& km );
     ~CommandClerk();
 
+    auto check_registered()
+        -> Result< void >;
+    auto check_registered( Argument const& arg )
+        -> Result< void >;
+    auto check_registered( Command const& cmd )
+        -> Result< void >;
+
+    auto install_registered()
+        -> Result< void >;
+
+    auto register_argument( Argument const& arg ) 
+        -> void;
+    auto register_command( Command const& cmd ) 
+        -> void;
+
+protected:
     auto install_argument( Argument const& arg )
         -> Result< Uuid >;
     auto install_command( Command const& cmd )

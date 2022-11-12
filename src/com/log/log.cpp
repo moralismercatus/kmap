@@ -55,6 +55,7 @@ struct LogStore : public Component
         , eclerk_{ kmap }
         , cclerk_{ kmap }
     {
+        register_standard_commands();
     }
     virtual ~LogStore() = default;
 
@@ -65,7 +66,7 @@ struct LogStore : public Component
 
         fmt::print( "log_store :: initialize\n" );
 
-        KTRY( install_commands() );
+        KTRY( cclerk_.install_registered() );
 
         rv = outcome::success();
 
@@ -77,55 +78,56 @@ struct LogStore : public Component
     {
         auto rv = KMAP_MAKE_RESULT( void );
 
+        KTRY( cclerk_.check_registered() );
+
         rv = outcome::success();
 
         return rv;
     }
 
-    auto install_commands()
-        -> Result< void >
+    auto register_standard_commands()
+        -> void
     {
-        auto rv = KMAP_MAKE_RESULT( void );
         // auto const cli = KTRY( fetch_component< com::Cli >() );
 
         // create.daily.log
         {
             auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
+            R"%%%(
+                return kmap.success( 'success' );
+            )%%%";
             auto const action_code =
-R"%%%(```javascript
-let rv = null;
-const path = kmap.present_daily_log_path();
-const fln = kmap.fetch_descendant( kmap.root_node(), path ); // TODO: direct_desc?
+            R"%%%(
+                let rv = null;
+                const path = kmap.present_daily_log_path();
+                const fln = kmap.fetch_descendant( kmap.root_node(), path ); // TODO: direct_desc?
 
-if( fln.has_value() )
-{
-    kmap.select_node( fln.value() );
+                if( fln.has_value() )
+                {
+                    kmap.select_node( fln.value() );
 
-    rv = kmap.success( 'log already existent' );
-}
-else
-{
-    const cln = kmap.create_descendant( kmap.root_node(), path );
+                    rv = kmap.success( 'log already existent' );
+                }
+                else
+                {
+                    const cln = kmap.create_descendant( kmap.root_node(), path );
 
-    if( cln.has_value() )
-    {
-        kmap.select_node( cln.value() );
+                    if( cln.has_value() )
+                    {
+                        kmap.select_node( cln.value() );
 
-        kmap.event_store().fire_event( to_VectorString( [ 'subject.log', 'verb.created', 'object.daily' ] ) ).throw_on_error();
+                        kmap.event_store().fire_event( to_VectorString( [ 'subject.log', 'verb.created', 'object.daily' ] ) ).throw_on_error();
 
-        rv = kmap.success( 'log created' );
-    }
-    else
-    {
-        rv = kmap.failure( cln.error_message() );
-    }
-}
+                        rv = kmap.success( 'log created' );
+                    }
+                    else
+                    {
+                        rv = kmap.failure( cln.error_message() );
+                    }
+                }
 
-return rv;
-```)%%%";
+                return rv;
+            )%%%";
 
             using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
@@ -140,33 +142,33 @@ return rv;
                                          , .guard = guard
                                          , .action = action };
 
-            KTRY( cclerk_.install_command( cmd ) );
+            cclerk_.register_command( cmd );
         }
         // select.daily.log
         {
             auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
+            R"%%%(
+                return kmap.success( 'success' );
+            )%%%";
             auto const action_code =
-R"%%%(```javascript
-let rv = null;
-const path = kmap.present_daily_log_path();
-const ln = kmap.fetch_node( path );
+            R"%%%(
+                let rv = null;
+                const path = kmap.present_daily_log_path();
+                const ln = kmap.fetch_node( path );
 
-if( ln.has_value() )
-{
-    kmap.select_node( ln.value() );
+                if( ln.has_value() )
+                {
+                    kmap.select_node( ln.value() );
 
-    rv = kmap.success( 'today\'s log selected' );
-}
-else
-{
-    rv = kmap.failure( ln.error_message() );
-}
+                    rv = kmap.success( 'today\'s log selected' );
+                }
+                else
+                {
+                    rv = kmap.failure( ln.error_message() );
+                }
 
-return rv;
-```)%%%";
+                return rv;
+            )%%%";
 
             using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
@@ -181,41 +183,41 @@ return rv;
                                          , .guard = guard
                                          , .action = action };
 
-            KTRY( cclerk_.install_command( cmd ) );
+            cclerk_.register_command( cmd );
         }
         // log.reference
         {
             auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
+            R"%%%(
+                return kmap.success( 'success' );
+            )%%%";
             auto const action_code =
-R"%%%(```javascript
-let rv = null;
-const path = kmap.present_daily_log_path();
-const ln = kmap.fetch_or_create_node( kmap.root_node(), path );
+            R"%%%(
+                let rv = null;
+                const path = kmap.present_daily_log_path();
+                const ln = kmap.fetch_or_create_node( kmap.root_node(), path );
 
-if( ln.has_value() )
-{
-    const sel = kmap.selected_node();
-    const ref = kmap.create_reference( sel, ln.value() );
+                if( ln.has_value() )
+                {
+                    const sel = kmap.selected_node();
+                    const ref = kmap.create_reference( sel, ln.value() );
 
-    if( ref.has_value() )
-    {
-        rv = kmap.success( 'reference logged' );
-    }
-    else
-    {
-        rv = kmap.failure( ref.error_message() );
-    }
-}
-else
-{
-    rv = kmap.failure( ln.error_message() );
-}
+                    if( ref.has_value() )
+                    {
+                        rv = kmap.success( 'reference logged' );
+                    }
+                    else
+                    {
+                        rv = kmap.failure( ref.error_message() );
+                    }
+                }
+                else
+                {
+                    rv = kmap.failure( ln.error_message() );
+                }
 
-return rv;
-```)%%%";
+                return rv;
+            )%%%";
 
             using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
@@ -230,12 +232,8 @@ return rv;
                                          , .guard = guard
                                          , .action = action };
 
-            KTRY( cclerk_.install_command( cmd ) );
+            cclerk_.register_command( cmd );
         }
-
-        rv = outcome::success();
-
-        return rv;
     }
 };
 

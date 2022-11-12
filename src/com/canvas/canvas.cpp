@@ -324,53 +324,12 @@ auto Canvas::install_options()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const opt = KTRY( fetch_component< com::OptionStore >() );
 
+    // TODO: All these options belong in their respective components.
     // Network
     KTRY( opt->install_option( "canvas.network.background.color"
                             , "Sets the background color for the nextwork pane."
                             , "\"#222222\""
                             , "document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    // Preview
-    KTRY( opt->install_option( "canvas.preview.background.color"
-                            , "Sets the background color for the preview pane."
-                            , "\"#222222\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    KTRY( opt->install_option( "canvas.preview.text.color"
-                            , "Sets the text color for the preview pane."
-                            , "\"white\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.color = option_value;" ) );
-    KTRY( opt->install_option( "canvas.preview.text.size"
-                            , "Text size."
-                            , "\"large\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
-    KTRY( opt->install_option( "canvas.preview.scrollbar"
-                            , "Specify scroll bar."
-                            , "\"auto\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
-    KTRY( opt->install_option( "canvas.preview.whitespace_wrap"
-                            , "Specify scroll behavior."
-                            , "\"nowrap\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
-    // Editor
-    KTRY( opt->install_option( "canvas.editor.background.color"
-                            , "Sets the background color for the editor pane."
-                            , "\"#222222\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    KTRY( opt->install_option( "canvas.editor.text.color"
-                            , "Sets the text color for the editor pane."
-                            , "\"white\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.color = option_value;" ) );
-    KTRY( opt->install_option( "canvas.editor.text.size"
-                            , "Text size."
-                            , "\"large\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
-    KTRY( opt->install_option( "canvas.editor.scrollbar"
-                            , "Specify scroll behavior."
-                            , "\"auto\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
-    KTRY( opt->install_option( "canvas.editor.whitespace_wrap"
-                            , "Specify scroll behavior."
-                            , "\"nowrap\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
     // CLI
     KTRY( opt->install_option( "canvas.cli.background.color"
                             , "Sets the background color for the cli pane."

@@ -15,6 +15,7 @@
 #include "path/act/update_body.hpp"
 #include "path/node_view.hpp"
 #include "path.hpp"
+#include "util/script/script.hpp"
 
 namespace kmap::com {
 
@@ -71,12 +72,17 @@ auto CommandStore::install_argument( Argument const& arg )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
+
+    KMAP_ENSURE( js::lint( arg.guard ), error_code::js::lint_failed );
+    KMAP_ENSURE( js::lint( arg.completion ), error_code::js::lint_failed );
     
     auto const arg_root = KTRY( view::abs_root
                               | view::direct_desc( "meta.setting.argument" )
                               | view::fetch_or_create_node( km ) );
     auto const vargn = view::make( arg_root ) 
                      | view::direct_desc( arg.path );
+    auto const guard_code = util::to_js_body_code( js::beautify( arg.guard ) );
+    auto const completion_code = util::to_js_body_code( js::beautify( arg.completion ) );
     
     if( vargn | view::exists( km ) )
     {
@@ -90,8 +96,8 @@ auto CommandStore::install_argument( Argument const& arg )
             | view::create_node( km ) );
         
         KTRY( vargn | view::child( "description" ) | act::update_body( km, arg.description ) );
-        KTRY( vargn | view::child( "guard" ) | act::update_body( km, arg.guard ) );
-        KTRY( vargn | view::child( "completion" ) | act::update_body( km, arg.completion ) );
+        KTRY( vargn | view::child( "guard" ) | act::update_body( km, guard_code ) );
+        KTRY( vargn | view::child( "completion" ) | act::update_body( km, completion_code ) );
 
         rv = KTRY( vargn | view::fetch_node( km ) );
     }
@@ -105,8 +111,8 @@ auto CommandStore::install_command( Command const& cmd )
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    // KMAP_ENSURE( js::lint( cmd.guard.code ), error_code::js::lint_failed ); // Err... need to parse code from ```javascript ... ``` style text wrapper.
-    // KMAP_ENSURE( js::lint( cmd.action ), error_code::js::lint_failed );
+    KMAP_ENSURE( js::lint( cmd.guard.code ), error_code::js::lint_failed );
+    KMAP_ENSURE( js::lint( cmd.action ), error_code::js::lint_failed );
 
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -126,8 +132,9 @@ auto CommandStore::install_command( Command const& cmd )
         | view::create_node( km ) );
 
     auto const descn = KTRY( vguard | view::child( "description" ) | view::fetch_node( km ) );
+    auto const guard_code = util::to_js_body_code( js::beautify( cmd.guard.code ) );
     
-    KTRY( nw->update_body( guardn, cmd.guard.code ) );
+    KTRY( nw->update_body( guardn, guard_code ) );
     KTRY( nw->update_body( descn, cmd.description ) );
 
     for( auto const& arg : cmd.arguments )
@@ -147,8 +154,9 @@ auto CommandStore::install_command( Command const& cmd )
     auto const actn = KTRY( vguard
                           | view::child( "action" )
                           | view::fetch_node( km ) );
+    auto const action_code = util::to_js_body_code( js::beautify( cmd.action ) );
 
-    KTRY( nw->update_body( actn, cmd.action ) );
+    KTRY( nw->update_body( actn, action_code ) );
 
     rv = guardn;
 
@@ -164,17 +172,17 @@ auto CommandStore::install_standard_arguments()
     // arg.unconditional
     {
         auto const guard_code =
-R"%%%(```javascript
-return true;
-```)%%%";
+        R"%%%(
+            return true;
+        )%%%";
         auto const completion_code =
-R"%%%(```javascript
-let rv = new kmap.VectorString();
+        R"%%%(
+            let rv = new kmap.VectorString();
 
-rv.push_back( arg )
+            rv.push_back( arg );
 
-return rv;
-```)%%%";
+            return rv;
+        )%%%";
 
         auto const description = "any valid text";
 
@@ -186,13 +194,13 @@ return rv;
     // arg.filesystem_path // TODO: I suspect that this belongs in a "filesystem" component.
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( "success" );
-```)%%%";
+        R"%%%(
+            return kmap.success( "success" );
+        )%%%";
         auto const completion_code =
-R"%%%(```javascript
-return kmap.complete_filesystem_path( arg );
-```)%%%";
+        R"%%%(
+            return kmap.complete_filesystem_path( arg );
+        )%%%";
 
         auto const description = "filesystem path";
 
@@ -204,13 +212,13 @@ return kmap.complete_filesystem_path( arg );
     // arg.heading_path
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( "success" );
-```)%%%";
+        R"%%%(
+            return kmap.success( "success" );
+        )%%%";
         auto const completion_code =
-R"%%%(```javascript
-return kmap.complete_heading_path( arg );
-```)%%%";
+        R"%%%(
+            return kmap.complete_heading_path( arg );
+        )%%%";
 
         auto const description = "heading path";
 

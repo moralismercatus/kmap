@@ -34,8 +34,8 @@ public:
     auto load()
         -> Result< void > override;
 
-    auto install_commands()
-        -> Result< void >;
+    auto register_standard_commands()
+        -> void;
 };
 
 } // namespace kmap::com

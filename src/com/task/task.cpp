@@ -43,6 +43,7 @@ TaskStore::TaskStore( Kmap& kmap
     , eclerk_{ kmap }
     , cclerk_{ kmap }
 {
+    register_standard_commands();
 }
 
 auto TaskStore::initialize()
@@ -52,7 +53,7 @@ auto TaskStore::initialize()
 
     fmt::print( "task_store :: initialize\n" );
 
-    KTRY( install_standard_commands() );
+    KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -63,6 +64,8 @@ auto TaskStore::load()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+
+    KTRY( cclerk_.check_registered() );
 
     rv = outcome::success();
 
@@ -243,6 +246,7 @@ SCENARIO( "TaskStore::create_subtask", "[task][create]" )
 }
 
 // Return true if a tag other than `status.open` is found.
+// TODO: Rather, task has tag other than tag.status desc found.
 auto TaskStore::is_categorized( Uuid const& task ) const
     -> bool
 {
@@ -325,6 +329,7 @@ auto TaskStore::close_task( Uuid const& task )
         }
 
         KTRY( eclerk_.fire_event( { "subject.task_store", "verb.closed", "object.task" }, to_string( task ) ) );
+        // TODO: Provide outlet that moves closed node to top of all open task and subtask lists.
 
         rv = outcome::success();
     }
@@ -368,127 +373,126 @@ auto TaskStore::open_task( Uuid const& task )
 
 // TODO: unit test...
 
-auto TaskStore::install_standard_commands()
-    -> Result< void >
+auto TaskStore::register_standard_commands()
+    -> void
 {
     using Guard = com::Command::Guard;
     using Argument = com::Command::Argument;
 
-    auto rv = KMAP_MAKE_RESULT( void );
-
+    // add.subtask
+    {
+        // guard: in_task()
+        // action: :create.child subtask; :create.alias tag.$ctx.args[0]
+    }
     // create.task
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'unconditional' );
-```)%%%";
+        R"%%%(
+            return kmap.success( 'unconditional' );
+        )%%%";
         auto const action_code =
-R"%%%(```javascript
-const taskn = kmap.task_store().create_task( args.get( 0 ) );
+        R"%%%(
+        const taskn = kmap.task_store().create_task( args.get( 0 ) );
 
-if( taskn.has_value() )
-{
-    kmap.select_node( taskn.value() );
+        if( taskn.has_value() )
+        {
+            kmap.select_node( taskn.value() );
 
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( taskn.error_message() );
-}
-```)%%%";
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( taskn.error_message() );
+        }
+        )%%%";
         auto const description = "creates task";
         auto const arguments = std::vector< Argument >{ Argument{ "task_title"
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        KTRY( cclerk_.install_command( com::Command{ .path = "create.task"
-                                                   , .description = description
-                                                   , .arguments = arguments 
-                                                   , .guard = Guard{ "unconditional", guard_code }
-                                                   , .action = action_code } ) );
+        cclerk_.register_command( com::Command{ .path = "create.task"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "unconditional", guard_code }
+                                              , .action = action_code } );
     }
     // create.subtask
     {
         auto const is_task_guard_code =
-R"%%%(```javascript
-if( kmap.task_store().is_task( kmap.selected_node() ) )
-{
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( 'not task' );
-}
-```)%%%";
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
         auto const action_code =
-R"%%%(```javascript
-const taskn = kmap.task_store().create_subtask( kmap.selected_node(), args.get( 0 ) );
+        R"%%%(
+            const taskn = kmap.task_store().create_subtask( kmap.selected_node(), args.get( 0 ) );
 
-if( taskn.has_value() )
-{
-    kmap.select_node( taskn.value() );
+            if( taskn.has_value() )
+            {
+                kmap.select_node( taskn.value() );
 
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( taskn.error_message() );
-}
-```)%%%";
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( taskn.error_message() );
+            }
+        )%%%";
         auto const description = "creates subtask";
         auto const arguments = std::vector< Argument >{ Argument{ "task_title"
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        KTRY( cclerk_.install_command( com::Command{ .path = "create.subtask"
-                                                   , .description = description
-                                                   , .arguments = arguments 
-                                                   , .guard = Guard{ "is_task", is_task_guard_code }
-                                                   , .action = action_code } ) );
+        cclerk_.register_command( com::Command{ .path = "create.subtask"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", is_task_guard_code }
+                                              , .action = action_code } );
     }
     // cascade.tags
     {
         auto const is_task_guard_code =
-R"%%%(```javascript
-if( kmap.task_store().is_task( kmap.selected_node() ) )
-{
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( 'not task' );
-}
-```)%%%";
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
         auto const action_code =
-R"%%%(```javascript
-const closed = kmap.task_store().cascade_tags( kmap.selected_node() );
+        R"%%%(
+            const cascaded = kmap.task_store().cascade_tags( kmap.selected_node() );
 
-if( closed.has_value() )
-{
-    kmap.select_node( kmap.selected_node() );
+            if( cascaded.has_value() )
+            {
+                kmap.select_node( kmap.selected_node() );
 
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( closed.error_message() );
-}
-```)%%%";
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( cascaded.error_message() );
+            }
+        )%%%";
         auto const description = "Applies supertask tags to subtasks";
         auto const arguments = std::vector< Argument >{};
         auto const guard = Guard{ "is_task", is_task_guard_code };
 
-        KTRY( cclerk_.install_command( com::Command{ .path = "cascade.tags"
-                                                   , .description = description
-                                                   , .arguments = arguments 
-                                                   , .guard = Guard{ "is_task", is_task_guard_code }
-                                                   , .action = action_code } ) );
+        cclerk_.register_command( com::Command{ .path = "cascade.tags"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", is_task_guard_code }
+                                              , .action = action_code } );
     }
-
-    rv = outcome::success();
-
-    return rv;
 }
 
 } // namespace kmap

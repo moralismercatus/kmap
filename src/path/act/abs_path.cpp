@@ -52,7 +52,7 @@ auto operator|( Intermediary const& i, AbsPath const& op )
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     // TODO: Something isn't quite right here relating to view::abs_root
     auto const nw = KTRY( op.km.fetch_component< com::Network >() );
-    auto const lhs = KTRY( [ & ] -> Result< Uuid >
+    auto const lhs = KTRY( [ & ]() -> Result< Uuid >
     {
         // Ugh... what do I do here... conundrum. 
         // lhs just takes root,

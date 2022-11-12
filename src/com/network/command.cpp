@@ -18,6 +18,7 @@ NetworkCommand::NetworkCommand( Kmap& kmap
     : Component{ kmap, requisites, description }
     , cclerk_{ kmap }
 {
+    register_standard_commands();
 }
 
 auto NetworkCommand::initialize()
@@ -25,7 +26,7 @@ auto NetworkCommand::initialize()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( install_commands() );
+    KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -36,25 +37,25 @@ auto NetworkCommand::load()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
+    
+    KTRY( cclerk_.check_registered() );
 
     rv = outcome::success();
 
     return rv;
 }
 
-auto NetworkCommand::install_commands()
-    -> Result< void >
+auto NetworkCommand::register_standard_commands()
+    -> void
 {
-    auto rv = KMAP_MAKE_RESULT( void );
-
     // create.alias
     {
         auto const guard_code =
-        R"%%%(```javascript
+        R"%%%(
             return kmap.success( 'success' );
-        ```)%%%";
+        )%%%";
         auto const action_code =
-        R"%%%(```javascript
+        R"%%%(
         let rv = null;
         const nw = kmap.network();
         const src = kmap.fetch_node( args.get( 0 ) );
@@ -80,7 +81,7 @@ auto NetworkCommand::install_commands()
         }
 
         return rv;
-        ```)%%%";
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -94,16 +95,16 @@ auto NetworkCommand::install_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
     // create.child
     {
         auto const guard_code =
-        R"%%%(```javascript
+        R"%%%(
             return kmap.success( 'success' );
-        ```)%%%";
+        )%%%";
         auto const action_code =
-        R"%%%(```javascript
+        R"%%%(
         const title = args.get( 0 );
         const nw = kmap.network();
 
@@ -116,7 +117,7 @@ auto NetworkCommand::install_commands()
         rv = kmap.success( 'child created: ' + title );
 
         return rv;
-        ```)%%%";
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -130,16 +131,16 @@ auto NetworkCommand::install_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
     // create.sibling
     {
         auto const guard_code =
-        R"%%%(```javascript
+        R"%%%(
             return kmap.success( 'success' );
-        ```)%%%";
+        )%%%";
         auto const action_code =
-        R"%%%(```javascript
+        R"%%%(
         const title = args.get( 0 );
         const nw = kmap.network();
         const selected = nw.selected_node();
@@ -156,7 +157,7 @@ auto NetworkCommand::install_commands()
         rv = kmap.success( 'child created: ' + title );
 
         return rv;
-        ```)%%%";
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -170,16 +171,16 @@ auto NetworkCommand::install_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
     // erase.node
     {
         auto const guard_code =
-        R"%%%(```javascript
+        R"%%%(
             return kmap.success( 'success' );
-        ```)%%%";
+        )%%%";
         auto const action_code =
-        R"%%%(```javascript
+        R"%%%(
         const nw = kmap.network();
         const selected = nw.selected_node();
 
@@ -188,12 +189,12 @@ auto NetworkCommand::install_commands()
         rv = kmap.success( 'node erased' );
 
         return rv;
-        ```)%%%";
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
-        auto const description = "erases node";
+        auto const description = "moves selected node to destination";
         auto const arguments = std::vector< Argument >{};
         auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "erase.node" // TODO: erase as alias.
@@ -202,16 +203,82 @@ auto NetworkCommand::install_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
+    }
+    // move.children
+    {
+        auto const guard_code =
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const src = nw.selected_node();
+        const dst = nw.fetch_node( args.get( 0 ) ); dst.throw_on_error();
+
+        nw.move_children( src, dst.value() ).throw_on_error();
+
+        rv = kmap.success( 'node erased' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "moves children of selected node to destination";
+        auto const arguments = std::vector< Argument >{ Argument{ "destination_path", "path to destination node", "heading_path" } };
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "move.children" // TODO: erase as alias.
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+    // move.node
+    {
+        auto const guard_code =
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const src = nw.selected_node();
+        const dst = nw.fetch_node( args.get( 0 ) ); dst.throw_on_error();
+
+        nw.move_node( src, dst.value() ).throw_on_error();
+
+        rv = kmap.success( 'node erased' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "erases node";
+        auto const arguments = std::vector< Argument >{ Argument{ "destination_path", "path to destination node", "heading_path" } };
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "move.node" // TODO: erase as alias.
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
     }
     // print.id
     {
         auto const guard_code =
-        R"%%%(```javascript
+        R"%%%(
             return kmap.success( 'success' );
-        ```)%%%";
+        )%%%";
         auto const action_code =
-        R"%%%(```javascript
+        R"%%%(
         const nw = kmap.network();
         const selected = nw.selected_node();
         const id = kmap.uuid_to_string( selected );
@@ -221,7 +288,7 @@ auto NetworkCommand::install_commands()
         rv = kmap.success( 'node id: ' + id.value() );
 
         return rv;
-        ```)%%%";
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -235,12 +302,8 @@ auto NetworkCommand::install_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
-
-    rv = outcome::success();
-
-    return rv;
 }
 
 namespace {

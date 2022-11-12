@@ -166,6 +166,7 @@ auto Network::create_alias( Uuid const& src
     KMAP_ENSURE_MSG( !exists( alias_id ), error_code::create_alias::alias_already_exists, KTRYE( absolute_path_flat( km, rsrc ) ) );
     KMAP_ENSURE_MSG( !is_child( rdst, KTRYE( fetch_heading( rsrc ) ) ), error_code::create_node::duplicate_child_heading, KTRYE( fetch_heading( rsrc ) ) );
     KMAP_ENSURE( !is_child( rdst, rsrc ), error_code::network::invalid_node );
+    KMAP_ENSURE( !is_alias( alias_id ), error_code::network::invalid_node );
 
     {
         auto const db = KTRY( km.fetch_component< com::Database >() );
@@ -189,6 +190,12 @@ auto Network::create_alias( Uuid const& src
     }
 
     BC_ASSERT( pushed_id == alias_item.alias() );
+
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        KTRY( estore.value()->fire_event( { "network", "verb.created", "alias" }, id ) );
+    }
 
     rv = pushed_id;
 
@@ -439,6 +446,8 @@ auto Network::erase_root_alias( Uuid const& id )
 
     auto const db = KTRY( fetch_component< com::Database >() );
 
+    KTRY( db->erase_alias( rsrc, dst ) );
+
     KTRY( attr::pop_order( km, dst, rsrc ) ); // TODO: Replace with event system.
 
     rv = outcome::success();
@@ -460,7 +469,6 @@ auto Network::erase_desc_alias( Uuid const& src
     KMAP_ENSURE_MSG( !is_alias( src ), error_code::node::invalid_alias, to_string( src ) );
 
     auto& astore = alias_store();
-    auto const entry = KTRY( astore.fetch_entry( alias_id ) );
 
     for( auto const& achild : astore.fetch_alias_children( alias_id ) )
     {
@@ -806,11 +814,13 @@ auto Network::erase_node( Uuid const& id )
         KTRY( erase_node_internal( id ) );
     }
 
-    rv = next_selected;
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        KTRY( estore.value()->fire_event( { "network", "verb.erased", "node" }, to_string( id ) ) );
+    }
 
-    // TODO: Since EventStore relies on Network, and fire_event relies on EventStore, can we make a network.event component that is queried for existence from here?
-    //       if( auto const nwe = fetch_component< com::NetworkEvent >(); nwe ){ nwe->fire... } //  Of course, NWE relies on Network, but that's why it's queried for existence before use.
-    // TODO: fire_event( { "map", "verb.post", "verb.erased", "node" }, std::any< payload:id >? ) // after checks, but before anything is done? Or before checks, in case handler modifies something?
+    rv = next_selected;
 
     return rv;
 }
@@ -1486,22 +1496,25 @@ auto Network::move_body( Uuid const& src
 
 // TODO: Should this ensure that if the moved node is the selected node, it updates the selected as well? I believe this is only relevant for the alias case.
 //       In essence, this can invalidate IDs for aliases.
+// TODO: It's important to have a fail-safe for this routine. If remove succeeds, but, for some reason, add fails, the remove should revert (or vice-versa),
+//       otherwise we're at risk of having a dangling node.
 auto Network::move_node( Uuid const& from
                        , Uuid const& to )
-    -> Result< Uuid >
+    -> Result< Uuid > // TODO: Why is this returning "to"? Probably better to return void?
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
     BC_CONTRACT()
         BC_POST([ &
-                , from_alias = alias_store().is_alias( from ) ]
+                , is_from_an_alias = alias_store().is_alias( from ) ]
         {
             if( rv )
             {
-                if( !from_alias )
+                if( !is_from_an_alias )
                 {
                     BC_ASSERT( is_child( to, from ) );
+                    BC_ASSERT( attr::is_in_order( km, to, from ) );
                 }
             }
         })
@@ -1536,35 +1549,60 @@ auto Network::move_node( Uuid const& from
     {
         auto const db = KTRY( fetch_component< com::Database >() );
 
-        // TODO: It's important to have a fail-safe for this routine. If remove
-        // succeeds, but, for some reason, add fails, the remove should revert (or
-        // vice-versa), otherwise we're at risk of having a dangling node.
-        db->erase_child( from_parent, from );
+        KTRY( db->erase_child( from_parent, from ) );
         KTRY( db->push_child( to, from ) );
+
+        KTRY( attr::pop_order( km, from_parent, from ) );
+        KTRY( attr::push_order( km, to, from ) );
+
+        if( auto const estore = fetch_component< com::EventStore >()
+          ; estore )
+        {
+            KTRY( estore.value()->fire_event( { "subject.network", "verb.moved", "object.node" }, to_string( from ) ) );
+        }
 
         rv = to;
     }
 
-    if( rv )
+    return rv;
+}
+
+SCENARIO( "Network::move_node", "[nw][iface][move_node][order]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = km.root_node_id();
+
+    GIVEN( "root" )
     {
-        // TODO: Rather than remove from the network here, place the burden of responsibility on Kmap::select_node
-        //       This represents a corner-case for the present impl. of Kmap::select_node, in that the visible_nodes
-        //       will rightly return "from", but since it hasn't left the network, but just moved, the network will not recreate it,
-        //       meaning it will not be placed in the correct place.
-        auto const nw = KTRY( fetch_component< com::VisualNetwork >() );
-
-        if( nw->exists( from ) )
+        GIVEN( "child 1" )
         {
-            KTRY( nw->remove_edge( from_parent, from ) );
+            auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
 
-            if( nw->exists( to ) )
+            WHEN( "move to root; to same location: fail" )
             {
-                KTRY( nw->add_edge( to, from ) );
+                REQUIRE( !nw->move_node( n1, root ) );
+            }
+
+            GIVEN( "child 2" )
+            {
+                auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+
+                WHEN( "move 2 to 1" )
+                {
+                    REQUIRE_TRY( nw->move_node( n2, n1 ) );
+
+                    THEN( "2 is proper child of 1" )
+                    {
+                        REQUIRE( nw->is_child( n1, n2 ) );
+                        REQUIRE( attr::is_in_order( km, n1, n2 ) );
+                    }
+                }
             }
         }
     }
-
-    return rv;
 }
 
 // Note: 'children' should be unresolved. TODO: Actually, I suspect this is only a requirement for the precondition, which could always resolve all IDs. To confirm. I believe, when it comes to ordering, the resolved node is the only one used.
@@ -1763,7 +1801,7 @@ auto Network::select_node( Uuid const& id )
     KTRY( estore->install_subject( "kmap" ) );
     KTRY( estore->install_verb( "selected") );
     KTRY( estore->install_object( "node") );
-    KTRY( estore->fire_event( { "subject.kmap", "verb.selected", "object.node" } ) );
+    KTRY( estore->fire_event( { "subject.network", "verb.selected", "object.node" } ) );
 
     // TODO: breadcrumb should have its own handler listening for the fired event.
     // auto id_abs_path = absolute_path_uuid( id );
@@ -1892,7 +1930,6 @@ auto Network::update_alias( Uuid const& from
 // Note: I would like to redesign the whole alias routine such that "updates" are never needed. Where aliases aren't "maintained",
 // as stateful, but rather are treated as true references, but that is a great undertaking, so updates will serve in the meantime.
 // TODO: Add test case to check when 'descendant' is an alias. I to fix this by resolving it. I suspect there are other places that suffer the same way.
-// TODO: I don't think this actually belongs here. Maybe in Network.
 auto Network::update_aliases( Uuid const& node )
     -> Result< void >
 {
@@ -2310,21 +2347,6 @@ auto Network::fetch_child( Uuid const& parent
     return rv;
 }
 
-// auto Kmap::fetch_children( Uuid const& root
-//                          , Heading const& parent ) const
-//     -> kmap::UuidSet
-// { 
-//     auto rv = kmap::UuidSet{};
-
-//     if( auto const pn = fetch_descendant( root, parent )
-//       ; pn )
-//     {
-//         rv = fetch_children( pn.value() );
-//     }
-
-//     return rv;
-// }
-
 auto Network::fetch_visible_nodes_from( Uuid const& id ) const
     -> std::vector< Uuid >
 { 
@@ -2488,12 +2510,40 @@ struct Network
 
         return nw->erase_node( node );
     }
+    auto fetch_node( std::string const& path )
+        -> kmap::binding::Result< Uuid >
+    {
+        auto rv = KMAP_MAKE_RESULT( Uuid );
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+        auto const rs = KTRY( decide_path( kmap_, nw->root_node(), nw->selected_node(), path ) );
+        
+        if( rs.size() == 1 )
+        {
+            rv = rs.back();
+        }
+
+        return rv;
+    }
     auto fetch_parent( Uuid const& node )
         -> kmap::binding::Result< Uuid >
     {
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 
         return nw->fetch_parent( node );
+    }
+    auto move_node( Uuid const& src
+                  , Uuid const& dst )
+        -> kmap::binding::Result< void >
+    {
+        auto rv = KMAP_MAKE_RESULT( void );
+
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+
+        KTRY( nw->move_node( src, dst ) );
+
+        rv = outcome::success();
+
+        return rv;
     }
     auto selected_node()
         -> Uuid
@@ -2521,9 +2571,12 @@ EMSCRIPTEN_BINDINGS( kmap_network )
     class_< kmap::com::binding::Network >( "Network" )
         .function( "create_child", &kmap::com::binding::Network::create_child )
         .function( "erase_node", &kmap::com::binding::Network::erase_node )
+        .function( "fetch_node", &kmap::com::binding::Network::fetch_node )
         .function( "fetch_parent", &kmap::com::binding::Network::fetch_parent )
-        .function( "selected_node", &kmap::com::binding::Network::selected_node )
+        // .function( "move_children", &kmap::com::binding::Network::move_children )
+        .function( "move_node", &kmap::com::binding::Network::move_node )
         .function( "select_node", &kmap::com::binding::Network::select_node )
+        .function( "selected_node", &kmap::com::binding::Network::selected_node )
         ;
 }
 

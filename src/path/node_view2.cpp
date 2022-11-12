@@ -157,6 +157,32 @@ auto ForwardingLink::operator()( view::SelectionVariant const& sel ) const
 
 /*----------------Derivatives----------------*/
 
+auto Child::operator()( view::SelectionVariant const& sel ) const
+    -> Child const&
+{
+    selection = sel;
+
+    return *this;
+}
+
+auto Child::fetch( FetchContext const& ctx
+                 , Uuid const& node ) const
+    -> UuidSet
+{
+    if( selection )
+    {
+        return view::make( node )
+             | view::child( selection.value() )
+             | view::to_node_set( ctx.km );
+    }
+    else
+    {
+        return view::make( node )
+             | view::child
+             | view::to_node_set( ctx.km );
+    }
+}
+
 auto Desc::operator()( view::SelectionVariant const& sel ) const
     -> Desc const&
 {
@@ -181,6 +207,38 @@ auto Desc::fetch( FetchContext const& ctx
              | view::desc
              | view::to_node_set( ctx.km );
     }
+}
+
+auto DirectDesc::fetch( FetchContext const& ctx
+                      , Uuid const& node ) const
+    -> UuidSet
+{
+    if( selection )
+    {
+        return view::make( node )
+             | view::direct_desc( selection.value() )
+             | view::to_node_set( ctx.km );
+    }
+    else
+    {
+        return view::make( node )
+             | view::direct_desc
+             | view::to_node_set( ctx.km );
+    }
+}
+
+auto DirectDesc::operator()( view::SelectionVariant const& sel ) const
+    -> DirectDesc const&
+{
+    selection = sel;
+
+    return *this;
+}
+
+auto Root::fetch( FetchContext const& ctx ) const
+    -> UuidSet
+{
+    return nodes;
 }
 
 auto AbsRoot::fetch( FetchContext const& ctx ) const

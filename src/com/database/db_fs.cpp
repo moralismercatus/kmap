@@ -38,6 +38,7 @@ DatabaseFilesystem::DatabaseFilesystem( Kmap& kmap
     : Component{ kmap, requisites, description }
     , cclerk_{ kmap }
 {
+    register_standard_commands();
 }
 
 auto DatabaseFilesystem::initialize()
@@ -45,7 +46,7 @@ auto DatabaseFilesystem::initialize()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( install_standard_commands() );
+    KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -57,6 +58,7 @@ auto DatabaseFilesystem::load()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
+    KTRY( cclerk_.check_registered() );
     // TODO: cclerk_.attach( "save.as" );?
 
     rv = outcome::success();
@@ -66,37 +68,35 @@ auto DatabaseFilesystem::load()
 
 // TODO: Should go under db.fs.cmd component, to alleviate dependence on command_store for db.fs (perhaps).
 //       And, to make standard practice out of isolating commands for a component, so it is not doing more than one job.
-auto DatabaseFilesystem::install_standard_commands()
-    -> Result< void >
+auto DatabaseFilesystem::register_standard_commands()
+    -> void
 {
-    auto rv = KMAP_MAKE_RESULT( void );
-
     // save.as
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
         auto const action_code =
-R"%%%(```javascript
-let rv = null;
+        R"%%%(
+            let rv = null;
 
-const path = args.get( 0 );
+            const path = args.get( 0 );
 
-if( !kmap.fs_path_exists( path ) )
-{
-    kmap.database().init_db_on_disk( path ).throw_on_error();
-    kmap.database().flush_delta_to_disk().throw_on_error();
+            if( !kmap.fs_path_exists( path ) )
+            {
+                kmap.database().init_db_on_disk( path ).throw_on_error();
+                kmap.database().flush_delta_to_disk().throw_on_error();
 
-    rv = kmap.success( 'saved as: ' + path );
-}
-else
-{
-    rv = kmap.failure( "file already exists found" );
-}
+                rv = kmap.success( 'saved as: ' + path );
+            }
+            else
+            {
+                rv = kmap.failure( "file already exists found" );
+            }
 
-return rv;
-```)%%%";
+            return rv;
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -112,31 +112,31 @@ return rv;
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
     // save
     {
         auto const guard_code =
-R"%%%(```javascript
-if( kmap.database().has_file_on_disk() )
-{
-    return kmap.success( "file on disk found" );
-}
-else
-{
-    return kmap.failure( "failed to find file on disk" );
-}
-```)%%%";
+        R"%%%(
+            if( kmap.database().has_file_on_disk() )
+            {
+                return kmap.success( "file on disk found" );
+            }
+            else
+            {
+                return kmap.failure( "failed to find file on disk" );
+            }
+        )%%%";
         auto const action_code =
-R"%%%(```javascript
-let rv = null;
+        R"%%%(
+            let rv = null;
 
-kmap.database().flush_delta_to_disk().throw_on_error();
+            kmap.database().flush_delta_to_disk().throw_on_error();
 
-rv = kmap.success( 'state saved to disk' );
+            rv = kmap.success( 'state saved to disk' );
 
-return rv;
-```)%%%";
+            return rv;
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -150,38 +150,38 @@ return rv;
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
     // load
     {
         auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
         // TODO: Verify reasoning about execution order.
         //       The theory is as follows: setTimeout() will not be triggered, no matter the time, until after the CLI command execution flow finishes because
         //       of the single-threaded event stack used by javascript. Be it 0ms or 100s. It must wait until the flow finishes before dispatching the timer.
         //       In this way, we should be able to trigger Kmap::load outside of any component (which will be destroyed by Kmap::load), avoiding corruption.
         auto const action_code =
-R"%%%(```javascript
-let rv = null;
+        R"%%%(
+            let rv = null;
 
-const path = args.get( 0 );
+            const path = args.get( 0 );
 
-if( kmap.fs_path_exists( path ) )
-{
-    // setTimeout( function(){ console.log( 'loading: ' + path ); kmap.load( path ).throw_on_error(); }, 1000 );
-    kmap.throw_load_signal( path );
+            if( kmap.fs_path_exists( path ) )
+            {
+                // setTimeout( function(){ console.log( 'loading: ' + path ); kmap.load( path ).throw_on_error(); }, 1000 );
+                kmap.throw_load_signal( path );
 
-    rv = kmap.success( 'loading ' + path + '...' );
-}
-else
-{
-    rv = kmap.failure( "file not found: " + path );
-}
+                rv = kmap.success( 'loading ' + path + '...' );
+            }
+            else
+            {
+                rv = kmap.failure( "file not found: " + path );
+            }
 
-return rv;
-```)%%%";
+            return rv;
+        )%%%";
 
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
@@ -197,12 +197,8 @@ return rv;
                                     , .guard = guard
                                     , .action = action_code };
 
-        KTRY( cclerk_.install_command( command ) );
+        cclerk_.register_command( command );
     }
-
-    rv = outcome::success();
-
-    return rv;
 }
 
 SCENARIO( "saved data mirrors runtime data", "[db][fs]")

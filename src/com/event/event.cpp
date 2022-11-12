@@ -19,6 +19,7 @@
 #include "path/act/push.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"
+#include "util/script/script.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -305,11 +306,11 @@ auto EventStore::install_outlet( Branch const& branch )
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
-    auto const oroot = KMAP_TRY( view::make( eroot )
-                               | view::child( "outlet" )
-                               | view::direct_desc( branch.heading )
-                               | view::create_node( km )
-                               | view::to_single );
+    auto const oroot = KTRY( view::make( eroot )
+                           | view::child( "outlet" )
+                           | view::direct_desc( branch.heading )
+                           | view::create_node( km )
+                           | view::to_single );
 
     KTRY( install_outlet_internal( oroot, branch ) );
     KTRY( reset_transitions( oroot ) );
@@ -384,7 +385,7 @@ auto EventStore::install_outlet_internal( Uuid const& root
 
     KMAP_ENSURE( js::lint( leaf.action ), error_code::js::lint_failed );
 
-    auto const action_body = fmt::format( "```javascript\n{}\n```", leaf.action );
+    auto const action_body = util::to_js_body_code( js::beautify( leaf.action ) );
 
     KMAP_ENSURE( cmd::parser::parse_body_code( action_body ), error_code::parser::parse_failed );
 
@@ -753,7 +754,7 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
     auto const eroot = KTRY( event_root() );
     auto const oroot = KTRY( view::make( eroot )
                            | view::child( "object" )
-                           | view::fetch_node( km ) );
+                           | view::fetch_or_create_node( km ) );
     auto const objects = requisites
                        | ranges::views::filter( []( auto const& e ){ return e.starts_with( "object" ); } )
                        | ranges::to< std::set >();
@@ -761,7 +762,7 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
                       | ranges::views::filter( []( auto const& e ){ return !e.starts_with( "object" ); } )
                       | ranges::to< std::set >();
 
-    KMAP_ENSURE_MSG( objects.size() == 1, error_code::common::uncategorized, "currently limiting object to a single entry (no conceptual limitation, just ease of impl." );
+    KMAP_ENSURE_MSG( objects.size() <= 1, error_code::common::uncategorized, "currently limiting object to a single entry (no conceptual limitation, just ease of impl." );
 
     for( auto const& opath : objects )
     {

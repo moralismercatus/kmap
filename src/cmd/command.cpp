@@ -20,7 +20,7 @@
 #include "parser.hpp"
 #include "path/act/order.hpp"
 #include "path/node_view.hpp"
-#include "script.hpp"
+#include "util/script/script.hpp"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <emscripten.h>
@@ -129,7 +129,7 @@ auto execute_kscript( Kmap& kmap
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto ss = std::stringstream{ code };
 
-    rv = load_script( kmap, ss );
+    rv = util::load_script( kmap, ss );
 
     return rv;
 }
@@ -194,8 +194,8 @@ auto execute_body( Kmap& kmap
         })
     ;
 
-    auto const body = KMAP_TRY( nw->fetch_body( node ) );
-    auto const code = KMAP_TRY( parser::parse_body_code( body ) );
+    auto const body = KTRY( nw->fetch_body( node ) );
+    auto const code = KTRY( parser::parse_body_code( body ) );
 
     boost::apply_visitor( [ & ]( auto const& e )
                         {

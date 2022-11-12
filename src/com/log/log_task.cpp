@@ -53,6 +53,7 @@ struct LogTask : public Component
         : Component{ kmap, requisites, description }
         , eclerk_{ kmap }
     {
+        register_standard_events();
     }
     virtual ~LogTask() = default;
 
@@ -63,7 +64,7 @@ struct LogTask : public Component
 
         fmt::print( "log_task :: initialize\n" );
 
-        KTRY( install_standard_events() );
+        KTRY( eclerk_.install_registered() );
 
         rv = outcome::success();
 
@@ -75,25 +76,27 @@ struct LogTask : public Component
     {
         auto rv = KMAP_MAKE_RESULT( void );
 
+        KTRY( eclerk_.check_registered() );
+
         rv = outcome::success();
 
         return rv;
     }
 
-    auto install_standard_events()
+    auto register_standard_events()
         -> Result< void >
     {
         auto rv = KMAP_MAKE_RESULT( void );
 
         // Note: Under domain of "log", as no change is actually made to task, all changes made to log.
-        KTRY( eclerk_.install_outlet( Leaf{ .heading = "log.add_task_on_task_opening"
-                                          , .requisites = { "subject.task_store", "verb.opened", "object.task" }
-                                          , .description = "adds task to log task list when a task is opened"
-                                          , .action = R"%%%(kmap.log_task().push_task_to_log();)%%%" } ) );
-        KTRY( eclerk_.install_outlet( Leaf{ .heading = "log.add_open_tasks_on_daly_log_creation"
-                                          , .requisites = { "subject.log", "verb.created", "object.daily" }
-                                          , .description = "adds open tasks to task list when new daily log is created"
-                                          , .action = R"%%%(kmap.log_task().push_open_tasks_to_log();)%%%" } ) );
+        eclerk_.register_outlet( Leaf{ .heading = "log.add_task_on_task_opening"
+                                     , .requisites = { "subject.task_store", "verb.opened", "object.task" }
+                                     , .description = "adds task to log task list when a task is opened"
+                                     , .action = R"%%%(kmap.log_task().push_task_to_log();)%%%" } );
+        eclerk_.register_outlet( Leaf{ .heading = "log.add_open_tasks_on_daly_log_creation"
+                                     , .requisites = { "subject.log", "verb.created", "object.daily" }
+                                     , .description = "adds open tasks to task list when new daily log is created"
+                                     , .action = R"%%%(kmap.log_task().push_open_tasks_to_log();)%%%" } );
         
         rv = outcome::success();
 
@@ -216,6 +219,26 @@ SCENARIO( "push open tasks to log", "[cmd][log][task]" )
                                                 | view::fetch_node( kmap ) );
 
                     REQUIRE( task == nw->resolve( dlt ) );
+                }
+
+                WHEN( "create.subtask" )
+                {
+                    REQUIRE_RES( cli->parse_raw( ":create.subtask Subtask" ) );
+
+                    THEN( "subtask pushed to daily log" )
+                    {
+                        auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
+                        auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
+                        auto const subtask = REQUIRE_TRY( view::make( troot )
+                                                        | view::child( "subtask" )
+                                                        | view::fetch_node( kmap ) );
+                        auto const dlt = REQUIRE_TRY( view::make( dl )
+                                                    | view::child( "task" )
+                                                    | view::alias( view::Alias::Src{ subtask } )
+                                                    | view::fetch_node( kmap ) );
+
+                        REQUIRE( subtask == nw->resolve( dlt ) );
+                    }
                 }
             }
         }

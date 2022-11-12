@@ -41,8 +41,8 @@ public:
     auto load()
         -> Result< void > override;
 
-    auto install_standard_commands()
-        -> Result< void >;
+    auto register_standard_commands()
+        -> void;
 
     auto copy_state( FsPath const& dst )
         -> Result< void >;

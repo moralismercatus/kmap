@@ -5,13 +5,13 @@
  ******************************************************************************/
 #include "script.hpp"
 
-#include "../common.hpp"
-#include "../contract.hpp"
-#include "../emcc_bindings.hpp"
-#include "../error/filesystem.hpp"
-#include "../io.hpp"
-#include "../kmap.hpp"
-#include "command.hpp"
+#include "common.hpp"
+#include "contract.hpp"
+#include "emcc_bindings.hpp"
+#include "error/filesystem.hpp"
+#include "io.hpp"
+#include "kmap.hpp"
+#include "cmd/command.hpp"
 #include "com/cmd/command.hpp"
 #include "com/filesystem/filesystem.hpp"
 
@@ -24,7 +24,7 @@
 
 namespace fs = boost::filesystem;
 
-namespace kmap::cmd {
+namespace kmap::util {
 
 auto load_script( Kmap& kmap 
                 , std::istream& is )
@@ -76,7 +76,20 @@ auto load_script( Kmap& kmap
     return rv;
 }
 
-} // namespace kmap::cmd
+auto to_js_body_code( std::string const& raw_code )
+    -> std::string
+{
+    return fmt::format( "```javascript\n{}\n```", raw_code );
+}
+
+auto to_kscript_body_code( std::string const& raw_code )
+    -> std::string
+{
+    return fmt::format( "```kscript\n{}\n```", raw_code );
+}
+
+
+} // namespace kmap::util
 
 #if 0
 namespace kmap::cmd::load_kscript_def {
@@ -127,7 +140,7 @@ auto load_kscript( std::string const& fs_path )
 {
     auto& kmap = Singleton::instance();
 
-    return cmd::load_script( kmap, fs_path );
+    return util::load_script( kmap, fs_path );
 }
 
 EMSCRIPTEN_BINDINGS( kmap_script )

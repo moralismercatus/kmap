@@ -16,6 +16,7 @@ JumpStack::JumpStack( Kmap& km
     : Component{ km, requisites, description }
     , eclerk_{ km }
 {
+    register_event_outlets();
 }
 
 auto JumpStack::initialize()
@@ -26,7 +27,7 @@ auto JumpStack::initialize()
     // TODO: Calling this causes memory corruption, for some reason.
     //       The corruption only manifests later, so it's a suble bug.
     //       Perhaps address sanitizier would detect it. Anyway, disabling for now.
-    // KTRY( initialize_event_outlets() );
+    // KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -38,20 +39,22 @@ auto JumpStack::load()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
+    // KTRY( cclerk_.check_registered() );
+
     rv = outcome::success();
 
     return rv;
 }
 
-auto JumpStack::initialize_event_outlets()
+auto JumpStack::register_event_outlets()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( eclerk_.install_outlet( Leaf{ .heading = "network.select_node"
-                                      , .requisites = { "subject.kmap", "verb.selected", "object.node" }
-                                      , .description = "pushes non-adjacent node selections into the jump stack"
-                                      , .action = R"%%%(kmap.jump_stack().jump_in( kmap.selected_node() );)%%%" } ) );
+    eclerk_.register_outlet( Leaf{ .heading = "network.select_node"
+                                 , .requisites = { "subject.network", "verb.selected", "object.node" }
+                                 , .description = "pushes non-adjacent node selections into the jump stack"
+                                 , .action = R"%%%(kmap.jump_stack().jump_in( kmap.selected_node() );)%%%" } );
 
     rv = outcome::success();
 

@@ -6,12 +6,15 @@
 #include "parser.hpp"
 
 #include "error/parser.hpp"
+#include "test/util.hpp"
+#include "util/script/script.hpp"
 
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/fusion/include/io.hpp>
 #include <boost/spirit/home/x3.hpp>
 #include <boost/spirit/home/x3/support/utility/annotate_on_success.hpp>
 #include <boost/spirit/home/x3/support/utility/error_reporting.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <iostream>
 
@@ -68,12 +71,12 @@ auto const code_delimiter
     ;
 auto const kscript_def
     = code_delimiter >> lit( "kscript" )
-   >> lexeme[ *( char_ - code_delimiter ) ]
+   >> lexeme[ *( char_ - ( '\n' >> code_delimiter ) ) ]
    >> code_delimiter
     ;
 auto const javascript_def
     = code_delimiter >> ( lit( "javascript" ) | lit( "js" ) )
-   >> lexeme[ *( char_ - code_delimiter ) ]
+   >> lexeme[ *( char_ - ( '\n' >> code_delimiter ) ) ]
    >> code_delimiter
     ;
 auto const code_def
@@ -125,6 +128,50 @@ auto parse_body_code( std::string_view const raw )
     }
 
     return rv;
+}
+
+SCENARIO( "parse_body_code", "[parser][code][cmd]" )
+{
+    GIVEN( "simple JS code" )
+    {
+        auto const plain_code = "console.log( 'snafu' );";
+
+        GIVEN( "transform into body code" )
+        {
+            auto const body_code = util::to_js_body_code( plain_code );
+
+            WHEN( "parse raw code" )
+            {
+                auto const parsed_code = REQUIRE_TRY( parse_body_code( body_code ) );
+
+                THEN( "code round-tripped" )
+                {
+                    REQUIRE( boost::get< cmd::ast::Javascript >( &parsed_code ) );
+                    REQUIRE( boost::get< cmd::ast::Javascript >( parsed_code ).code == plain_code );
+                }
+            }
+        }
+    }
+    GIVEN( "simple kscript code" )
+    {
+        auto const plain_code = ":echo snafu";
+
+        GIVEN( "transform into body code" )
+        {
+            auto const body_code = util::to_kscript_body_code( plain_code );
+
+            WHEN( "parse raw code" )
+            {
+                auto const parsed_code = REQUIRE_TRY( parse_body_code( body_code ) );
+
+                THEN( "code round-tripped" )
+                {
+                    REQUIRE( boost::get< cmd::ast::Kscript >( &parsed_code ) );
+                    REQUIRE( boost::get< cmd::ast::Kscript >( parsed_code ).code == plain_code );
+                }
+            }
+        }
+    }
 }
 
 } // kmap::cmd::parser

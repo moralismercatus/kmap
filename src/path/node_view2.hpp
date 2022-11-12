@@ -169,6 +169,18 @@ auto const abs_root = Chain{ .anchor = std::make_shared< AbsRoot >() };
 auto root( Uuid const& node ) -> Chain;
 auto root( UuidSet const& nodes ) -> Chain;
 
+struct Child : public PredLink
+{
+    using PredLink::PredLink;
+    virtual ~Child() = default;
+
+    auto operator()( view::SelectionVariant const& sel ) const -> Child const& override;
+
+    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> UuidSet override;
+};
+
+auto const child = Child{};
+
 struct Desc : public PredLink
 {
     using PredLink::PredLink;
@@ -180,6 +192,18 @@ struct Desc : public PredLink
 };
 
 auto const desc = Desc{};
+
+struct DirectDesc : public PredLink
+{
+    using PredLink::PredLink;
+    virtual ~DirectDesc() = default;
+
+    auto operator()( view::SelectionVariant const& sel ) const -> DirectDesc const& override;
+
+    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> UuidSet override;
+};
+
+auto const direct_desc = DirectDesc{};
 
 struct AbsPathFlat
 {

@@ -63,8 +63,8 @@ public:
     auto open_task( Uuid const& node )
         -> Result< void >;
     
-    auto install_standard_commands()
-        -> Result< void >;
+    auto register_standard_commands()
+        -> void;
 };
 
 } // namespace kmap

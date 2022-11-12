@@ -626,12 +626,6 @@ auto Database::push_alias( Uuid const& src
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( node_exists( src ) );
-            BC_ASSERT( node_exists( dst ) );
-            BC_ASSERT( !alias_exists( src, dst ) );
-        })
         BC_POST([ & ]
         {
             if( rv )
@@ -640,6 +634,10 @@ auto Database::push_alias( Uuid const& src
             }
         })
     ;
+
+    KMAP_ENSURE( node_exists( src ), error_code::network::invalid_node );
+    KMAP_ENSURE( node_exists( dst ), error_code::network::invalid_node );
+    KMAP_ENSURE( !alias_exists( src, dst ), error_code::network::invalid_node );
 
     KTRY( cache_.push< db::AliasTable >( db::Left{ src }, db::Right{ dst } ) );
 
@@ -1320,30 +1318,38 @@ auto Database::child_headings( Uuid const& id ) const
 
 auto Database::erase_child( Uuid const& parent
                           , Uuid const& child )
-    -> void
+    -> Result< void >
 {
-    KMAP_THROW_EXCEPTION_MSG( "Impl. needed" );
+    auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
             BC_ASSERT( node_exists( parent ) );
             BC_ASSERT( node_exists( child ) );
-            BC_ASSERT( is_child( parent
-                               , child ) );
+            BC_ASSERT( is_child( parent, child ) );
         })
         BC_POST([ & ]
         {
-            BC_ASSERT( !is_child( parent
-                                , child ) );
+            if( rv )
+            {
+                BC_ASSERT( !is_child( parent, child ) );
+            }
+
+            BC_ASSERT( node_exists( parent ) );
+            BC_ASSERT( node_exists( child ) );
         })
     ;
 
-    auto ct = children::children{};
+    KMAP_ENSURE( node_exists( parent ), error_code::network::invalid_node );
+    KMAP_ENSURE( node_exists( child ), error_code::network::invalid_node );
+    KMAP_ENSURE( is_child( parent, child ), error_code::network::invalid_parent );
 
-    execute( remove_from( ct ) 
-           . where( ct.parent_uuid == to_string( parent )
-                 && ct.child_uuid == to_string( child ) ) );
+    KTRY( cache_.erase< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
+    
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Database::erase_alias( Uuid const& src
@@ -1355,8 +1361,6 @@ auto Database::erase_alias( Uuid const& src
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( node_exists( src ) );
-            BC_ASSERT( node_exists( dst ) );
             BC_ASSERT( alias_exists( src, dst ) );
         })
         BC_POST([ & ]
@@ -1365,8 +1369,15 @@ auto Database::erase_alias( Uuid const& src
             {
                 BC_ASSERT( !alias_exists( src, dst ) );
             }
+
+            BC_ASSERT( node_exists( src ) );
+            BC_ASSERT( node_exists( dst ) );
         })
     ;
+
+    KMAP_ENSURE( node_exists( src ), error_code::network::invalid_node );
+    KMAP_ENSURE( node_exists( dst ), error_code::network::invalid_node );
+    KMAP_ENSURE( alias_exists( src, dst ), error_code::network::invalid_alias );
 
     KTRY( cache_.erase< db::AliasTable >( db::Src{ src }, db::Dst{ dst } ) );
     

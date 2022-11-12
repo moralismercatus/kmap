@@ -51,8 +51,8 @@ public:
     auto has_tag( Uuid const& node
                 , std::string const& tag_path ) const
         -> bool;
-    auto install_standard_commands()
-        -> Result< void >;
+    auto register_standard_commands()
+        -> void;
     auto tag_node( Uuid const& target
                  , Uuid const& tag )
         -> Result< Uuid >;
