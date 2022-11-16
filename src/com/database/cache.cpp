@@ -612,12 +612,12 @@ auto fetch_deltas( Cache const& cache
 auto print_deltas( db::Cache const& cache )
     -> void
 {
+    fmt::print( "Delta items:\n" );
+
     auto proc_table = [ & ]( auto const& table )
     {
         using namespace db;
         using Table = std::decay_t< decltype( table ) >;
-
-        fmt::print( "Delta items:\n" );
 
         for( auto const& item : table )
         {

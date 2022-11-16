@@ -729,7 +729,7 @@ SCENARIO( "EventStore::fetch_matching_outlets", "[event]" )
             auto const ores = estore->install_outlet( Leaf{ .heading = "1"
                                                           , .requisites = { "subject.victor" }
                                                           , .description = "test"
-                                                          , .action = "" } );
+                                                          , .action = "/*NOP*/" } );
             REQUIRE_RES( ores );
 
             THEN( "matching outlet found" )
@@ -748,43 +748,50 @@ SCENARIO( "EventStore::fetch_matching_outlets", "[event]" )
 auto EventStore::fire_event( std::set< std::string > const& requisites )
     -> Result< void >
 {
+    // TODO: log( "event_store.fire_event", fmt::format( "requisites: {{{}}}", requisites ) ); // => ( "[log][kmap.event.fire_event] requisites: {{{}}}", requisites )
+    // TODO: Each component comes with a logging facility i.e., the function log() that automatically prefixes output with component name?
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-    auto const eroot = KTRY( event_root() );
-    auto const oroot = KTRY( view::make( eroot )
-                           | view::child( "object" )
-                           | view::fetch_or_create_node( km ) );
-    auto const objects = requisites
-                       | ranges::views::filter( []( auto const& e ){ return e.starts_with( "object" ); } )
-                       | ranges::to< std::set >();
-    auto const others = requisites
-                      | ranges::views::filter( []( auto const& e ){ return !e.starts_with( "object" ); } )
-                      | ranges::to< std::set >();
-
-    KMAP_ENSURE_MSG( objects.size() <= 1, error_code::common::uncategorized, "currently limiting object to a single entry (no conceptual limitation, just ease of impl." );
-
-    for( auto const& opath : objects )
+    if( auto const oroot = view::abs_root
+                         | view::direct_desc( "meta.event.object" )
+                         | view::fetch_node( km )
+      ; oroot )
     {
-        if( auto rnode = view::make( eroot )
-                       | view::desc( opath )
-                       | view::fetch_node( km )
-          ; rnode )
+        auto const eroot = KTRY( view::make( oroot.value() )
+                               | view::parent
+                               | view::fetch_node( km ) );
+        auto const objects = requisites
+                        | ranges::views::filter( []( auto const& e ){ return e.starts_with( "object" ); } )
+                        | ranges::to< std::set >();
+        auto const others = requisites
+                        | ranges::views::filter( []( auto const& e ){ return !e.starts_with( "object" ); } )
+                        | ranges::to< std::set >();
+
+        KMAP_ENSURE_MSG( objects.size() <= 1, error_code::common::uncategorized, "currently limiting object to a single entry (no conceptual limitation, just ease of impl." );
+
+        for( auto const& opath : objects )
         {
-            auto node = rnode.value();
-            
-            while( oroot != node )
+            if( auto rnode = view::make( eroot )
+                        | view::desc( opath )
+                        | view::fetch_node( km )
+            ; rnode )
             {
-                auto combined = others;
-                auto const abspath = KTRY( view::make( oroot )
-                                         | view::desc( node )
-                                         | act::abs_path_flat( km ) );
+                auto node = rnode.value();
+                
+                while( oroot.value() != node )
+                {
+                    auto combined = others;
+                    auto const abspath = KTRY( view::make( oroot.value() )
+                                            | view::desc( node )
+                                            | act::abs_path_flat( km ) );
 
-                combined.emplace( abspath );
+                    combined.emplace( abspath );
 
-                KTRY( fire_event_internal( combined ) );
+                    KTRY( fire_event_internal( combined ) );
 
-                node = KTRY( nw->fetch_parent( node ) );
+                    node = KTRY( nw->fetch_parent( node ) );
+                }
             }
         }
     }

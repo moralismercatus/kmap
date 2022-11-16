@@ -27,7 +27,7 @@ using namespace kmap::test;
 
 SCENARIO( "autosave", "[com][autosave]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "autosave", "timer", "visnetwork" ); // TODO: drop "visnetwork" component after update_title changes use of event instead of direct call.
+    KMAP_COMPONENT_FIXTURE_SCOPED( "autosave", "timer", "visnetwork", "network" ); // TODO: drop "visnetwork" component after update_title changes use of event instead of direct call.
 
     auto& kmap = Singleton::instance();
 

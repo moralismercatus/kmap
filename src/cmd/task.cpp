@@ -21,6 +21,7 @@ namespace kmap::cmd {
 
 namespace {
 
+#if 0
 auto const is_task_guard_code =
 R"%%%(```javascript
 if( kmap.task_store().is_task( nw->selected_node() ) )
@@ -33,7 +34,6 @@ else
 }
 ```)%%%";
 
-#if 0
 namespace create_task_def {
 auto const guard_code =
 R"%%%(```javascript

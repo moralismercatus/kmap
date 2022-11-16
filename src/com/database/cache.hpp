@@ -255,10 +255,6 @@ public:
         {
             for( auto const& ti_key : erase_set )
             {
-                if constexpr( std::is_same_v< Table, HeadingTable > )
-                {
-                    fmt::print( "table.erase( {} )\n", to_string( ti_key ) );
-                }
                 KTRYE( table.erase( ti_key ) );
             }
         }

@@ -14,6 +14,7 @@
 #include <boost/test/unit_test.hpp>
 #include <catch2/catch_session.hpp>
 #include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/split.hpp>
 
 #include "cmd/command.hpp"
 #include "contract.hpp"
@@ -27,6 +28,7 @@
 using namespace kmap;
 namespace utf = boost::unit_test;
 namespace fs = boost::filesystem;
+namespace rvs = ranges::views;
 
 namespace kmap::test {
 
@@ -121,14 +123,27 @@ auto run_pre_env_unit_tests()
         if( auto const specified_tests = js::eval< std::string >( "return kmap_pretest_targets;" )
           ; specified_tests )
         {
-            char const* targv[] = { "kmap" 
-                                  , "--durations=yes"
-                                  , "--verbosity=high"
-                                  , specified_tests.value().c_str() };
+            auto const options = [ & ]
+            {
+                if( auto const opts = js::eval< std::string >( "return kmap_pretest_options;" )
+                  ; opts )
+                {
+                    return opts.value()
+                         | rvs::split( ' ' )
+                         | ranges::to< std::vector< std::string > >();
+                }
+                return std::vector< std::string >{};
+            }();
+            auto argv = std::vector< char const* >{ "kmap" };
+            for( auto const& opt : options )
+            {
+                argv.emplace_back( opt.c_str() );
+            }
+            argv.emplace_back( specified_tests.value().c_str() );
 
             io::print( "[log] Running Catch2 pre-env unit tests\n" );
 
-            if( 0 != Catch::Session().run( sizeof( targv ) / sizeof( char* ), targv ) )
+            if( 0 != Catch::Session().run( argv.size(), argv.data() ) )
             {
                 return 1;
             }

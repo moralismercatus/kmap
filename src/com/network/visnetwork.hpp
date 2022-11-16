@@ -139,7 +139,7 @@ public:
         -> Uuid;
     auto update_title( Uuid const& id
                      , Title const& title )
-        -> void;
+        -> Result< void >;
     auto viewport_scale() const
         -> float;
 

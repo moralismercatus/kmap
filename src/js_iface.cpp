@@ -219,7 +219,7 @@ ScopedCode::ScopedCode( std::string const& ctor
 {
     if( !ctor_code.empty() )
     {
-        fmt::print( "scoped ctor, evaling: {}\n", ctor_code );
+        // TOTOD: log... fmt::print( "scoped ctor, evaling: {}\n", ctor_code );
         KTRYE( eval_void( ctor_code ) );
     }
 }

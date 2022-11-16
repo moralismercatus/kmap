@@ -740,24 +740,32 @@ setTimeout( fn, option_value );
 }
 
 auto VisualNetwork::update_title( Uuid const& id
-                          , Title const& title )
-    -> void
+                                , Title const& title )
+    -> Result< void >
 {
+    auto rv = KMAP_MAKE_RESULT( void );
+
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( exists( id ) );
-            // TODO: ensure no roots with same title in the same path.
-        })
         BC_POST([ & ]
         {
-            BC_ASSERT( this->fetch_title( id ).value() == title );
+            if( rv )
+            {
+                BC_ASSERT( this->fetch_title( id ).value() == title );
+            }
         })
     ;
 
+    // TODO: ensure no roots with same title in the same path.
+    KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
+
+    // TODO: Somehow wrap into Result<> returning fn?
     js_nw_->call< val >( "update_title"
                        , to_string( id )
                        , title );
+    
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto VisualNetwork::fetch_child( Uuid const& parent

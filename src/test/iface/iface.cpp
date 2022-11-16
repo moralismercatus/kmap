@@ -377,6 +377,7 @@ SCENARIO( "fetch ordered children of alias", "[kmap_iface]" )
     }
 }
 
+// TODO: Belongs in alias.cpp
 SCENARIO( "erase nested alias source", "[kmap_iface]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
@@ -408,9 +409,9 @@ SCENARIO( "erase nested alias source", "[kmap_iface]" )
                     | view::exists( kmap ) ));
             REQUIRE(( view::make( root ) 
                     | view::child( "alias_root" )
-                    | view::alias
-                    | view::alias
-                    | view::alias
+                    | view::alias // 1
+                    | view::alias // 2
+                    | view::alias // 3
                     | view::single
                     | view::exists( kmap ) ));
         }

@@ -12,7 +12,12 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+
 #include <ostream>
+#include <set>
+#include <string>
 #include <utility>
 
 // WARNING: Due to idiosynchrasies of ADL, these must go before inclusion of files using these s.a. optional_io.hpp.
@@ -96,9 +101,37 @@ struct formatter< std::pair< kmap::Uuid, kmap::Uuid > >
                , FormatContext& ctx )
     {
         return format_to( ctx.out()
-                        , fmt::format( "pair<\"{}\",\"{}\">", boost::uuids::to_string( idp.first ), boost::uuids::to_string( idp.second ) ) );
+                        , fmt::format( "pair{{\"{}\",\"{}\"}}", boost::uuids::to_string( idp.first ), boost::uuids::to_string( idp.second ) ) );
     }
 };
+
+// TODO: Temporarily disabling, as boost::uuids::to_string is not yet constexpr-enabled.
+//       Workaround is to call to_string( id ) at call site.
+#if 0
+template <>
+struct formatter< std::set< std::string > >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        // assert( false && "unimplemented" );
+        // TODO: I believe I want ctx.begin() here, not end().
+        return ctx.end();
+    }
+
+    template< typename FormatContext >
+    auto format( std::set< std::string > const& ss
+               , FormatContext& ctx )
+    {
+        namespace rvs = ranges::views;
+
+        auto const joined = ss
+                    | rvs::join( ',' ) 
+                    | ranges::to< std::string >();
+        return format_to( ctx.out()
+                        , fmt::format( "set{{{}}}", joined ) );
+    }
+};
+#endif
 
 } // namespace fmt
 

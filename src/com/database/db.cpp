@@ -156,6 +156,7 @@ auto Database::load()
             {
                 BC_ASSERT( con_ );
                 BC_ASSERT( path_ == sqlite3_db_filename( con_->native_handle(), nullptr ) );
+                BC_ASSERT( !has_delta() );
             }
         })
     ;

@@ -10,6 +10,7 @@
 #include "com/filesystem/filesystem.hpp"
 #include "db.hpp"
 #include "error/filesystem.hpp"
+#include "io.hpp"
 #include "kmap.hpp"
 #include "table_decl.hpp"
 #include "test/util.hpp"
@@ -358,7 +359,7 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
                 GIVEN( "load state from db flushed to disk" )
                 {
                     REQUIRE_RES( km.load( disk_path, initialized_coms ) );
-
+                    
                     THEN( "!has_delta" )
                     {
                         REQUIRE( !db()->has_delta() );
@@ -435,7 +436,6 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
                             }
                         }
                     }
-
                     GIVEN( "flush_delta_to_disk" )
                     {
                         REQUIRE_RES( db()->flush_delta_to_disk() );
@@ -452,11 +452,11 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
                     }
                 }
             }
-        }
 
-        if( exists( abs_disk_path ) )
-        {
-            boost::filesystem::remove( abs_disk_path );
+            if( exists( abs_disk_path ) )
+            {
+                boost::filesystem::remove( abs_disk_path );
+            }
         }
     }
 }
