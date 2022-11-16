@@ -81,6 +81,7 @@ auto TextArea::apply_static_options()
     KTRY( ostore->apply( "canvas.editor.text.size" ) );
     KTRY( ostore->apply( "canvas.editor.whitespace_wrap" ) );
     KTRY( ostore->apply( "canvas.preview.background.color" ) );
+    KTRY( ostore->apply( "canvas.preview.scrollbar" ) );
     KTRY( ostore->apply( "canvas.preview.text.color" ) );
     KTRY( ostore->apply( "canvas.preview.text.size" ) );
     KTRY( ostore->apply( "canvas.preview.whitespace_wrap" ) );
