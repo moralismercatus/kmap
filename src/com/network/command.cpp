@@ -8,7 +8,10 @@
 #include "contract.hpp"
 #include "kmap.hpp"
 #include "utility.hpp"
+#include "test/util.hpp"
+#include "com/cli/cli.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 
 namespace kmap::com {
 
@@ -304,6 +307,75 @@ auto NetworkCommand::register_standard_commands()
 
         cclerk_.register_command( command );
     }
+    // resolve.alias
+    {
+        auto const guard_code =
+        R"%%%(
+        if( kmap.is_alias( kmap.selected_node() ) )
+        {
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( 'non-alias' );
+        }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const selected = nw.selected_node();
+
+        kmap.select_node( kmap.resolve_alias( selected ) );
+
+        rv = kmap.success( 'resolved' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "selects underlying source node for selected alias";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "is_alias", guard_code };
+        auto const command = Command{ .path = "resolve.alias"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+}
+
+SCENARIO( "resolve.alias", "[nw][cmd][alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network.command", "cli" );
+    auto& km = Singleton::instance();
+    auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const rootn = nw->root_node();
+
+    GIVEN( "/1, /2.1[/1]" )
+    {
+        auto const n1 = REQUIRE_TRY( nw->create_child( rootn, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( rootn, "2" ) );
+        auto const a21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+        THEN( "`:resolve.alias <selected:/2.1>` resolves to /1" )
+        {
+            REQUIRE_TRY( nw->select_node( a21 ) );
+            REQUIRE( nw->selected_node() == a21 );
+            REQUIRE_TRY( cli->parse_raw( ":resolve.alias" ) );
+            REQUIRE( nw->selected_node() == n1 );
+        }
+        WHEN( "`:resolve.alias <selected /2>` fails" )
+        {
+            REQUIRE_TRY( nw->select_node( n2 ) );
+            REQUIRE( nw->selected_node() == n2 );
+            REQUIRE( test::fail( cli->parse_raw( ":resolve.alias" ) ) );
+            REQUIRE( nw->selected_node() == n2 );
+        }
+    }
 }
 
 namespace {
@@ -319,6 +391,6 @@ REGISTER_COMPONENT
 );
 
 } // namespace network_def 
-}
+} // namespace anon
 
 } // namespace kmap

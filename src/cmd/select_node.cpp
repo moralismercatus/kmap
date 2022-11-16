@@ -350,49 +350,6 @@ REGISTER_COMMAND
 } // namespace anon
 } // namespace travel_bottom_def
 
-namespace resolve_alias_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-if( kmap.is_alias( kmap.selected_node() ) )
-{
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( 'non-alias' );
-}
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-const selected = kmap.selected_node();
-
-kmap.select_node( kmap.resolve_alias( selected ) );
-
-return kmap.success( 'alias resolved' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects underlying source node of selected alias";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_alias", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    resolve.alias
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace resolve_alias_def
-
 namespace resolve_def {
 namespace { 
 

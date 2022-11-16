@@ -9,20 +9,43 @@ const showdown = require( 'showdown' )
                , showdown_highlight = require( 'showdown-highlight' )
                ;
 const jshint = require( 'jshint' ).JSHINT;
+const js_beautify = require( 'js-beautify' ).js;
 require( 'geteventlisteners' ); // This works by overriding Element.prototype.addEventListener and Element.prototype.removeEventListener upon import, so only after here are they overriden.
 
-// let kmap_pretest_targets = '*'
-// let kmap_pretest_targets = 'Scenario: TaskStore::create_subtask'
-// let kmap_pretest_targets = '[autosave]'
-// let kmap_pretest_targets = '[cmd][log][task]'
-// let kmap_pretest_targets = '[cmd][task]'
-let kmap_pretest_targets = '[com][nw]'
-// let kmap_pretest_targets = '[db][fs]'
-// let kmap_pretest_targets = '[event]'
-// let kmap_pretest_targets = '[kmap_iface]'
-// let kmap_pretest_targets = '[path][node_view]'
-// let kmap_pretest_targets = '[tag]'
-// let kmap_pretest_targets = '[task]'
+kmap_pretest_options = '--durations=yes'
+kmap_pretest_options += ' --verbosity=high'
+// kmap_pretest_options += ' --success'
+// let kmap_pretest_targets = '*' // All
+let kmap_pretest_targets = ''
+// kmap_pretest_targets += ',Scenario: AliasStore::resolve'
+// kmap_pretest_targets += ',Scenario: Network::fetch_parent'
+// kmap_pretest_targets += ',Scenario: Network::is_alias'
+// kmap_pretest_targets += ',Scenario: TaskStore::create_subtask'
+// kmap_pretest_targets += ',Scenario: edit.body'
+// kmap_pretest_targets += ',[abs_path],[abs_path_flat]'
+kmap_pretest_targets += ',[alias]'
+// kmap_pretest_targets += ',[autosave]'
+// kmap_pretest_targets += ',[cmd]'
+// kmap_pretest_targets += ',[cmd][log][task]'
+// kmap_pretest_targets += ',[cmd][task]'
+// kmap_pretest_targets += ',[com][nw][alias]'
+// kmap_pretest_targets += ',[com][text_area]'
+// kmap_pretest_targets += ',[db][fs]'
+// kmap_pretest_targets += ',[event]'
+// kmap_pretest_targets += ',[iface]'
+// kmap_pretest_targets += ',[move_node]'
+// kmap_pretest_targets += ',[nw]'
+// kmap_pretest_targets += ',[parser]'
+// kmap_pretest_targets += ',[path][node_view]'
+// kmap_pretest_targets += ',[tag]'
+// kmap_pretest_targets += ',[take]'
+// kmap_pretest_targets += ',[task]'
+// kmap_pretest_targets += ',[text_area]'
+
+function beautify_javascript( code )
+{
+    return js_beautify( code );
+}
 
 // [WARNING] Not thread safe! Uses global object 'jshint'!
 function lint_javascript( code )
