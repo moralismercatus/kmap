@@ -326,61 +326,61 @@ auto Canvas::install_options()
 
     // TODO: All these options belong in their respective components.
     // Network
-    KTRY( opt->install_option( "canvas.network.background.color"
-                            , "Sets the background color for the nextwork pane."
-                            , "\"#222222\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.network.background.color"
+                                     , .descr = "Sets the background color for the nextwork pane."
+                                     , .value = "\"#222222\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
     // CLI
-    KTRY( opt->install_option( "canvas.cli.background.color"
-                            , "Sets the background color for the cli pane."
-                            , "\"#222222\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    KTRY( opt->install_option( "canvas.cli.text.color"
-                            , "Sets the text color for the cli pane."
-                            , "\"white\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.color = option_value;" ) );
-    KTRY( opt->install_option( "canvas.cli.text.size"
-                            , "Text size."
-                            , "\"large\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.cli.background.color"
+                                     , .descr = "Sets the background color for the cli pane."
+                                     , .value = "\"#222222\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.cli.text.color"
+                                     , .descr ="Sets the text color for the cli pane."
+                                     , .value = "\"white\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.color = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.cli.text.size"
+                                     , .descr = "Text size."
+                                     , .value = "\"large\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.fontSize = option_value;" } ) );
     // Completion Box
-    KTRY( opt->install_option( "canvas.completion_box.background.color"
-                            , "Sets the background color for the completion box."
-                            , "\"#333333\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.text.color"
-                            , "Sets the text color for the completion box popup."
-                            , "\"white\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.color = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.padding"
-                            , "Sets the padding between edge of box and internal text."
-                            , "\"0px\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.padding = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.border.radius"
-                            , "Sets the rounding radius for the corners of the box."
-                            , "\"5px\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderRadius = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.border.style"
-                            , "Border style"
-                            , "\"outset\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderStyle = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.border.width"
-                            , "Width of border."
-                            , "\"thin\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderWidth = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.scrollbar"
-                            , "Specify scroll behavior."
-                            , "\"auto\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.overflow = option_value;" ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.background.color"
+                                     , .descr = "Sets the background color for the completion box."
+                                     , .value = "\"#333333\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.text.color"
+                                     , .descr = "Sets the text color for the completion box popup."
+                                     , .value = "\"white\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.color = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.padding"
+                                     , .descr = "Sets the padding between edge of box and internal text."
+                                     , .value = "\"0px\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.padding = option_value;" } ) );
+    KTRY( opt->install_option( Option { .heading = "canvas.completion_box.border.radius"
+                                      , .descr = "Sets the rounding radius for the corners of the box."
+                                      , .value = "\"5px\""
+                                      , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderRadius = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.border.style"
+                                     , .descr = "Border style"
+                                     , .value = "\"outset\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderStyle = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.border.width"
+                                     , .descr = "Width of border."
+                                     , .value = "\"thin\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderWidth = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.scrollbar"
+                                     , .descr = "Specify scroll behavior."
+                                     , .value = "\"auto\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.overflow = option_value;" } ) );
     // I think all canvas items are absolute... I think this gets encoded when they are created. Probably doesn't belong here.
-    KTRY( opt->install_option( "canvas.completion_box.position_type"
-                            , "Sets the rounding radius for the corners of the box."
-                            , "\"absolute\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.position = option_value;" ) );
-    KTRY( opt->install_option( "canvas.completion_box.placement_order"
-                            , "Specifies order in which box will be placed vis-a-vis other canvas elements."
-                            , "\"9999\""
-                            , "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.zIndex = option_value;" ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.position_type"
+                                     , .descr = "Sets the rounding radius for the corners of the box."
+                                     , .value = "\"absolute\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.position = option_value;" } ) );
+    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.placement_order"
+                                     , .descr = "Specifies order in which box will be placed vis-a-vis other canvas elements."
+                                     , .value = "\"9999\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.zIndex = option_value;" } ) );
 
     rv = outcome::success();
 

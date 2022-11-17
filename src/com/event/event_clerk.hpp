@@ -92,14 +92,6 @@ protected:
 
 auto gather_requisites( Transition const& t )
     -> std::set< std::string >;
-auto is_action_consistent( Kmap const& km
-                         , Uuid const& lnode
-                         , std::string const& content )
-    -> bool;
-auto is_description_consistent( Kmap const& km
-                              , Uuid const& lnode
-                              , std::string const& content )
-    -> bool;
 auto match_requisites( Kmap const& km
                      , Uuid const eroot
                      , Uuid const& lnode

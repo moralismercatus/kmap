@@ -56,20 +56,20 @@ else
     asave.install_event_outlet( option_value ).throw_on_error();
 }
 )%%%";
-        KTRY( ostore->install_option( "database.autosave.interval.unit"
-                                    , "Autosave interval unit type from available timer types (second, minute, etc.)"
-                                    , "\"minute\""
-                                    , script ) );
+        KTRY( ostore->install_option( Option{ .heading = "database.autosave.interval.unit"
+                                            , .descr = "Autosave interval unit type from available timer types (second, minute, etc.)"
+                                            , .value = "\"minute\""
+                                            , .action = script } ) );
     }
     {
         auto const script = 
 R"%%%(
 kmap.autosave().set_threshold( option_value );
 )%%%";
-        KTRY( ostore->install_option( "database.autosave.interval.threshold"
-                                    , "number of interval events of type until autosave"
-                                    , "1"
-                                    , script ) );
+        KTRY( ostore->install_option( Option{ .heading = "database.autosave.interval.threshold"
+                                            , .descr = "number of interval events of type until autosave"
+                                            , .value = "1"
+                                            , .action = script } ) );
     }
 
     rv = outcome::success();

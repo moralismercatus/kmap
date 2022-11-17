@@ -190,6 +190,7 @@ add_executable( emcc.index.html
                 test/util.cpp
                 test/util/util.cpp
                 util/profile.cpp
+                util/clerk/clerk.cpp util/clerk/clerk.hpp
                 util/script/script.cpp util/script/script.hpp
                 util/window.cpp
                 utility.cpp

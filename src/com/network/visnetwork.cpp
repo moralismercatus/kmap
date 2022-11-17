@@ -55,6 +55,7 @@ VisualNetwork::VisualNetwork( Kmap& kmap
     , oclerk_{ kmap }
     , eclerk_{ kmap }
 {
+    KTRYE( register_standard_options() );
     KTRYE( register_standard_events() );
 }
 
@@ -80,7 +81,7 @@ auto VisualNetwork::initialize()
         KMAP_THROW_EXCEPTION_MSG( "failed to initialize Network" ); // TODO: return Result
     }
 
-    KTRY( install_standard_options() );
+    KTRY( oclerk_.install_registered() );
     KTRY( eclerk_.install_registered() );
     KTRY( apply_static_options() );
 
@@ -103,6 +104,7 @@ auto VisualNetwork::load()
         KMAP_THROW_EXCEPTION_MSG( "failed to initialize Network" ); // TODO: return Result
     }
 
+    KTRY( oclerk_.check_registered() );
     KTRY( eclerk_.check_registered() );
     KTRY( apply_static_options() );
 
@@ -698,20 +700,20 @@ auto VisualNetwork::viewport_scale() const
     return js_nw_->call< float >( "viewport_scale" );
 }
 
-auto VisualNetwork::install_standard_options()
+auto VisualNetwork::register_standard_options()
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     
     {
         auto const script = 
-R"%%%(
-kmap.visnetwork().scale_viewport( option_value ).throw_on_error();
-)%%%";
-        KMAP_TRY( oclerk_.install_option( "network.viewport_scale"
-                                        , "Sets network's viewport scale after resize"
-                                        , "1.0"
-                                        , script ) );
+        R"%%%(
+            kmap.visnetwork().scale_viewport( option_value ).throw_on_error();
+        )%%%";
+        KMAP_TRY( oclerk_.register_option( Option{ .heading = "network.viewport_scale"
+                                                 , .descr = "Sets network's viewport scale after resize"
+                                                 , .value = "1.0"
+                                                 , .action = script } ) );
     } 
     { // TODO: Too generic to belong in Network, but placing here for convenience.
         // TODO: This is ok, it works, but it shouldn't apply to shift/alt/ctrl. They should be exceptions.
@@ -723,14 +725,14 @@ kmap.visnetwork().scale_viewport( option_value ).throw_on_error();
         //       And reset_transitions() understands that the Intermediary needs to be placed at the RHS  e.g., `view::make( event_root ) | path`.
         //       Of course... I can't use view_node concepts from JS at this time. Bleh...
         auto const script = 
-R"%%%(
-const fn = function(){ kmap.event_store().reset_transitions( to_VectorString( [ 'subject.network', 'verb.depressed', 'object.keyboard.key' ] ) ).throw_on_error(); };
-setTimeout( fn, option_value );
-)%%%";
-        KMAP_TRY( oclerk_.install_option( "keyboard.key.timeout"
-                                        , "Tells the event system to reset transitions for keyboard keys after given time interval."
-                                        , "1000"
-                                        , script ) );
+        R"%%%(
+            const fn = function(){ kmap.event_store().reset_transitions( to_VectorString( [ 'subject.network', 'verb.depressed', 'object.keyboard.key' ] ) ).throw_on_error(); };
+            setTimeout( fn, option_value );
+        )%%%";
+        KMAP_TRY( oclerk_.register_option( Option{ "keyboard.key.timeout"
+                                                 , "Tells the event system to reset transitions for keyboard keys after given time interval."
+                                                 , "1000"
+                                                 , script } ) );
     }
 
 

@@ -19,6 +19,14 @@ namespace kmap
 
 namespace kmap::com {
 
+struct Option
+{
+    Heading const heading;
+    std::string const descr;
+    std::string const value;
+    std::string const action;
+};
+
 class OptionStore : public Component
 {
 public:
@@ -43,10 +51,7 @@ public:
         -> Result< void >;
     auto option_root()
         -> Uuid;
-    auto install_option( Heading const& heading
-                       , std::string const& descr
-                       , std::string const& value 
-                       , std::string const& action )
+    auto install_option( Option const& option )
         -> Result< Uuid >;
     auto is_option( Uuid const& node )
         -> bool;

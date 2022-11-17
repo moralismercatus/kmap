@@ -155,7 +155,12 @@ auto CommandClerk::check_registered( Argument const& arg )
     }
     else
     {
-        KTRY( install_argument( arg ) );
+        auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Argument '{}' out of date.\\nRe-install argument?\" );", arg.path ) ) );
+
+        if( reinstall )
+        {
+            KTRY( install_argument( arg ) );
+        }
     }
 
     rv = outcome::success();
@@ -219,7 +224,12 @@ auto CommandClerk::check_registered( Command const& cmd )
     }
     else
     {
-        KTRY( install_command( cmd ) );
+        auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Command '{}' out of date.\\nRe-install command?\" );", cmd.path ) ) );
+
+        if( reinstall )
+        {
+            KTRY( install_command( cmd ) );
+        }
     }
 
     rv = outcome::success();

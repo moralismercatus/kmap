@@ -26,10 +26,10 @@ namespace kmap::com {
 
 class TextArea : public Component
 {
+    OptionClerk oclerk_;
     com::EventClerk eclerk_;
     std::vector< js::ScopedCode > scoped_events_ = {};
     com::CommandClerk cclerk_;
-    option::OptionClerk oclerk_;
 
 public:
     static constexpr auto id = "text_area";
@@ -51,11 +51,11 @@ public:
         -> void;
     auto register_standard_commands()
         -> void;
+    auto register_standard_options()
+        -> Result< void >;
     auto register_standard_outlets()
         -> void;
     auto install_event_sources()
-        -> Result< void >;
-    auto install_standard_options()
         -> Result< void >;
     auto load_preview( Uuid const& node )
         -> Result< void >;

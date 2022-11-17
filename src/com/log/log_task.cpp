@@ -53,7 +53,7 @@ struct LogTask : public Component
         : Component{ kmap, requisites, description }
         , eclerk_{ kmap }
     {
-        register_standard_events();
+        KTRYE( register_standard_events() );
     }
     virtual ~LogTask() = default;
 

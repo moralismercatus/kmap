@@ -47,7 +47,7 @@ auto operator<<( std::ostream&, Position2D const& )
  */
 class VisualNetwork : public Component
 {
-    option::OptionClerk oclerk_;
+    OptionClerk oclerk_;
     EventClerk eclerk_;
     std::shared_ptr< emscripten::val > js_nw_; // TODO: Use unique_ptr. Again, some reason destructor and fwd decl don't seem to work with unique_ptr.
 
@@ -112,8 +112,6 @@ public:
     [[ nodiscard ]]
     auto get_appropriate_node_font_face( Uuid const& id ) const // TODO: Should be from option?
         -> std::string;
-    auto install_standard_options()
-        -> Result< void >;
     [[ nodiscard ]]
     auto nodes() const
         -> std::vector< Uuid >;
@@ -123,6 +121,8 @@ public:
     auto erase_node( Uuid const& id )
         -> Result< void >;
     auto register_standard_events()
+        -> Result< void >;
+    auto register_standard_options()
         -> Result< void >;
     auto remove_nodes()
         -> void;

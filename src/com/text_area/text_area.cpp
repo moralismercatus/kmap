@@ -30,11 +30,12 @@ TextArea::TextArea( Kmap& kmap
                   , std::string const& description )
     : Component( kmap, requisites, description )
     , eclerk_{ kmap, { TextArea::id } }
-    , cclerk_{ kmap }
     , oclerk_{ kmap }
+    , cclerk_{ kmap }
 {
     register_standard_commands();
     register_standard_outlets();
+    KTRYE( register_standard_options() );
 }
 
 auto TextArea::initialize()
@@ -43,9 +44,9 @@ auto TextArea::initialize()
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( install_event_sources() );
+    KTRY( oclerk_.install_registered() );
     KTRY( cclerk_.install_registered() );
     KTRY( eclerk_.install_registered() );
-    KTRY( install_standard_options() );
 
     KTRY( apply_static_options() );
 
@@ -61,6 +62,7 @@ auto TextArea::load()
 
     KTRY( install_event_sources() );
     KTRY( apply_static_options() );
+    KTRY( oclerk_.check_registered() );
     KTRY( cclerk_.check_registered() );
     KTRY( eclerk_.check_registered() );
 
@@ -198,6 +200,60 @@ SCENARIO( "edit.body", "[cmd][text_area][edit.body]" ) // TODO: Move to text_are
     }
 }
 
+auto TextArea::register_standard_options()
+    -> Result< void >
+{
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    // Preview
+    KTRY( oclerk_.register_option( Option{ "canvas.preview.background.color"
+                                        , "Sets the background color for the preview pane."
+                                        , "\"#222222\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.preview.text.color"
+                                        , "Sets the text color for the preview pane."
+                                        , "\"white\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.color = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.preview.text.size"
+                                        , "Text size."
+                                        , "\"x-large\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.fontSize = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.preview.scrollbar"
+                                        , "Specify scroll bar."
+                                        , "\"auto\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.overflow = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.preview.whitespace_wrap"
+                                        , "Specify scroll behavior."
+                                        , "\"normal\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.whiteSpace = option_value;" } ) );
+    // Editor
+    KTRY( oclerk_.register_option( Option{ "canvas.editor.background.color"
+                                        , "Sets the background color for the editor pane."
+                                        , "\"#222222\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.editor.text.color"
+                                        , "Sets the text color for the editor pane."
+                                        , "\"white\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.color = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.editor.text.size"
+                                        , "Text size."
+                                        , "\"x-large\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.fontSize = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.editor.scrollbar"
+                                        , "Specify scroll behavior."
+                                        , "\"auto\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.overflow = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ "canvas.editor.whitespace_wrap"
+                                        , "Specify scroll behavior."
+                                        , "\"normal\""
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.whiteSpace = option_value;" } ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+
 auto TextArea::register_standard_outlets()
     -> void
 {
@@ -238,59 +294,6 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() 
 
         scoped_events_.emplace_back( ctor, dtor );
     }
-
-    rv = outcome::success();
-
-    return rv;
-}
-
-auto TextArea::install_standard_options()
-    -> Result< void >
-{
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    // Preview
-    KTRY( oclerk_.install_option( "canvas.preview.background.color"
-                                , "Sets the background color for the preview pane."
-                                , "\"#222222\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.preview.text.color"
-                                , "Sets the text color for the preview pane."
-                                , "\"white\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.color = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.preview.text.size"
-                                , "Text size."
-                                , "\"x-large\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.preview.scrollbar"
-                                , "Specify scroll bar."
-                                , "\"auto\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.preview.whitespace_wrap"
-                                , "Specify scroll behavior."
-                                , "\"normal\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
-    // Editor
-    KTRY( oclerk_.install_option( "canvas.editor.background.color"
-                                , "Sets the background color for the editor pane."
-                                , "\"#222222\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.backgroundColor = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.editor.text.color"
-                                , "Sets the text color for the editor pane."
-                                , "\"white\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.color = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.editor.text.size"
-                                , "Text size."
-                                , "\"x-large\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.fontSize = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.editor.scrollbar"
-                                , "Specify scroll behavior."
-                                , "\"auto\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.overflow = option_value;" ) );
-    KTRY( oclerk_.install_option( "canvas.editor.whitespace_wrap"
-                                , "Specify scroll behavior."
-                                , "\"normal\""
-                                , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.whiteSpace = option_value;" ) );
 
     rv = outcome::success();
 

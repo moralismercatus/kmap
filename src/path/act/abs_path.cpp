@@ -69,7 +69,7 @@ auto operator|( Intermediary const& i, AbsPath const& op )
             return KMAP_MAKE_ERROR( error_code::common::uncategorized );
         }
     }() );
-    auto const rhs = KTRY( [ & ] -> Result< Uuid >
+    auto const rhs = KTRY( [ & ]() -> Result< Uuid >
     {
         if( auto const ns = i | view::to_node_set( op.km )
           ; ns.size() == 1 )
@@ -81,7 +81,7 @@ auto operator|( Intermediary const& i, AbsPath const& op )
             return KMAP_MAKE_ERROR( error_code::common::uncategorized );
         }
     }() );
-    auto const [ root, desc ] = KTRY( [ & ] -> Result< std::pair< Uuid, Uuid > >
+    auto const [ root, desc ] = KTRY( [ & ]() -> Result< std::pair< Uuid, Uuid > >
     {
         if( is_ancestor( *nw, lhs, rhs ) )
         {

@@ -17,6 +17,7 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/node_view.hpp"
+#include "util/script/script.hpp"
 
 #include <boost/variant.hpp>
 
@@ -62,29 +63,26 @@ auto OptionStore::option_root()
 }
 
 // TODO: Should install_option() reject pre-existing headings, to avoid copy-paste mistakes, and use update_option() instead?
-auto OptionStore::install_option( Heading const& heading
-                                , std::string const& descr
-                                , std::string const& value 
-                                , std::string const& action  )
+auto OptionStore::install_option( Option const& option )
     -> Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
-    KMAP_ENSURE( js::lint( action ), error_code::js::lint_failed );
+    KMAP_ENSURE( js::lint( option.action ), error_code::js::lint_failed );
 
-    auto const action_body = fmt::format( "```javascript\n{}\n```", action );
+    auto const action_body = util::to_js_body_code( js::beautify( option.action ) );
 
     KMAP_ENSURE( cmd::parser::parse_body_code( action_body ), error_code::parser::parse_failed );
 
     auto const vopt = view::make( option_root() )
-                    | view::direct_desc( heading );
+                    | view::direct_desc( option.heading );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
     KTRY( nw->update_body( KTRY( vopt | view::direct_desc( "description" ) | view::fetch_or_create_node( km ) )
-                         , descr ) );
+                         , option.descr ) );
     KTRY( nw->update_body( KTRY( vopt | view::direct_desc( "value" ) | view::fetch_or_create_node( km ) )
-                         , value ) );
+                         , option.value ) );
     KTRY( nw->update_body( KTRY( vopt | view::direct_desc( "action" ) | view::fetch_or_create_node( km ) )
                          , action_body ) );
 
