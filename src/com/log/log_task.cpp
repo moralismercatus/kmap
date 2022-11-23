@@ -89,14 +89,14 @@ struct LogTask : public Component
         auto rv = KMAP_MAKE_RESULT( void );
 
         // Note: Under domain of "log", as no change is actually made to task, all changes made to log.
-        eclerk_.register_outlet( Leaf{ .heading = "log.add_task_on_task_opening"
-                                     , .requisites = { "subject.task_store", "verb.opened", "object.task" }
+        eclerk_.register_outlet( Leaf{ .heading = "log.add_task_when_task_activated"
+                                     , .requisites = { "subject.task_store", "verb.activated", "object.task" }
                                      , .description = "adds task to log task list when a task is opened"
                                      , .action = R"%%%(kmap.log_task().push_task_to_log();)%%%" } );
-        eclerk_.register_outlet( Leaf{ .heading = "log.add_open_tasks_on_daly_log_creation"
+        eclerk_.register_outlet( Leaf{ .heading = "log.add_active_tasks_on_daily_log_creation"
                                      , .requisites = { "subject.log", "verb.created", "object.daily" }
-                                     , .description = "adds open tasks to task list when new daily log is created"
-                                     , .action = R"%%%(kmap.log_task().push_open_tasks_to_log();)%%%" } );
+                                     , .description = "adds active tasks to task list when new daily log is created"
+                                     , .action = R"%%%(kmap.log_task().push_active_tasks_to_log();)%%%" } );
         
         rv = outcome::success();
 
@@ -125,30 +125,30 @@ struct LogTask : public Component
         return rv;
     }
 
-    auto push_open_tasks_to_log()
+    auto push_active_tasks_to_log()
         -> Result< void >
     {
         auto& km = kmap_inst();
         auto const tag_store = KTRY( fetch_component< TagStore >() );
-        auto const open_tag = KTRY( tag_store->fetch_tag( "status.open" ) ); // TODO: Possible to be ambiguous. If another "status.open'tag" exists, would return ambiguous.
-        auto const has_open_tag = [ & ]( Uuid const& n )
+        auto const active_tag = KTRY( tag_store->fetch_tag( "task.status.open.active" ) ); 
+        auto const has_active_tag = [ & ]( Uuid const& n )
         {
-            return tag_store->has_tag( n, open_tag );
+            return tag_store->has_tag( n, active_tag );
         };
         auto rv = KMAP_MAKE_RESULT( void );
         auto const task_root = KTRY( fetch_task_root( km ) );
-        auto const open_tasks = view::make( task_root )
-                              | view::child( view::PredFn{ has_open_tag } )
+        auto const active_tasks = view::make( task_root )
+                              | view::child( view::PredFn{ has_active_tag } ) // TODO: Need view::task instead of view::child, as a non-task could be a child.
                               | view::to_node_set( km )
                               | act::order( km );
         auto const dl = KTRY( com::fetch_or_create_daily_log( km ) );
 
-fmt::print( "open_tasks.size(): {}\n", open_tasks.size() );
-        for( auto const& open_task : open_tasks )
+fmt::print( "active_tasks.size(): {}\n", active_tasks.size() );
+        for( auto const& active_task : active_tasks )
         {
             KTRY( view::make( dl )
                 | view::child( "task" )
-                | view::alias( view::Alias::Src{ open_task } ) // TODO: Why not view::alias( open_tasks [UuidVec]? )
+                | view::alias( view::Alias::Src{ active_task } ) // TODO: Why not view::alias( open_tasks [UuidVec]? )
                 | view::fetch_or_create_node( km ) );
         }
         
@@ -158,7 +158,7 @@ fmt::print( "open_tasks.size(): {}\n", open_tasks.size() );
     }
 };
 
-SCENARIO( "push open tasks to log", "[cmd][log][task]" )
+SCENARIO( "push active tasks to new daily log", "[cmd][log][task]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "log_task", "cli" );
 
@@ -257,7 +257,7 @@ SCENARIO( "push open tasks to log", "[cmd][log][task]" )
             {
                 REQUIRE_RES( cli->parse_raw( ":create.daily.log" ) );
 
-                THEN( "open task pushed to daily log" )
+                THEN( "active task pushed to daily log" )
                 {
                     auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
                     auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
@@ -323,10 +323,10 @@ struct LT
     {
         return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_task_to_log();
     }
-    auto push_open_tasks_to_log()
+    auto push_active_tasks_to_log()
         -> kmap::binding::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_open_tasks_to_log();
+        return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_active_tasks_to_log();
     }
 };
 
@@ -361,6 +361,6 @@ EMSCRIPTEN_BINDINGS( kmap_com_log_task )
 
     class_< LT >( "LogTask" )
         .function( "push_task_to_log", &::LT::push_task_to_log )
-        .function( "push_open_tasks_to_log", &::LT::push_open_tasks_to_log )
+        .function( "push_active_tasks_to_log", &::LT::push_active_tasks_to_log )
         ;
 }

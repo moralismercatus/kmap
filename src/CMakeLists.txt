@@ -198,8 +198,8 @@ add_executable( emcc.index.html
 
 set_target_properties( emcc.index.html
                        PROPERTIES
-					       OUTPUT_NAME "emcc.index"
-                           SUFFIX ".html" )
+                       OUTPUT_NAME "emcc.index"
+                       SUFFIX ".html" )
 
 add_dependencies( emcc.index.html
                   boost

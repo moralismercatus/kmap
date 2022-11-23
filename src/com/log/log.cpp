@@ -344,6 +344,6 @@ using namespace emscripten;
 
 //     class_< LT >( "LogStore" )
 //         .function( "push_task_to_log", &::LT::push_task_to_log )
-//         .function( "push_open_tasks_to_log", &::LT::push_open_tasks_to_log )
+//         .function( "push_active_tasks_to_log", &::LT::push_active_tasks_to_log )
 //         ;
 // }

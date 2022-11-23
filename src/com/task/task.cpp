@@ -17,6 +17,7 @@
 #include "utility.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <range/v3/algorithm/stable_sort.hpp>
 
 namespace kmap::com {
 
@@ -79,7 +80,7 @@ auto TaskStore::cascade_tags( Uuid const& task )
     auto& km = kmap_inst();
     auto const tag_store = KTRY( fetch_component< TagStore >() );
     auto const rtags = view::make( task )
-                     | view::tag // further refine: exclude tags from tag.status (open, close, etc.). We don't want these tags to cascade. They're individual statuses for each node.
+                     | view::tag( view::none_of( "task.status.open.active", "task.status.open.inactive", "task.status.closed" ) )
                      | view::resolve
                      | view::to_node_set( km );
 
@@ -140,42 +141,55 @@ auto TaskStore::create_task( std::string const& title )
         | view::child( view::all_of( "problem", "result" ) )
         | view::create_node( km ) );
 
-    KTRY( tag_store->fetch_or_create_tag( "status.open" ) );
+    KTRY( tag_store->fetch_or_create_tag( "task.status.open.active" ) );
     
     KTRY( eclerk_.fire_event( { "subject.task_store", "verb.created", "object.task" }, to_string( task ) ) );
 
-    KTRY( open_task( task ) );
+    KTRY( activate_task( task ) );
+
+    KTRY( nw->set_ordering_position( task, 0 ) );
 
     rv = task;
 
     return rv;
 }
 
-SCENARIO( "create_task", "[task][create]" )
+SCENARIO( "create_task", "[task][create][tag][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
 
-    auto& kmap = Singleton::instance();
-    auto const tstore = REQUIRE_TRY( kmap.fetch_component< TaskStore >() );
+    auto& km = Singleton::instance();
+    auto const tstore = REQUIRE_TRY( km.fetch_component< com::TaskStore >() );
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
 
     GIVEN( "no tasks" )
     {
-        WHEN( "create task" )
+        GIVEN( "create.task 1" )
         {
             auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
 
-            THEN( "structure matches" )
+            THEN( "structure correct" )
             {
                 REQUIRE( 2 == ( view::make( t1 ) 
                               | view::child( view::all_of( "problem", "result" ) )
-                              | view::count( kmap ) ) );
+                              | view::count( km ) ) );
             }
-            THEN( "is open and active" )
+            THEN( "1 is open and active" )
             {
+                REQUIRE(( view::make( t1 )
+                        | view::tag( "task.status.open.active" )
+                        | view::exists( km ) ));
             }
-            THEN( "daily log entry made" )
+            GIVEN( "create.task 2" )
             {
-                // TODO: This test belongs in the bridge.
+                auto const t2 = REQUIRE_TRY( tstore->create_task( "2" ) );
+
+                THEN( "task is top of task list" )
+                {
+                    auto const t2_pos = REQUIRE_TRY( nw->fetch_ordering_position( t2 ) );
+
+                    REQUIRE( t2_pos == 0 );
+                }
             }
         }
     }
@@ -252,7 +266,7 @@ auto TaskStore::is_categorized( Uuid const& task ) const
 {
     auto& kmap = kmap_inst();
     auto const nonopen_tags = view::make( task )
-                            | view::tag( view::none_of( "status.open" ) )
+                            | view::tag( view::none_of( "task.status.open.active", "task.status.open.inactive" ) )
                             | view::to_node_set( kmap );
 
     return !nonopen_tags.empty();
@@ -311,10 +325,9 @@ auto TaskStore::close_task( Uuid const& task )
     {
         // Remove open tag if it exists...
         {
-            auto const v = view::make( task )
-                         | view::tag( "status.open" );
-
-            if( v | view::exists( km ) )
+            if( auto const v = view::make( task )
+                         | view::tag( view::any_of( "task.status.open.active", "task.status.open.inactive" ) )
+              ; v | view::exists( km ) )
             {
                 KTRY( v | view::erase_node( km ) );
             }
@@ -328,6 +341,32 @@ auto TaskStore::close_task( Uuid const& task )
                 | view::create_node( km ) );
         }
 
+        // Sort 
+        {
+            auto const task_root = KTRYE( fetch_task_root( km ) );
+            auto tasks = view::make( task_root )
+                             | view::child
+                             | view::to_node_set( km )
+                             | ranges::to< std::vector >();
+            auto const pred = [ & ]( auto const& t1, auto const& t2 )
+            {
+                enum class Status { active, inactive, closed, nontask }; // Ordered.
+                auto const map_status = [ & ]( auto const& n )
+                {
+                         if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )  { return Status::active; }
+                    else if( view::make( n ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ){ return Status::inactive; }
+                    else if( view::make( n ) | view::tag( "task.status.closed" ) | view::exists( km ) )       { return Status::closed; }
+                    else                                                                                      { return Status::nontask; }
+                };
+
+                return map_status( t1 ) <  map_status( t2 );
+            };
+
+            ranges::stable_sort( tasks, pred ); // stable_sort maintains pre-sort order for equivalent items.
+
+            KTRY( nw->reorder_children( task_root, tasks ) );
+        }
+
         KTRY( eclerk_.fire_event( { "subject.task_store", "verb.closed", "object.task" }, to_string( task ) ) );
         // TODO: Provide outlet that moves closed node to top of all open task and subtask lists.
 
@@ -337,34 +376,52 @@ auto TaskStore::close_task( Uuid const& task )
     return rv;
 }
 
-// TODO: unit test...
+SCENARIO( "close_task", "[task][close]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
 
-auto TaskStore::open_task( Uuid const& task )
+    auto& kmap = Singleton::instance();
+    auto const tstore = REQUIRE_TRY( kmap.fetch_component< TaskStore >() );
+
+    GIVEN( "no tasks" )
+    {
+        GIVEN( "close.task 1" )
+        {
+            auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
+        }
+    }
+}
+
+auto TaskStore::activate_task( Uuid const& task )
     -> Result< void >
 {
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = kmap_inst();
+    auto const vactive_tag = view::tag( "task.status.open.active" );
 
-    KMAP_ENSURE( !( view::make( task ) | view::tag( "status.open" ) | view::exists( kmap ) ), error_code::common::uncategorized );
+    KMAP_ENSURE( !( view::make( task ) | vactive_tag | view::exists( kmap ) ), error_code::common::uncategorized ); // TODO: Needs to convey: "task already active"
 
     // Remove closed tag if it exists.
+    if( auto const vt_closed = view::make( task )
+                             | view::tag( "task.status.closed" )
+      ; vt_closed | view::exists( kmap ) )
     {
-        auto const vt_closed = view::make( task )
-                             | view::tag( "status.closed" );
-
-        if( vt_closed | view::exists( kmap ) )
-        {
-            KTRY( vt_closed | view::erase_node( kmap ) );
-        }
+        KTRY( vt_closed | view::erase_node( kmap ) );
+    }
+    if( auto const vt_inactive = view::make( task )
+                               | view::tag( "task.status.open.inactive" )
+      ; vt_inactive | view::exists( kmap ) )
+    {
+        KTRY( vt_inactive | view::erase_node( kmap ) );
     }
     // Append open tag.
     {
-        auto const vt_open = view::make( task )
-                            | view::tag( "status.open" );
-        KTRY( vt_open | view::create_node( kmap ) );
+        auto const vt_active = view::make( task )
+                           | vactive_tag;
+        KTRY( vt_active | view::create_node( kmap ) );
     }
 
-    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.opened", "object.task" }, to_string( task ) ) );
+    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.activated", "object.task" }, to_string( task ) ) );
 
     rv = outcome::success();
 
@@ -383,6 +440,44 @@ auto TaskStore::register_standard_commands()
     {
         // guard: in_task()
         // action: :create.child subtask; :create.alias tag.$ctx.args[0]
+    }
+    // close.task
+    {
+        auto const guard_code = // TODO: Guard should include require: categorized && open
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const selected = kmap.selected_node();
+        const res = kmap.task_store().close_task( selected );
+
+        if( res.has_value() )
+        {
+            kmap.select_node( selected );
+
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( res.error_message() );
+        }
+        )%%%";
+        auto const description = "closes task meeting requirements";
+        auto const arguments = std::vector< Argument >{};
+
+        cclerk_.register_command( com::Command{ .path = "close.task"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", guard_code }
+                                              , .action = action_code } );
     }
     // create.task
     {
@@ -542,11 +637,11 @@ struct TaskStore
     {
         return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->close_task( task );
     }
-    auto open_task( kmap::Uuid const& task )
+    auto activate_task( kmap::Uuid const& task )
                    
         -> kmap::binding::Result< void >
     {
-        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->open_task( task );
+        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->activate_task( task );
     }
     auto is_task( kmap::Uuid const& task )
         -> bool
@@ -574,7 +669,7 @@ EMSCRIPTEN_BINDINGS( kmap_task_store )
         .function( "create_task", &::TaskStore::create_task )
         .function( "create_subtask", &::TaskStore::create_subtask )
         .function( "close_task", &::TaskStore::close_task )
-        .function( "open_task", &::TaskStore::open_task )
+        .function( "activate_task", &::TaskStore::activate_task )
         .function( "is_task", &::TaskStore::is_task )
         ;
 }

@@ -233,7 +233,7 @@ REGISTER_COMMAND
 namespace open_task_def {
 auto const action_code =
 R"%%%(```javascript
-const opened = kmap.task_store().open_task( kmap.selected_node() );
+const opened = kmap.task_store().activate_task( kmap.selected_node() );
 
 if( opened.has_value() )
 {

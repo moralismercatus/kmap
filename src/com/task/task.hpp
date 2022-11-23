@@ -60,7 +60,7 @@ public:
 
     auto close_task( Uuid const& node )
         -> Result< void >;
-    auto open_task( Uuid const& node )
+    auto activate_task( Uuid const& node )
         -> Result< void >;
     
     auto register_standard_commands()

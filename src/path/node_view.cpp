@@ -35,6 +35,8 @@
 
 using namespace kmap::test;
 
+namespace rvs = ranges::views;
+
 namespace kmap::view {
 
 Intermediary const abs_root = []
@@ -251,7 +253,7 @@ auto match( Kmap const& kmap
                     auto const lhs_headings = [ & ] 
                     { 
                         return lhs
-                             | ranges::views::transform( [ & ]( auto const& e ){ return KMAP_TRYE( nw->fetch_heading( e ) ); } ) 
+                             | rvs::transform( [ & ]( auto const& e ){ return KMAP_TRYE( nw->fetch_heading( e ) ); } ) 
                              | ranges::to< std::set >();
                     }();
                     auto const contains_heading = [ & ]( auto const& e ){ return lhs_headings.contains( e ); };
@@ -259,7 +261,7 @@ auto match( Kmap const& kmap
                     if constexpr( std::is_same_v< T, char const* > || std::is_same_v< T, std::string > )
                     {
                         rv = lhs
-                           | ranges::views::filter( [ & ]( auto const& e ){ return KMAP_TRYE( nw->fetch_heading( e ) ) == arg; } )
+                           | rvs::filter( [ & ]( auto const& e ){ return KMAP_TRYE( nw->fetch_heading( e ) ) == arg; } )
                            | ranges::to< UuidSet >();
                     }
                     else if constexpr( std::is_same_v< T, all_of > )
@@ -267,20 +269,20 @@ auto match( Kmap const& kmap
                         if( ranges::all_of( arg.data, contains_heading ) )
                         {
                             rv = lhs
-                               | ranges::views::filter( [ & ]( auto const& e ){ return arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
+                               | rvs::filter( [ & ]( auto const& e ){ return arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
                                | ranges::to< std::set >();
                         }
                     }
                     else if constexpr( std::is_same_v< T, any_of > )
                     {
                         rv = lhs
-                           | ranges::views::filter( [ & ]( auto const& e ){ return arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
+                           | rvs::filter( [ & ]( auto const& e ){ return arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
                            | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, none_of > )
                     {
                         rv = lhs
-                            | ranges::views::filter( [ & ]( auto const& e ){ return !arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
+                            | rvs::filter( [ & ]( auto const& e ){ return !arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
                             | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, exactly > )
@@ -296,7 +298,7 @@ auto match( Kmap const& kmap
 
                         // set_insection
                         rv = lhs
-                           | ranges::views::filter( [ & ]( auto const& e ){ return ns.contains( e ); } )
+                           | rvs::filter( [ & ]( auto const& e ){ return ns.contains( e ); } )
                            | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, Uuid > )
@@ -310,13 +312,13 @@ auto match( Kmap const& kmap
                     {
                         // set_insection
                         rv = lhs
-                           | ranges::views::filter( [ & ]( auto const& e ){ return arg.contains( e ); } )
+                           | rvs::filter( [ & ]( auto const& e ){ return arg.contains( e ); } )
                            | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, PredFn > )
                     {  
                         rv = lhs
-                           | ranges::views::filter( [ & ]( auto const& e ){ return arg( e ); } )
+                           | rvs::filter( [ & ]( auto const& e ){ return arg( e ); } )
                            | ranges::to< std::set >();
                     }
                     else
@@ -368,8 +370,8 @@ auto to_string( SelectionVariant const& sel )
                            else if constexpr( std::is_same_v< T, UuidSet > )
                            {
                                auto const joined = arg 
-                                                 | ranges::views::transform( []( auto const& id ){ return kmap::to_string( id ); } )
-                                                 | ranges::views::join( ',' )
+                                                 | rvs::transform( []( auto const& id ){ return kmap::to_string( id ); } )
+                                                 | rvs::join( ',' )
                                                  | ranges::to< std::string >();
 
                                return fmt::format( "({})\n", joined );
@@ -463,7 +465,7 @@ auto Alias::operator()( Kmap const& kmap
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const children = nw->fetch_children( node );
     auto const alias_children = children
-                              | ranges::views::filter( [ &nw ]( auto const& e ){ return nw->alias_store().is_alias( e ); } )
+                              | rvs::filter( [ &nw ]( auto const& e ){ return nw->alias_store().is_alias( e ); } )
                               | ranges::to< std::set >();
     auto const process_aliases = [ & ]( auto const& parent
                                       , auto const& aliases )
@@ -474,7 +476,7 @@ auto Alias::operator()( Kmap const& kmap
                 util::Dispatch{ [ & ]( std::string const& pred )
                                 {
                                     return aliases
-                                         | ranges::views::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e ) ); } ) 
+                                         | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e ) ); } ) 
                                          | ranges::to< std::set >();
                                 } 
                               , [ & ]( Uuid const& pred )
@@ -491,7 +493,7 @@ auto Alias::operator()( Kmap const& kmap
                               , [ & ]( Src const& pred )
                                 {
                                     auto const resolved = aliases
-                                                        | ranges::views::transform( [ & ]( auto const& e ){ return nw->resolve( e ); } )
+                                                        | rvs::transform( [ & ]( auto const& e ){ return nw->resolve( e ); } )
                                                         | ranges::to< std::set >();
                                     if( resolved.contains( pred.value() ) )
                                     {
@@ -505,8 +507,8 @@ auto Alias::operator()( Kmap const& kmap
                               , [ & ]( Dst const& pred )
                                 {
                                     auto const resolved = aliases
-                                                        | ranges::views::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_parent( e ) ); } )
-                                                        | ranges::views::transform( [ & ]( auto const& e ){ return nw->resolve( e ); } )
+                                                        | rvs::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_parent( e ) ); } )
+                                                        | rvs::transform( [ & ]( auto const& e ){ return nw->resolve( e ); } )
                                                         | ranges::to< std::set >();
                                     if( resolved.contains( pred.value() ) )
                                     {
@@ -520,7 +522,7 @@ auto Alias::operator()( Kmap const& kmap
                               , [ & ]( UuidSet const& pred )
                                 {
                                     return aliases
-                                         | ranges::views::filter( [ & ]( auto const& e ){ return pred.contains( e ); } )
+                                         | rvs::filter( [ & ]( auto const& e ){ return pred.contains( e ); } )
                                          | ranges::to< std::set >();
                                 } 
                               , [ & ]( Intermediary const& pred )
@@ -528,13 +530,13 @@ auto Alias::operator()( Kmap const& kmap
                                     auto const ns = pred | view::to_node_set( kmap );
 
                                     return aliases
-                                         | ranges::views::filter( [ & ]( auto const& e ){ return ns.contains( e ); } )
+                                         | rvs::filter( [ & ]( auto const& e ){ return ns.contains( e ); } )
                                          | ranges::to< std::set >();
                                 } 
                               , [ & ]( PredFn const& pred )
                                 {
                                     return aliases
-                                         | ranges::views::filter( [ & ]( auto const& e ){ return pred( e ); } )
+                                         | rvs::filter( [ & ]( auto const& e ){ return pred( e ); } )
                                          | ranges::to< std::set >();
                                 } };
 
@@ -865,7 +867,7 @@ auto Desc::operator()( Kmap const& kmap
                                         else if constexpr( std::is_same_v< T, all_of > )
                                         {
                                             auto const all_of_sets = arg.data
-                                                                   | ranges::views::transform( [ & ]( auto const& e )
+                                                                   | rvs::transform( [ & ]( auto const& e )
                                                                      {
                                                                         auto as = UuidSet{};
                                                                         if( auto const dr = decide_path( kmap, node, node, e )
@@ -922,7 +924,7 @@ auto Desc::operator()( Kmap const& kmap
                                                     }
                                                 }
 
-                                                rset = ranges::views::set_difference( allset, noneset )
+                                                rset = rvs::set_difference( allset, noneset )
                                                      | ranges::to< UuidSet >();
                                             } 
                                         }
@@ -993,7 +995,7 @@ auto Desc::operator()( Kmap const& kmap
     }
 
     rv = rv
-       | ranges::views::filter( [ &node ]( auto const& e ){ return e != node; } )
+       | rvs::filter( [ &node ]( auto const& e ){ return e != node; } )
        | ranges::to< UuidSet >();
 
     return rv;
@@ -1093,7 +1095,7 @@ auto DirectDesc::operator()( Kmap const& kmap
                                         else if constexpr( std::is_same_v< T, all_of > )
                                         {
                                             auto const all_of_sets = arg.data
-                                                                   | ranges::views::transform( [ & ]( auto const& e )
+                                                                   | rvs::transform( [ & ]( auto const& e )
                                                                      {
                                                                         auto as = UuidSet{};
                                                                         if( auto const dr = decide_path( kmap, node, node, make_direct( e ) )
@@ -1114,7 +1116,7 @@ auto DirectDesc::operator()( Kmap const& kmap
                                                 }
                                             }
                                             for( auto const& e : arg.data
-                                                               | ranges::views::transform( make_direct ) )
+                                                               | rvs::transform( make_direct ) )
                                             {
                                                 if( auto const dr = decide_path( kmap, node, node, e )
                                                   ; dr )
@@ -1130,7 +1132,7 @@ auto DirectDesc::operator()( Kmap const& kmap
                                             auto rset = UuidSet{};
 
                                             for( auto const& e : arg.data
-                                                               | ranges::views::transform( make_direct ) )
+                                                               | rvs::transform( make_direct ) )
                                             {
                                                 if( auto const dr = decide_path( kmap, node, node, e )
                                                   ; dr )
@@ -1196,7 +1198,7 @@ auto DirectDesc::operator()( Kmap const& kmap
     }
 
     rv = rv
-       | ranges::views::filter( [ &node ]( auto const& e ){ return e != node; } )
+       | rvs::filter( [ &node ]( auto const& e ){ return e != node; } )
        | ranges::to< UuidSet >();
 
     return rv;
@@ -1509,11 +1511,11 @@ auto Tag::operator()( Kmap const& kmap
     -> UuidSet
 {
     auto rv = UuidSet{};
-    auto const tags = view::make( node )
-                    | view::attr
-                    | view::child( "tag" )
-                    | view::alias
-                    | view::to_node_set( kmap );
+    auto const all_node_tags = view::make( node )
+                             | view::attr
+                             | view::child( "tag" )
+                             | view::alias
+                             | view::to_node_set( kmap );
 
     if( selection )
     {
@@ -1523,9 +1525,9 @@ auto Tag::operator()( Kmap const& kmap
                                               using T = std::decay_t< decltype( arg ) >;
 
                                               auto sel = KMAP_MAKE_RESULT( UuidSet );
-                                              auto const rtags = tags
-                                                               | ranges::views::transform( [ &nw ]( auto const& t ){ return nw->resolve( t ); } )
-                                                               | ranges::to< std::set >();
+                                              auto const all_node_rtags = all_node_tags
+                                                                        | rvs::transform( [ &nw ]( auto const& t ){ return nw->resolve( t ); } )
+                                                                        | ranges::to< std::set >();
                                               auto const tstore = KTRY( kmap.fetch_component< com::TagStore >() );
 
                                               if constexpr( std::is_same_v< T, char const* >
@@ -1533,40 +1535,74 @@ auto Tag::operator()( Kmap const& kmap
                                               {
                                                   auto const ft = KTRY( tstore->fetch_tag( arg ) );
 
-                                                  sel = tags
-                                                      | ranges::views::filter( [ & ]( auto const& t ){ return nw->resolve( t ) == ft; } )
+                                                  sel = all_node_tags
+                                                      | rvs::filter( [ & ]( auto const& t ){ return nw->resolve( t ) == ft; } )
                                                       | ranges::to< UuidSet >();
                                               }
                                               else if constexpr( std::is_same_v< T, all_of > )
                                               {
-                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                                  auto const pred_tags = arg.data
+                                                                       | rvs::transform( [ & ]( auto const& t ){ return tstore->fetch_tag( t ); } )
+                                                                       | rvs::filter( []( auto const& rt ){ return rt.has_value(); } )
+                                                                       | rvs::transform( []( auto const& t ){ return t.value(); } )
+                                                                       | ranges::to< UuidSet >();
+                                                  auto const ftags = all_node_tags
+                                                                   | rvs::filter( [ & ]( auto const& t ){ return pred_tags.contains( nw->resolve( t ) ); } )
+                                                                   | ranges::to< UuidSet >();
+
+                                                  if( ftags.size() == arg.data.size() )
+                                                  {
+                                                      sel = ftags;
+                                                  }
                                               }
                                               else if constexpr( std::is_same_v< T, any_of > )
                                               {
-                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                                  auto const pred_tags = arg.data
+                                                                       | rvs::transform( [ & ]( auto const& p ){ return tstore->fetch_tag( p ); } )
+                                                                       | rvs::filter( []( auto const& rt ){ return rt.has_value(); } )
+                                                                       | rvs::transform( []( auto const& t ){ return t.value(); } )
+                                                                       | ranges::to< UuidSet >();
+                                                  auto const ftags = all_node_tags
+                                                                   | rvs::filter( [ & ]( auto const& t ){ return pred_tags.contains( nw->resolve( t ) ); } )
+                                                                   | ranges::to< UuidSet >();
+
+                                                  sel = ftags;
                                               }
                                               else if constexpr( std::is_same_v< T, none_of > )
                                               {
-                                                  auto const tag_matches = arg.data
-                                                                         | ranges::views::transform( [ & ]( auto const& t ){ return tstore->fetch_tag( t ); } )
-                                                                         | ranges::views::filter( []( auto const& rt ){ return rt.has_value(); } )
-                                                                         | ranges::views::transform( []( auto const& t ){ return t.value(); } )
-                                                                         | ranges::to< UuidSet >();
+                                                  auto const pred_tags = arg.data
+                                                                       | rvs::transform( [ & ]( auto const& p ){ return tstore->fetch_tag( p ); } )
+                                                                       | rvs::filter( []( auto const& rt ){ return rt.has_value(); } )
+                                                                       | rvs::transform( []( auto const& t ){ return t.value(); } )
+                                                                       | ranges::to< UuidSet >();
+                                                  auto const ftags = all_node_tags
+                                                                   | rvs::filter( [ & ]( auto const& t ){ return !pred_tags.contains( nw->resolve( t ) ); } )
+                                                                   | ranges::to< UuidSet >();
 
-                                                  sel = tags
-                                                      | ranges::views::filter( [ & ]( auto const& t ){ return !tag_matches.contains( nw->resolve( t ) ); } )
-                                                      | ranges::to< UuidSet >();
+                                                  sel = ftags;
                                               }
                                               else if constexpr( std::is_same_v< T, exactly > )
                                               {
-                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                                  auto const pred_tags = arg.data
+                                                                       | rvs::transform( [ & ]( auto const& t ){ return tstore->fetch_tag( t ); } )
+                                                                       | rvs::filter( []( auto const& rt ){ return rt.has_value(); } )
+                                                                       | rvs::transform( []( auto const& t ){ return t.value(); } )
+                                                                       | ranges::to< UuidSet >();
+                                                  auto const ftags = all_node_tags
+                                                                   | rvs::filter( [ & ]( auto const& t ){ return pred_tags.contains( nw->resolve( t ) ); } )
+                                                                   | ranges::to< UuidSet >();
+
+                                                  if( ftags.size() == all_node_tags.size() )
+                                                  {
+                                                      sel = ftags;
+                                                  }
                                               }
                                               else if constexpr( std::is_same_v< T, Intermediary > )
                                               {
                                                   auto ts = UuidSet{};
                                                   for( auto const& tag : arg | view::to_node_set( kmap ) )
                                                   {
-                                                      if( rtags.contains( tag ) )
+                                                      if( all_node_rtags.contains( tag ) )
                                                       {
                                                           ts.emplace( tag );
                                                       }
@@ -1575,7 +1611,7 @@ auto Tag::operator()( Kmap const& kmap
                                               }
                                               else if constexpr( std::is_same_v< T, Uuid > )
                                               {
-                                                  if( rtags.contains( arg ) )
+                                                  if( all_node_rtags.contains( arg ) )
                                                   {
                                                       sel = UuidSet{ arg };
                                                   }
@@ -1585,7 +1621,7 @@ auto Tag::operator()( Kmap const& kmap
                                                   auto ts = UuidSet{};
                                                   for( auto const& tag : arg )
                                                   {
-                                                      if( rtags.contains( tag ) )
+                                                      if( all_node_rtags.contains( tag ) )
                                                       {
                                                           ts.emplace( tag );
                                                       }
@@ -1594,7 +1630,11 @@ auto Tag::operator()( Kmap const& kmap
                                               }
                                               else if constexpr( std::is_same_v< T, PredFn > )
                                               {  
-                                                  KMAP_THROW_EXCEPTION_MSG( "TODO" );
+                                                  auto const ftags = all_node_tags
+                                                                   | rvs::filter( [ & ]( auto const& t ){ return arg( t ); } )
+                                                                   | ranges::to< UuidSet >();
+
+                                                  sel = ftags;
                                               }
                                               else
                                               {
@@ -1612,10 +1652,131 @@ auto Tag::operator()( Kmap const& kmap
     }
     else
     {
-        rv = tags;
+        rv = all_node_tags;
     }
 
     return rv;
+}
+
+SCENARIO( "view::Tag::operator()", "[node_view][tag]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "tag_store" );
+
+    auto& km = Singleton::instance();
+    auto const tstore = REQUIRE_TRY( km.fetch_component< com::TagStore >() );
+    // auto const nw = REQUIRE_TRY( kmap.fetch_component< com::Network >() );
+    auto const root = km.root_node_id();
+
+    GIVEN( "root" )
+    {
+        GIVEN( "child to be tagged" )
+        {
+            auto const n1 = REQUIRE_TRY( view::make( root ) | view::child( "1" ) | view::create_node( km ) );
+
+            GIVEN( "tags 1,2,3" )
+            {
+                auto const t1 = REQUIRE_TRY( tstore->create_tag( "1" ) );
+                auto const t2 = REQUIRE_TRY( tstore->create_tag( "2" ) );
+                auto const t3 = REQUIRE_TRY( tstore->create_tag( "3" ) );
+                auto const t4 = REQUIRE_TRY( tstore->create_tag( "4" ) );
+
+                WHEN( "tag node with 1,2,3" )
+                {
+                    REQUIRE_TRY( view::make( n1 )
+                               | view::tag( view::all_of( "1", "2", "3" ) )
+                               | view::create_node( km ) );
+                    
+                    THEN( "view::tag( '2' ) == [ '2' ]" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( "2" )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 1 );
+                        REQUIRE( ns.contains( t2 ) );
+                    }
+                    THEN( "view::tag( any_of( '1', '2', '4' ) ) == [ '1', '2' ]" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( view::any_of( "1", "2", "4" ) )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 2 );
+                        REQUIRE( ns.contains( t1 ) );
+                        REQUIRE( ns.contains( t2 ) );
+                    }
+                    THEN( "view::tag( all_of( '1', '2' ) ) == [ '1', '2' ]" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( view::all_of( "1", "2" ) )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 2 );
+                        REQUIRE( ns.contains( t1 ) );
+                        REQUIRE( ns.contains( t2 ) );
+                    }
+                    THEN( "view::tag( all_of( '1', '2', '4' ) ) == []" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( view::all_of( "1", "2", "4" ) )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 0 );
+                    }
+                    THEN( "view::tag( none_of( '1', '2' ) ) == [ '3' ]" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( view::none_of( "1", "2" ) )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 1 );
+                        REQUIRE( ns.contains( t3 ) );
+                    }
+                    THEN( "view::tag( exactly( '1', '2', '3' ) ) == [ '1', '2', '3' ]" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( view::exactly( "1", "2", "3" ) )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 3 );
+                        REQUIRE( ns.contains( t1 ) );
+                        REQUIRE( ns.contains( t2 ) );
+                        REQUIRE( ns.contains( t3 ) );
+                    }
+                    THEN( "view::tag( exactly( '1', '2' ) ) == []" )
+                    {
+                        auto const ns = view::make( n1 )
+                                      | view::tag( view::exactly( "1", "2" ) )
+                                      | view::resolve
+                                      | view::to_node_set( km );
+                        REQUIRE( ns.size() == 0 );
+                    }
+
+                    WHEN( "erase.tag 2" )
+                    {
+                        REQUIRE_TRY(( view::make( n1 )
+                                    | view::tag( "2" )
+                                    | view::erase_node( km ) ));
+
+                        THEN( "view::tag( exactly( '1', '3' ) ) == []" )
+                        {
+                            auto const ns = view::make( n1 )
+                                          | view::tag( view::exactly( "1", "3" ) )
+                                          | view::resolve
+                                          | view::to_node_set( km );
+                            REQUIRE( ns.size() == 2 );
+
+                            auto const troot = REQUIRE_TRY( tstore->fetch_tag_root() );
+                            // Ensure source tag wasn't erased, too.
+                            REQUIRE(( view::make( troot )
+                                    | view::child( "2" )
+                                    | view::exists( km ) ));
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 auto Tag::create( Kmap& kmap
@@ -1904,7 +2065,7 @@ auto operator|( Intermediary const& i
     auto const nw = KTRYE( ths_op.kmap.fetch_component< com::Network >() );
 
     return ns
-         | ranges::views::transform( [ &nw ]( auto const& n ){ return KTRYE( nw->fetch_heading( n ) ); } )
+         | rvs::transform( [ &nw ]( auto const& n ){ return KTRYE( nw->fetch_heading( n ) ); } )
          | ranges::to< std::set >;
 }
 
@@ -1987,7 +2148,7 @@ auto operator|( Intermediary const& i
     auto ns = i.root;
 
     for( auto const& op : i.op_chain
-                        | ranges::views::drop_last( 1 ) )
+                        | rvs::drop_last( 1 ) )
     {
         if( ns.empty() )
         {
@@ -2060,7 +2221,7 @@ auto operator|( Intermediary const& i
     auto ns = i.root;
 
     for( auto const& op : i.op_chain
-                        | ranges::views::drop_last( 1 ) )
+                        | rvs::drop_last( 1 ) )
     {
         if( ns.empty() )
         {

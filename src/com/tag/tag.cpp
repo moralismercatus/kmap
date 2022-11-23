@@ -121,6 +121,31 @@ auto TagStore::register_standard_commands()
                                               , .guard = Guard{ "unconditional", guard_code }
                                               , .action = action_code } );
     }
+    // erase.tag
+    {
+        auto const guard_code =
+        R"%%%(
+            return kmap.success( 'unconditional' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+            kmap.tag_store().erase_tag( kmap.selected_node(), args.get( 0 ) ).throw_on_error();
+
+            kmap.select_node( kmap.selected_node() );
+
+            return kmap.success( 'success' );
+        )%%%";
+        auto const description = "erases node tag";
+        auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
+                                                                , "tag path"
+                                                                , "tag_path" } };
+
+        cclerk_.register_command( com::Command{ .path = "erase.tag"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_tagged_node", guard_code }
+                                              , .action = action_code } );
+    }
     // tag.node
     {
         auto const guard_code =
@@ -375,6 +400,21 @@ struct TagStore
 
         return tstore->create_tag( path );
     }
+    auto erase_tag( Uuid const& node
+                  , std::string const& tpath )
+        -> kmap::binding::Result< void >
+    {
+        auto rv = KMAP_MAKE_RESULT( void );
+        auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
+
+        KTRY( view::make( node )
+            | view::tag( tpath )
+            | view::erase_node( kmap_ ) );
+
+        rv = outcome::success();
+
+        return rv;
+    }
     auto tag_node( Uuid const& node
                  , std::string const& path )
         -> kmap::binding::Result< Uuid >
@@ -398,6 +438,7 @@ EMSCRIPTEN_BINDINGS( kmap_tag_store )
     function( "tag_store", &kmap::com::binding::tag_store );
     class_< kmap::com::binding::TagStore >( "TagStore" )
         .function( "create_tag", &kmap::com::binding::TagStore::create_tag )
+        .function( "erase_tag", &kmap::com::binding::TagStore::erase_tag )
         .function( "tag_node", &kmap::com::binding::TagStore::tag_node )
         ;
 }
