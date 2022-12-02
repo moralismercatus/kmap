@@ -78,7 +78,10 @@ auto push_genesis( Kmap& kmap
                  , Uuid const& node )
     -> Result< Uuid >
 {
-	auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "genesis", node );
+
+	auto rv = result::make_result< Uuid >();
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
@@ -109,7 +112,11 @@ auto push_order( Kmap& kmap
                , Uuid const& child )
     -> Result< Uuid >
 {
-	auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_NODE( "child", child );
+
+	auto rv = result::make_result< Uuid >();
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
@@ -160,7 +167,11 @@ auto pop_order( Kmap& kmap
               , Uuid const& child )
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_NODE( "child", child );
+
+    auto rv = result::make_result< Uuid >();
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()

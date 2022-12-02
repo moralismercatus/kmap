@@ -16,6 +16,7 @@
 #include "path/act/order.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten/bind.h>
@@ -60,6 +61,8 @@ struct LogTask : public Component
     auto initialize()
         -> Result< void > override
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         fmt::print( "log_task :: initialize\n" );
@@ -74,6 +77,8 @@ struct LogTask : public Component
     auto load()
         -> Result< void > override
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         KTRY( eclerk_.check_registered() );
@@ -86,6 +91,8 @@ struct LogTask : public Component
     auto register_standard_events()
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         // Note: Under domain of "log", as no change is actually made to task, all changes made to log.
@@ -106,6 +113,8 @@ struct LogTask : public Component
     auto push_task_to_log()
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         auto& kmap = kmap_inst();
@@ -128,6 +137,8 @@ struct LogTask : public Component
     auto push_active_tasks_to_log()
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto& km = kmap_inst();
         auto const tag_store = KTRY( fetch_component< TagStore >() );
         auto const active_tag = KTRY( tag_store->fetch_tag( "task.status.open.active" ) ); 
@@ -143,7 +154,6 @@ struct LogTask : public Component
                               | act::order( km );
         auto const dl = KTRY( com::fetch_or_create_daily_log( km ) );
 
-fmt::print( "active_tasks.size(): {}\n", active_tasks.size() );
         for( auto const& active_task : active_tasks )
         {
             KTRY( view::make( dl )

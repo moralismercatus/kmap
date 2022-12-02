@@ -16,6 +16,7 @@
 #include "path/node_view.hpp"
 #include "com/tag/tag.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten/bind.h>
@@ -62,6 +63,8 @@ struct LogStore : public Component
     auto initialize()
         -> Result< void > override
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         fmt::print( "log_store :: initialize\n" );
@@ -76,6 +79,8 @@ struct LogStore : public Component
     auto load()
         -> Result< void > override
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         KTRY( cclerk_.check_registered() );
@@ -265,6 +270,8 @@ auto fetch_or_create_daily_log( Kmap& kmap
                               , std::string const& date )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( view::make( kmap.root_node_id() )
@@ -277,6 +284,8 @@ auto fetch_or_create_daily_log( Kmap& kmap
 auto fetch_or_create_daily_log( Kmap& kmap )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( fetch_or_create_daily_log( kmap, present_daily_log_path() ) );
@@ -288,6 +297,9 @@ auto fetch_daily_log( Kmap const& km
                     , std::string const& date )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "date", date );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( km.root_view()
@@ -300,6 +312,8 @@ auto fetch_daily_log( Kmap const& km
 auto fetch_daily_log( Kmap const& kmap )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( fetch_daily_log( kmap, present_daily_log_path() ) );

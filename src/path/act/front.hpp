@@ -9,7 +9,7 @@
 
 #include "utility.hpp"
 #include "util/concepts.hpp"
-
+#include "util/result.hpp"
 
 namespace kmap
 {
@@ -29,7 +29,9 @@ template< concepts::Range RT >
 auto operator|( RT const& range, Front const& op )
     -> Result< typename RT::value_type >
 {
-    auto rv = KMAP_MAKE_RESULT( typename RT::value_type );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< typename RT::value_type >();
 
     if( !range.empty() )
     {

@@ -11,6 +11,7 @@
 #include "contract.hpp"
 #include "error/master.hpp"
 #include "util/concepts.hpp"
+#include "util/result.hpp"
 #include "utility.hpp"
 
 #include <range/v3/view/take.hpp>
@@ -62,7 +63,9 @@ template< concepts::Range RT >
 auto operator|( Result< RT > const& rrange, Take const& op )
     -> Result< RT >
 {
-    auto rv = KMAP_MAKE_RESULT( RT );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< RT >();
 
     KMAP_ENSURE( rrange, error_code::common::uncategorized );
 

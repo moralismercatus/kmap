@@ -91,7 +91,7 @@ public:
     [[ nodiscard ]]
     auto fetch_children( Uuid const& parent ) const
         -> kmap::UuidSet;
-    auto fetch_heading( Uuid const& id ) const
+    auto fetch_heading( Uuid const& node ) const
         -> Result< Heading >;
     // TODO [cleanup]: move to attr.hpp? Rather, node.genesis component?
         [[ nodiscard ]]

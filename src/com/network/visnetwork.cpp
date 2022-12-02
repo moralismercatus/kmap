@@ -18,6 +18,7 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <emscripten.h>
 #include <emscripten/val.h>
@@ -70,6 +71,8 @@ VisualNetwork::~VisualNetwork()
 auto VisualNetwork::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const canvas = KTRY( fetch_component< Canvas >() );
     auto const container = canvas->network_pane();
@@ -93,6 +96,8 @@ auto VisualNetwork::initialize()
 auto VisualNetwork::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const canvas = KTRY( fetch_component< Canvas >() );
     auto const container = canvas->network_pane();
@@ -117,6 +122,10 @@ auto VisualNetwork::create_node( Uuid const& id
                                , Title const& label )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+        KM_RESULT_PUSH_STR( "title", label );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -149,6 +158,10 @@ auto VisualNetwork::add_edge( Uuid const& from
                             , Uuid const& to )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "src", from );
+        KM_RESULT_PUSH_NODE( "dst", to );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -182,6 +195,8 @@ auto VisualNetwork::add_edge( Uuid const& from
 auto VisualNetwork::apply_static_options()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const ostore = KTRY( fetch_component< com::OptionStore >() );
 
@@ -362,9 +377,14 @@ auto VisualNetwork::format_node_label( Uuid const& node )
 auto VisualNetwork::select_node( Uuid const& id )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::no_prev_selection );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
+
+    KMAP_LOG_LINE();
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -467,6 +487,9 @@ auto VisualNetwork::fetch_parent( Uuid const& id ) const
     -> Result< Uuid >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const nid = KMAP_TRY( js::call< val >( *js_nw_, "parent_id", to_string( id ) ) );
@@ -578,6 +601,8 @@ auto VisualNetwork::change_node_font( Uuid const& id
     -> Result< void >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -703,6 +728,8 @@ auto VisualNetwork::viewport_scale() const
 auto VisualNetwork::register_standard_options()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     
     {
@@ -745,6 +772,10 @@ auto VisualNetwork::update_title( Uuid const& id
                                 , Title const& title )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+        KM_RESULT_PUSH_STR( "title", title );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -771,9 +802,13 @@ auto VisualNetwork::update_title( Uuid const& id
 }
 
 auto VisualNetwork::fetch_child( Uuid const& parent
-                         , Title const& title ) const
+                               , Title const& title ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_STR( "title", title );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const cids = children( parent );
 
@@ -794,6 +829,9 @@ auto VisualNetwork::fetch_child( Uuid const& parent
 auto VisualNetwork::fetch_title( Uuid const& id ) const
     -> Result< Title >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Title );
     auto const tv = KMAP_TRY( js::call< val >( *js_nw_, "title_of", to_string( id ) ) );
 
@@ -837,6 +875,9 @@ auto VisualNetwork::is_child( Uuid parent
 auto VisualNetwork::scale_viewport( float const scale )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "scale", std::to_string( scale ) );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     js_nw_->call< val >( "scale_viewport", scale );
@@ -858,6 +899,9 @@ auto VisualNetwork::fetch_position( Uuid const& id ) const
     -> Result< Position2D >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
 
     auto rv = KMAP_MAKE_RESULT( Position2D );
     auto const ns = KMAP_TRY( js::call< val >( *js_nw_, "node_position", to_string( id ) ) );
@@ -884,6 +928,9 @@ auto VisualNetwork::position( Uuid const& id ) const
 auto VisualNetwork::erase_node( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -908,6 +955,8 @@ auto VisualNetwork::erase_node( Uuid const& id )
 auto VisualNetwork::register_standard_events()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     // Initial
@@ -1040,9 +1089,13 @@ auto VisualNetwork::remove_nodes()
 }
 
 auto VisualNetwork::remove_edge( Uuid const& from
-                         , Uuid const& to )
+                               , Uuid const& to )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "src", from );
+        KM_RESULT_PUSH_NODE( "to", to );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()

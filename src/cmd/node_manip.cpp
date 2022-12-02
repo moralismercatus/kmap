@@ -15,6 +15,7 @@
 #include "com/cmd/command.hpp"
 #include "com/network/network.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/action/sort.hpp>
@@ -52,6 +53,8 @@ auto merge_nodes( Kmap& kmap )
 {
     return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
+        KM_RESULT_PROLOG();
+
         BC_CONTRACT()
             BC_PRE([ & ]
             {
@@ -71,7 +74,7 @@ auto merge_nodes( Kmap& kmap )
 
             merge_trees( *nw, src, dst );
 
-            KMAP_TRY( nw->select_node( dst ) );
+            KTRY( nw->select_node( dst ) );
 
             return "merge succeeded";
         }
@@ -1238,6 +1241,10 @@ auto create_reference( Uuid const& src
                      , Uuid const& dst )
     -> kmap::binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "src", src );
+        KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto const ref = KTRY( view::make( dst )

@@ -27,6 +27,8 @@ NetworkCommand::NetworkCommand( Kmap& kmap
 auto NetworkCommand::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( cclerk_.install_registered() );
@@ -39,6 +41,8 @@ auto NetworkCommand::initialize()
 auto NetworkCommand::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     
     KTRY( cclerk_.check_registered() );

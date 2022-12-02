@@ -12,6 +12,7 @@
 #include "path.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -49,6 +50,8 @@ auto abs_path_flat( Kmap const& km )
 auto operator|( Intermediary const& i, AbsPath const& op )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     // TODO: Something isn't quite right here relating to view::abs_root
     auto const nw = KTRY( op.km.fetch_component< com::Network >() );
@@ -220,6 +223,8 @@ SCENARIO( "act::abs_path", "[node_view][abs_path]" )
 auto operator|( Intermediary const& i, AbsPathFlat const& op )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+    
     auto rv = KMAP_MAKE_RESULT( std::string );
 
     BC_CONTRACT()

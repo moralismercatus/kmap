@@ -18,6 +18,7 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/act/order.hpp"
+#include "util/result.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
@@ -93,7 +94,9 @@ auto register_arguments()
 auto Cli::initialize()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KTRY( install_events() );
 
@@ -105,7 +108,9 @@ auto Cli::initialize()
 auto Cli::load()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KTRY( install_events() );
 
@@ -117,6 +122,8 @@ auto Cli::load()
 auto Cli::install_events()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     // onkeydown
@@ -158,6 +165,9 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).v
 auto Cli::parse_raw( std::string const& input )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "input", input );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -235,9 +245,12 @@ auto Cli::execute( std::string const& cmd_str
                  , std::string const& arg )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "cmd", cmd_str );
+        KM_RESULT_PUSH_STR( "arg", arg );
+        
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto& km = kmap_inst();
-io::print( "execute.arg: {}\n", arg );
 
     // This block temporary until old-style cmds are transitioned to new.
     if( auto const resolved_cmd = fetch_general_command_guard_resolved( cmd_str )
@@ -358,6 +371,9 @@ auto Cli::fetch_general_command( Heading const& path ) const
 auto Cli::resolve_contextual_guard( Uuid const& cmd ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "cmd", cmd );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& km = kmap_inst();
 
@@ -1011,6 +1027,10 @@ auto Cli::on_key_down( int const key
                      , std::string const& text )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "key", std::to_string( key ) );
+        KM_RESULT_PUSH_STR( "text", text );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::VisualNetwork >() );
 
@@ -1088,6 +1108,8 @@ struct Cli
                     , std::string const& text )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto const cli = KTRY( km.fetch_component< com::Cli >() );
 
         return cli->on_key_down( key

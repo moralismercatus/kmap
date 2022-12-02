@@ -12,9 +12,11 @@
 #include "error/master.hpp"
 #include "error/result.hpp"
 #include "kmap.hpp"
+#include "path/act/update_body.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/stable_sort.hpp>
@@ -24,6 +26,8 @@ namespace kmap::com {
 auto fetch_task_root( Kmap const& kmap )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     return KTRY( view::abs_root
                | view::child( "task" )
                | view::fetch_node( kmap ) );
@@ -32,6 +36,8 @@ auto fetch_task_root( Kmap const& kmap )
 auto fetch_task_root( Kmap& kmap )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     return KTRY( view::abs_root
                | view::child( "task" )
                | view::fetch_or_create_node( kmap ) );
@@ -50,6 +56,8 @@ TaskStore::TaskStore( Kmap& kmap
 auto TaskStore::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     fmt::print( "task_store :: initialize\n" );
@@ -64,6 +72,8 @@ auto TaskStore::initialize()
 auto TaskStore::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( cclerk_.check_registered() );
@@ -76,7 +86,10 @@ auto TaskStore::load()
 auto TaskStore::cascade_tags( Uuid const& task )
     -> Result< void >
 {
-    auto rv = error::make_result< void >();
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "task", task );
+
+    auto rv = result::make_result< void >();
     auto& km = kmap_inst();
     auto const tag_store = KTRY( fetch_component< TagStore >() );
     auto const rtags = view::make( task )
@@ -119,7 +132,10 @@ auto TaskStore::cascade_tags( Uuid const& task )
 auto TaskStore::create_task( std::string const& title )
     -> Result< Uuid >
 {
-    auto rv = error::make_result< Uuid >();
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "title", title );
+
+    auto rv = result::make_result< Uuid >();
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -199,7 +215,11 @@ auto TaskStore::create_subtask( Uuid const& supertask
                               , std::string const& title )
     -> Result< Uuid >
 {
-    auto rv = error::make_result< Uuid >();
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "supertask", supertask );
+        KM_RESULT_PUSH_STR( "title", title );
+
+    auto rv = result::make_result< Uuid >();
 
     KMAP_ENSURE( is_task( supertask ), error_code::common::uncategorized );
 
@@ -234,11 +254,11 @@ SCENARIO( "TaskStore::create_subtask", "[task][create]" )
             REQUIRE( kmap::test::fail( tstore->create_subtask( troot, "1" ) ) );
         }
     }
-    GIVEN( "one task" )
+    GIVEN( "create.task super" )
     {
         auto const super = REQUIRE_TRY( tstore->create_task( "super" ) );
 
-        WHEN( "create subtask with 'super' as supertask" )
+        GIVEN( "create.subtask sub" )
         {
             auto const sub = REQUIRE_TRY( tstore->create_subtask( super, "sub" ) );
 
@@ -248,12 +268,35 @@ SCENARIO( "TaskStore::create_subtask", "[task][create]" )
             }
             THEN( "'sub' is subtask to 'super'" )
             {
-                auto subalias = REQUIRE_TRY( ( view::make( super )
-                                             | view::child( "subtask" )
-                                             | view::child
-                                             | view::fetch_node( kmap ) ) );
+                auto const subalias = REQUIRE_TRY(( view::make( super )
+                                                  | view::child( "subtask" )
+                                                  | view::child
+                                                  | view::fetch_node( kmap ) ));
 
                 REQUIRE( subalias == sub );
+            }
+
+            GIVEN( "@super.subtask.sub :create.subtask subsub" )
+            {
+                auto const subalias = REQUIRE_TRY(( view::make( super )
+                                                  | view::child( "subtask" )
+                                                  | view::child
+                                                  | view::fetch_node( kmap ) ));
+                auto const subsub = REQUIRE_TRY( tstore->create_subtask( subalias, "subsub" ) );
+
+                THEN( "'subsub' is task" )
+                {
+                    REQUIRE( tstore->is_task( subsub ) );
+                }
+                THEN( "'subsub' is subtask to 'sub'" )
+                {
+                    auto subsubalias = REQUIRE_TRY( ( view::make( sub )
+                                                    | view::child( "subtask" )
+                                                    | view::child
+                                                    | view::fetch_node( kmap ) ) );
+
+                    REQUIRE( subsubalias == subsub );
+                }
             }
         }
     }
@@ -294,13 +337,16 @@ auto TaskStore::is_task( Uuid const& node ) const
 auto TaskStore::close_task( Uuid const& task )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "task", task );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const tag_store = KTRY( fetch_component< TagStore >() );
 
     KMAP_ENSURE( is_task( task ), error_code::common::uncategorized );
-    KMAP_ENSURE( !( view::make( task ) | view::tag( "status.closed" ) | view::exists( km ) ), error_code::common::uncategorized );
+    KMAP_ENSURE( !( view::make( task ) | view::tag( "task.status.closed" ) | view::exists( km ) ), error_code::common::uncategorized );
     KMAP_ENSURE( is_categorized( task ), error_code::common::uncategorized );
 
     // disallow closure of empty body results.
@@ -334,10 +380,10 @@ auto TaskStore::close_task( Uuid const& task )
         }
         // Append close tag...
         {
-            KTRY( tag_store->fetch_or_create_tag( "status.closed" ) );
+            KTRY( tag_store->fetch_or_create_tag( "task.status.closed" ) );
 
             KTRY( view::make( task )
-                | view::tag( "status.closed" )
+                | view::tag( "task.status.closed" )
                 | view::create_node( km ) );
         }
 
@@ -350,7 +396,7 @@ auto TaskStore::close_task( Uuid const& task )
                              | ranges::to< std::vector >();
             auto const pred = [ & ]( auto const& t1, auto const& t2 )
             {
-                enum class Status { active, inactive, closed, nontask }; // Ordered.
+                enum class Status : int { active, inactive, closed, nontask }; // Ordered.
                 auto const map_status = [ & ]( auto const& n )
                 {
                          if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )  { return Status::active; }
@@ -359,7 +405,7 @@ auto TaskStore::close_task( Uuid const& task )
                     else                                                                                      { return Status::nontask; }
                 };
 
-                return map_status( t1 ) <  map_status( t2 );
+                return static_cast< int >( map_status( t1 ) ) < static_cast< int >( map_status( t2 ) ); 
             };
 
             ranges::stable_sort( tasks, pred ); // stable_sort maintains pre-sort order for equivalent items.
@@ -380,14 +426,47 @@ SCENARIO( "close_task", "[task][close]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
 
-    auto& kmap = Singleton::instance();
-    auto const tstore = REQUIRE_TRY( kmap.fetch_component< TaskStore >() );
+    auto& km = Singleton::instance();
+    auto const tstore = REQUIRE_TRY( km.fetch_component< com::TaskStore >() );
 
     GIVEN( "no tasks" )
     {
         GIVEN( "close.task 1" )
         {
             auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
+
+            REQUIRE(( view::make( t1 ) | view::tag( "task.status.open.active" ) | view::exists( km ) ));
+
+            THEN( "close.task 1 fails" )
+            {
+                REQUIRE( test::fail( tstore->close_task( t1 ) ) );
+            }
+            GIVEN( "given category tag" )
+            {
+                auto const tag_store = REQUIRE_TRY( km.fetch_component< com::TagStore >() );
+
+                REQUIRE_TRY( tag_store->create_tag( "test" ) );
+
+                REQUIRE(( view::make( t1 ) | view::tag( "test" ) | view::create_node( km ) ));
+
+                GIVEN( "result body nonempty" )
+                {
+                    REQUIRE_TRY(( view::make( t1 )
+                                | view::child( "result" )
+                                | act::update_body( km, "test" ) ));
+
+                    WHEN( "close.task 1" )
+                    {
+                        REQUIRE_TRY( tstore->close_task( t1 ) );
+
+                        THEN( "tag active exchanged for closed" )
+                        {
+                            REQUIRE( !( view::make( t1 ) | view::tag( "task.status.open.active" ) | view::exists( km ) ) );
+                            REQUIRE(  ( view::make( t1 ) | view::tag( "task.status.closed" ) | view::exists( km ) ) );
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -395,6 +474,9 @@ SCENARIO( "close_task", "[task][close]" )
 auto TaskStore::activate_task( Uuid const& task )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "task", task );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = kmap_inst();
     auto const vactive_tag = view::tag( "task.status.open.active" );

@@ -38,6 +38,8 @@ Filesystem::~Filesystem()
 auto Filesystem::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     init_ems_nodefs();
@@ -51,6 +53,8 @@ auto Filesystem::initialize()
 auto Filesystem::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     rv = outcome::success();
@@ -81,6 +85,8 @@ auto Filesystem::init_ems_nodefs()
 auto Filesystem::install_standard_commands()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+    
     auto rv = KMAP_MAKE_RESULT( void );
 
     rv = outcome::success();

@@ -565,6 +565,9 @@ auto Alias::create( Kmap& kmap
                                        , none_of
                                        , exactly
                                        , PredFn >;
+    
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
 
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
@@ -694,6 +697,9 @@ auto Attr::create( Kmap& kmap
                  , Uuid const& parent ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const db = KTRY( kmap.fetch_component< com::Database >() );
 
@@ -738,6 +744,9 @@ auto Child::create( Kmap& kmap
                   , Uuid const& parent ) const
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
     if( selection )
@@ -1013,6 +1022,9 @@ auto Desc::create( Kmap& kmap
                  , Uuid const& root ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     if( selection )
@@ -1208,6 +1220,9 @@ auto DirectDesc::create( Kmap& kmap
                        , Uuid const& root ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     if( selection )
@@ -1510,6 +1525,8 @@ auto Tag::operator()( Kmap const& kmap
                     , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const all_node_tags = view::make( node )
                              | view::attr
@@ -1783,6 +1800,9 @@ auto Tag::create( Kmap& kmap
                 , Uuid const& parent ) const
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
     if( selection )
@@ -1955,6 +1975,8 @@ auto operator|( Intermediary const& i
               , EraseNode const& op )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( op.kmap.fetch_component< com::Network >() );
     auto const nodes = i | to_node_set( op.kmap );
@@ -2215,6 +2237,8 @@ auto operator|( Intermediary const& i
               , CreateNode const& c_op )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+
     KMAP_ENSURE( !i.op_chain.empty(), error_code::network::invalid_path );
 
     auto rv = KMAP_MAKE_RESULT( UuidSet );
@@ -2316,6 +2340,9 @@ auto create_lineages( Kmap& kmap
                     , OperatorVariant const& op )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "root", root );
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
     rv = std::visit( [ & ]( auto const& vop ) -> Result< UuidSet >
@@ -2384,6 +2411,8 @@ auto operator|( Intermediary const& i
               , FetchOrCreateNode const& foc_op )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto ns = i.root;
 

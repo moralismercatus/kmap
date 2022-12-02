@@ -13,6 +13,7 @@
 #include "path.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -33,6 +34,8 @@ TagStore::TagStore( Kmap& kmap
 auto TagStore::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     
     KTRY( cclerk_.install_registered() );
@@ -45,6 +48,8 @@ auto TagStore::initialize()
 auto TagStore::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( cclerk_.check_registered() );
@@ -176,6 +181,8 @@ auto TagStore::register_standard_commands()
 auto TagStore::fetch_tag_root() const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -189,6 +196,8 @@ auto TagStore::fetch_tag_root() const
 auto TagStore::fetch_tag_root()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -202,6 +211,9 @@ auto TagStore::fetch_tag_root()
 auto TagStore::create_tag( std::string const& path )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const troot = KTRY( fetch_tag_root() );
@@ -217,6 +229,9 @@ auto TagStore::create_tag( std::string const& path )
 auto TagStore::fetch_tag( std::string const& tag_path ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", tag_path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const troot = KTRY( fetch_tag_root() );
@@ -231,6 +246,9 @@ auto TagStore::fetch_tag( std::string const& tag_path ) const
 auto TagStore::fetch_or_create_tag( std::string const& path )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const troot = KTRY( fetch_tag_root() );
@@ -311,6 +329,10 @@ auto TagStore::tag_node( Uuid const& target
                        , Uuid const& tag )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "target", target );
+        KM_RESULT_PUSH_NODE( "tag", tag );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -333,6 +355,10 @@ auto TagStore::tag_node( Uuid const& target
                        , std::string const& tag_path )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "target", target );
+        KM_RESULT_PUSH_STR( "tag_path", tag_path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const troot = KTRY( fetch_tag_root() );
@@ -396,6 +422,9 @@ struct TagStore
     auto create_tag( std::string const& path )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "path", path );
+
         auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
 
         return tstore->create_tag( path );
@@ -404,6 +433,10 @@ struct TagStore
                   , std::string const& tpath )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_NODE( "node", node );
+            KM_RESULT_PUSH_STR( "path", tpath );
+
         auto rv = KMAP_MAKE_RESULT( void );
         auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
 
@@ -419,6 +452,10 @@ struct TagStore
                  , std::string const& path )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_NODE( "node", node );
+            KM_RESULT_PUSH_STR( "path", path );
+
         auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
 
         return tstore->tag_node( node, path );

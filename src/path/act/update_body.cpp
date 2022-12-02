@@ -28,7 +28,9 @@ auto update_body( Kmap& kmap
 auto operator|( Intermediary const& i, UpdateBody const& op )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
     auto const nw = KTRY( op.km.fetch_component< com::Network >() );
 
     for( auto const ns = i | view::to_node_set( op.km )

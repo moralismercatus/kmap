@@ -8,6 +8,7 @@
 #include "component.hpp"
 #include "contract.hpp"
 #include "kmap.hpp"
+#include "util/result.hpp"
 
 #include <range/v3/algorithm/all_of.hpp>
 #include <range/v3/algorithm/count_if.hpp>
@@ -91,7 +92,9 @@ auto ComponentStore::all_uninit_dependents( std::string const& component )
 auto ComponentStore::clear()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     // Erase components until none remain.
     while( !initialized_components_.empty() )
@@ -111,11 +114,14 @@ auto ComponentStore::clear()
 auto ComponentStore::erase_component( ComponentPtr const com )
     -> Result< void >
 {
-    BC_ASSERT( com );
+    KMAP_ENSURE_EXCEPT( com );
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "component", std::string{ com->name() } )
 
     fmt::print( "[component] erasing component: {}\n", com->name() );
 
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
     auto const depends_on_com = [ & ]( auto const& e ){ return e.second->requisites().contains( std::string{ com->name() } ); };
 
     while( ranges::count_if( initialized_components_, depends_on_com ) > 0 )
@@ -136,7 +142,9 @@ auto ComponentStore::erase_component( ComponentPtr const com )
 auto ComponentStore::install_standard_events()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
     
 
     // TODO: Are events even being dispatched...? Does this matter at all?
@@ -161,7 +169,12 @@ auto ComponentStore::is_initialized( std::string const& id ) const
 auto ComponentStore::register_component( ComponentCtorPtr const& cctor )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KMAP_ENSURE_EXCEPT( cctor );
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "cctor", cctor->name() );
+
+    auto rv = result::make_result< void >();
 
     KMAP_ENSURE( !initialized_components_.contains( cctor->name() ), error_code::common::uncategorized );
 
@@ -181,9 +194,10 @@ auto ComponentStore::register_component( ComponentCtorPtr const& cctor )
 auto ComponentStore::fire_initialized( std::string const& id )
     -> Result< void >
 {
-    fmt::print( "[component] fire_initialized: {}\n", id );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "id", id );
 
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     received_inits_.emplace( id );
     
@@ -224,9 +238,10 @@ auto ComponentStore::fire_initialized( std::string const& id )
 auto ComponentStore::fire_loaded( std::string const& id )
     -> Result< void >
 {
-    fmt::print( "[component] fire_loaded: {}\n", id );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "id", id );
 
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     received_inits_.emplace( id );
     

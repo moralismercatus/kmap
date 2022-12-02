@@ -10,6 +10,7 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/act/fetch_body.hpp"
+#include "util/result.hpp"
 
 #include <boost/variant/apply_visitor.hpp>
 #include <range/v3/algorithm/all_of.hpp>
@@ -49,7 +50,9 @@ CommandClerk::~CommandClerk()
 auto CommandClerk::check_registered()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     for( auto const& arg : registered_arguments
                          | rvs::values )
@@ -125,6 +128,9 @@ auto match_raw_body( Kmap const& km
 auto CommandClerk::check_registered( Argument const& arg )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", arg.path );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     auto const cstore = KTRY( kmap.fetch_component< com::CommandStore >() );
@@ -193,6 +199,9 @@ auto match_argument( Kmap const& km
 auto CommandClerk::check_registered( Command const& cmd )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "cmd_path", cmd.path );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     auto const cstore = KTRY( kmap.fetch_component< com::CommandStore >() );
@@ -240,6 +249,9 @@ auto CommandClerk::check_registered( Command const& cmd )
 auto CommandClerk::install_argument( Argument const& arg )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", arg.path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto cstore = KTRY( kmap.fetch_component< CommandStore >() );
 
@@ -255,6 +267,9 @@ auto CommandClerk::install_argument( Argument const& arg )
 auto CommandClerk::install_command( Command const& cmd )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", cmd.path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto cstore = KTRY( kmap.fetch_component< CommandStore >() );
 
@@ -270,6 +285,8 @@ auto CommandClerk::install_command( Command const& cmd )
 auto CommandClerk::install_registered()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& [ path, arg ] : registered_arguments )

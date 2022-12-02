@@ -28,7 +28,7 @@ template< typename T >
 auto operator|( kmap::Result< T > const& result, ValueOr< T > const& op )
     -> T
 {
-    return error::value_or( result, op.t );
+    return result::value_or( result, op.t );
 }
 
 } // namespace kmap::act

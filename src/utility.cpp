@@ -54,7 +54,7 @@
 #include <string>
 #include <vector>
 
-using namespace kmap::error;
+using namespace kmap::result;
 using namespace ranges;
 namespace fs = boost::filesystem;
 
@@ -699,6 +699,9 @@ auto to_uint64( std::string const& s )
 auto to_uint64( Uuid const& id )
     -> Result< uint64_t >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
     auto rv = KMAP_MAKE_RESULT( uint64_t );
 
     BC_CONTRACT()
@@ -1142,6 +1145,9 @@ auto print_tree( Kmap const& km
                , std::string const& indent )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
     if( nw->is_top_alias( root ) )
@@ -1172,6 +1178,9 @@ auto print_tree( Kmap const& km
                , Uuid const& root )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
     if( nw->is_top_alias( root ) )
@@ -1203,6 +1212,10 @@ auto copy_body( com::Network& nw
               , Uuid const& dst )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "src", src );
+        KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1242,6 +1255,10 @@ auto move_body( com::Network& nw
               , Uuid const& dst )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "src", src );
+        KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()

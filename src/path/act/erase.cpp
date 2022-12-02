@@ -7,6 +7,7 @@
 
 #include "com/network/network.hpp"
 #include "kmap.hpp"
+#include "util/result.hpp"
 
 namespace kmap::view::act {
 
@@ -20,6 +21,8 @@ auto erase( Kmap& kmap )
 auto operator|( Intermediary const& i, Erase const& op )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( op.km.fetch_component< com::Network >() );
 

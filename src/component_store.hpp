@@ -8,6 +8,7 @@
 #define KMAP_COMPONENT_STORE_HPP
 
 #include "common.hpp"
+#include "util/result.hpp"
 
 #include <map>
 #include <memory>
@@ -70,7 +71,10 @@ public:
     auto fetch_component()
         -> Result< std::shared_ptr< T > >
     {
-        auto rv = KMAP_MAKE_RESULT_MSG( std::shared_ptr< T >, fmt::format( "initialized component not found: '{}'\n", T::id ) );
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "id", T::id );
+
+        auto rv = result::make_result< std::shared_ptr< T > >();
         auto const id = T::id;
 
         if( initialized_components_.contains( id ) )
@@ -88,7 +92,10 @@ public:
     auto fetch_component() const // TODO: Rundant w/ non-const version, but what can we do without const_cast or "deducing this (c++23)"?
         -> Result< std::shared_ptr< T const > >
     {
-        auto rv = KMAP_MAKE_RESULT( std::shared_ptr< T const > );
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "id", T::id );
+
+        auto rv = result::make_result< std::shared_ptr< T const > >();
         auto const id = T::id;
 
         if( initialized_components_.contains( id ) )

@@ -19,6 +19,7 @@
 #include "path/act/abs_path.hpp"
 #include "path/sm.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <boost/sml.hpp>
 #include <boost/uuid/random_generator.hpp>
@@ -692,6 +693,9 @@ auto absolute_path( Kmap const& km
                   , Uuid const& desc )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "desc", desc );
+
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto nv = UuidVec{ desc };
@@ -714,6 +718,9 @@ auto absolute_path_flat( Kmap const& km
                        , Uuid const& node )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
 
     if( km.root_node_id() == node )
@@ -736,6 +743,10 @@ auto complete_any( Kmap const& kmap
                  , std::string const& heading )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
     KMAP_ENSURE( is_valid_heading( heading ), error_code::network::invalid_heading );
@@ -791,6 +802,11 @@ auto complete_path( Kmap const& kmap
     -> Result< CompletionNodeSet >
 {
     using Set = CompletionNodeSet;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "raw", raw );
 
     auto rv = KMAP_MAKE_RESULT( Set );
 
@@ -1026,6 +1042,11 @@ auto complete_path_reducing( Kmap const& kmap
 {
     using Set = CompletionNodeSet;
 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "path", path );
+
     auto rv = KMAP_MAKE_RESULT( Set );
 
     if( is_valid_heading_path( path ) )
@@ -1053,6 +1074,10 @@ auto decide_path( Kmap const& kmap
     -> Result< UuidVec >
 {
     using boost::sml::logger;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
 
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     auto const decider = walk( kmap
@@ -1085,6 +1110,10 @@ auto decide_path( Kmap const& kmap
                 , std::string const& raw )
     -> Result< UuidVec > 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "raw", raw );
 
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     auto const nw = KTRY( kmap.fetch_component< com::Network > () );
@@ -1111,6 +1140,8 @@ auto fetch_descendants( Kmap const& kmap
                       , std::string const& raw )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+
     return decide_path( kmap
                       , root_id
                       , selected_node
@@ -1121,6 +1152,9 @@ auto fetch_descendants( Kmap const& kmap
                       , Uuid const& root )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
     return KTRY( fetch_descendants( kmap
                                   , root
                                   , []( auto const& e ){ (void)e; return true; } ) );
@@ -1156,6 +1190,8 @@ auto disambiguate_paths( Kmap const& kmap
     -> Result< std::map< Uuid, std::string > >
 {
     using ResMap = std::map< Uuid, std::string >;
+
+    KM_RESULT_PROLOG();
 
     struct Node
     {
@@ -1267,6 +1303,11 @@ auto complete_selection( Kmap const& kmap
     -> Result< CompletionNodeSet >
 {
     using Set = CompletionNodeSet;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "path", path );
 
     auto rv = KMAP_MAKE_RESULT( Set );
     auto const completed_ms = KMAP_TRY( complete_path_reducing( kmap
@@ -1402,6 +1443,10 @@ auto fetch_nearest_ancestor( Kmap const& kmap
                            , std::regex const& geometry )
     -> Result< Uuid > 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "leaf", leaf );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -1458,6 +1503,10 @@ auto fetch_nearest_ascending( Kmap const& kmap
                             , std::function< bool( Kmap const&, Uuid const& ) > pred )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "leaf", leaf );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -1511,6 +1560,11 @@ auto create_descendants( Kmap& kmap
                        , Heading const& heading )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -1639,6 +1693,11 @@ auto fetch_descendant( Kmap const& kmap
                      , Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
@@ -1678,6 +1737,11 @@ auto fetch_or_create_descendant( Kmap& kmap
                                , Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "selected", selected );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     if( auto const desc = fetch_descendant( kmap, root, selected, heading )
@@ -1723,6 +1787,9 @@ auto mirror_basic( Kmap& kmap
                  , Uuid const& dst )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto dn = dst;

@@ -10,6 +10,8 @@
 #include "kmap.hpp"
 #include "path/act/fetch_body.hpp"
 #include "path/node_view.hpp"
+#include "util/result.hpp"
+
 
 #include <fmt/format.h>
 
@@ -19,6 +21,10 @@ auto confirm_reinstall( std::string const& item
                       , std::string const& path )
     -> Result< bool >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "item", item );
+        KM_RESULT_PUSH_STR( "path", path );
+
     return KTRY( js::eval< bool >( fmt::format( "return confirm( \"{} '{}' out of date.\\nRe-install outlet?\" );", item, path ) ) );
 }
 

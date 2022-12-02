@@ -20,6 +20,7 @@
 #include "path/node_view.hpp"
 #include "test/util.hpp"
 #include "util/script/script.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -62,6 +63,9 @@ auto EventStore::load()
 auto EventStore::action( std::string const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -79,6 +83,9 @@ auto EventStore::action( std::string const& heading )
 auto EventStore::object( std::string const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -96,6 +103,8 @@ auto EventStore::object( std::string const& heading )
 auto EventStore::event_root()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const mroot = km.root_node_id();
@@ -110,6 +119,8 @@ auto EventStore::event_root()
 auto EventStore::event_root() const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const mroot = km.root_node_id();
@@ -124,6 +135,9 @@ auto EventStore::event_root() const
 auto EventStore::fetch_outlet_base( Uuid const& node )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
@@ -158,6 +172,9 @@ auto EventStore::fetch_outlet_base( Uuid const& node )
 auto EventStore::fetch_outlet_tree( Uuid const& outlet )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "outlet", outlet );
+
     KMAP_ENSURE( is_outlet( outlet ), error_code::network::invalid_node );
 
     auto rv = KMAP_MAKE_RESULT( UuidSet );
@@ -191,6 +208,9 @@ auto EventStore::fetch_payload()
 auto EventStore::install_verb( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const eroot = KTRY( event_root() );
     auto& km = kmap_inst();
@@ -206,6 +226,9 @@ auto EventStore::install_verb( Heading const& heading )
 auto EventStore::install_object( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -221,6 +244,9 @@ auto EventStore::install_object( Heading const& heading )
 auto EventStore::install_subject( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -236,6 +262,9 @@ auto EventStore::install_subject( Heading const& heading )
 auto EventStore::install_component( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+        
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -251,6 +280,9 @@ auto EventStore::install_component( Heading const& heading )
 auto EventStore::install_outlet( Leaf const& leaf )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "leaf", leaf.heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -303,6 +335,9 @@ SCENARIO( "install_outlet", "[event]" )
 auto EventStore::install_outlet( Branch const& branch )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "branch", branch.heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -378,6 +413,10 @@ auto EventStore::install_outlet_internal( Uuid const& root
                                         , Leaf const& leaf )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_STR( "leaf", leaf.heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -420,6 +459,10 @@ auto EventStore::install_outlet_internal( Uuid const& root
                                         , Branch const& branch )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_STR( "branch", branch.heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -471,6 +514,9 @@ auto EventStore::install_outlet_internal( Uuid const& root
 auto EventStore::uninstall_subject( std::string const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -488,6 +534,9 @@ auto EventStore::uninstall_subject( std::string const& heading )
 auto EventStore::uninstall_subject( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -505,6 +554,9 @@ auto EventStore::uninstall_subject( Uuid const& node )
 auto EventStore::uninstall_verb( std::string const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -522,6 +574,9 @@ auto EventStore::uninstall_verb( std::string const& heading )
 auto EventStore::uninstall_verb( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -539,6 +594,9 @@ auto EventStore::uninstall_verb( Uuid const& node )
 auto EventStore::uninstall_object( std::string const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -556,6 +614,9 @@ auto EventStore::uninstall_object( std::string const& heading )
 auto EventStore::uninstall_object( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -573,6 +634,9 @@ auto EventStore::uninstall_object( Uuid const& node )
 auto EventStore::uninstall_component( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -590,6 +654,9 @@ auto EventStore::uninstall_component( Uuid const& node )
 auto EventStore::uninstall_outlet( std::string const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
@@ -607,6 +674,9 @@ auto EventStore::uninstall_outlet( std::string const& heading )
 auto EventStore::uninstall_outlet( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
@@ -621,6 +691,9 @@ auto EventStore::uninstall_outlet( Uuid const& node )
 auto EventStore::uninstall_outlet_transition( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
@@ -634,6 +707,9 @@ auto EventStore::uninstall_outlet_transition( Uuid const& node )
 auto EventStore::execute_body( Uuid const& node )
     -> Result< void >
 {    
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
@@ -681,6 +757,8 @@ auto EventStore::execute_body( Uuid const& node )
 auto EventStore::fetch_matching_outlets( std::set< std::string > const& requisites )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
     auto const& km = kmap_inst();
     auto const nw = KTRYE( fetch_component< com::Network >() );
@@ -748,6 +826,10 @@ SCENARIO( "EventStore::fetch_matching_outlets", "[event]" )
 auto EventStore::fire_event( std::set< std::string > const& requisites )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
+    fmt::print( "event_store.fire_event requisites: {{{}}}\n", requisites | rvs::join( ',' ) | ranges::to< std::string >() ); // => ( "[log][kmap.event.fire_event] requisites: {{{}}}", requisites )
+
     // TODO: log( "event_store.fire_event", fmt::format( "requisites: {{{}}}", requisites ) ); // => ( "[log][kmap.event.fire_event] requisites: {{{}}}", requisites )
     // TODO: Each component comes with a logging facility i.e., the function log() that automatically prefixes output with component name?
     auto rv = KMAP_MAKE_RESULT( void );
@@ -805,6 +887,8 @@ auto EventStore::fire_event( std::set< std::string > const& requisites
                            , std::string const& payload )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     
     payload_ = payload;
@@ -821,6 +905,8 @@ auto EventStore::fire_event( std::set< std::string > const& requisites
 auto EventStore::fire_event_internal( std::set< std::string > const& requisites )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     // fmt::print( "fire_event_internal: {}\n", requisites | ranges::views::join( '|' ) | ranges::to< std::string >() );
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -1170,6 +1256,9 @@ auto EventStore::is_outlet( Uuid const& node )
 auto EventStore::reset_transitions( Uuid const& outlet )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "outlet", outlet );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1288,6 +1377,8 @@ SCENARIO( "EventStore::reset_transitions( Uuid )", "[event]" )
 auto EventStore::reset_transitions( std::set< std::string > const& requisites )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -1431,6 +1522,8 @@ struct EventStore
     auto fire_event( std::vector< std::string > const& requisites )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto const estore = KTRY( kmap_.fetch_component< com::EventStore >() );
 
         return estore->fire_event( requisites | ranges::to< std::set >() );
@@ -1438,6 +1531,8 @@ struct EventStore
     auto reset_transitions( std::vector< std::string > const& requisites )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto const estore = KTRY( kmap_.fetch_component< com::EventStore >() );
 
         return estore->reset_transitions( requisites | ranges::to< std::set >() );

@@ -8,6 +8,7 @@
 #include "common.hpp"
 #include "error/master.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -19,7 +20,7 @@ SCENARIO( "test kmap::Result" )
 {
     GIVEN( "default Result< void >" )
     {
-        auto r = KMAP_MAKE_RESULT( void );
+        auto r = result::make_result< void >();
 
         THEN( "explicit bool false" )
         {
@@ -46,7 +47,7 @@ SCENARIO( "test kmap::Result" )
     }
     GIVEN( "default Result< void >" )
     {
-        auto r = KMAP_MAKE_RESULT( void );
+        auto r = result::make_result< void >();
 
         WHEN( "set to success" )
         {

@@ -9,6 +9,7 @@
 #include "error/master.hpp"
 #include "kmap.hpp"
 #include "util/clerk/clerk.hpp"
+#include "util/result.hpp"
 
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/reverse.hpp>
@@ -52,6 +53,8 @@ OptionClerk::~OptionClerk()
 auto OptionClerk::apply_installed()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const ostore = KTRY( kmap_.fetch_component< com::OptionStore >() );
 
@@ -69,6 +72,8 @@ auto OptionClerk::apply_installed()
 auto OptionClerk::check_registered()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const ostore = KTRY( kmap_.fetch_component< com::OptionStore >() );
     auto const voroot = view::abs_root | view::direct_desc( "meta.setting.option" );
@@ -113,6 +118,8 @@ auto OptionClerk::check_registered()
 auto OptionClerk::register_option( Option const& option )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     
     KMAP_ENSURE( !registered_options_.contains( option.heading ), error_code::common::uncategorized );
@@ -127,6 +134,9 @@ auto OptionClerk::register_option( Option const& option )
 auto OptionClerk::install_option( Option const& option )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", option.heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const ostore = KTRY( kmap_.fetch_component< com::OptionStore >() );
     auto const optn = KTRY( ostore->install_option( option ) );
@@ -141,6 +151,8 @@ auto OptionClerk::install_option( Option const& option )
 auto OptionClerk::install_registered()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& opt : registered_options_

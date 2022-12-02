@@ -12,6 +12,7 @@
 #include "command.hpp"
 #include "com/cmd/command.hpp"
 #include "com/network/network.hpp"
+#include "util/result.hpp"
 
 #include <range/v3/algorithm/find.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -61,6 +62,9 @@ auto select_node( Kmap& kmap
                 , std::string const& dst )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "dst", dst );
+
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     if( auto const target = view::make( kmap.root_node_id() )

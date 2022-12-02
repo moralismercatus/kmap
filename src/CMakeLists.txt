@@ -147,6 +147,7 @@ add_executable( emcc.index.html
                 path/act/abs_path.cpp path/act/abs_path.hpp
                 path/act/erase.cpp path/act/erase.hpp
                 path/act/fetch_body.cpp path/act/fetch_body.hpp
+                path/act/fetch_heading.cpp path/act/fetch_heading.hpp
                 path/act/front.cpp path/act/front.hpp
                 path/act/order.cpp path/act/order.hpp
                 path/act/take.cpp path/act/take.hpp
@@ -189,8 +190,9 @@ add_executable( emcc.index.html
                 test/sqlpp/sqlpp.cpp
                 test/util.cpp
                 test/util/util.cpp
-                util/profile.cpp
                 util/clerk/clerk.cpp util/clerk/clerk.hpp
+                util/profile.cpp util/profile.hpp
+                util/result.cpp util/result.hpp
                 util/script/script.cpp util/script/script.hpp
                 util/window.cpp
                 utility.cpp

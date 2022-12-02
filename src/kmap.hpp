@@ -12,12 +12,7 @@
 #include "path/node_view.hpp"
 #include "utility.hpp"
 
-#include <exception>
 #include <memory>
-#include <regex>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
 
 namespace kmap {
 
@@ -39,10 +34,10 @@ public:
     [[ nodiscard ]]
     auto database_path() const
         -> FsPath const&;
-    // TODO: In theory, since this is component-dependent, even this shouldn't be here, lest it is used out of init order.
-    [[ nodiscard ]]
-    auto root_node_id() const
-        -> Uuid const&;
+    auto clear()
+        -> Result< void >;
+    auto clear_component_store()
+        -> Result< void >;
     [[ nodiscard ]]
     auto component_store()
         -> ComponentStore&;
@@ -80,14 +75,15 @@ public:
         -> Result< void >;
     auto init_component_store()
         -> void;
-    auto clear()
-        -> Result< void >;
-    auto clear_component_store()
-        -> Result< void >;
     auto on_leaving_editor()
         -> Result< void >;
     auto root_view() const
         -> view::Intermediary;
+
+    // TODO: In theory, since this is component-dependent, even this shouldn't be here, lest it is used out of init order.
+    [[ nodiscard ]]
+    auto root_node_id() const
+        -> Uuid const&;
 };
 
 class Singleton

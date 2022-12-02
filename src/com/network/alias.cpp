@@ -12,6 +12,7 @@
 #include "kmap.hpp"
 #include "test/util.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -110,6 +111,9 @@ SCENARIO( "AliasSet basic ops", "[alias]" )
 auto AliasStore::erase_alias( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -274,6 +278,7 @@ auto AliasStore::fetch_entry( Uuid const& id ) const
     }
     else
     {
+        // TODO: Inform rv what went wrong?
         fmt::print( "{} entries found for alias_id: {}\n", std::distance( er.first, er.second ), to_string( id ) );
     }
 
@@ -283,6 +288,9 @@ auto AliasStore::fetch_entry( Uuid const& id ) const
 auto AliasStore::fetch_parent( Uuid const& child ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "child", child );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     
     rv = KTRY( fetch_entry( child ) ).dst().value();
@@ -390,6 +398,8 @@ SCENARIO( "aliased node has_alias()", "[alias]" )
 auto AliasStore::push_alias( AliasItem const& item )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()

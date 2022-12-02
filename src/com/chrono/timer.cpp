@@ -10,6 +10,7 @@
 #include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/node_view.hpp"
+#include "util/result.hpp"
 
 namespace kmap::com {
 
@@ -38,7 +39,9 @@ Timer::~Timer()
 auto Timer::initialize()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KTRY( install_default_timers() );
 
@@ -50,7 +53,9 @@ auto Timer::initialize()
 auto Timer::load()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KTRY( install_default_timers() );
 
@@ -62,7 +67,9 @@ auto Timer::load()
 auto Timer::install_default_timers()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KTRY( eclerk_.install_subject( "chrono.timer" ) );
     KTRY( eclerk_.install_object( "chrono.second" ) );
@@ -83,7 +90,11 @@ auto Timer::install_timer( std::string const& requisite_js_list
                          , uint32_t const& ms_frequency )
     -> Result< void >
 {        
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "requisite_js_list", requisite_js_list );
+        KM_RESULT_PUSH_STR( "ms_frequency", std::to_string( ms_frequency ) );
+
+    auto rv = result::make_result< void >();
     auto const script = 
         fmt::format(
 R"%%%( 

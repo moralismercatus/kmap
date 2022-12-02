@@ -11,6 +11,7 @@
 #include "kmap.hpp"
 #include "path.hpp"
 #include "path/act/abs_path.hpp"
+#include "util/result.hpp"
 
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
@@ -158,6 +159,10 @@ auto Lineal::make( Kmap const& kmap
                  , Uuid const& leaf )
     -> Result< Lineal >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+        KM_RESULT_PUSH_NODE( "leaf", leaf );
+
     auto rv = KMAP_MAKE_RESULT( Lineal );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -178,6 +183,10 @@ auto Descendant::make( Kmap const& kmap
                      , Uuid const& descendant )
     -> Result< Descendant >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "ancestor", ancestor );
+        KM_RESULT_PUSH_NODE( "descendant", descendant );
+
     auto rv = KMAP_MAKE_RESULT( Descendant );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -209,6 +218,8 @@ auto LinealRange::make( Kmap const& kmap
                       , Lineal const& lin )
     -> Result< LinealRange >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( LinealRange );
     auto const lineage = KTRY( view::make( lin.root() )
                              | view::desc( lin.leaf() )

@@ -55,7 +55,7 @@
         if( !( res ) ) \
         { \
             { \
-                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( fmt::format( "predicate: {}\n\tmessage: {}", #pred, msg ) ) ) ); \
+                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( fmt::format( "predicate: {}\n\tmessage: '{}'", #pred, msg ) ) ) ); \
             } \
         } \
     }
@@ -79,7 +79,7 @@
             ; \
         else \
         { \
-            res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
+            res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM_MSG( kmap::result::to_string( km_result_local_state.log ) ) ); \
             return BOOST_OUTCOME_V2_NAMESPACE::try_operation_return_as( static_cast< decltype( res )&& >( res ) ); \
         } \
         BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \

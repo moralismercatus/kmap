@@ -8,6 +8,8 @@
 #define KMAP_PATH_HPP
 
 #include "common.hpp"
+#include "kmap.hpp"
+#include "util/result.hpp"
 
 #include <regex>
 #include <set>
@@ -190,7 +192,10 @@ auto fetch_descendants( KMap const& kmap
                       , Pred pred )
     -> Result< UuidSet >
 {
-    auto rv = KMAP_MAKE_RESULT( UuidSet );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
+    auto rv = kmap::result::make_result< UuidSet >();
     auto const nw = KTRY( kmap.template fetch_component< com::Network >() );
     auto matches = UuidSet{};
 

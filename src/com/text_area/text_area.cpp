@@ -18,6 +18,7 @@
 #include "kmap.hpp"
 #include "path/act/value_or.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -29,8 +30,8 @@ TextArea::TextArea( Kmap& kmap
                   , std::set< std::string > const& requisites
                   , std::string const& description )
     : Component( kmap, requisites, description )
-    , eclerk_{ kmap, { TextArea::id } }
     , oclerk_{ kmap }
+    , eclerk_{ kmap, { TextArea::id } }
     , cclerk_{ kmap }
 {
     register_standard_commands();
@@ -41,6 +42,8 @@ TextArea::TextArea( Kmap& kmap
 auto TextArea::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( install_event_sources() );
@@ -58,6 +61,8 @@ auto TextArea::initialize()
 auto TextArea::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( install_event_sources() );
@@ -74,6 +79,8 @@ auto TextArea::load()
 auto TextArea::apply_static_options()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const ostore = KTRY( fetch_component< com::OptionStore >() );
 
@@ -203,6 +210,8 @@ SCENARIO( "edit.body", "[cmd][text_area][edit.body]" ) // TODO: Move to text_are
 auto TextArea::register_standard_options()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     // Preview
@@ -266,6 +275,8 @@ auto TextArea::register_standard_outlets()
 auto TextArea::install_event_sources()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     // editor.onkeydown
@@ -303,7 +314,10 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() 
 auto TextArea::load_preview( Uuid const& id )
     -> Result< void >
 {
-    auto rv = error::make_result< void >();
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+
+    auto rv = result::make_result< void >();
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -380,7 +394,9 @@ auto TextArea::editor_contents()
 auto TextArea::hide_editor()
     -> Result< void >
 {
-    auto rv = error::make_result< void >();
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
     KTRY( canvas->hide( canvas->editor_pane() ) );
@@ -393,7 +409,9 @@ auto TextArea::hide_editor()
 auto TextArea::show_editor()
     -> Result< void >
 {
-    auto rv = error::make_result< void >();
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
     KTRY( canvas->reveal( canvas->editor_pane() ) );
@@ -437,9 +455,11 @@ auto TextArea::show_preview( std::string const& text )
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
-    auto rv = error::make_result< void >();
+    auto rv = result::make_result< void >();
 
     val::global().call< val >( "write_preview", text );
     // js::eval_void( io::format( "document.getElementById( '{}' ).innerHTML = '{}';"
@@ -456,7 +476,9 @@ auto TextArea::show_preview( std::string const& text )
 auto TextArea::hide_preview()
     -> Result< void >
 {
-    auto rv = error::make_result< void >();
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
     KTRY( canvas->hide( canvas->preview_pane() ) );

@@ -14,6 +14,7 @@
 #include "kmap.hpp"
 #include "table_decl.hpp"
 #include "test/util.hpp"
+#include "util/result.hpp"
 #include "util/signal_exception.hpp"
 #include "utility.hpp"
 
@@ -45,6 +46,8 @@ DatabaseFilesystem::DatabaseFilesystem( Kmap& kmap
 auto DatabaseFilesystem::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( cclerk_.install_registered() );
@@ -57,6 +60,8 @@ auto DatabaseFilesystem::initialize()
 auto DatabaseFilesystem::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( cclerk_.check_registered() );
@@ -466,6 +471,9 @@ auto DatabaseFilesystem::copy_state( FsPath const& dst )
 {
     using boost::system::error_code;
 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "dst", dst.string() );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( file_exists( dst ), kmap::error_code::filesystem::file_not_found );
@@ -490,6 +498,9 @@ auto DatabaseFilesystem::move_state( FsPath const& dst )
     -> Result< void >
 {
     using boost::system::error_code;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "dst", dst.string() );
 
     auto rv = KMAP_MAKE_RESULT( void );
 

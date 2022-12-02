@@ -12,6 +12,7 @@
 #include "common.hpp"
 #include "emcc_bindings.hpp"
 #include "kmap.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -34,6 +35,8 @@ Autosave::Autosave( Kmap& kmap
 auto Autosave::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const ostore = KTRY( fetch_component< com::OptionStore >() );
 
@@ -127,6 +130,9 @@ auto Autosave::has_event_outlet( std::set< std::string > const& requisites )
 auto Autosave::install_event_outlet( std::string const& unit )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "unit", unit );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( fetch_component< com::EventStore >() );
     auto const action = 
@@ -161,6 +167,8 @@ kmap.autosave().interval();
 auto Autosave::uninstall_event_outlet()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( fetch_component< com::EventStore >() );
 
@@ -175,6 +183,8 @@ auto Autosave::uninstall_event_outlet()
 auto Autosave::interval()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     fmt::print( "autosave::interval() entered\n" );

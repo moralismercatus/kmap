@@ -18,6 +18,7 @@
 #include "kmap.hpp"
 #include "path/node_view.hpp"
 #include "util/script/script.hpp"
+#include "util/result.hpp"
 
 #include <boost/variant.hpp>
 
@@ -66,6 +67,9 @@ auto OptionStore::option_root()
 auto OptionStore::install_option( Option const& option )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", option.heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -108,6 +112,9 @@ auto OptionStore::is_option( Uuid const& option )
 auto OptionStore::uninstall_option( Heading const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const node = KTRY( view::make( option_root() )
@@ -124,6 +131,9 @@ auto OptionStore::uninstall_option( Heading const& heading )
 auto OptionStore::uninstall_option( Uuid const& option )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "option", option );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -139,6 +149,10 @@ auto OptionStore::update_value( Heading const& heading
                               , std::string const& value )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+        KM_RESULT_PUSH_STR( "value", value );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -157,10 +171,12 @@ auto OptionStore::update_value( Heading const& heading
 auto OptionStore::apply( Uuid const& option )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "option", option );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( is_option( option ), error_code::network::invalid_node );
-
 
     // auto const action = KTRY( view::make_view( kmap_, option ) | view::child( "action" ) | view::try_to_single );
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -202,6 +218,9 @@ auto OptionStore::apply( Uuid const& option )
 auto OptionStore::apply( std::string const& path )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", path );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const target = KTRY( view::make( option_root() ) 
@@ -218,6 +237,8 @@ auto OptionStore::apply( std::string const& path )
 auto OptionStore::apply_all()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const root = option_root();
@@ -253,6 +274,9 @@ struct OptionStore
     auto apply( std::string const& path )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "path", path );
+
         auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
 
         return ostore->apply( path );
@@ -261,6 +285,8 @@ struct OptionStore
     auto apply_all()
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
 
         return ostore->apply_all();
@@ -270,6 +296,10 @@ struct OptionStore
                      , float const& value )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "path", path );
+            KM_RESULT_PUSH_STR( "value", std::to_string( value ) );
+
         auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
 
         return ostore->update_value( path, fmt::format( "{:.2f}", value ) );

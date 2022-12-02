@@ -11,7 +11,7 @@
 #include "error/master.hpp"
 #include "kmap.hpp"
 #include "utility.hpp"
-
+#include "util/result.hpp"
 
 // Temporary...
 #include "path/act/abs_path.hpp"
@@ -22,6 +22,9 @@ auto ForwardingLink::create( CreateContext const& ctx
                            , Uuid const& root ) const
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
     auto ns = UuidSet{};
 
@@ -313,6 +316,8 @@ auto operator|( Chain const& lhs
               , AbsPathFlat const& rhs )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( std::string );
 
     BC_CONTRACT()

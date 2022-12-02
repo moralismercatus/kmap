@@ -16,13 +16,16 @@
 #include "path/node_view.hpp"
 #include "path.hpp"
 #include "util/script/script.hpp"
+#include "util/result.hpp"
 
 namespace kmap::com {
 
 auto CommandStore::initialize()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KTRY( install_standard_arguments() );
 
@@ -34,7 +37,9 @@ auto CommandStore::initialize()
 auto CommandStore::load()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     rv = outcome::success();
 
@@ -44,7 +49,9 @@ auto CommandStore::load()
 auto CommandStore::argument_root()
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< Uuid >();
     auto& km = kmap_inst();
 
     rv = KTRY( view::abs_root
@@ -57,7 +64,9 @@ auto CommandStore::argument_root()
 auto CommandStore::command_root()
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< Uuid >();
     auto& km = kmap_inst();
 
     rv = KTRY( view::abs_root
@@ -70,7 +79,10 @@ auto CommandStore::command_root()
 auto CommandStore::install_argument( Argument const& arg )
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "arg", arg.path );
+
+    auto rv = result::make_result< Uuid >();
     auto& km = kmap_inst();
 
     KMAP_ENSURE( js::lint( arg.guard ), error_code::js::lint_failed );
@@ -109,7 +121,10 @@ auto CommandStore::install_argument( Argument const& arg )
 auto CommandStore::install_command( Command const& cmd )
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", cmd.path );
+
+    auto rv = result::make_result< Uuid >();
 
     KMAP_ENSURE( js::lint( cmd.guard.code ), error_code::js::lint_failed );
     KMAP_ENSURE( js::lint( cmd.action ), error_code::js::lint_failed );
@@ -167,6 +182,8 @@ auto CommandStore::install_command( Command const& cmd )
 auto CommandStore::install_standard_arguments()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     // arg.unconditional
@@ -264,6 +281,9 @@ auto CommandStore::is_command( Uuid const& node )
 auto CommandStore::uninstall_argument( Uuid const& argn )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "arg", argn );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
@@ -279,6 +299,9 @@ auto CommandStore::uninstall_argument( Uuid const& argn )
 auto CommandStore::uninstall_command( Uuid const& cmdn )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "cmdn", cmdn );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );

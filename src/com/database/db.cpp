@@ -18,6 +18,7 @@
 #include "error/network.hpp"
 #include "io.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <boost/filesystem.hpp>
 #include <boost/hana/ext/std/tuple.hpp>
@@ -147,6 +148,8 @@ auto Database::initialize()
 auto Database::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -475,6 +478,10 @@ auto Database::push_child( Uuid const& parent
                          , Uuid const& child )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "parent", parent );
+        // KM_RESULT_PUSH_NODE( "child", child );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -498,6 +505,9 @@ auto Database::push_child( Uuid const& parent
 auto Database::push_node( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "id", id );
+
     KMAP_ENSURE( !node_exists( id ), error_code::network::duplicate_node );
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -513,6 +523,10 @@ auto Database::push_heading( Uuid const& node
                            , std::string const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", node );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     KMAP_ENSURE_EXCEPT( node_exists( node ) ); // TODO: replace with ensure_result
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -528,6 +542,10 @@ auto Database::push_body( Uuid const& node
                         , std::string const& body )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", node );
+        KM_RESULT_PUSH_STR( "body", body );
+
     KMAP_ENSURE_EXCEPT( node_exists( node ) ); // TODO: replace with ensure_result
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -543,6 +561,10 @@ auto Database::push_title( Uuid const& node
                          , std::string const& title )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", node );
+        KM_RESULT_PUSH_STR( "title", title );
+
     KMAP_ENSURE_EXCEPT( node_exists( node ) ); // TODO: replace with ensure_result
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -558,6 +580,10 @@ auto Database::push_attr( Uuid const& parent
                         , Uuid const& attr )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "parent", parent );
+        // KM_RESULT_PUSH_NODE( "attr", attr );
+
     KMAP_ENSURE_EXCEPT( node_exists( parent ) ); // TODO: replace with ensure_result
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -624,6 +650,10 @@ auto Database::push_alias( Uuid const& src
                          , Uuid const& dst )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "src", src );
+        // KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -656,6 +686,9 @@ auto Database::path() const
 auto Database::fetch_alias_destinations( Uuid const& src ) const
     -> Result< std::vector< Uuid > >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "src", src );
+
     auto rv = KMAP_MAKE_RESULT( std::vector< Uuid > );
 
     BC_CONTRACT()
@@ -728,6 +761,9 @@ auto Database::fetch_alias_destinations( Uuid const& src ) const
 auto Database::fetch_alias_sources( Uuid const& dst ) const
     -> std::vector< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = std::vector< Uuid >{};
 
     BC_CONTRACT()
@@ -773,6 +809,9 @@ auto Database::fetch_alias_sources( Uuid const& dst ) const
 auto Database::fetch_parent( Uuid const& id ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     KMAP_ENSURE( node_exists( id ), error_code::network::invalid_node ); // TODO: replace with ensure_result
@@ -801,6 +840,10 @@ auto Database::fetch_child( Uuid const& parent
                           , Heading const& heading ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     KMAP_ENSURE_EXCEPT( node_exists( parent ) ); // TODO: replace with ensure_result
 
     // TODO: This assumes that every node has a heading. Is this constraint enforced? The only way would be to force Database::create_node( id, heading );
@@ -824,6 +867,9 @@ auto Database::fetch_child( Uuid const& parent
 auto Database::fetch_body( Uuid const& id ) const
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", id );
+
     KMAP_ENSURE_EXCEPT( node_exists( id ) ); // TODO: replace with ensure_result
 
     auto rv = KMAP_MAKE_RESULT( std::string );
@@ -836,6 +882,8 @@ auto Database::fetch_body( Uuid const& id ) const
 auto Database::fetch_heading( Uuid const& id ) const
     -> Result< Heading >
 {
+    KM_RESULT_PROLOG();
+
     KMAP_ENSURE_EXCEPT( node_exists( id ) ); // TODO: replace with ensure_result
 
     auto rv = KMAP_MAKE_RESULT( Heading );
@@ -855,6 +903,9 @@ auto Database::fetch_heading( Uuid const& id ) const
 auto Database::fetch_attr( Uuid const& id ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     KMAP_ENSURE( node_exists( id ), error_code::network::invalid_node );
@@ -878,6 +929,9 @@ auto Database::fetch_attr( Uuid const& id ) const
 auto Database::fetch_attr_owner( Uuid const& attrn ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "attr", attrn );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     
     KMAP_ENSURE( node_exists( attrn ), error_code::network::invalid_node );
@@ -936,6 +990,9 @@ auto Database::fetch_nodes( Heading const& heading ) const
 auto Database::fetch_title( Uuid const& id ) const
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
 
     rv = KTRY( cache_.fetch_value< db::TitleTable >( id ) );
@@ -1015,6 +1072,10 @@ auto Database::update_heading( Uuid const& node
                              , Heading const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1040,6 +1101,10 @@ auto Database::update_title( Uuid const& node
                            , Title const& title )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", node );
+        KM_RESULT_PUSH_STR( "title", title );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1065,6 +1130,9 @@ auto Database::update_body( Uuid const& node
                           , std::string const& content )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
@@ -1264,6 +1332,9 @@ auto Database::fetch_children() const
 auto Database::fetch_children( Uuid const& parent ) const
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "parent", parent );
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
 
     BC_CONTRACT()
@@ -1321,6 +1392,10 @@ auto Database::erase_child( Uuid const& parent
                           , Uuid const& child )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "parent", parent );
+        // KM_RESULT_PUSH_NODE( "child", child );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1357,6 +1432,10 @@ auto Database::erase_alias( Uuid const& src
                           , Uuid const& dst )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "src", src );
+        // KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1391,6 +1470,8 @@ auto Database::erase_alias( Uuid const& src
 auto Database::flush_delta_to_disk()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1719,6 +1800,9 @@ auto create_attr_node( Database& db
                      , Uuid const& parent )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "parent", parent );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const mn = gen_uuid();
 
@@ -1749,6 +1833,9 @@ struct Database
     auto init_db_on_disk( std::string const& path )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "path", path );
+
         auto const db = KTRY( kmap_.fetch_component< com::Database >() );
 
         return db->init_db_on_disk( com::kmap_root_dir / path );
@@ -1757,6 +1844,8 @@ struct Database
     auto flush_delta_to_disk()
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         try
         {
             auto const db = KTRY( kmap_.fetch_component< com::Database >() );

@@ -12,6 +12,7 @@
 #include "error/js_iface.hpp"
 #include "error/master.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <emscripten.h>
 #include <emscripten/val.h>
@@ -47,7 +48,10 @@ auto call( emscripten::val& object
 {
     using emscripten::val;
 
-    auto rv = KMAP_MAKE_RESULT( Return ); 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "name", name );
+
+    auto rv = result::make_result< Return >(); 
 
     if( auto const res = object.call< val >( name.c_str()
                                            , std::forward< Args >( args )... )
@@ -80,6 +84,8 @@ auto eval( std::string const& expr )
     -> Result< Return >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( Return ); 
     auto constexpr script =

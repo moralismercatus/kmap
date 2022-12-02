@@ -113,6 +113,9 @@ auto EventClerk::append_com_reqs( Branch const& branch )
 auto EventClerk::check_registered( Leaf const& leaf )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "leaf", leaf.heading );
+    
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const eroot = KTRY( estore->event_root() );
@@ -154,6 +157,9 @@ auto EventClerk::check_registered( Leaf const& leaf )
 auto EventClerk::check_registered( Branch const& branch )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "branch", branch.heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const eroot = KTRY( estore->event_root() );
@@ -215,6 +221,9 @@ auto EventClerk::check_registered( Branch const& branch )
 auto EventClerk::check_registered( std::string const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( registered_outlets.contains( heading ), error_code::network::invalid_heading );
@@ -236,6 +245,8 @@ auto EventClerk::check_registered( std::string const& heading )
 auto EventClerk::check_registered()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& heading : registered_outlets
@@ -252,6 +263,8 @@ auto EventClerk::check_registered()
 auto EventClerk::fire_event( std::set< std::string > const& requisites )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
 
@@ -275,6 +288,8 @@ auto EventClerk::fire_event( std::set< std::string > const& requisites
                            , std::string const& event_payload )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     payload = event_payload;
@@ -291,6 +306,9 @@ auto EventClerk::fire_event( std::set< std::string > const& requisites
 auto EventClerk::install_subject( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const subject = KTRY( estore->install_subject( heading ) );
@@ -305,6 +323,9 @@ auto EventClerk::install_subject( Heading const& heading )
 auto EventClerk::install_verb( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const verb = KTRY( estore->install_verb( heading ) );
@@ -319,6 +340,9 @@ auto EventClerk::install_verb( Heading const& heading )
 auto EventClerk::install_object( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const object = KTRY( estore->install_object( heading ) );
@@ -333,6 +357,9 @@ auto EventClerk::install_object( Heading const& heading )
 auto EventClerk::install_component( Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const com = KTRY( estore->install_component( heading ) );
@@ -347,6 +374,9 @@ auto EventClerk::install_component( Heading const& heading )
 auto EventClerk::install_outlet( Leaf const& leaf ) 
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "leaf", leaf.heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const amended_leaf = append_com_reqs( leaf );
@@ -365,6 +395,9 @@ auto EventClerk::install_outlet( Leaf const& leaf )
 auto EventClerk::install_outlet( Branch const& branch ) 
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "branch", branch.heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const amended_branch = append_com_reqs( branch );
@@ -383,6 +416,9 @@ auto EventClerk::install_outlet( Branch const& branch )
 auto EventClerk::install_outlet( std::string const& path )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", path );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     KMAP_ENSURE( registered_outlets.contains( path ), error_code::network::invalid_heading );
@@ -403,6 +439,8 @@ auto EventClerk::install_outlet_transition( Uuid const& root
                                           , Transition const& transition )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     KMAP_THROW_EXCEPTION_MSG( "TODO: Need to install_requisites() first" );
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -419,6 +457,8 @@ auto EventClerk::install_outlet_transition( Uuid const& root
 auto EventClerk::install_requisites( std::set< std::string > const& requisites )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const eroot = KTRY( estore->event_root() );
@@ -467,6 +507,8 @@ auto EventClerk::install_requisites( std::set< std::string > const& requisites )
 auto EventClerk::install_registered()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+    
     auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& path : registered_outlets

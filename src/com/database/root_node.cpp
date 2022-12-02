@@ -7,12 +7,15 @@
 
 #include "com/database/db.hpp"
 #include "kmap.hpp"
+#include "util/result.hpp"
 
 namespace kmap::com {
 
 auto RootNode::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     root_ = gen_uuid();
@@ -49,6 +52,8 @@ auto RootNode::initialize()
 auto RootNode::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const db = KTRY( fetch_component< com::Database >() );
     auto const& nt = db->fetch< db::NodeTable >();

@@ -13,6 +13,7 @@
 #include "container.hpp"
 #include "error/db.hpp"
 #include "util/concepts.hpp"
+#include "util/result.hpp"
 
 #include <boost/bimap.hpp>
 #include <boost/container_hash/hash.hpp>
@@ -185,8 +186,10 @@ public:
     {
         using value_type = typename Table::template value_type_v< Key >;
 
-        auto rv = KMAP_MAKE_RESULT( std::vector< value_type > );
-        auto const items = KMAP_TRY( fetch_items< Table >( key ) );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< std::vector< value_type > >();
+        auto const items = KTRY( fetch_items< Table >( key ) );
         auto spliced = std::set< value_type >{};
 
         for( auto const& item : items )
@@ -263,7 +266,9 @@ public:
     auto push( typename Table::unique_key_type const& ukey )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< void >();
         auto decider = make_unique_cache_decider( *this );
 
         {
@@ -279,7 +284,7 @@ public:
         {
             auto&& table = std::get< Table >( cache_tables_ );
 
-            KMAP_TRY( table.create( ukey ) );
+            KTRY( table.create( ukey ) );
         }
         else if( decider.driver->is( boost::sml::state< sm::state::UpdateDelta > ) )
         {
@@ -311,6 +316,8 @@ public:
              , typename Table::right_type const& right )
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
         auto const key = [ & ]
         {
@@ -391,6 +398,8 @@ public:
     auto erase( typename Table::unique_key_type const& ukey )
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
         auto decider = make_unique_cache_decider( *this );
 
@@ -415,13 +424,13 @@ public:
                     table_item.delta_items.emplace_back( typename Table::DeltaItem{ .value = typename Table::value_type{}, .action = DeltaType::erased, .transaction_id = {} } );
                 };
 
-                KMAP_TRY( table.update( ukey, update_fn ) );
+                KTRY( table.update( ukey, update_fn ) );
             }
             else if( decider.driver->is( boost::sml::state< sm::state::ClearDelta > ) )
             {
                 auto&& table = std::get< Table >( cache_tables_ );
 
-                KMAP_TRY( table.erase( ukey ) );
+                KTRY( table.erase( ukey ) );
             }
             else
             {
@@ -439,6 +448,8 @@ public:
               , typename Table::right_type const& right )
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
         auto const key = [ & ]
         {
@@ -677,6 +688,8 @@ public:
         using namespace ranges;
         using value_type = typename Table::template value_type_v< Key >;
 
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( std::vector< value_type > );
         auto const tis = KMAP_TRY( fetch_items< Table >( key ) );
         auto const cis = tis
@@ -759,6 +772,8 @@ public:
     auto fetch_last_delta( Key const& key ) const
         -> Result< DeltaItem< typename Table::value_type > >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( DeltaItem< typename Table::value_type > );
         auto const r = KTRY( fetch_deltas< Table >( key ) ); BC_ASSERT( !r.empty() );
 
@@ -775,8 +790,10 @@ public:
     {
         using value_type = typename Table::template value_type_v< Key >;
 
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( std::vector< DeltaItem< value_type > > );
-        auto const r = KMAP_TRY( fetch_deltas< Table >( key ) );
+        auto const r = KTRY( fetch_deltas< Table >( key ) );
 
         rv = r
            | ranges::views::transform( []( auto const& e ){ BC_ASSERT( !e.empty() ); return e.back(); } )

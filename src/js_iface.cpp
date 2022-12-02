@@ -8,6 +8,7 @@
 #include "contract.hpp"
 #include "emcc_bindings.hpp"
 #include "error/js_iface.hpp"
+#include "util/result.hpp"
 #include "utility.hpp"
 
 #include <range/v3/range/conversion.hpp>
@@ -32,7 +33,10 @@ auto beautify( std::string const& code )
 auto create_html_canvas( std::string const& id )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "id", id );
+
+    auto rv = result::make_result< void >();
 
     KMAP_ENSURE( !element_exists( id ), error_code::js::element_already_exists );
 
@@ -62,13 +66,16 @@ auto exists( Uuid const& id )
 auto erase_child_element( std::string const& doc_id )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "doc_id", doc_id );
+
+    auto rv = result::make_result< void >();
 
     KMAP_ENSURE( element_exists( doc_id ), error_code::js::invalid_element );
 
-    KMAP_TRY( js::eval_void( io::format( "let elem = document.getElementById( '{}' ); console.assert( elem );"
-                                         "let res = elem.parentNode.removeChild( elem ); console.assert( res );"
-                                       , doc_id ) ) );
+    KTRY( js::eval_void( io::format( "let elem = document.getElementById( '{}' ); console.assert( elem );"
+                                     "let res = elem.parentNode.removeChild( elem ); console.assert( res );"
+                                   , doc_id ) ) );
 
     rv = outcome::success();
 
@@ -80,7 +87,9 @@ auto lint( std::string const& code )
 {
     using emscripten::val;
 
-    auto rv = KMAP_MAKE_RESULT( void ); 
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >(); 
 
     if( auto const linted = call< std::string >( "lint_javascript", code )
       ; linted )
@@ -104,7 +113,9 @@ auto eval_void( std::string const& expr )
 {
     using emscripten::val;
 
-    auto rv = KMAP_MAKE_RESULT( void ); 
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >(); 
 
     KMAP_ENSURE( lint( expr ), error_code::js::lint_failed );
 
@@ -172,7 +183,10 @@ auto publish_function( std::string_view const name
 {
     using emscripten::val;
 
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "name", std::string{ name } );
+
+    auto rv = result::make_result< void >();
 
     KMAP_ENSURE( lint( std::string{ body } ), error_code::js::lint_failed );
 

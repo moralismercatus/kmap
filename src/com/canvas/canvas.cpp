@@ -21,6 +21,7 @@
 #include "path/act/update_body.hpp"
 #include "path/node_view.hpp"
 #include "util/macro.hpp"
+#include "util/result.hpp"
 #include "util/window.hpp"
 
 #include <emscripten.h>
@@ -146,6 +147,8 @@ Canvas::~Canvas()
 auto Canvas::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( initialize_root() );
@@ -164,6 +167,8 @@ auto Canvas::initialize()
 auto Canvas::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( update_all_panes() );
@@ -185,6 +190,8 @@ auto Canvas::load()
 auto Canvas::fetch_canvas_root()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
 
     return KTRY( view::abs_root
@@ -195,6 +202,8 @@ auto Canvas::fetch_canvas_root()
 auto Canvas::fetch_canvas_root() const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto const& km = kmap_inst();
 
     return KTRY( view::abs_root
@@ -211,6 +220,8 @@ auto Canvas::fetch_canvas_root() const
 auto Canvas::install_events()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const estore = KTRY( fetch_component< com::EventStore >() );
 
@@ -321,6 +332,8 @@ window.onkeydown = function( e )
 auto Canvas::install_options()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const opt = KTRY( fetch_component< com::OptionStore >() );
 
@@ -467,6 +480,8 @@ auto Canvas::set_breadcrumb( UuidVec const& bc )
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     
     BC_CONTRACT()
@@ -529,6 +544,11 @@ auto Canvas::subdivide( Uuid const& parent_pane
                       , Division const& subdiv )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent_pane", parent_pane );
+        KM_RESULT_PUSH_NODE( "pane", pane_id );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
@@ -550,6 +570,10 @@ auto Canvas::subdivide( Uuid const& parent_pane
                       , Division const& subdiv )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent_pane", parent_pane );
+        KM_RESULT_PUSH_STR( "heading", heading );
+        
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     KMAP_ENSURE( is_pane( parent_pane ), error_code::canvas::invalid_subdiv );
@@ -570,6 +594,8 @@ auto Canvas::subdivide( Uuid const& parent_pane
 auto Canvas::update_overlays()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const& km = kmap_inst();
     auto const canvas_root = KTRY( fetch_canvas_root() );
@@ -594,6 +620,8 @@ auto Canvas::update_overlays()
 auto Canvas::update_all_panes()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const canvas_root = KTRY( static_cast< Canvas const& >( *this ).fetch_canvas_root() );
 
@@ -607,6 +635,9 @@ auto Canvas::update_all_panes()
 auto Canvas::update_pane( Uuid const& pane )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     if( auto const parent = fetch_parent_pane( pane )
@@ -627,6 +658,11 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     -> Result< void >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root", root );
+
+    KMAP_LOG_LINE();
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
@@ -699,6 +735,8 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
 auto Canvas::update_panes()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const canvas_root = KTRY( static_cast< Canvas const& >( *this ).fetch_canvas_root() );
 
@@ -715,6 +753,10 @@ auto Canvas::rebase_internal( Uuid const& pane
                             , float const base )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+        KM_RESULT_PUSH_STR( "base", std::to_string( base ) );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( is_pane( pane ), error_code::network::invalid_node );
@@ -747,6 +789,10 @@ auto Canvas::rebase( Uuid const& pane
                    , float const base )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+        KM_RESULT_PUSH_STR( "base", std::to_string( base ) );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( rebase_internal( pane, base ) );
@@ -761,6 +807,9 @@ auto Canvas::reorient_internal( Uuid const& pane
                               , Orientation const& orientation )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -779,6 +828,9 @@ auto Canvas::orient( Uuid const& pane
                    , Orientation const& orientation )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( reorient_internal( pane, orientation ) );
@@ -792,6 +844,9 @@ auto Canvas::orient( Uuid const& pane
 auto Canvas::reorient( Uuid const& pane )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const prev_orient = KTRY( pane_orientation( pane ) );
     auto const orientation = [ & ]
@@ -811,6 +866,9 @@ auto Canvas::reorient( Uuid const& pane )
 auto Canvas::hide( Uuid const& pane )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( hide_internal( pane, true ) );
@@ -826,6 +884,9 @@ auto Canvas::hide_internal( Uuid const& pane
     -> Result< void >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
@@ -851,6 +912,9 @@ auto Canvas::hide_internal( Uuid const& pane
 auto Canvas::create_html_canvas( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+        
     auto rv = KMAP_MAKE_RESULT( void );
 
 fmt::print( "Canvas::create_html_canvas( {} );\n", to_string( id ) );
@@ -868,6 +932,11 @@ auto Canvas::create_html_child_element( std::string const& elem_type
                                       , Uuid const& child_id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parnet_id", parent_id );
+        KM_RESULT_PUSH_NODE( "child_id", child_id );
+        KM_RESULT_PUSH_STR( "elem_type", elem_type );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( js::eval_void( io::format( "let child_div = document.createElement( '{}' );"
@@ -891,6 +960,8 @@ auto Canvas::initialize_panes()
     -> Result< void >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -917,6 +988,8 @@ auto Canvas::initialize_panes()
 auto Canvas::initialize_overlays()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( create_overlay( completion_overlay(), "completion_overlay"/*, "div"*/ ) );
@@ -929,6 +1002,9 @@ auto Canvas::initialize_overlays()
 auto Canvas::reset_breadcrumb( Uuid const& supdiv )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "supdiv", supdiv );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     KMAP_ENSURE( is_pane( supdiv ), error_code::canvas::invalid_pane );
@@ -949,6 +1025,11 @@ auto Canvas::make_subdivision( Uuid const& target
                              , Division const& subdiv )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "target", target );
+
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -986,6 +1067,10 @@ auto Canvas::create_overlay( Uuid const& id
                            , std::string const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "id", id );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
@@ -1015,7 +1100,14 @@ auto Canvas::create_subdivision( Uuid const& parent
                                , Division const& subdiv )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_NODE( "child", child );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
+
+    KMAP_LOG_LINE();
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -1042,6 +1134,10 @@ auto Canvas::create_subdivision( Uuid const& parent
                                , Division const& subdiv )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     return create_subdivision( parent 
                              , gen_uuid()
                              , heading
@@ -1051,6 +1147,9 @@ auto Canvas::create_subdivision( Uuid const& parent
 auto Canvas::create_html_root_element( Uuid const& root_pane )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "root_pane", root_pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_ASSERT( !js::element_exists( to_string( root_pane ) ) );
@@ -1076,6 +1175,8 @@ auto Canvas::initialize_root()
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const canvas_root = KTRY( fetch_canvas_root() );
 
@@ -1091,7 +1192,12 @@ auto Canvas::initialize_root()
 auto Canvas::reveal( Uuid const& pane )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
+
+    KMAP_LOG_LINE();
 
     KTRY( hide_internal( pane, false ) );
     KTRY( update_pane( pane ) );
@@ -1116,6 +1222,11 @@ auto Canvas::height() const
 auto Canvas::pane_orientation( Uuid const& subdiv )
     -> Result< Orientation >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "subdiv", subdiv );
+
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( Orientation );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
@@ -1132,6 +1243,9 @@ auto Canvas::pane_orientation( Uuid const& subdiv )
 auto Canvas::pane_base( Uuid const& subdiv )
     -> Result< float >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "subdiv", subdiv );
+
     auto rv = KMAP_MAKE_RESULT( float );
 
     KMAP_ENSURE( is_pane( subdiv ), error_code::network::invalid_node );
@@ -1155,6 +1269,9 @@ auto Canvas::pane_base( Uuid const& subdiv )
 auto Canvas::pane_hidden( Uuid const& pane )
     -> Result< bool >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     // TODO: postcond div.hidden == pane.hidden
     auto rv = KMAP_MAKE_RESULT( bool );
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -1172,6 +1289,9 @@ auto Canvas::pane_hidden( Uuid const& pane )
 auto Canvas::pane_subdivision( Uuid const& subdiv )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "subdiv", subdiv );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
@@ -1186,6 +1306,9 @@ auto Canvas::pane_subdivision( Uuid const& subdiv )
 auto Canvas::pane_path( Uuid const& subdiv )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "subdiv", subdiv );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -1212,6 +1335,9 @@ auto Canvas::delete_pane( Uuid const& pane )
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
 
@@ -1234,6 +1360,9 @@ auto Canvas::delete_pane( Uuid const& pane )
 auto Canvas::delete_subdivisions( Uuid const& pane )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -1256,6 +1385,11 @@ auto Canvas::delete_subdivisions( Uuid const& pane )
 auto Canvas::dimensions( Uuid const& target )
     -> Result< Dimensions >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "target", target );
+
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( Dimensions );
     auto const canvas_root = KTRY( fetch_canvas_root() ); 
     auto& km = kmap_inst();
@@ -1356,6 +1490,11 @@ auto Canvas::dimensions( Uuid const& target )
 auto Canvas::fetch_parent_pane( Uuid const& node )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+    
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
@@ -1384,6 +1523,11 @@ auto Canvas::fetch_parent_pane( Uuid const& node )
 auto Canvas::fetch_subdivisions( Uuid const& pane )
     -> Result< UuidSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
+
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( UuidSet );
     auto& km = kmap_inst();
 
@@ -1408,7 +1552,12 @@ auto Canvas::focus( Uuid const& pane )
     -> Result< void >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "pane", pane );
     
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( js::eval_void( io::format( "document.getElementById( '{}' ).focus();", pane ) ) );
@@ -1430,6 +1579,11 @@ auto Canvas::expand_path( std::string const& path )
 auto Canvas::fetch_pane( std::string const& path )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", path );
+
+    KMAP_LOG_LINE();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const win_root = KTRY( fetch_window_root( km ) );
@@ -1594,6 +1748,8 @@ struct Canvas
                   , std::string const& elem_type )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+
         auto const parsed_orient = KTRY( from_string< Orientation >( orientation ) );
 
         return KTRYE( km.fetch_component< kmap::com::Canvas >() )->subdivide( pane, heading, Division{ parsed_orient, base, false, elem_type } );

@@ -30,7 +30,9 @@ auto load_script( Kmap& kmap
                 , std::istream& is )
     -> Result< std::string >
 {
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< std::string >();
     auto line = std::string{};
 
     while( std::getline( is, line ) )
@@ -50,7 +52,10 @@ auto load_script( Kmap& kmap
                 , FsPath const& raw_path )
     -> Result< std::string >
 {
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", raw_path.string() );
+
+    auto rv = result::make_result< std::string >();
     auto const path = com::kmap_root_dir / raw_path;
 
     if( fs::exists( path ) )

@@ -21,6 +21,7 @@
 #include "path/act/order.hpp"
 #include "path/node_view.hpp"
 #include "util/script/script.hpp"
+#include "util/result.hpp"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <emscripten.h>
@@ -141,6 +142,9 @@ auto execute_javascript( Uuid const& node
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto const fn_name = fmt::format( "fn_{}"
                                     , format_heading( to_string( node ) ) );
@@ -153,9 +157,9 @@ auto execute_javascript( Uuid const& node
 
     io::print( "execute_javascript.args: {}\n", csep );
 
-    KMAP_TRY( js::publish_function( fn_name, { "args" }, fn_body ) );
+    KTRY( js::publish_function( fn_name, { "args" }, fn_body ) );
 
-    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "return {}( to_VectorString( [{}] ) );"
+    rv = KTRY( js::eval< binding::Result< std::string > >( io::format( "return {}( to_VectorString( [{}] ) );"
                                                                          , fn_name
                                                                          , csep ) ) );
 
@@ -168,6 +172,9 @@ auto execute_javascript( Uuid const& node
     -> Result< std::string >
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
 
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto const fn_name = fmt::format( "fn_{}"
@@ -184,6 +191,9 @@ auto execute_body( Kmap& kmap
                  , StringVec const& args )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -225,6 +235,9 @@ auto evaluate_guard( Kmap const& kmap
                    , std::string const& arg )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", guard_node );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -262,6 +275,9 @@ auto evaluate_completer( Kmap& kmap
                        , std::string const& arg )
     -> Result< StringVec >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", completer_node );
+
     auto rv = KMAP_MAKE_RESULT( StringVec );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto const body = KMAP_TRY( nw->fetch_body( completer_node ) );
@@ -357,6 +373,9 @@ auto fetch_args( Kmap& kmap
                , std::string const& arg )
     -> Result< StringVec >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "cmd", cmd_id );
+
     auto rv = KMAP_MAKE_RESULT( StringVec );
 
     BC_CONTRACT()
@@ -479,6 +498,9 @@ auto fetch_params_ordered( Kmap& kmap
                          , Uuid const& cmd_id )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "cmd", cmd_id );
+
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
@@ -510,6 +532,9 @@ auto execute_command( Kmap& kmap
                     , std::string const& arg )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "cmd", cmd_id );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
 
     BC_CONTRACT()
@@ -690,6 +715,9 @@ auto create_command( std::string const& path )
 auto fetch_nearest_command( Uuid const& node )
     -> kmap::binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& kmap = Singleton::instance();
     auto const cmd_root = KTRY( view::make( kmap.root_node_id() )

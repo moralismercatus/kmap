@@ -30,7 +30,9 @@ auto fetch_listed_components()
     using emscripten::val;
     using emscripten::vecFromJSArray;
 
-    auto rv = KMAP_MAKE_RESULT( std::set< std::string > );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< std::set< std::string > >();
 
     KMAP_ENSURE( js::is_global_kmap_valid(), error_code::common::uncategorized );
 
@@ -44,7 +46,9 @@ auto fetch_listed_components()
 auto register_components( std::set< std::string > const& components )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     for( auto const& component : components )
     {
@@ -65,7 +69,9 @@ auto register_components( std::set< std::string > const& components )
 auto register_all_components()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
 
     KMAP_ENSURE( js::is_global_kmap_valid(), error_code::common::uncategorized );
 

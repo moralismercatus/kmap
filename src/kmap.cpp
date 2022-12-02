@@ -5,71 +5,22 @@
  ******************************************************************************/
 #include "kmap.hpp"
 
-#include "attribute.hpp"
-#include "cmd.hpp"
-#include "cmd/parser.hpp"
-#include "com/cli/cli.hpp"
+#include "com/canvas/canvas.hpp"
 #include "com/database/db.hpp"
 #include "com/database/root_node.hpp"
 #include "com/event/event.hpp"
 #include "com/filesystem/filesystem.hpp"
 #include "com/network/network.hpp"
-#include "com/network/visnetwork.hpp"
-#include "com/option/option.hpp"
-#include "com/task/task.hpp"
 #include "com/text_area/text_area.hpp"
 #include "common.hpp"
 #include "component.hpp"
 #include "contract.hpp"
-#include "error/filesystem.hpp"
-#include "error/master.hpp"
-#include "error/network.hpp"
-#include "error/node_manip.hpp"
-#include "error/result.hpp"
 #include "io.hpp"
-#include "js_iface.hpp"
-#include "lineage.hpp"
-#include "path.hpp"
-#include "path/act/abs_path.hpp"
-#include "path/act/order.hpp"
-#include "path/act/take.hpp"
-#include "path/act/value_or.hpp"
-#include "path/node_view.hpp"
-#include "test/master.hpp"
-#include "test/util.hpp"
+#include "util/result.hpp"
 
 #include <boost/filesystem.hpp>
-#include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
-#include <range/v3/action/join.hpp>
-#include <range/v3/action/reverse.hpp>
-#include <range/v3/action/sort.hpp>
-#include <range/v3/algorithm/count.hpp>
-#include <range/v3/algorithm/find.hpp>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/concat.hpp>
-#include <range/v3/view/drop.hpp>
-#include <range/v3/view/drop_last.hpp>
-#include <range/v3/view/enumerate.hpp>
-#include <range/v3/view/filter.hpp>
-#include <range/v3/view/join.hpp>
-#include <range/v3/view/map.hpp>
-#include <range/v3/view/remove.hpp>
-#include <range/v3/view/remove_if.hpp>
-#include <range/v3/view/replace.hpp>
-#include <range/v3/view/reverse.hpp>
-#include <range/v3/view/set_algorithm.hpp>
-#include <range/v3/view/split.hpp>
-#include <range/v3/view/take.hpp>
-#include <sqlpp11/insert.h>
-
-#include <iostream>
-#include <set>
-#include <vector>
 
 namespace fs = boost::filesystem;
-using namespace kmap::test;
-using namespace ranges;
 
 namespace kmap {
 
@@ -184,6 +135,8 @@ auto Kmap::init_component_store()
 auto Kmap::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     {
@@ -244,6 +197,8 @@ auto Kmap::initialize()
 auto Kmap::clear()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     // TODO: Rather than maintaining a list of reset_*s, why not place all of these in Environment, in their dependent order, and thereby just reset env,
@@ -258,6 +213,8 @@ auto Kmap::clear()
 auto Kmap::clear_component_store()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( component_store_->clear() );
@@ -272,6 +229,8 @@ auto Kmap::clear_component_store()
 auto Kmap::on_leaving_editor()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const tv = KTRY( fetch_component< com::TextArea >() );
@@ -295,6 +254,9 @@ auto Kmap::load( FsPath const& db_path
                , std::set< std::string > const& components )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "db_path", db_path.string() );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const full_path = com::kmap_root_dir / db_path;
 
@@ -323,6 +285,9 @@ auto Kmap::load( FsPath const& db_path
 auto Kmap::load( FsPath const& db_path )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "db_path", db_path.string() );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const all_components = KTRY( fetch_listed_components() );
 

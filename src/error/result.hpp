@@ -10,51 +10,20 @@
 #include "error/master.hpp"
 #include "utility.hpp"
 
-namespace kmap::error {
+namespace kmap::result {
 
-template< typename T >
-auto make_result( kmap::error_code::Payload const& payload )
-    -> kmap::Result< T >
+struct Log
 {
-    return Result< T >{ payload };
-}
+    std::vector< std::string > msg_stack = {};
+};
 
-template< typename T >
-auto make_result( const char* function = __builtin_FUNCTION() /* TODO: replace with std::source_location */
-                , const char* file = __builtin_FILE() /* TODO: replace with std::source_location */
-                , unsigned line = __builtin_LINE() ) /* TODO: replace with std::source_location */
-    -> kmap::Result< T >
-{
-    auto const payload = kmap::error_code::Payload{ kmap::error_code::common::uncategorized
-                                                  , { kmap::error_code::StackElement{ line
-                                                                                    , function
-                                                                                    , file
-                                                                                    , "" } } };
 
-    return make_result< T >( payload );
-}
-
-template< typename T >
-auto make_result( Kmap const& kmap
-                , Uuid const& node
-                , const char* function = __builtin_FUNCTION() /* TODO: replace with std::source_location */
-                , const char* file = __builtin_FILE() /* TODO: replace with std::source_location */
-                , unsigned line = __builtin_LINE() ) /* TODO: replace with std::source_location */
-    -> kmap::Result< T >
-{
-    auto const msg = to_string_elaborated( kmap, node );
-    auto const payload = kmap::error_code::Payload{ kmap::error_code::common::uncategorized
-                                                  , { kmap::error_code::StackElement{ line
-                                                                                    , function
-                                                                                    , file
-                                                                                    , msg } } };
-
-    return make_result< T >( payload );
-}
-
-template< typename T >
+// TODO: belongs in kmap ns?
+template< typename T
+        , typename U >
+    requires std::convertible_to< U, T >
 auto value_or( kmap::Result< T > const& result
-             , T const& t )
+             , U const& u )
     -> T
 {
     if( result )
@@ -63,10 +32,10 @@ auto value_or( kmap::Result< T > const& result
     }
     else
     {
-        return t;
+        return u;
     }
 }
 
-} // namespace kmap::error
+} // namespace kmap::result
 
 #endif // KMAP_ERROR_RESULT_HPP

@@ -122,6 +122,8 @@ auto complete_heading_path( std::string const& input )
 auto count_ancestors( Uuid const& node )
     -> binding::Result< uint32_t >
 {
+    KM_RESULT_PROLOG();
+
     auto const& kmap = Singleton::instance();
     
     return kmap::Result< uint32_t >{ view::make( node ) | view::ancestor | view::count( kmap )  };
@@ -130,6 +132,8 @@ auto count_ancestors( Uuid const& node )
 auto count_descendants( Uuid const& node )
     -> binding::Result< uint32_t >
 {
+    KM_RESULT_PROLOG();
+
     auto const& kmap = Singleton::instance();
 
     return kmap::Result< uint32_t >{ view::make( node ) | view::desc | view::count( kmap ) };
@@ -138,6 +142,8 @@ auto count_descendants( Uuid const& node )
 auto fetch_body( Uuid const& node )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -148,6 +154,8 @@ auto fetch_child( Uuid const& parent
                 , std::string const& heading )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -158,6 +166,8 @@ auto fetch_descendant( Uuid const& root
                      , std::string const& path )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -171,6 +181,8 @@ auto fetch_descendant( Uuid const& root
 auto fetch_node( std::string const& input )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -184,6 +196,8 @@ auto fetch_or_create_node( Uuid const& root
                          , std::string const& path )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -197,6 +211,8 @@ auto fetch_heading( Uuid const& node )
                 
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -207,6 +223,8 @@ auto fetch_parent( Uuid const& child )
                 
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -218,6 +236,8 @@ auto create_alias( Uuid const& src
                  , Uuid const& dst )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -229,6 +249,8 @@ auto create_child( Uuid const& parent
                  , std::string const& title )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -241,6 +263,8 @@ auto create_descendant( Uuid const& parent
                       , std::string const& heading )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
 
     return view::make( parent )
@@ -253,6 +277,8 @@ auto create_direct_descendant( Uuid const& parent
                              , std::string const& heading )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
 
     return view::make( parent )
@@ -264,6 +290,8 @@ auto create_direct_descendant( Uuid const& parent
 auto delete_children( Uuid const& parent )
     -> binding::Result< std::string > // TODO: Why is this returning std::string? Think it should be void.
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const res = view::make( parent )
                    | view::child 
@@ -282,6 +310,8 @@ auto delete_children( Uuid const& parent )
 auto delete_node( Uuid const& node )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -291,6 +321,8 @@ auto delete_node( Uuid const& node )
 auto fetch_above( Uuid const& node )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto const& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -300,6 +332,8 @@ auto fetch_above( Uuid const& node )
 auto fetch_below( Uuid const& node )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto const& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -385,6 +419,8 @@ auto handle_signal_exception( intptr_t const exception_ptr )
 auto is_valid_heading( std::string const& heading )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     if( kmap::is_valid_heading_path( heading ) )
     {
         return kmap::Result< std::string >{ "heading valid" };
@@ -399,6 +435,8 @@ auto is_valid_heading( std::string const& heading )
 auto is_valid_heading_path( std::string const& path )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     if( kmap::is_valid_heading_path( path ) )
     {
         return kmap::Result< std::string >{ "heading valid" };
@@ -446,6 +484,8 @@ auto move_node( Uuid const& src
               , Uuid const& dst )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -456,6 +496,8 @@ auto move_body( Uuid const& src
               , Uuid const& dst )
     -> binding::Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -492,6 +534,8 @@ auto print_std_exception( intptr_t const exception_ptr )
 auto travel_down()
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     
@@ -501,6 +545,8 @@ auto travel_down()
 auto travel_left()
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     
@@ -510,6 +556,8 @@ auto travel_left()
 auto travel_right()
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     
@@ -528,6 +576,8 @@ auto travel_top()
 auto travel_up()
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     
@@ -553,6 +603,8 @@ auto update_body( Uuid const& node
                 , std::string const& content )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     
@@ -566,6 +618,8 @@ auto update_heading( Uuid const& node
                    , std::string const& content )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     
@@ -579,6 +633,8 @@ auto update_title( Uuid const& node
                  , std::string const& content )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -652,6 +708,8 @@ auto run_unit_tests( std::string const& arg )
 auto select_node( Uuid const& node )
     -> binding::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
@@ -718,6 +776,8 @@ auto make_eval_success()
 auto sort_children( Uuid const& parent )
     -> binding::Result< std::string > // TODO: return Result< void >? And let caller create a string success?
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto children = view::make( parent )
@@ -740,6 +800,8 @@ auto swap_nodes( Uuid const& lhs
                , Uuid const& rhs )
     -> binding::Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     

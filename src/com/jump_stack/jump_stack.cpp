@@ -7,6 +7,7 @@
 
 #include "emcc_bindings.hpp"
 #include "kmap.hpp"
+#include "util/result.hpp"
 
 namespace kmap::com {
 
@@ -98,6 +99,9 @@ namespace binding
         auto jump_in( Uuid const& node )
             -> kmap::binding::Result< void >
         {
+            KM_RESULT_PROLOG();
+                KM_RESULT_PUSH_NODE( "node", node );
+
             auto rv = KMAP_MAKE_RESULT( void );
             auto const jstack = KTRY( km_.fetch_component< com::JumpStack >() );
 
@@ -108,6 +112,8 @@ namespace binding
         auto jump_out()
             -> kmap::binding::Result< void >
         {
+            KM_RESULT_PROLOG();
+
             auto rv = KMAP_MAKE_RESULT( void );
             auto const jstack = KTRY( km_.fetch_component< com::JumpStack >() );
 

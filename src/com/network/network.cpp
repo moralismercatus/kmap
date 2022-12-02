@@ -10,11 +10,16 @@
 #include "com/database/root_node.hpp"
 #include "com/network/visnetwork.hpp"
 #include "error/result.hpp"
+#include "error/result.hpp"
 #include "kmap.hpp"
+#include "path/act/abs_path.hpp"
+#include "path/act/fetch_heading.hpp"
 #include "path/act/order.hpp"
 #include "path/act/take.hpp"
+#include "path/node_view2.hpp"
 #include "test/util.hpp"
 #include "utility.hpp"
+#include "util/result.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -56,6 +61,8 @@ Network::Network( Kmap& km
 auto Network::initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const rn = KTRY( fetch_component< com::RootNode >() );
 
@@ -69,6 +76,8 @@ auto Network::initialize()
 auto Network::load()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const rn = KTRY( fetch_component< com::RootNode >() );
 
@@ -84,6 +93,8 @@ auto Network::load()
 auto Network::load_aliases()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const db = KTRY( fetch_component< com::Database >() );
 
@@ -125,6 +136,10 @@ auto Network::create_alias( Uuid const& src
                           , Uuid const& dst )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "src", src );
+        // KM_RESULT_PUSH_NODE( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const rsrc = resolve( src );
@@ -201,6 +216,11 @@ auto Network::create_child( Uuid const& parent
                           , Title const& title )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_NODE( "child", child );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -259,6 +279,11 @@ auto Network::create_child( Uuid const& parent
                           , Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_NODE( "child", child );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( create_child( parent
@@ -273,6 +298,10 @@ auto Network::create_child( Uuid const& parent
                           , Heading const& heading )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "parent", parent );
+        KM_RESULT_PUSH( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( create_child( parent
@@ -287,6 +316,10 @@ auto Network::create_child( Uuid const& parent
                           , Title const& title )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "parent", parent );
+        KM_RESULT_PUSH( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     rv = KTRY( create_child( parent
@@ -301,6 +334,10 @@ auto Network::create_internal_alias( Uuid const& src
                                    , Uuid const& dst )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", src );
+        KM_RESULT_PUSH( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const rsrc = resolve( src );
     auto const alias_item = make_alias_item( src, rsrc, dst );
@@ -337,6 +374,11 @@ auto Network::create_child_internal( Uuid const& parent
                                    , Title const& title )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "parent", parent );
+        KM_RESULT_PUSH_NODE( "child", child );
+        KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const db = KTRY( fetch_component< com::Database >() );
 
@@ -385,6 +427,9 @@ SCENARIO( "Network::create_child", "[com][nw]" )
 auto Network::erase_alias( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     if( is_top_alias( node ) )
@@ -408,6 +453,10 @@ auto Network::erase_desc_alias( Uuid const& src
                               , Uuid const& dst )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", src );
+        KM_RESULT_PUSH( "dst", dst );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto const alias_id = make_alias_id( src, dst );
 
@@ -436,6 +485,9 @@ auto Network::erase_desc_alias( Uuid const& src
 auto Network::erase_root_alias( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "root", id );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -576,6 +628,9 @@ SCENARIO( "Network::erase_alias", "[alias]" )
 auto Network::erase_node_internal( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const db = KTRY( fetch_component< com::Database >() );
@@ -629,6 +684,9 @@ auto Network::erase_node_internal( Uuid const& id )
 auto Network::erase_node_leaf( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -694,6 +752,9 @@ auto Network::erase_node_leaf( Uuid const& id )
 auto Network::erase_attr( Uuid const& id )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -734,6 +795,10 @@ auto Network::distance( Uuid const& ancestor
                       , Uuid const& descendant ) const
     -> uint32_t
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "ancestor", ancestor );
+        KM_RESULT_PUSH( "descendant", descendant );
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
@@ -769,6 +834,9 @@ auto Network::distance( Uuid const& ancestor
 auto Network::erase_node( Uuid const& id )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -890,6 +958,9 @@ auto Network::exists( Heading const& heading ) const
 auto Network::fetch_above( Uuid const& node ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& km = kmap_inst();
 
@@ -968,6 +1039,9 @@ SCENARIO( "Network::fetch_above", "[com][nw]" )
 auto Network::fetch_below( Uuid const& node ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
@@ -1078,6 +1152,9 @@ auto Network::fetch_aliased_ancestry( Uuid const& id ) const
 auto Network::fetch_attr_node( Uuid const& id ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const db = KTRY( fetch_component< com::Database >() );
 
@@ -1089,6 +1166,9 @@ auto Network::fetch_attr_node( Uuid const& id ) const
 auto Network::fetch_body( Uuid const& node ) const
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( std::string );
 
     BC_CONTRACT()
@@ -1154,6 +1234,8 @@ auto Network::fetch_children( Uuid const& parent ) const
 auto Network::fetch_heading( Uuid const& node ) const
     -> Result< Heading >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Heading );
 
     if( exists( node ) )
@@ -1190,6 +1272,9 @@ auto Network::fetch_ordering_position( Uuid const& node ) const
     -> Result< uint32_t >
 {
     using Map = std::vector< std::pair< Uuid, uint64_t > >;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
 
     auto rv = KMAP_MAKE_RESULT( uint32_t );
 
@@ -1286,6 +1371,9 @@ SCENARIO( "fetch_ordering_position", "[nw][iface][order]" )
 auto Network::fetch_next_selected_as_if_erased( Uuid const& node ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     if( auto const above = fetch_above( node )
@@ -1360,6 +1448,11 @@ SCENARIO( "Network::resolve", "[alias]" )
 auto Network::fetch_parent( Uuid const& child ) const
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "child", child );
+
+    // fmt::print( "fetch_parent\n" );
+
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::invalid_parent );
     auto const db = KTRY( fetch_component< com::Database >() );
 
@@ -1442,6 +1535,9 @@ SCENARIO( "Network::fetch_parent", "[com][nw]" )
 auto Network::fetch_title( Uuid const& id ) const
     -> Result< Title >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+
     auto rv = KMAP_MAKE_RESULT( Title );
 
     if( exists( id ) )
@@ -1498,6 +1594,10 @@ auto Network::move_body( Uuid const& src
                        , Uuid const& dst )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", src );
+        KM_RESULT_PUSH( "dst", dst );
+
     return kmap::move_body( *this, src, dst );
 }
 
@@ -1509,6 +1609,10 @@ auto Network::move_node( Uuid const& from
                        , Uuid const& to )
     -> Result< Uuid > // TODO: Why is this returning "to"? Probably better to return void?
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", from );
+        KM_RESULT_PUSH( "dst", to );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
@@ -1617,6 +1721,9 @@ auto Network::reorder_children( Uuid const& parent
                               , std::vector< Uuid > const& children )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "parent", parent );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -1676,6 +1783,10 @@ auto Network::swap_nodes( Uuid const& t1
                         , Uuid const& t2 )
     -> Result< UuidPair >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "n1", t1 );
+        KM_RESULT_PUSH( "n2", t2 );
+
     auto rv = KMAP_MAKE_RESULT( UuidPair );
 
     BC_CONTRACT()
@@ -1779,7 +1890,12 @@ SCENARIO( "swap two sibling aliases", "[nw][iface][swap_nodes][order]" )
 auto Network::select_node( Uuid const& id )
     -> Result< Uuid > 
 {
-    auto rv = error::make_result< Uuid >( kmap_inst(), id );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+
+    KMAP_LOG_LINE();
+
+    auto rv = result::make_result< Uuid >();
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1828,6 +1944,9 @@ auto Network::select_node( Uuid const& id )
 auto Network::select_node_initial( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
 fmt::print( "selected_node_: {}\n", to_string( selected_node_ ) );
@@ -1863,6 +1982,10 @@ auto Network::set_ordering_position( Uuid const& id
                                    , uint32_t pos )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", id );
+        KM_RESULT_PUSH( "pos", std::to_string( pos ) );
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
@@ -1907,7 +2030,11 @@ auto Network::update_alias( Uuid const& from
                           , Uuid const& to )
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", from );
+        KM_RESULT_PUSH( "dst", to );
+
+      auto rv = result::make_result< Uuid >();
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -1940,6 +2067,9 @@ auto Network::update_alias( Uuid const& from
 auto Network::update_aliases( Uuid const& node )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+        
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE( exists( node ), error_code::common::uncategorized );
@@ -1967,6 +2097,9 @@ auto Network::update_body( Uuid const&  node
                          , std::string const& contents )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", node );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -1989,6 +2122,10 @@ auto Network::update_heading( Uuid const& id
                             , Heading const& heading )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", id );
+        // KM_RESULT_PUSH_STR( "heading", heading );
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
@@ -2011,6 +2148,10 @@ auto Network::update_title( Uuid const& id
                           , Title const& title )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "node", id );
+        // KM_RESULT_PUSH_STR( "title", title );
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -2094,6 +2235,8 @@ auto Network::are_siblings( Uuid const& n1
 auto Network::travel_left()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const selected = selected_node();
 
@@ -2114,6 +2257,8 @@ auto Network::travel_left()
 auto Network::travel_right()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const selected = selected_node();
@@ -2140,6 +2285,8 @@ auto Network::travel_right()
 auto Network::travel_up()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const selected = selected_node();
 
@@ -2160,6 +2307,8 @@ auto Network::travel_up()
 auto Network::travel_down()
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const selected = selected_node();
 
@@ -2332,6 +2481,10 @@ auto Network::fetch_child( Uuid const& parent
                          , Heading const& heading ) const
    -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH_NODE( "parent", parent );
+        // KM_RESULT_PUSH_STR( "heading", heading );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
     BC_CONTRACT()
@@ -2512,6 +2665,10 @@ struct Network
                      , std::string const& title )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH( "parent", parent );
+            KM_RESULT_PUSH( "title", title );
+            
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 
         return nw->create_child( parent, format_heading( title ), title );
@@ -2519,6 +2676,9 @@ struct Network
     auto erase_node( Uuid const& node )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH( "node", node );
+
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 
         return nw->erase_node( node );
@@ -2526,6 +2686,9 @@ struct Network
     auto fetch_node( std::string const& path )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_STR( "path", path );
+
         auto rv = KMAP_MAKE_RESULT( Uuid );
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
         auto const rs = KTRY( decide_path( kmap_, nw->root_node(), nw->selected_node(), path ) );
@@ -2540,6 +2703,9 @@ struct Network
     auto fetch_parent( Uuid const& node )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            // KM_RESULT_PUSH_NODE( "node", node );
+
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 
         return nw->fetch_parent( node );
@@ -2548,6 +2714,10 @@ struct Network
                   , Uuid const& dst )
         -> kmap::binding::Result< void >
     {
+        KM_RESULT_PROLOG();
+            // KM_RESULT_PUSH_NODE( "src", src );
+            // KM_RESULT_PUSH_NODE( "dst", dst );
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
@@ -2566,6 +2736,9 @@ struct Network
     auto select_node( Uuid const& node )
         -> kmap::binding::Result< Uuid >
     {
+        KM_RESULT_PROLOG();
+            // KM_RESULT_PUSH_NODE( "node", node );
+
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 
         return nw->select_node( node );
