@@ -209,6 +209,15 @@ auto is_global_kmap_valid()
     return KTRYE( eval< bool >( "return ( global.kmap !== undefined ) && ( global.kmap !== null );" ) );
 }
 
+auto fetch_style_member( std::string const& elem_id )
+    -> Result< emscripten::val >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "elem_id", elem_id );
+
+    return KTRY( eval< emscripten::val >(io::format( "return document.getElementById( '{}' ).style;", elem_id ).c_str() ) );
+}
+
 auto set_global_kmap( Kmap& kmap )
     -> void
 {

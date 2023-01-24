@@ -22,6 +22,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <sqlpp11/sqlite3/connection.h>
 
+#include <utility>
+
 using namespace kmap;
 using namespace kmap::test;
 
@@ -61,7 +63,7 @@ SCENARIO( "autosave", "[com][autosave]" )
         {
             THEN( "no erase deltas in database" )
             {
-                auto const& cache = db->cache();
+                auto const& cache = std::as_const( *db ).cache();
                 auto const proc_table = [ & ]( auto const& table )
                 {
                     for( auto const& t_item : table )

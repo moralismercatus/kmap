@@ -725,14 +725,14 @@ auto absolute_path_flat( Kmap const& km
 
     if( km.root_node_id() == node )
     {
-        rv = KTRY( view2::abs_root
-                 | view2::abs_path_flat( km ) );
+        rv = KTRY( anchor::abs_root
+                 | act2::abs_path_flat( km ) );
     }
     else
     {
-        rv = KTRY( view2::abs_root
+        rv = KTRY( anchor::abs_root
                  | view2::desc( node )
-                 | view2::abs_path_flat( km ) );
+                 | act2::abs_path_flat( km ) );
     }
 
     return rv;
@@ -1155,9 +1155,23 @@ auto fetch_descendants( Kmap const& kmap
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "root", root );
 
-    return KTRY( fetch_descendants( kmap
-                                  , root
-                                  , []( auto const& e ){ (void)e; return true; } ) );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
+    auto rs = UuidSet{};
+
+    if( auto const children = nw->fetch_children( root )
+      ; !children.empty() )
+    {
+        for( auto const& child : children )
+        {
+            auto const fds = KTRY( fetch_descendants( kmap
+                                                    , child
+                                                    , []( auto const& e ){ (void)e; return true; } ) );
+            
+            rs.insert( fds.begin(), fds.end() );
+        }
+    }
+    
+    return rs;
 }
 
 auto has_geometry( Kmap const& kmap

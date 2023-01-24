@@ -10,6 +10,7 @@
 #include "utility.hpp"
 #include "test/util.hpp"
 #include "com/cli/cli.hpp"
+#include "path/act/select_node.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -55,6 +56,40 @@ auto NetworkCommand::load()
 auto NetworkCommand::register_standard_commands()
     -> void
 {
+    // count.descendants
+    {
+        auto const guard_code =
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        let rv = null;
+        const nw = kmap.network();
+        const selected = nw.selected_node();
+        const count = kmap.count_descendants( selected );
+
+        count.throw_on_error();
+
+        rv = kmap.success( String( count.value() ) );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "tally all descendant nodes from selected";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "count.descendants"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
     // create.alias
     {
         auto const guard_code =
@@ -349,6 +384,164 @@ auto NetworkCommand::register_standard_commands()
                                     , .action = action_code };
 
         cclerk_.register_command( command );
+    }
+    // travel.left
+    {
+        auto const guard_code =
+        R"%%%(
+        return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+
+        kmap.travel_left().throw_on_error();
+
+        rv = kmap.success( 'traveled left' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "selects parent";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "travel.left"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+    // travel.right
+    {
+        auto const guard_code =
+        R"%%%(
+        return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+
+        kmap.travel_right().throw_on_error();
+
+        rv = kmap.success( 'traveled right' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "selects child";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "travel.right"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+    // travel.up
+    {
+        auto const guard_code =
+        R"%%%(
+        return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+
+        kmap.travel_up().throw_on_error();
+
+        rv = kmap.success( 'traveled up' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "selects sibling directly above";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "travel.up"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+    // travel.down
+    {
+        auto const guard_code =
+        R"%%%(
+        return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+
+        kmap.travel_down().throw_on_error();
+
+        rv = kmap.success( 'traveled down' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "selects sibling directly below";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "travel.down"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+}
+
+SCENARIO( "count.descendants", "[nw][cmd]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network.command", "cli" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "/1.2" )
+    {
+        REQUIRE_RES(( view::make( root )
+                    | view::direct_desc( "1.2" )
+                    | view::create_node( km ) ));
+
+        GIVEN( "select.node /1" )
+        {
+        REQUIRE_RES(( view::make( root )
+                    | view::child( "1" )
+                    | act::select_node( km ) ));
+
+            WHEN( ":count.descendants" )
+            {
+                auto const res = REQUIRE_TRY( cli->parse_raw( ":count.descendants" ) );
+
+                THEN( "returns 1" )
+                {
+                    REQUIRE( res == "1" );
+                }
+            }
+        }
     }
 }
 

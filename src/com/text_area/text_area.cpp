@@ -141,6 +141,7 @@ auto TextArea::register_standard_commands()
         canvas.reveal( editor_pane ).throw_on_error();
         canvas.reveal( preview_pane ).throw_on_error();
         kmap.option_store().apply( "network.viewport_scale" );
+        canvas.redraw();
         canvas.focus( editor_pane );
 
         // Remove existing listeners before adding new.
@@ -162,6 +163,7 @@ auto TextArea::register_standard_commands()
             canvas.orient( workspace_pane, old_ws_orient ).throw_on_error();
             canvas.rebase( ta_pane, old_ta_base ).throw_on_error();
             kmap.on_leaving_editor();
+            canvas.redraw();
             kmap.option_store().apply( "network.viewport_scale" );
         } );
 

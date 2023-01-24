@@ -180,7 +180,6 @@ auto OptionStore::apply( Uuid const& option )
 
     // auto const action = KTRY( view::make_view( kmap_, option ) | view::child( "action" ) | view::try_to_single );
     auto const nw = KTRY( fetch_component< com::Network >() );
-    fmt::print( "option: {}\n", KTRYE( nw->fetch_heading( option ) ) );
     auto const action = KTRY( nw->fetch_child( option, "action" ) );
     // auto const action_body = KTRY( action.fetch_body() );
     auto const action_body = KTRY( nw->fetch_body( action ) );

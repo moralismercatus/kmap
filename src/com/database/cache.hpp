@@ -7,9 +7,9 @@
 #ifndef KMAP_DB_CACHE_HPP
 #define KMAP_DB_CACHE_HPP
 
-#include "../../common.hpp"
-#include "com/database/sm.hpp"
 #include "common.hpp"
+#include "com/database/sm.hpp"
+#include "com/database/common.hpp"
 #include "container.hpp"
 #include "error/db.hpp"
 #include "util/concepts.hpp"
@@ -111,7 +111,6 @@ struct ReversalItem
 
 class Cache
 {
-public:
     // Note: There is a dependency among tables. All tables depend, respecting DB semantics, on NodeTable, so it should be listed last such that (erase) iterations find it last.
     using CacheTables = std::tuple< HeadingTable
                                   , TitleTable
@@ -123,6 +122,14 @@ public:
                                   , NodeTable >;
     using ReversalMap = std::map< TransactionIdSet, std::vector< ReversalItem > >;
 
+    CacheTables cache_tables_ = {};
+    // UndoStore undo_store_ = {};
+    // ReversalMap units_ = {};
+    // TransactionIdSet curr_groups_ = {}; // Rather, should it not be a UUID assigned to a group, rather than an index?
+
+    friend class kmap::db::CacheDeciderSm;
+
+public:
     Cache() = default;
 
     [[ nodiscard ]]
@@ -517,7 +524,7 @@ public:
 
     template< typename Table
             , typename Key >
-    auto contains( Key const& key )
+    auto contains( Key const& key ) const
         -> bool
     {
         return contains_delta< Table >( key ) || contains_cached< Table >( key );
@@ -525,7 +532,7 @@ public:
     template< typename Table
             , typename Key >
         requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::NonRangeResult; }
-    auto contains_cached( Key const& key )
+    auto contains_cached( Key const& key ) const
         -> bool
     {
         auto rv = false;
@@ -542,7 +549,7 @@ public:
     template< typename Table
             , typename Key >
         requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::RangeResult; }
-    auto contains_cached( Key const& key )
+    auto contains_cached( Key const& key ) const
         -> bool
     {
         auto rv = false;
@@ -561,7 +568,7 @@ public:
     template< typename Table
             , typename Key >
         requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::NonRangeResult; }
-    auto contains_delta( Key const& key )
+    auto contains_delta( Key const& key ) const
         -> bool
     {
         auto rv = false;
@@ -578,7 +585,7 @@ public:
     template< typename Table
             , typename Key >
         requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::RangeResult; }
-    auto contains_delta( Key const& key )
+    auto contains_delta( Key const& key ) const
         -> bool
     {
         auto rv = false;
@@ -597,7 +604,7 @@ public:
     template< typename Table
             , typename Key >
         requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::NonRangeResult; }
-    auto contains_erased_delta( Key const& key )
+    auto contains_erased_delta( Key const& key ) const
         -> bool
     {
         auto rv = false;
@@ -619,7 +626,7 @@ public:
     template< typename Table
             , typename Key >
         requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::RangeResult; }
-    auto contains_erased_delta( Key const& key )
+    auto contains_erased_delta( Key const& key ) const
         -> bool
     {
         auto rv = false;
@@ -918,14 +925,6 @@ protected:
 
         return rv;
     }
-
-private:
-    CacheTables cache_tables_ = {};
-    // UndoStore undo_store_ = {};
-    // ReversalMap units_ = {};
-    // TransactionIdSet curr_groups_ = {}; // Rather, should it not be a UUID assigned to a group, rather than an index?
-
-    friend class kmap::db::CacheDeciderSm;
 };
 
 auto print_deltas( db::Cache const& cache )

@@ -71,7 +71,7 @@ SCENARIO( "DB basics manipulated", "[db]" )
         }
         WHEN( "all tables are erased" )
         {
-            db.erase_all( n1 );
+            REQUIRE_RES( db.erase_all( n1 ) );
 
             THEN( "fail to fetch node" )
             {
@@ -130,7 +130,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         
         REQUIRE( succ( db.push_node( nid ) ) );
 
-        auto const& table = db.cache().fetch< db::NodeTable >();
+        auto const& table = static_cast< com::Database const& >( db ).cache().fetch< db::NodeTable >();
 
         REQUIRE( ranges::distance( table ) == 1 );
 
@@ -192,7 +192,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         }
         WHEN( "item erased" )
         {
-            REQUIRE_NOTHROW( db.erase_all( nid ) );
+            REQUIRE_RES( db.erase_all( nid ) );
 
             WHEN( "delta flushed" )
             {
@@ -232,7 +232,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         REQUIRE( succ( db.push_heading( nid, h1 ) ) );
         fmt::print( "push_heading( {} )\n", to_string( nid ) );
 
-        auto const& table = db.cache().fetch< db::HeadingTable >();
+        auto const& table = std::as_const( db ).cache().fetch< db::HeadingTable >();
 
         REQUIRE( ranges::distance( table ) == 1 );
 
@@ -362,7 +362,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
 
         WHEN( "item erased" )
         {
-            REQUIRE_NOTHROW( db.erase_all( nid ) );
+            REQUIRE_RES( db.erase_all( nid ) );
             REQUIRE( ranges::distance( table ) == 0 );
             fmt::print( "db.erase_all()\n" );
 
@@ -406,7 +406,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         REQUIRE( succ( db.push_node( n2 ) ) ); // TODO: think this one is necessary...
         REQUIRE( succ( db.push_child( n1, n2 ) ) );
 
-        auto const& table = db.cache().fetch< db::ChildTable >();
+        auto const& table = std::as_const( db ).cache().fetch< db::ChildTable >();
 
         REQUIRE( ranges::distance( table ) == 1 );
 
@@ -469,7 +469,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
 
         WHEN( "item erased" )
         {
-            REQUIRE_NOTHROW( db.erase_all( n2 ) );
+            REQUIRE_RES( db.erase_all( n2 ) );
             REQUIRE( ranges::distance( table ) == 0 ); 
 
             WHEN( "delta flushed" )

@@ -86,6 +86,8 @@ public:
             }
         }
 
+        KMAP_ENSURE( rv, error_code::common::uncategorized ); // Ensure RESULT_PROLOG info propagates.
+
         return rv;
     }
     template< typename T >

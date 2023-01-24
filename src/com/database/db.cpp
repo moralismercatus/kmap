@@ -17,9 +17,12 @@
 #include "error/filesystem.hpp"
 #include "error/network.hpp"
 #include "io.hpp"
+#include "test/util.hpp"
 #include "utility.hpp"
 #include "util/result.hpp"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/hana/ext/std/tuple.hpp>
 #include <boost/hana/for_each.hpp>
@@ -282,11 +285,11 @@ auto Database::load()
         {
             using Table = std::decay_t< decltype( table ) >;
 
-            cache_.apply_delta_to_cache< Table >();
+            cache().apply_delta_to_cache< Table >();
         };
 
-        boost::hana::for_each( boost::hana::reverse( cache_.tables() ), proc_table );
-        boost::hana::for_each( boost::hana::reverse( cache_.tables() ), apply_delta );
+        boost::hana::for_each( boost::hana::reverse( cache().tables() ), proc_table );
+        boost::hana::for_each( boost::hana::reverse( cache().tables() ), apply_delta );
     }
 
     {
@@ -357,10 +360,30 @@ auto Database::init_db_on_disk( FsPath const& path )
     return rv;
 }
 
+auto Database::cache()
+    -> db::Cache&
+{
+    query_cache_.clear();
+
+    return cache_;
+}
+
 auto Database::cache() const
     -> db::Cache const&
 {
     return cache_;
+}
+
+auto Database::query_cache()
+    -> db::QueryCache&
+{
+    return query_cache_;
+}
+
+auto Database::query_cache() const
+    -> db::QueryCache const&
+{
+    return query_cache_;
 }
 
 auto Database::create_tables()
@@ -494,12 +517,58 @@ auto Database::push_child( Uuid const& parent
     KMAP_ENSURE( node_exists( parent ), error_code::network::invalid_node );
     KMAP_ENSURE( node_exists( child ), error_code::network::invalid_node ); 
 
-    KTRY( cache_.push< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
-    // cache_.push( TableId::attributes, child, db::AttributeValue{ fmt::format( "order:{}", 1 ) } );
+    KTRY( cache().push< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
+    // cache().push( TableId::attributes, child, db::AttributeValue{ fmt::format( "order:{}", 1 ) } );
 
     rv = outcome::success();
 
     return rv;
+}
+
+SCENARIO( "Database::push_child", "[benchmark][db]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "database" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const db = REQUIRE_TRY( km.fetch_component< com::Database >() );
+
+    BENCHMARK( "gen_uuid" )
+    {
+        return gen_uuid();
+    };
+    BENCHMARK_ADVANCED( "std::map::insert" )( auto meter )
+    {
+        auto m = std::map< int, int >{};
+        meter.measure( [ & ]{ return m.insert( { 1, 2 } ).second; } );
+        m.erase( 1 );
+    };
+    BENCHMARK_ADVANCED( "push_node" )( auto meter )
+    {
+        auto const id = gen_uuid();
+        meter.measure( [ & ]{ return db->push_node( id ); } );
+        KTRYE( db->erase_all( id ) );
+    };
+    BENCHMARK_ADVANCED( "push_node for 1000th node" )( auto meter )
+    {
+        auto ids = std::vector< Uuid >{};
+        for( auto i = 0
+           ; i < 1000
+           ; ++i )
+        {
+            auto const id = gen_uuid();
+            ids.emplace_back( id );
+            KTRYE( db->push_node( id ) );
+        }
+        {
+            auto const id = gen_uuid();
+            meter.measure( [ & ]{ return db->push_node( id ); } );
+            KTRYE( db->erase_all( id ) );
+        }
+        for( auto const& id : ids )
+        {
+            KTRYE( db->erase_all( id ) );
+        }
+    };
 }
 
 auto Database::push_node( Uuid const& id )
@@ -512,7 +581,7 @@ auto Database::push_node( Uuid const& id )
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( cache_.push< db::NodeTable >( id ) );
+    KTRY( cache().push< db::NodeTable >( id ) );
 
     rv = outcome::success();
 
@@ -531,7 +600,7 @@ auto Database::push_heading( Uuid const& node
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( cache_.push< db::HeadingTable >( node, heading ) );
+    KTRY( cache().push< db::HeadingTable >( node, heading ) );
 
     rv = outcome::success();
 
@@ -550,7 +619,7 @@ auto Database::push_body( Uuid const& node
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( cache_.push< db::BodyTable >( node, body ) );
+    KTRY( cache().push< db::BodyTable >( node, body ) );
 
     rv = outcome::success();
 
@@ -569,7 +638,7 @@ auto Database::push_title( Uuid const& node
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( cache_.push< db::TitleTable >( node, title ) );
+    KTRY( cache().push< db::TitleTable >( node, title ) );
 
     rv = outcome::success();
 
@@ -588,7 +657,7 @@ auto Database::push_attr( Uuid const& parent
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( cache_.push< db::AttributeTable >( db::Left{ parent }, db::Right{ attr } ) );
+    KTRY( cache().push< db::AttributeTable >( db::Left{ parent }, db::Right{ attr } ) );
 
     rv = outcome::success();
 
@@ -633,13 +702,13 @@ auto Database::push_attr( Uuid const& parent
     // It is up the user of this iface to delimit cache statements. I need to rework the cache to make this work correctly.
     // I think this is the right code, but I'm undecided as to whether create_node() is appropriate for this db iface.
     // Rather, should it be like cache iface and just provide generic insert()/fetch() routines.
-    // cache_.push( db::TableId::nodes
+    // cache().push( db::TableId::nodes
     //            , id
     //            , db::NodeValue{} );
-    // cache_.push( db::TableId::headings
+    // cache().push( db::TableId::headings
     //            , id
     //            , db::HeadingValue{ heading } );
-    // cache_.push( db::TableId::titles
+    // cache().push( db::TableId::titles
     //            , id
     //            , db::TitleValue{ title } );
 
@@ -670,7 +739,7 @@ auto Database::push_alias( Uuid const& src
     KMAP_ENSURE( node_exists( dst ), error_code::network::invalid_node );
     KMAP_ENSURE( !alias_exists( src, dst ), error_code::network::invalid_node );
 
-    KTRY( cache_.push< db::AliasTable >( db::Left{ src }, db::Right{ dst } ) );
+    KTRY( cache().push< db::AliasTable >( db::Left{ src }, db::Right{ dst } ) );
 
     rv = outcome::success();
 
@@ -701,12 +770,12 @@ auto Database::fetch_alias_destinations( Uuid const& src ) const
             if( rv )
             {
                 // BC_ASSERT( !rv.value().empty() );
-                // BC_ASSERT( cache_.fetch_aliases().completed_set.count( src ) != 0 ); 
+                // BC_ASSERT( cache().fetch_aliases().completed_set.count( src ) != 0 ); 
             }
         })
     ;
 
-    auto r = cache_.fetch_values< db::AliasTable >( db::Left{ src } );
+    auto r = cache().fetch_values< db::AliasTable >( db::Left{ src } );
 
     if( r )
     {
@@ -726,7 +795,7 @@ auto Database::fetch_alias_destinations( Uuid const& src ) const
         rv = std::vector< Uuid >{}; // TODO: Propagate error if it's no a no_rhs EC (e.g., key/lhs doesn't exist).
     }
 
-    // auto const& cached = cache_.fetch_aliases();
+    // auto const& cached = cache().fetch_aliases();
 
     // if( cached.completed_set.count( src ) != 0 )
     // {
@@ -750,7 +819,7 @@ auto Database::fetch_alias_destinations( Uuid const& src ) const
     //     {
     //         rv.emplace_back( uuid_from_string( e.dst_uuid ).value() );
 
-    //         cache_.insert_alias( src
+    //         cache().insert_alias( src
     //                            , uuid_from_string( e.dst_uuid ).value() );
     //     }
     // }
@@ -775,7 +844,7 @@ auto Database::fetch_alias_sources( Uuid const& dst ) const
 
     KMAP_THROW_EXCEPTION_MSG( "Impl. needed" );
 
-    // auto const& cached = cache_.fetch_aliases();
+    // auto const& cached = cache().fetch_aliases();
 
     // if( cached.completed_set.count( dst ) != 0 )
     // {
@@ -798,7 +867,7 @@ auto Database::fetch_alias_sources( Uuid const& dst ) const
     //     {
     //         rv.emplace_back( uuid_from_string( e.src_uuid ).value() );
 
-    //         cache_.insert_alias( uuid_from_string( e.src_uuid ).value()
+    //         cache().insert_alias( uuid_from_string( e.src_uuid ).value()
     //                            , dst );
     //     }
     // }
@@ -826,7 +895,7 @@ auto Database::fetch_parent( Uuid const& id ) const
         })
     ;
 
-    auto const parent = KTRY( cache_.fetch_values< db::ChildTable >( db::Child{ id } ) );
+    auto const parent = KTRY( cache().fetch_values< db::ChildTable >( db::Child{ id } ) );
 
     BC_ASSERT( parent.size() == 1 );
 
@@ -874,7 +943,7 @@ auto Database::fetch_body( Uuid const& id ) const
 
     auto rv = KMAP_MAKE_RESULT( std::string );
 
-    rv = KTRY( cache_.fetch_value< db::BodyTable >( id ) );
+    rv = KTRY( cache().fetch_value< db::BodyTable >( id ) );
 
     return rv;
 }
@@ -895,7 +964,7 @@ auto Database::fetch_heading( Uuid const& id ) const
         })
     ;
 
-    rv = KTRY( cache_.fetch_value< db::HeadingTable >( id ) );
+    rv = KTRY( cache().fetch_value< db::HeadingTable >( id ) );
 
     return rv;
 }
@@ -917,7 +986,7 @@ auto Database::fetch_attr( Uuid const& id ) const
     ;
 
     // TODO: attr should only ever 1 parent, so the table type should represent this.
-    auto const attr = KTRY( cache_.fetch_values< db::AttributeTable >( db::Left{ id } ) );
+    auto const attr = KTRY( cache().fetch_values< db::AttributeTable >( db::Left{ id } ) );
 
     BC_ASSERT( attr.size() == 1 );
 
@@ -937,7 +1006,7 @@ auto Database::fetch_attr_owner( Uuid const& attrn ) const
     KMAP_ENSURE( node_exists( attrn ), error_code::network::invalid_node );
 
     // TODO: attr should only ever 1 parent, so the table type should represent this.
-    auto const attr = KTRY( cache_.fetch_values< db::AttributeTable >( db::Right{ attrn } ) );
+    auto const attr = KTRY( cache().fetch_values< db::AttributeTable >( db::Right{ attrn } ) );
 
     BC_ASSERT( attr.size() == 1 );
 
@@ -967,7 +1036,7 @@ auto Database::fetch_nodes( Heading const& heading ) const
 //     -> UniqueIdMultiStrSet
 // {
 //     KMAP_THROW_EXCEPTION_MSG( "Impl. needed" );
-    // if( !cache_.fetch_bodies().set_complete )
+    // if( !cache().fetch_bodies().set_complete )
     // {
     //     auto ht = bodies::bodies{};
     //     auto rows = execute( select( all_of( ht ) )
@@ -976,14 +1045,14 @@ auto Database::fetch_nodes( Heading const& heading ) const
         
     //     for( auto const& e : rows )
     //     {
-    //         cache_.insert_body( uuid_from_string( e.uuid ).value()
+    //         cache().insert_body( uuid_from_string( e.uuid ).value()
     //                           , e.body );
     //     }
 
-    //     cache_.mark_body_set_complete();
+    //     cache().mark_body_set_complete();
     // }
 
-    // return cache_.fetch_bodies().set;
+    // return cache().fetch_bodies().set;
 //     return {};
 // }
 
@@ -995,9 +1064,9 @@ auto Database::fetch_title( Uuid const& id ) const
 
     auto rv = KMAP_MAKE_RESULT( std::string );
 
-    rv = KTRY( cache_.fetch_value< db::TitleTable >( id ) );
+    rv = KTRY( cache().fetch_value< db::TitleTable >( id ) );
 
-    // auto const& titles = cache_.fetch_titles();
+    // auto const& titles = cache().fetch_titles();
     // auto const& map = titles.set.get< 1 >();
 
     // if( auto const p = map.find( id )
@@ -1017,7 +1086,7 @@ auto Database::fetch_title( Uuid const& id ) const
     //     {
     //         rv = rt.front().title;
 
-    //         cache_.insert_title( id
+    //         cache().insert_title( id
     //                            , *rv );
     //     }
     // }
@@ -1048,7 +1117,7 @@ auto Database::fetch_nodes() const
     -> UuidUnSet
 {
     KMAP_THROW_EXCEPTION_MSG( "Impl. needed" );
-    // if( auto const nodes = cache_.fetch_nodes()
+    // if( auto const nodes = cache().fetch_nodes()
     //   ; !nodes.set_complete )
     // {
     //     auto nt = nodes::nodes{};
@@ -1058,13 +1127,13 @@ auto Database::fetch_nodes() const
 
     //     for( auto const& e : rows )
     //     {
-    //         cache_.insert_node( uuid_from_string( e.uuid ).value() );
+    //         cache().insert_node( uuid_from_string( e.uuid ).value() );
     //     }
 
-    //     cache_.mark_node_set_complete();
+    //     cache().mark_node_set_complete();
     // }
 
-    // return cache_.fetch_nodes().set;
+    // return cache().fetch_nodes().set;
     return {};
 }
 
@@ -1090,7 +1159,7 @@ auto Database::update_heading( Uuid const& node
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
 
-    KTRY( cache_.push< db::HeadingTable >( node, heading ) );
+    KTRY( cache().push< db::HeadingTable >( node, heading ) );
 
     rv = outcome::success();
 
@@ -1119,7 +1188,7 @@ auto Database::update_title( Uuid const& node
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
 
-    KTRY( cache_.push< db::TitleTable >( node, title ) );
+    KTRY( cache().push< db::TitleTable >( node, title ) );
 
     rv = outcome::success();
 
@@ -1137,7 +1206,7 @@ auto Database::update_body( Uuid const& node
 
     KMAP_ENSURE( node_exists( node ), error_code::network::invalid_node );
 
-    KTRY( cache_.push< db::BodyTable >( node, content ) );
+    KTRY( cache().push< db::BodyTable >( node, content ) );
 
     rv = outcome::success();
 
@@ -1147,9 +1216,9 @@ auto Database::update_body( Uuid const& node
 auto Database::node_exists( Uuid const& id ) const
     -> bool
 {
-    return !cache_.contains_erased_delta< db::NodeTable >( id )
-        && ( cache_.contains_cached< db::NodeTable >( id )
-          || cache_.contains_delta< db::NodeTable >( id ) );
+    return !cache().contains_erased_delta< db::NodeTable >( id )
+        && ( cache().contains_cached< db::NodeTable >( id )
+          || cache().contains_delta< db::NodeTable >( id ) );
 }
 
 auto Database::attr_exists( Uuid const& id ) const
@@ -1157,9 +1226,9 @@ auto Database::attr_exists( Uuid const& id ) const
 {
     auto const key = db::Child{ id };
 
-    return !cache_.contains_erased_delta< db::AttributeTable >( key )
-        && ( cache_.contains_cached< db::AttributeTable >( key )
-          || cache_.contains_delta< db::AttributeTable >( key ) );
+    return !cache().contains_erased_delta< db::AttributeTable >( key )
+        && ( cache().contains_cached< db::AttributeTable >( key )
+          || cache().contains_delta< db::AttributeTable >( key ) );
 }
 
 auto Database::alias_exists( Uuid const& src
@@ -1168,9 +1237,9 @@ auto Database::alias_exists( Uuid const& src
 {
     auto const key = db::AliasTable::unique_key_type{ db::Src{ src }, db::Dst{ dst } };
 
-    return !cache_.contains_erased_delta< db::AliasTable >( key )
-        && ( cache_.contains_cached< db::AliasTable >( key )
-          || cache_.contains_delta< db::AliasTable >( key ) );
+    return !cache().contains_erased_delta< db::AliasTable >( key )
+        && ( cache().contains_cached< db::AliasTable >( key )
+          || cache().contains_delta< db::AliasTable >( key ) );
 }
 
 auto Database::is_child( Uuid const& parent
@@ -1196,8 +1265,10 @@ auto Database::has_parent( Uuid const& child ) const
 }
 
 auto Database::erase_all( Uuid const& id )
-    -> void // TODO: Why not Result< void >?
+    -> Result< void >
 {
+    auto rv = result::make_result< void >();
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
@@ -1217,35 +1288,35 @@ auto Database::erase_all( Uuid const& id )
         {
             if( contains< Table >( id ) )
             {
-                KTRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache().erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::HeadingTable > )
         {
             if( contains< Table >( id ) )
             {
-                KTRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache().erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::TitleTable > )
         {
             if( contains< Table >( id ) )
             {
-                KTRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache().erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::BodyTable > )
         {
-            if( cache_.contains< Table >( id ) )
+            if( cache().contains< Table >( id ) )
             {
-                KTRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache().erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::ResourceTable > )
         {
-            if( cache_.contains< Table >( id ) )
+            if( cache().contains< Table >( id ) )
             {
-                KTRYE( cache_.erase< Table >( id ) );
+                KTRYE( cache().erase< Table >( id ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::AttributeTable > )
@@ -1253,7 +1324,7 @@ auto Database::erase_all( Uuid const& id )
             if( auto const parent = fetch_attr_owner( id )
               ; parent )
             {
-                KTRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
+                KTRYE( cache().erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::ChildTable > )
@@ -1261,7 +1332,7 @@ auto Database::erase_all( Uuid const& id )
             if( auto const parent = fetch_parent( id )
               ; parent )
             {
-                KTRYE( cache_.erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
+                KTRYE( cache().erase< Table >( db::Parent{ parent.value() }, db::Child{ id } ) );
             }
         }
         else if constexpr( std::is_same_v< Table, db::AliasTable > )
@@ -1275,7 +1346,7 @@ auto Database::erase_all( Uuid const& id )
 
                 for( auto const& dst : dstsv )
                 {
-                    KTRYE( cache_.erase< Table >( db::Src{ id }, db::Dst{ dst } ) );
+                    KTRYE( cache().erase< Table >( db::Src{ id }, db::Dst{ dst } ) );
                 }
             }
         }
@@ -1285,7 +1356,11 @@ auto Database::erase_all( Uuid const& id )
         }
     };
 
-    boost::hana::for_each( cache_.tables(), fn );
+    boost::hana::for_each( cache().tables(), fn );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Database::fetch_children() const
@@ -1345,7 +1420,7 @@ auto Database::fetch_children( Uuid const& parent ) const
 
     KMAP_ENSURE( node_exists( parent ), error_code::network::invalid_node );
 
-    if( auto const vs = cache_.fetch_values< db::ChildTable >( db::Parent{ parent } )
+    if( auto const vs = cache().fetch_values< db::ChildTable >( db::Parent{ parent } )
       ; vs )
     {
         rv = vs.value()
@@ -1421,7 +1496,7 @@ auto Database::erase_child( Uuid const& parent
     KMAP_ENSURE( node_exists( child ), error_code::network::invalid_node );
     KMAP_ENSURE( is_child( parent, child ), error_code::network::invalid_parent );
 
-    KTRY( cache_.erase< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
+    KTRY( cache().erase< db::ChildTable >( db::Parent{ parent }, db::Child{ child } ) );
     
     rv = outcome::success();
 
@@ -1459,7 +1534,7 @@ auto Database::erase_alias( Uuid const& src
     KMAP_ENSURE( node_exists( dst ), error_code::network::invalid_node );
     KMAP_ENSURE( alias_exists( src, dst ), error_code::network::invalid_alias );
 
-    KTRY( cache_.erase< db::AliasTable >( db::Src{ src }, db::Dst{ dst } ) );
+    KTRY( cache().erase< db::AliasTable >( db::Src{ src }, db::Dst{ dst } ) );
     
     rv = outcome::success();
 
@@ -1668,7 +1743,7 @@ auto Database::flush_delta_to_disk()
             if( !ins.values._data._insert_values.empty()
              || delta_pushed )
             {
-                cache_.apply_delta_to_cache< Table >();
+                cache().apply_delta_to_cache< Table >();
             }
             if( !ins.values._data._insert_values.empty() )
             {
@@ -1691,7 +1766,7 @@ auto Database::flush_delta_to_disk()
         else { static_assert( always_false< Table >::value, "non-exhaustive visitor!" ); }
     };
 
-    boost::hana::for_each( cache_.tables(), proc_table );
+    boost::hana::for_each( cache().tables(), proc_table );
 
     rv = outcome::success();
 
@@ -1717,7 +1792,7 @@ auto Database::has_delta() const
         }
     };
 
-    boost::hana::for_each( cache_.tables(), fn );
+    boost::hana::for_each( cache().tables(), fn );
 
     return rv;
 }
@@ -1733,7 +1808,7 @@ auto Database::has_delta() const
 //     -> Result< ItemValue >
 // {
 //     return KMAP_MAKE_RESULT( ItemValue );
-//     // return cache_.fetch( tbl, key );
+//     // return cache().fetch( tbl, key );
 // }
 
 // auto Database::push( TableId const& tbl
@@ -1741,7 +1816,7 @@ auto Database::has_delta() const
 //                    , ItemValue const& value )
 //     -> Result< void >
 // {
-//     return cache_.push( tbl, id, value );
+//     return cache().push( tbl, id, value );
 // }
 
 // TODO: I don't know if execute_raw should even be public... very dangerous, as the cache isn't reflected.

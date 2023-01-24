@@ -16,6 +16,7 @@
 #include "kmap.hpp"
 #include "test/master.hpp"
 #include "util/profile.hpp"
+#include "util/result.hpp"
 #include "util/window.hpp"
 #include "utility.hpp"
 
@@ -75,6 +76,8 @@ auto init_window_error_handler()
 auto init_kmap( Kmap& kmap )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     KMAP_ENSURE_MSG( js::is_global_kmap_valid(), error_code::network::invalid_instance, "expected JS kmap to be non-null" );
@@ -89,6 +92,8 @@ auto init_kmap( Kmap& kmap )
 auto focus_network()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
@@ -103,6 +108,8 @@ auto focus_network()
 auto initialize()
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = Singleton::instance();
 

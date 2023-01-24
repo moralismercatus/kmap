@@ -46,7 +46,7 @@ struct LocalLog
 
    std::vector< MultiValue > kvs = {};
 
-#if KMAP_PROFILE || 1
+#if KMAP_PROFILE_LOG
     std::string const func_name;
     std::chrono::time_point< std::chrono::system_clock > start_time = std::chrono::system_clock::now();
     LocalLog( const char* function = __builtin_FUNCTION() /* TODO: replace with std::source_location */ );

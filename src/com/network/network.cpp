@@ -21,6 +21,7 @@
 #include "utility.hpp"
 #include "util/result.hpp"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <range/v3/action/join.hpp>
@@ -392,7 +393,7 @@ auto Network::create_child_internal( Uuid const& parent
     return rv;
 }
 
-SCENARIO( "Network::create_child", "[com][nw]" )
+SCENARIO( "Network::create_child", "[benchmark][com][nw]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -404,6 +405,27 @@ SCENARIO( "Network::create_child", "[com][nw]" )
     {
         auto const root = rn->root_node();
 
+        BENCHMARK( "create/erase_node" )
+        {
+            auto const c = KTRYE( nw->create_child( rn->root_node(), "0" ) );
+            return ( nw->erase_node( c ) );
+        };
+        BENCHMARK_ADVANCED( "create/erase_internal_node" )( auto meter )
+        {
+            auto c = result::make_result< void >();
+            auto const db = KTRYE( km.fetch_component< com::Database >() );
+            auto const heading = "widget";
+            meter.measure( [ & ]
+            {
+                auto cid = gen_uuid();
+                KTRYE( db->push_node( cid ) );
+                KTRYE( db->push_heading( cid, heading ) );
+                KTRYE( db->push_title( cid, heading ) );
+                KTRYE( db->push_child( rn->root_node(), cid ) );
+                return db->erase_all( cid );
+            } );
+        };
+
         THEN( "create child with invalid heading fails" )
         {
             REQUIRE( !nw->create_child( root, "%" ) );
@@ -412,6 +434,13 @@ SCENARIO( "Network::create_child", "[com][nw]" )
         WHEN( "create child with heading" )
         {
             auto const cid = REQUIRE_TRY( nw->create_child( root, "1" ) );
+
+            BENCHMARK( "KM_RESULT_PUSH_NODE( '/1' )" )
+            {
+                KM_RESULT_PROLOG();
+                    KM_RESULT_PUSH_NODE( "cid", cid );
+                return km_result_local_state;
+            };
 
             THEN( "result is only child of root" )
             {
@@ -742,7 +771,7 @@ auto Network::erase_node_leaf( Uuid const& id )
         }
     }
 
-    db->erase_all( id );
+    KTRY( db->erase_all( id ) );
 
     rv = outcome::success();
 
@@ -782,7 +811,7 @@ auto Network::erase_attr( Uuid const& id )
     auto const db = KTRY( fetch_component< com::Database >() );
     auto const parent = db->fetch_attr_owner( id );
 
-    db->erase_all( id );
+    KTRY( db->erase_all( id ) );
 
     rv = parent;
 
@@ -1449,9 +1478,7 @@ auto Network::fetch_parent( Uuid const& child ) const
     -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "child", child );
-
-    // fmt::print( "fetch_parent\n" );
+        // KM_RESULT_PUSH( "child", child ); // Warning: This is prone to recursive invocation if fetch_parent itself fails, as AbsPathFlat uses fetch_parent to describe the arg node.
 
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::invalid_parent );
     auto const db = KTRY( fetch_component< com::Database >() );
@@ -1890,10 +1917,10 @@ SCENARIO( "swap two sibling aliases", "[nw][iface][swap_nodes][order]" )
 auto Network::select_node( Uuid const& id )
     -> Result< Uuid > 
 {
+    KMAP_PROFILE_SCOPE();
+
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "node", id );
-
-    KMAP_LOG_LINE();
 
     auto rv = result::make_result< Uuid >();
 
@@ -1925,12 +1952,6 @@ auto Network::select_node( Uuid const& id )
     KTRY( estore->install_verb( "selected") );
     KTRY( estore->install_object( "node") );
     KTRY( estore->fire_event( { "subject.network", "verb.selected", "object.node" } ) );
-
-    // TODO: breadcrumb should have its own handler listening for the fired event.
-    // auto id_abs_path = absolute_path_uuid( id );
-    // auto breadcrumb_nodes = id_abs_path
-    //                       | views::drop_last( 1 )
-    //                       | to< UuidVec >();
 
     // Q: I notice that the event system (above estore->fire_event) introduces an unpredictability into the flow.
     //    Fire this thing mid flow, then a listener can do _whatever_ it wants (no restrictions), and hopefully the rest of the function (or greater flow)
@@ -2243,7 +2264,7 @@ auto Network::travel_left()
     if( auto const parent = fetch_parent( selected )
       ; parent )
     {
-        KMAP_TRY( select_node( parent.value() ) );
+        KTRY( select_node( parent.value() ) );
         rv = parent.value();
     }
     else
@@ -2271,7 +2292,7 @@ auto Network::travel_right()
     {
         auto const dst = mid( children );
 
-        KMAP_TRY( select_node( dst ) );
+        KTRY( select_node( dst ) );
         rv = dst;
     }
     else
@@ -2704,7 +2725,7 @@ struct Network
         -> kmap::binding::Result< Uuid >
     {
         KM_RESULT_PROLOG();
-            // KM_RESULT_PUSH_NODE( "node", node );
+            KM_RESULT_PUSH_NODE( "node", node );
 
         auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
 

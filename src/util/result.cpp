@@ -31,7 +31,7 @@ namespace kmap::result {
 //     log.insert( log.end(), v.begin(), v.end() );
 // }
 
-#if PROFILE_LOG || 1
+#if KMAP_PROFILE_LOG || 0
 static auto local_log_depth = 0u;
 LocalLog::LocalLog( const char* function )
     : func_name{ function }
@@ -42,21 +42,21 @@ LocalLog::LocalLog( const char* function )
 LocalLog::~LocalLog()
 {
     {
+        auto const end_time = std::chrono::system_clock::now();
+        auto const runtime = std::chrono::duration< double >{ end_time - start_time };
+        if( auto const count = runtime.count()
+          ; count > 0.001 )
+        {
+            fmt::print( "|{}|{}s|'{}'|{}|\n", local_log_depth, runtime.count(), func_name, to_string( kvs ) );
+        }
+
         if( local_log_depth > 0 )
         {
             --local_log_depth;
         }
-
-        auto const end_time = std::chrono::system_clock::now();
-        auto const runtime = std::chrono::duration< double >{ end_time - start_time };
-        if( auto const count = runtime.count()
-          ; count > 0.5 )
-        {
-            fmt::print( "[{}]{}: {}\n", local_log_depth, func_name, runtime.count() );
-        }
     }
 }
-#endif // PROFILE_LOG
+#endif // KMAP_PROFILE_LOG
 
 auto LocalLog::push( LocalLog::MultiValue const& mv )
     -> void
@@ -86,7 +86,7 @@ auto dump_about( Kmap const& km
     {
         if( km.fetch_component< com::Network >().has_value() ) // Note: abs_root, desc depends on this component.
         {
-            return result::value_or( ( view2::abs_root | view2::desc( node ) | view2::abs_path_flat( km ) ), "N/A" );
+            return result::value_or( ( anchor::abs_root | view2::desc( node ) | act2::abs_path_flat( km ) ), "N/A" );
         }
         else
         {

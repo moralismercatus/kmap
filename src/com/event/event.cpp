@@ -18,10 +18,12 @@
 #include "path/act/order.hpp"
 #include "path/act/push.hpp"
 #include "path/node_view.hpp"
+#include "path/node_view2.hpp"
 #include "test/util.hpp"
-#include "util/script/script.hpp"
 #include "util/result.hpp"
+#include "util/script/script.hpp"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <range/v3/algorithm/all_of.hpp>
@@ -30,9 +32,11 @@
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/join.hpp>
+#include <range/v3/view/map.hpp>
 #include <range/v3/view/remove_if.hpp>
 #include <range/v3/view/set_algorithm.hpp>
 #include <range/v3/view/split.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <vector>
 
@@ -125,13 +129,14 @@ auto EventStore::event_root() const
     auto& km = kmap_inst();
     auto const mroot = km.root_node_id();
 
-    rv = KTRY( view::make( mroot )
-             | view::direct_desc( "meta.event" ) 
-             | view::fetch_node( km ) );
+    rv = KTRY( anchor::root( mroot )
+             | view2::direct_desc( "meta.event" ) 
+             | act2::fetch_node( km ) );
 
     return rv;
 }
 
+/// "Outlet base" refers to the root of an outlet tree (outlet branches and leaves). Avoiding overloading the word "outlet root" to emphasize that it isn't referring to event.outlet.
 auto EventStore::fetch_outlet_base( Uuid const& node )
     -> Result< Uuid >
 {
@@ -152,6 +157,7 @@ auto EventStore::fetch_outlet_base( Uuid const& node )
 
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
+    // TODO: Struggling to understand what this accomplishes...
     auto const ofront = KTRY( view::make( eroot )
                             | view::child( "outlet" )
                             | view::rlineage( node )
@@ -162,13 +168,14 @@ auto EventStore::fetch_outlet_base( Uuid const& node )
                             | view::to_node_set( km )
                             | ranges::to< std::vector >()
                             | act::order( km )
-                            | act::front );
+                            | act::front ); // act::front grabs base/root outlet for outlet tree.
 
     rv = ofront;
 
     return rv;
 }
 
+/// "Outlet tree" refers to all leaves and branches for an outlet set.
 auto EventStore::fetch_outlet_tree( Uuid const& outlet )
     -> Result< UuidSet >
 {
@@ -180,11 +187,11 @@ auto EventStore::fetch_outlet_tree( Uuid const& outlet )
     auto rv = KMAP_MAKE_RESULT( UuidSet );
     auto& km = kmap_inst();
     auto const obase = KTRY( fetch_outlet_base( outlet ) );
-    auto const otree = view::make( obase )
-                     | view::desc
-                     | view::child( "requisite" )
-                     | view::parent
-                     | view::to_node_set( km )
+    auto const otree = anchor::root( obase )
+                     | view2::desc // TODO: Confirm: Because outlet could be a branch?
+                     | view2::child( "requisite" )
+                     | view2::parent
+                     | act2::to_node_set( km )
                      | act::push( obase );
 
     rv = otree;
@@ -205,6 +212,16 @@ auto EventStore::fetch_payload()
     return rv;
 }
 
+// TODO: Can be replaced with outlet | view::requisite( requisites ) | act::exists( km )
+auto EventStore::has_requisites( Uuid const& outlet
+                               , std::set< std::string > const& requisites )
+    -> bool
+{
+    KMAP_THROW_EXCEPTION_MSG( "TODO" );
+    return false;
+}
+
+// TODO: Or maybe, make a view action? view::verb( heading ) | act::fetch_or_create(), thereby giving the user the option of whether to fetch, create, or either.
 auto EventStore::install_verb( Heading const& heading )
     -> Result< Uuid >
 {
@@ -233,10 +250,10 @@ auto EventStore::install_object( Heading const& heading )
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
 
-    rv = KMAP_TRY( view::make( eroot )
-                 | view::child( "object" )
-                 | view::direct_desc( heading )
-                 | view::fetch_or_create_node( km ) );
+    rv = KTRY( view::make( eroot )
+             | view::child( "object" )
+             | view::direct_desc( heading )
+             | view::fetch_or_create_node( km ) );
 
     return rv;
 }
@@ -251,10 +268,10 @@ auto EventStore::install_subject( Heading const& heading )
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
 
-    rv = KMAP_TRY( view::make( eroot )
-                 | view::child( "subject" )
-                 | view::direct_desc( heading )
-                 | view::fetch_or_create_node( km ) );
+    rv = KTRY( view::make( eroot )
+             | view::child( "subject" )
+             | view::direct_desc( heading )
+             | view::fetch_or_create_node( km ) );
 
     return rv;
 }
@@ -269,10 +286,10 @@ auto EventStore::install_component( Heading const& heading )
     auto& km = kmap_inst();
     auto const eroot = KTRY( event_root() );
 
-    rv = KMAP_TRY( view::make( eroot )
-                 | view::child( "component" )
-                 | view::direct_desc( heading )
-                 | view::fetch_or_create_node( km ) );
+    rv = KTRY( view::make( eroot )
+             | view::child( "component" )
+             | view::direct_desc( heading )
+             | view::fetch_or_create_node( km ) );
 
     return rv;
 }
@@ -304,29 +321,29 @@ SCENARIO( "install_outlet", "[event]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "event_store" );
 
-    auto& kmap = Singleton::instance();
+    auto& km = Singleton::instance();
 
     GIVEN( "requisites" )
     {
-        auto const estore = REQUIRE_TRY( kmap.fetch_component< com::EventStore >() );
+        auto const estore = REQUIRE_TRY( km.fetch_component< com::EventStore >() );
 
-        REQUIRE_RES( estore->install_subject( "victor" ) );
-        REQUIRE_RES( estore->install_verb( "charlied" ) );
-        REQUIRE_RES( estore->install_object( "delta" ) );
+        REQUIRE_RES( estore->install_subject( "sierra" ) );
+        REQUIRE_RES( estore->install_verb( "victored" ) );
+        REQUIRE_RES( estore->install_object( "oscar" ) );
 
         WHEN( "install leaf" )
         {
-            auto const leaf = Leaf{ .heading = "network.open_editor"
-                                  , .requisites = { "subject.victor", "verb.charlied", "object.delta" }
+            auto const leaf = Leaf{ .heading = "test.operation"
+                                  , .requisites = { "subject.sierra", "verb.victored", "object.oscar" }
                                   , .description = "VCD"
-                                  , .action = "kmap.create_child(kmap.rood_node(), '1');" };
+                                  , .action = "kmap.create_child( kmap.rood_node(), '1' );" };
             auto const oleaf = REQUIRE_TRY( estore->install_outlet( leaf ) );
 
             THEN( "leaf structure exists" )
             {
                 REQUIRE_RES(( view::make( oleaf ) 
                             | view::child( view::exactly( "requisite", "description", "action" ) )
-                            | view::exists( kmap ) ));
+                            | view::exists( km ) ));
             }
         }
     }
@@ -828,45 +845,45 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
 {
     KM_RESULT_PROLOG();
 
-    fmt::print( "event_store.fire_event requisites: {{{}}}\n", requisites | rvs::join( ',' ) | ranges::to< std::string >() ); // => ( "[log][kmap.event.fire_event] requisites: {{{}}}", requisites )
+    // fmt::print( "event_store.fire_event requisites: {{{}}}\n", requisites | rvs::join( ',' ) | ranges::to< std::string >() ); // => ( "[log][kmap.event.fire_event] requisites: {{{}}}", requisites )
 
     // TODO: log( "event_store.fire_event", fmt::format( "requisites: {{{}}}", requisites ) ); // => ( "[log][kmap.event.fire_event] requisites: {{{}}}", requisites )
     // TODO: Each component comes with a logging facility i.e., the function log() that automatically prefixes output with component name?
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-    if( auto const oroot = view::abs_root
-                         | view::direct_desc( "meta.event.object" )
-                         | view::fetch_node( km )
+    if( auto const oroot = anchor::abs_root
+                         | view2::direct_desc( "meta.event.object" )
+                         | act2::fetch_node( km )
       ; oroot )
     {
-        auto const eroot = KTRY( view::make( oroot.value() )
-                               | view::parent
-                               | view::fetch_node( km ) );
+        auto const eroot = KTRY( anchor::root( oroot.value() )
+                               | view2::parent
+                               | act2::fetch_node( km ) );
         auto const objects = requisites
-                        | ranges::views::filter( []( auto const& e ){ return e.starts_with( "object" ); } )
-                        | ranges::to< std::set >();
+                           | ranges::views::filter( []( auto const& e ){ return e.starts_with( "object" ); } )
+                           | ranges::to< std::set >();
         auto const others = requisites
-                        | ranges::views::filter( []( auto const& e ){ return !e.starts_with( "object" ); } )
-                        | ranges::to< std::set >();
+                          | ranges::views::filter( []( auto const& e ){ return !e.starts_with( "object" ); } )
+                          | ranges::to< std::set >();
 
         KMAP_ENSURE_MSG( objects.size() <= 1, error_code::common::uncategorized, "currently limiting object to a single entry (no conceptual limitation, just ease of impl." );
 
         for( auto const& opath : objects )
         {
-            if( auto rnode = view::make( eroot )
-                        | view::desc( opath )
-                        | view::fetch_node( km )
-            ; rnode )
+            if( auto rnode = anchor::root( eroot )
+                           | view2::direct_desc( opath )
+                           | act2::fetch_node( km )
+              ; rnode )
             {
                 auto node = rnode.value();
                 
                 while( oroot.value() != node )
                 {
                     auto combined = others;
-                    auto const abspath = KTRY( view::make( oroot.value() )
-                                            | view::desc( node )
-                                            | act::abs_path_flat( km ) );
+                    auto const abspath = KTRY( anchor::root( oroot.value() )
+                                             | view2::desc( node )
+                                             | act2::abs_path_flat( km ) );
 
                     combined.emplace( abspath );
 
@@ -906,75 +923,66 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-
-    // fmt::print( "fire_event_internal: {}\n", requisites | ranges::views::join( '|' ) | ranges::to< std::string >() );
+        // KM_RESULT_PUSH( "requisites", requisites | ranges::views::join( '|' ) | ranges::to< std::string >() );
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
-    auto const ver = view::make( KTRY( event_root() ) );
+    auto const ver = anchor::root( KTRY( event_root() ) );
 
-    auto const vreqs = ver | view::direct_desc( view::all_of( requisites ) );
-    auto const vor = ver | view::child( "outlet" );
-    auto const vcr = ver | view::child( "component" );
+    auto const vreqs = ver | view2::all_of( view2::direct_desc, requisites );
+    auto const voutlet_root = ver | view2::child( "outlet" );
+    auto const vcom_root = ver | view2::child( "component" );
     auto const outlets = [ & ]
     {
-        // So, this is what I'm trying to get at:
-        // All matches for usual requisites.
-        // Component requisites are special.
-        // Rather than being matched to the fired set, the outlets matching the fired set are examined for component requisites.
-        // These components are then checked (km.component_store().is_initialized( com_id )) for initialized status,
-        // and only then are the outlets fired.
-        // TODO: Shouldn't it be view:child( view::exactly( vreqs ) ) instead of view::child( view::all_of( vreqs ) )?
-        auto const all_matches = vor
-                               | view::desc( "requisite" )
-                               | view::child( view::all_of( vreqs | view::to_heading_set( km ) ) ) // TODO: Actually needs view::alias( reqs ), rather than just the heading matches.
-                               | view::parent
-                               | view::parent
-                               | view::to_node_set( km )
+        auto const all_matches = voutlet_root
+                               | view2::desc( "requisite" )
+                               | view2::all_of( view2::alias, ( vreqs | act2::to_heading_set( km ) ) ) // TODO: Actually needs view::all_of( view::alias( view::resolve ), vreqs ), rather than just the heading matches.
+                               | view2::parent
+                               | view2::parent
+                               | act2::to_node_set( km )
                                | act::order( km );
-        auto com_matches = decltype( all_matches ){};
+        auto final_matches = decltype( all_matches ){};
 
         // Ensure all req coms have been initialized.
         for( auto const& outlet : all_matches )
         {
-            auto const vcom_req = view::make( outlet )
-                                | view::child( "requisite" )
-                                | view::alias( view::PredFn{ [ & ]( auto const& n ){ return vcr | view::desc( nw->resolve( n ) ) | view::exists( km ); } } );
+            auto const vcom_req = anchor::root( outlet )
+                                | view2::event::requisite( view2::resolve | view2::ancestor( vcom_root ) );
 
-            if( vcom_req | view::exists( km ) )
+            if( vcom_req | act2::exists( km ) )
             {
                 for( auto const& creq : vcom_req 
-                                      | view::resolve 
-                                      | view::to_node_set( km ) )
+                                      | view2::resolve 
+                                      | act2::to_node_set( km ) )
                 {
-                    auto const abs_com_path = KTRYE( view::make( creq )
-                                                   | view::ancestor( vcr )
-                                                   | act::abs_path_flat( km ) );
+                    auto const abs_com_path = KTRYE( anchor::root( vcom_root | act2::to_node_set( km ) )
+                                                   | view2::desc( creq )
+                                                   | act2::abs_path_flat( km ) );
                     auto const com_name = abs_com_path
                                         | ranges::views::split( '.' )
                                         | ranges::views::drop( 1 ) // Drop 'component.'
                                         | ranges::views::join( '.' )
                                         | ranges::to< std::string >();
+
                     if( km.component_store().is_initialized( com_name ) )
                     {
-                        com_matches.emplace_back( outlet );
+                        final_matches.emplace_back( outlet );
                     }
                 }
             }
-            else
+            else // No component requisite; nothing to check for initialization status.
             {
-                com_matches.emplace_back( outlet );
+                final_matches.emplace_back( outlet );
             }
         }
 
-        return com_matches;
+        return final_matches;
     }();
     auto executed = UuidSet{};
 
     for( auto const& outlet : outlets )
     {
-
         // Ensure all found outlets have corresponding transition states.
         if( !transition_states_.contains( outlet ) )
         {
@@ -982,9 +990,9 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
         }
         if( is_active_outlet( outlet ) )
         {
-            if( auto const actionn = view::make( outlet ) 
-                                   | view::child( "action" )
-                                   | view::fetch_node( km )
+            if( auto const actionn = anchor::root( outlet ) 
+                                   | view2::child( "action" )
+                                   | act2::fetch_node( km )
               ; actionn )
             {
                 KTRY( execute_body( actionn.value() ) );
@@ -1001,9 +1009,9 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
     {
         if( is_active_outlet( outlet ) )
         {
-            if( auto const actionn = view::make( outlet ) 
-                                    | view::child( "action" )
-                                    | view::fetch_node( km )
+            if( auto const actionn = anchor::root( outlet ) 
+                                   | view2::child( "action" )
+                                   | act2::fetch_node( km )
             ; !actionn )
             {
                 auto const children = nw->fetch_children( outlet );
@@ -1019,7 +1027,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
     return rv;
 }
 
-SCENARIO( "EventStore::fire_event", "[event]" )
+SCENARIO( "EventStore::fire_event", "[event][benchmark]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "event_store" );
 
@@ -1044,6 +1052,10 @@ SCENARIO( "EventStore::fire_event", "[event]" )
 
             REQUIRE(( view::make( kmap.root_node_id() ) | view::child( "1_victor" ) | view::exists( kmap ) ));
         }
+        BENCHMARK( "fire_event" )
+        {
+            return estore->fire_event( {  "subject.victor", "verb.charlie", "object.delta" } );
+        };
     }
     GIVEN( "two level outlet with identical requisites" )
     {
@@ -1058,6 +1070,16 @@ SCENARIO( "EventStore::fire_event", "[event]" )
                                                                               , .requisites = { "subject.victor", "verb.charlie", "object.delta" }
                                                                               , .description = ""
                                                                               , .action = "kmap.create_child( kmap.root_node(), '1_victor' );" } } } );
+
+        BENCHMARK( "install_outlet: 1.1" )
+        {
+            auto const ores = estore->install_outlet( Branch{ .heading = "1"
+                                                            , .requisites = { "subject.victor", "verb.charlie", "object.delta" }
+                                                            , .transitions = { Leaf{ .heading = "1"
+                                                                                   , .requisites = { "subject.victor", "verb.charlie", "object.delta" }
+                                                                                   , .description = ""
+                                                                                   , .action = "kmap.create_child( kmap.root_node(), '1_victor' );" } } } );
+        };
 
         REQUIRE_RES( ores );
 
@@ -1393,48 +1415,24 @@ auto EventStore::reset_transitions( std::set< std::string > const& requisites )
         })
     ;
 
-    auto matches = UuidSet{};
-    auto const eroot = KTRY( event_root() );
-    auto const req_ns = view::make( eroot )
-                      | view::direct_desc( view::all_of( requisites ) )
-                      | view::to_node_set( km );
-    auto const outlet_ns = view::make( eroot )
-                         | view::desc
-                         | view::child( "requisite" )
-                         | view::parent
-                         | view::to_node_set( km );
+    fmt::print( "[reset_transitions] {}\n", requisites | rvs::join( ',' ) | ranges::to< std::string >() );
 
-    for( auto const& outlet : outlet_ns )
+    auto const all_outlets = view2::event::outlet_root
+                           | view2::desc( view2::event::outlet )
+                           | act2::to_node_set( km );
+    fmt::print( "[reset_transitions] all_outlets: {}\n", all_outlets.size() );
+    auto const req_srcs = view2::event::event_root
+                        | view2::all_of( view2::direct_desc, requisites )
+                        | act2::to_node_set( km );
+    fmt::print( "[reset_transitions] req_srcs: {}\n", req_srcs.size() );
+
+    KMAP_ENSURE( req_srcs.size() == requisites.size(), error_code::common::uncategorized ); // TODO: error_code should be something about non-existent requisite.
+                            
+    for( auto const& outlet : all_outlets
+                            | rvs::filter( [ & ]( auto const& e ){ return outlet_matches( km, e, req_srcs ); } ) )
     {
-        auto const oreqs = view::make( outlet )
-                         | view::child( "requisite" )
-                         | view::child
-                         | view::resolve
-                         | view::to_node_set( km );
-        auto const pred = [ & ]( auto const& oreq )
-        {
-            // TODO: Unit test, of course, but also, I think we can do the same for fire_event, but in the other direction:
-            //       is_lineal( oreq, tret );
-            // Matches descendants as well e.g.:
-            //     reset_transitions( { "subject.keyboard.key" } )
-            //     matches:
-            //         outlet.<T>.requisite.key[subject.keyboard.key]
-            //         outlet.<T>.requisite.key[subject.keyboard.key.g]
-            //     but not:
-            //         outlet.<T>.requisite.key[subject.keyboard]
-            return ranges::any_of( req_ns, [ & ]( auto const& treq ){ return nw->is_lineal( treq, oreq ); } );
-        };
-
-        // Match all `outlet.requisite`s to provided requisites.
-        if( ranges::all_of( oreqs, pred ) )
-        {
-            matches.emplace( outlet );
-        }
-    }
-
-    for( auto const& match : matches )
-    {
-        KTRY( reset_transitions( match ) );
+        fmt::print( "[reset_transitions] matched\n" );
+        KTRY( reset_transitions( outlet ) );
     }
 
     rv = outcome::success();
@@ -1506,6 +1504,24 @@ SCENARIO( "EventStore::reset_transitions( requisites )", "[event]" )
     }
 }
 
+auto outlet_matches( Kmap const& km
+                   , Uuid const& outlet
+                   , std::set< Uuid > const& req_srcs ) // TODO: Rather: `event_root | direct_desc( reqs )`; Tether< EventRoot, DirectDesc >.
+    -> bool
+{
+    auto const reqs = anchor::root( outlet )
+                    | view2::event::requisite;
+    auto const req_count = reqs
+                         | act2::count( km );
+    auto const match_count = reqs
+                           | view2::resolve( view2::any_of( view2::left_lineal, req_srcs ) ) // TODO: Rather, view2::left_lineal( req_src ) => view2::lineal( event_root, req_src )
+                           | act2::count( km );
+    fmt::print( "[outlet_matches] req_count: {}\n", req_count );
+    fmt::print( "[outlet_matches] match_count: {}\n", match_count );
+
+    return match_count == req_count;
+}
+
 namespace binding {
 
 using namespace emscripten;
@@ -1572,3 +1588,128 @@ REGISTER_COMPONENT
 }
 
 } // namespace kmap::com
+
+namespace kmap::view2::event 
+{
+
+// auto EventRoot::fetch( FetchContext const& ctx ) const
+//     -> FetchSet
+// {
+//     return anchor::abs_root
+//          | view2::direct_desc( "meta.event" )
+//          | act2::to_fetch_set( ctx );
+// }
+
+// auto EventRoot::to_string() const
+//     -> std::string
+// {
+//     return "event_root";
+// }
+
+// auto EventRoot::compare_less( Anchor const& other ) const
+//     -> bool
+// {
+//     auto const cmp = compare_anchors( *this, other );
+
+//     return cmp == std::strong_ordering::less;
+// }
+
+SCENARIO( "view::event::Requisite::fetch", "[node_view][event]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "event_store" );
+
+    auto& km = Singleton::instance();
+
+    GIVEN( "requisites: sierra, victored, oscar" )
+    {
+        auto const estore = REQUIRE_TRY( km.fetch_component< com::EventStore >() );
+        auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+
+        REQUIRE_RES( estore->install_subject( "sierra" ) );
+        REQUIRE_RES( estore->install_verb( "victored" ) );
+        REQUIRE_RES( estore->install_object( "oscar" ) );
+
+        GIVEN( "outlet.requisites: sierra, victored, oscar" )
+        {
+            auto const leaf = com::Leaf{ .heading = "test.operation"
+                                       , .requisites = { "subject.sierra", "verb.victored", "object.oscar" }
+                                       , .description = "VCD"
+                                       , .action = "kmap.create_child( kmap.rood_node(), '1' );" };
+            auto const oleaf = REQUIRE_TRY( estore->install_outlet( leaf ) );
+
+            THEN( "requisite( sierra ) found" )
+            {
+            }
+            THEN( "all_of( requisite, { sierra, victored, oscar } ) found" )
+            {
+                auto const req_srcs = view2::event::event_root
+                                    | view2::all_of( view2::direct_desc, { "subject.sierra", "verb.victored", "object.oscar" } )
+                                    | act2::to_node_set( km );
+                REQUIRE( req_srcs.size() == 3 );
+                REQUIRE_TRY(( view2::event::outlet_root
+                            | act2::fetch_node( km ) ));
+                REQUIRE(( ( view2::event::outlet_root
+                          | act2::count( km ) ) == 1 ));
+                REQUIRE(( ( view2::event::outlet_root
+                          | view2::desc( view2::event::outlet )
+                          | act2::count( km ) ) == 1 ));
+                REQUIRE(( ( view2::event::outlet_root
+                          | view2::desc( view2::event::outlet )
+                          | view2::event::requisite
+                          | act2::count( km ) ) == 3 ));
+                REQUIRE(( ( view2::event::outlet_root
+                          | view2::desc( view2::event::outlet )
+                          | view2::event::requisite
+                          | view2::any_of( view2::resolve, req_srcs )
+                          | act2::count( km ) ) == 3 ));
+            }
+        }
+    }
+}
+
+#if 0
+auto Requisite::new_link() const
+    -> std::unique_ptr< Link >
+{
+    return std::make_unique< Requisite >();
+}
+
+auto Requisite::to_string() const
+    -> std::string
+{
+    if( pred_ )
+    {
+        auto const dispatch = util::Dispatch
+        {
+            [ & ]( auto const& arg ){ return fmt::format( "requisite( '{}' )", arg ); }
+        };
+
+        return std::visit( dispatch, pred_.value() );
+    }
+    else
+    {
+        return "requisite";
+    }
+}
+
+auto Requisite::compare_less( Link const& other ) const
+    -> bool
+{
+    auto const cmp = compare_links( *this, other );
+
+    if( cmp == std::strong_ordering::equal )
+    {
+        return pred_ < dynamic_cast< decltype( *this )& >( other ).pred_;
+    }
+    else if( cmp == std::strong_ordering::less )
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+#endif // 0
+
+} // kmap::view2::event

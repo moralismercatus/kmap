@@ -250,44 +250,46 @@ auto match( Kmap const& kmap
                 {
                     using T = std::decay_t< decltype( arg ) >;
 
-                    auto const lhs_headings = [ & ] 
+                    auto const to_lhs_headings = [ & ] 
                     { 
                         return lhs
-                             | rvs::transform( [ & ]( auto const& e ){ return KMAP_TRYE( nw->fetch_heading( e ) ); } ) 
+                             | rvs::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ); } ) 
                              | ranges::to< std::set >();
-                    }();
-                    auto const contains_heading = [ & ]( auto const& e ){ return lhs_headings.contains( e ); };
+                    };
 
                     if constexpr( std::is_same_v< T, char const* > || std::is_same_v< T, std::string > )
                     {
                         rv = lhs
-                           | rvs::filter( [ & ]( auto const& e ){ return KMAP_TRYE( nw->fetch_heading( e ) ) == arg; } )
+                           | rvs::filter( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ) == arg; } )
                            | ranges::to< UuidSet >();
                     }
                     else if constexpr( std::is_same_v< T, all_of > )
                     {
+                        auto const lhs_headings = to_lhs_headings();
+                        auto const contains_heading = [ & ]( auto const& e ){ return lhs_headings.contains( e ); };
                         if( ranges::all_of( arg.data, contains_heading ) )
                         {
                             rv = lhs
-                               | rvs::filter( [ & ]( auto const& e ){ return arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
+                               | rvs::filter( [ & ]( auto const& e ){ return arg.data.contains( KTRYE( nw->fetch_heading( e ) ) ); } )
                                | ranges::to< std::set >();
                         }
                     }
                     else if constexpr( std::is_same_v< T, any_of > )
                     {
                         rv = lhs
-                           | rvs::filter( [ & ]( auto const& e ){ return arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
+                           | rvs::filter( [ & ]( auto const& e ){ return arg.data.contains( KTRYE( nw->fetch_heading( e ) ) ); } )
                            | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, none_of > )
                     {
                         rv = lhs
-                            | rvs::filter( [ & ]( auto const& e ){ return !arg.data.contains( KMAP_TRYE( nw->fetch_heading( e ) ) ); } )
+                            | rvs::filter( [ & ]( auto const& e ){ return !arg.data.contains( KTRYE( nw->fetch_heading( e ) ) ); } )
                             | ranges::to< std::set >();
                     }
                     else if constexpr( std::is_same_v< T, exactly > )
                     {
-                        if( lhs_headings == arg.data )
+                        if( auto const lhs_headings = to_lhs_headings()
+                          ; lhs_headings == arg.data )
                         {
                             rv = lhs;
                         }
@@ -630,6 +632,7 @@ auto Alias::to_string() const
     }
 }
 
+// TODO: Ancestor's can be slow. For example, for selection=Intermediary.
 auto Ancestor::operator()( Kmap const& kmap
                          , Uuid const& node ) const
     -> UuidSet
@@ -959,22 +962,27 @@ auto Desc::operator()( Kmap const& kmap
                                         }
                                         else if constexpr( std::is_same_v< T, Uuid > )
                                         {
-                                            if( auto const dr = fetch_descendants( kmap, node, [ &arg ]( auto const& e ){ return e == arg; } )
-                                              ; dr )
+                                            if( auto const nw = kmap.fetch_component< com::Network >() // TODO: Shouldn't this be KTRYE? Wouldn't it be an error for something to invoke this without a "network" component?
+                                              ; nw )
                                             {
-                                                auto const& d = dr.value();
-
-                                                rset.insert( d.begin(), d.end() );
+                                                if( is_ancestor( *nw.value(), node, arg ) )
+                                                {
+                                                    rset.emplace( arg );
+                                                }
                                             }
                                         }
                                         else if constexpr( std::is_same_v< T, UuidSet > )
                                         {
-                                            if( auto const dr = fetch_descendants( kmap, node, [ &arg ]( auto const& e ){ return arg.contains( e ); } )
-                                              ; dr )
+                                            if( auto const nw = kmap.fetch_component< com::Network >() // TODO: Shouldn't this be KTRYE? Wouldn't it be an error for something to invoke this without a "network" component?
+                                              ; nw )
                                             {
-                                                auto const& d = dr.value();
-
-                                                rset.insert( d.begin(), d.end() );
+                                                for( auto const& e : arg )
+                                                {
+                                                    if( is_ancestor( *nw.value(), node, e ) )
+                                                    {
+                                                        rset.emplace( e );
+                                                    }
+                                                }
                                             }
                                         }
                                         else if constexpr( std::is_same_v< T, PredFn > )
@@ -1102,7 +1110,6 @@ auto DirectDesc::operator()( Kmap const& kmap
 
                                                 rset.insert( d.begin(), d.end() );
                                             }
-
                                         }
                                         else if constexpr( std::is_same_v< T, all_of > )
                                         {
@@ -1695,7 +1702,7 @@ SCENARIO( "view::Tag::operator()", "[node_view][tag]" )
                 auto const t1 = REQUIRE_TRY( tstore->create_tag( "1" ) );
                 auto const t2 = REQUIRE_TRY( tstore->create_tag( "2" ) );
                 auto const t3 = REQUIRE_TRY( tstore->create_tag( "3" ) );
-                auto const t4 = REQUIRE_TRY( tstore->create_tag( "4" ) );
+                                REQUIRE_TRY( tstore->create_tag( "4" ) );
 
                 WHEN( "tag node with 1,2,3" )
                 {
@@ -2302,8 +2309,7 @@ auto operator|( Intermediary const& i
     {
         rv = KMAP_TRY( create_lineages( c_op.kmap, *ns.begin(), i.op_chain.back() ) );
     }
-
-    if( ns.size() == 0 )
+    else if( ns.size() == 0 )
     {
         rv = KMAP_MAKE_ERROR( error_code::network::invalid_node );
         // TODO: undo.... requires nested undo, no?

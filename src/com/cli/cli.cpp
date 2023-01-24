@@ -709,8 +709,6 @@ auto Cli::focus()
     BC_ASSERT( elem );
 
     elem.value().call< val >( "focus" );
-
-    update_pane();
 }
 
 auto Cli::is_focused()
@@ -749,7 +747,7 @@ auto Cli::clear_input()
         })
     ;
 
-    auto elem = val::global( to_string( canvas->cli_pane() ).c_str() );
+    auto elem = KTRYE( js::fetch_style_member( to_string( canvas->cli_pane() ) ) ); // TODO: KTRY?
 
     elem.set( "value", "" );
 
@@ -818,11 +816,9 @@ auto Cli::set_color( Color const& c )
         })
     ;
 
-    auto elem = val::global( to_string( canvas->cli_pane() ).c_str() );
+    auto style = KTRYE( js::fetch_style_member( to_string( canvas->cli_pane() ) ) ); 
 
-    elem.set( "style"
-            , fmt::format( "background-color: {}"
-                         , to_string( c ) ) );
+    style.set( "backgroundColor", to_string( c ) );
 }
 
 auto Cli::show_popup( std::string const& text )
@@ -835,7 +831,7 @@ auto Cli::show_popup( std::string const& text )
     auto const cli_dims = canvas->dimensions( canvas->cli_pane() ).value();
     auto box_dims = com::Dimensions{};
     auto elem = KMAP_TRYE( js::fetch_element_by_id< val >( to_string( canvas->completion_overlay() ) ) ); 
-    auto style = KMAP_TRYE( js::eval< val >( io::format( "return document.getElementById( '{}' ).style;", to_string( canvas->completion_overlay() ) ) ) ); 
+    auto style = KTRYE( js::fetch_style_member( to_string( canvas->completion_overlay() ) ) ); 
     auto const font_size = [ & ]
     {
         auto const t = KMAP_TRYE( js::fetch_computed_property_value< std::string >( to_string( canvas->completion_overlay() )
@@ -1002,7 +998,7 @@ auto Cli::notify_success( std::string const& message )
                       , message ) );
     disable_write();
     set_color( Color::green );
-    update_pane();
+    // update_pane();
 }
 
 auto Cli::notify_failure( std::string const& message )
@@ -1018,7 +1014,6 @@ auto Cli::notify_failure( std::string const& message )
     write( fmt::format( "[failure] {}", message ) );
     disable_write();
     set_color( Color::red );
-    update_pane();
 }
 
 auto Cli::on_key_down( int const key
@@ -1084,7 +1079,7 @@ auto Cli::update_pane()
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
-    canvas->update_pane( canvas->cli_pane() ).value(); // TODO: Find out why focusing requires a repositioning of the CLI element. That is, why to calls to this are necessary to maintain dimensions.
+    KTRYE( canvas->update_pane( canvas->cli_pane() ) ); // TODO: Find out why focusing requires a repositioning of the CLI element. That is, why calls to this are necessary to maintain dimensions.
 }
 
 namespace binding {

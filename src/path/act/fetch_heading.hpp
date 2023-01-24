@@ -38,4 +38,4 @@ namespace kmap
     namespace act = kmap::view::act;
 }
 
-#endif // KMAP_PATH_ACT_FETCH_BODY_HPP
+#endif // KMAP_PATH_ACT_FETCH_HEADING_HPP

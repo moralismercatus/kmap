@@ -6,33 +6,36 @@
 #include "com/network/visnetwork.hpp"
 
 #include "com/canvas/canvas.hpp"
+#include "com/database/db.hpp"
+#include "com/event/event_clerk.hpp"
 #include "com/network/network.hpp"
 #include "com/option/option.hpp"
 #include "component.hpp"
 #include "contract.hpp"
-#include "com/database/db.hpp"
-#include "com/event/event_clerk.hpp"
 #include "emcc_bindings.hpp"
 #include "error/network.hpp"
 #include "io.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
-#include "utility.hpp"
+#include "test/util.hpp"
 #include "util/result.hpp"
+#include "utility.hpp"
 
-#include <emscripten.h>
-#include <emscripten/val.h>
+#include <boost/filesystem.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <boost/filesystem.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <emscripten.h>
+#include <emscripten/val.h>
+#include <range/v3/action/sort.hpp>
+#include <range/v3/algorithm/count.hpp>
+#include <range/v3/algorithm/count_if.hpp>
+#include <range/v3/algorithm/find.hpp>
 #include <range/v3/range/conversion.hpp>
-#include <range/v3/view/transform.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/remove.hpp>
-#include <range/v3/algorithm/count_if.hpp>
-#include <range/v3/algorithm/count.hpp>
-#include <range/v3/algorithm/find.hpp>
-#include <range/v3/action/sort.hpp>
+#include <range/v3/view/transform.hpp>
 
 using namespace ranges;
 using boost::uuids::to_string;
@@ -211,8 +214,6 @@ auto VisualNetwork::create_nodes( std::vector< Uuid > const& ids
                                 , std::vector< Title > const& titles )
     -> void // TODO: Should return bool to indicate succ/fail.
 {
-    KMAP_PROFILE_SCOPE();
-
     BC_CONTRACT()
         BC_PRE([ & ]
         {
@@ -267,8 +268,6 @@ auto VisualNetwork::create_nodes( std::vector< Uuid > const& ids
 auto VisualNetwork::create_edges( std::vector< std::pair< Uuid, Uuid > > const& edges )
     -> void // TODO: Should return bool to indicate succ/fail.
 {
-    KMAP_PROFILE_SCOPE();
-
     BC_CONTRACT()
         BC_PRE([ & ]
         {
@@ -383,8 +382,6 @@ auto VisualNetwork::select_node( Uuid const& id )
     auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::no_prev_selection );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-
-    KMAP_LOG_LINE();
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -976,7 +973,7 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node"
                                  , .requisites = { "subject.network", "verb.selected", "object.node" }
                                  , .description = "updates network with selected node"
-                                 , .action = R"%%%(debounce( function(){{ kmap.visnetwork().select_node( kmap.selected_node() ); }}, 'debounce_timer_select_node', 50 )();)%%%" } );
+                                 , .action = R"%%%(debounce( function(){{ kmap.visnetwork().select_node( kmap.selected_node() ); }}, 'debounce_timer_select_node', 10 )();)%%%" } );
     eclerk_.register_outlet( Leaf{ .heading = "network.node_moved"
                                  , .requisites = { "subject.network", "verb.moved", "object.node" }
                                  , .description = "updates network with selected node"
@@ -1217,6 +1214,24 @@ REGISTER_COMPONENT
 );
 
 } // namespace network_def 
+}
+
+SCENARIO( "visnetwork event benchmarks", "[visnetwork][event][benchmark]" )
+{
+    auto const all_components = REQUIRE_TRY( fetch_listed_components() );
+
+    KMAP_COMPONENT_FIXTURE_SCOPED( all_components );
+
+    auto& km = kmap::Singleton::instance();
+    auto const estore = REQUIRE_TRY( km.fetch_component< com::EventStore >() );
+
+    GIVEN( "all components init'd" )
+    {
+        BENCHMARK( "fire_event: arrowright" )
+        {
+            return estore->fire_event( { "subject.network", "verb.depressed", "object.keyboard.key.arrowright" } );
+        };
+    }
 }
 
 } // namespace kmap

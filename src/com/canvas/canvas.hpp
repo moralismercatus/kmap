@@ -186,6 +186,8 @@ public:
     auto rebase( Uuid const& pane
                , float const base )
         -> Result< void >;
+    auto redraw()
+        -> Result< void >;
     auto reorient( Uuid const& pane )
         -> Result< void >;
     auto initialize_panes()

@@ -14,33 +14,50 @@ require( 'geteventlisteners' ); // This works by overriding Element.prototype.ad
 
 kmap_pretest_options = '--durations=yes'
 kmap_pretest_options += ' --verbosity=high'
+// kmap_pretest_options += ' --skip-benchmarks'
+kmap_pretest_options += ' --benchmark-samples=1'
 // kmap_pretest_options += ' --success'
-// let kmap_pretest_targets = '*' // All
-let kmap_pretest_targets = ''
-// kmap_pretest_targets += ',Scenario: AliasStore::resolve'
+let kmap_pretest_targets = '*' // All
+// let kmap_pretest_targets = ''
+// kmap_pretest_targets += ',Scenario: AliasSet basic ops'
+// kmap_pretest_targets += ',Scenario: Database::push_child'
+// kmap_pretest_targets += ',Scenario: Network::create_child'
 // kmap_pretest_targets += ',Scenario: Network::fetch_parent'
 // kmap_pretest_targets += ',Scenario: Network::is_alias'
 // kmap_pretest_targets += ',Scenario: TaskStore::create_subtask'
+// kmap_pretest_targets += ',Scenario: Child::compare'
 // kmap_pretest_targets += ',Scenario: edit.body'
+// kmap_pretest_targets += ',Scenario: view::Alias::fetch'
+// kmap_pretest_targets += ',Scenario: view::operator|Link Link'
+// kmap_pretest_targets += ',Scenario: view::operator|TetherCT Link'
+// kmap_pretest_targets += ',Scenario: view::AllOf::fetch'
+// kmap_pretest_targets += ',Scenario: view::event::Requisite::fetch'
+// kmap_pretest_targets += ',Scenario: view::Ancestor::fetch'
+// kmap_pretest_targets += ',Scenario: view::Link::operator<'
+// kmap_pretest_targets += ',Scenario: EventStore::fire_event'
 // kmap_pretest_targets += ',[abs_path],[abs_path_flat]'
-kmap_pretest_targets += ',[alias]'
+// kmap_pretest_targets += ',[alias]'
 // kmap_pretest_targets += ',[autosave]'
+// kmap_pretest_targets += ',[benchmark]'
 // kmap_pretest_targets += ',[cmd]'
 // kmap_pretest_targets += ',[cmd][log][task]'
 // kmap_pretest_targets += ',[cmd][task]'
 // kmap_pretest_targets += ',[com][nw][alias]'
 // kmap_pretest_targets += ',[com][text_area]'
 // kmap_pretest_targets += ',[db][fs]'
-// kmap_pretest_targets += ',[event]'
+// kmap_pretest_targets += ',[event]' 
 // kmap_pretest_targets += ',[iface]'
 // kmap_pretest_targets += ',[move_node]'
+// kmap_pretest_targets += ',[node_view]'
 // kmap_pretest_targets += ',[nw]'
 // kmap_pretest_targets += ',[parser]'
 // kmap_pretest_targets += ',[path][node_view]'
+// kmap_pretest_targets += ',[profile]'
 // kmap_pretest_targets += ',[tag]'
 // kmap_pretest_targets += ',[take]'
 // kmap_pretest_targets += ',[task]'
 // kmap_pretest_targets += ',[text_area]'
+// kmap_pretest_targets += ',[query_cache]'
 
 function beautify_javascript( code )
 {
@@ -117,7 +134,7 @@ function clear_cli_error()
     {
         let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
 
-        cli.style = 'background-color: white';
+        cli.style.backgroundColor = 'white';
         cli.readOnly = false;
     }
     catch( err )

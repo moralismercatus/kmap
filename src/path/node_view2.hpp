@@ -7,235 +7,109 @@
 #ifndef KMAP_PATH_NODE_VIEW2_HPP
 #define KMAP_PATH_NODE_VIEW2_HPP
 
-#include "common.hpp"
-#include "path/node_view.hpp"
+#include "path/view/act/abs_path.hpp"
+#include "path/view/act/count.hpp"
+#include "path/view/act/exists.hpp"
+#include "path/view/act/fetch_node.hpp"
+#include "path/view/act/to_fetch_set.hpp"
+#include "path/view/act/to_heading_set.hpp"
+#include "path/view/act/to_node_set.hpp"
+#include "path/view/act/to_string.hpp"
+#include "path/view/alias.hpp"
+#include "path/view/all_of.hpp"
+#include "path/view/ancestor.hpp"
+#include "path/view/anchor/abs_root.hpp"
+#include "path/view/anchor/anchor.hpp"
+#include "path/view/anchor/anchor.hpp"
+#include "path/view/anchor/root.hpp"
+#include "path/view/any_of.hpp"
+#include "path/view/chain.hpp"
+#include "path/view/child.hpp"
+#include "path/view/desc.hpp"
+#include "path/view/direct_desc.hpp"
+#include "path/view/left_lineal.hpp"
+#include "path/view/link.hpp"
+#include "path/view/none_of.hpp"
+#include "path/view/parent.hpp"
+#include "path/view/resolve.hpp"
+#include "path/view/right_lineal.hpp"
 
 #include <concepts>
-#include <memory>
-
-namespace kmap
-{
-    class Kmap;
-} // namespace kmap
 
 namespace kmap::view2 {
 
-struct Chain;
-
-struct CreateContext
+// TODO: Why are these placed here and not tether.hpp?
+template< typename AnchorType
+        , typename TailLink >
+    requires std::derived_from< AnchorType, Anchor >
+          && std::derived_from< TailLink, Link >
+auto operator|( TetherCT< AnchorType, TailLink > const& tct
+              , ToTether const& )
+    -> Tether
 {
-    Kmap& km;
-    Chain const& chain;
-};
-struct FetchContext
-{
-    Kmap const& km;
-    Chain const& chain;
-
-    FetchContext( Kmap const& k
-                , Chain const& c )
-        : km{ k }
-        , chain{ c }
-    {
-    }
-    FetchContext( CreateContext const& ctx )
-        : km{ ctx.km }
-        , chain{ ctx.chain }
-    {
-    }
-};
-
-struct Anchor
-{
-    virtual auto fetch( FetchContext const& ctx ) const -> UuidSet = 0;
-};
-
-struct Link
-{
-    virtual auto fetch( FetchContext const& ctx, Uuid const& root ) const -> UuidSet = 0;
-};
-
-struct PredLink : public Link
-{
-    mutable std::optional< view::SelectionVariant > selection; // Bit of a hack, but allows selection to be modified despite const vars defs.
-
-    PredLink() = default;
-    explicit PredLink( view::SelectionVariant const& sel ) : selection{ sel } {}
-
-    virtual auto operator()( view::SelectionVariant const& sel ) const -> PredLink const& = 0;
-};
-
-struct CreatablePredLink : public PredLink // TODO: I think there are cases where non-predicate creatabls exist (e.g., attribute nodes), so Createable shouldn't depend on Pred.c
-{
-    using PredLink::PredLink;
-
-    virtual auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > = 0;
-};
-
-struct ForwardingLink : public CreatablePredLink
-{
-    std::pair< std::shared_ptr< Link >, std::shared_ptr< Link > > links = {};
-
-    using CreatablePredLink::CreatablePredLink;
-    virtual ~ForwardingLink() = default;
-
-    auto operator()( view::SelectionVariant const& sel ) const -> ForwardingLink const& override;
-
-    // Does nothing more than forward arguments to sublinks.
-    auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > override;
-    auto fetch( FetchContext const& ctx, Uuid const& root ) const -> UuidSet override;
-};
-
-struct Chain 
-{
-    std::shared_ptr< Anchor > anchor = {};
-    std::vector< std::shared_ptr< Link > > links = {};
-};
-
-// Can I make these templates? Would it matter? Maybe... 
-template< typename LLink
-        , typename RLink >
-    requires ::concepts::derived_from< LLink, Link >
-          && ::concepts::derived_from< RLink, Link >
-auto operator|( LLink const& lhs
-              , RLink const& rhs )
-    -> ForwardingLink
-{
-    auto rv = ForwardingLink{};
-
-    rv.links = std::pair{ std::make_shared< LLink >( lhs ), std::make_shared< RLink >( rhs ) };
-
-    return rv;
+    return Tether{ UniqueClonePtr< Anchor >{ std::make_unique< AnchorType >( tct.anchor ) }
+                 , Link::LinkPtr{ std::make_unique< TailLink >( tct.tail_link ) } };
 }
 
-template< typename RLink >
-    requires ::concepts::derived_from< RLink, Link >
-auto operator|( Chain const& lhs
-              , RLink const& rhs )
-    -> Chain
+template< typename AnchorType
+        , typename TailLink >
+    requires std::derived_from< AnchorType, Anchor >
+          && std::derived_from< TailLink, Link >
+auto operator|( AnchorType const& anchor
+              , TailLink const& link )
+    -> TetherCT< AnchorType, TailLink >
 {
-    auto rv = lhs;
-
-    rv.links.emplace_back( std::make_shared< RLink >( rhs ) );
-
-    return rv;
+    return TetherCT< AnchorType, TailLink >{ anchor, link };
 }
 
-// TODO: What happens if I drop independent Anchor types, but auto create Chains for Anchors?
-// template< typename LAnchor
-//         , typename RLink >
-//     requires ::concepts::derived_from< LAnchor, Anchor >
-//           && ::concepts::derived_from< RLink, Link >
-// auto operator|( LAnchor const& lhs
-//               , RLink const& rhs )
-//     -> Chain
-// {
-//     auto rv = Chain{};
-
-//     rv.anchor = std::make_shared< LAnchor >( lhs );
-//     rv.links.emplace_back( std::make_shared< RLink >( rhs ) );
-
-//     return rv;
-// }
-
-// inline
-// auto operator|( std::shared_ptr< Link > const& lhs
-//               ,  )
-
-/*----------------Derivatives----------------*/
-
-struct AbsRoot : public Anchor
+template< typename AnchorType
+        , typename TailLink
+        , typename NextLink >
+    requires std::derived_from< AnchorType, Anchor >
+          && std::derived_from< TailLink, Link >
+          && std::derived_from< NextLink, Link >
+auto operator|( TetherCT< AnchorType, TailLink > const& tether
+              , NextLink const& link )
+    -> TetherCT< AnchorType, NextLink >
 {
-    virtual ~AbsRoot() = default;
+    auto nlink = link;
 
-    auto fetch( FetchContext const& ctx ) const -> UuidSet override;
-};
-
-struct Root : public Anchor
-{
-    UuidSet nodes;
-
-    Root( UuidSet const& ns )
-        : nodes{ ns }
+    if( auto prev = std::ref( nlink.prev() )
+      ; prev.get() )
     {
+        auto last = prev;
+
+        while( prev.get() )
+        {
+            last = prev;
+            prev = std::ref( prev.get()->prev() );
+        }
+
+        last.get()->prev( { std::make_unique< TailLink >( tether.tail_link ) } );
     }
-    virtual ~Root() = default;
+    else
+    {
+        nlink.prev( { std::make_unique< TailLink >( tether.tail_link ) } );
+    }
 
-    auto fetch( FetchContext const& ctx ) const -> UuidSet override;
-};
+    return TetherCT< AnchorType, NextLink >{ tether.anchor, nlink };
+}
 
-auto const abs_root = Chain{ .anchor = std::make_shared< AbsRoot >() };
-// TODO: variadic template...
-auto root( Uuid const& node ) -> Chain;
-auto root( UuidSet const& nodes ) -> Chain;
-
-struct Child : public PredLink
+template< typename AnchorType >
+    requires std::derived_from< AnchorType, Anchor >
+auto operator|( AnchorType const& anchor
+              , Link::LinkPtr const& link )
+    -> Tether
 {
-    using PredLink::PredLink;
-    virtual ~Child() = default;
-
-    auto operator()( view::SelectionVariant const& sel ) const -> Child const& override;
-
-    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> UuidSet override;
-};
-
-auto const child = Child{};
-
-struct Desc : public PredLink
-{
-    using PredLink::PredLink;
-    virtual ~Desc() = default;
-
-    auto operator()( view::SelectionVariant const& sel ) const -> Desc const& override;
-
-    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> UuidSet override;
-};
-
-auto const desc = Desc{};
-
-struct DirectDesc : public PredLink
-{
-    using PredLink::PredLink;
-    virtual ~DirectDesc() = default;
-
-    auto operator()( view::SelectionVariant const& sel ) const -> DirectDesc const& override;
-
-    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> UuidSet override;
-};
-
-auto const direct_desc = DirectDesc{};
-
-struct AbsPathFlat
-{
-    Kmap const& km;
-
-    AbsPathFlat( Kmap const& kmap );
-};
-struct ToNodeSet
-{
-    Kmap const& km;
-
-    ToNodeSet( Kmap const& kmap );
-};
-
-auto abs_path_flat( Kmap const& km )
-    -> AbsPathFlat;
-auto to_node_set( Kmap const& km )
-    -> ToNodeSet;
-
-// auto operator|( Anchor const& lhs
-//               , AbsPathFlat const& rhs )
-//     -> Result< std::string >;
-auto operator|( Chain const& lhs
-              , AbsPathFlat const& rhs )
-    -> Result< std::string >;
-// auto operator|( Anchor const& lhs
-//               , ToNodeSet const& rhs )
-//     -> UuidSet;
-auto operator|( Chain const& lhs
-              , ToNodeSet const& rhs )
-    -> UuidSet;
+    return Tether{ Anchor::AnchorPtr{ std::make_unique< AnchorType >( anchor ) }, link };
+}
 
 } // namespace kmap::view2
+
+namespace kmap
+{
+    namespace act2 = view2::act;
+    namespace anchor = view2::anchor;
+}
 
 #endif // KMAP_PATH_NODE_VIEW2_HPP

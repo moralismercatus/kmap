@@ -3,9 +3,13 @@ cmake_minimum_required( VERSION 3.0.0 )
 project( emcc.index.html )
 
 set( CMAKE_CXX_STANDARD 20 )
+# set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")
 
 add_compile_definitions( ZLIB_CONST=1
+                        BOOST_CONTRACT_STATIC_LINK=1
                          BOOST_SML_CFG_DISABLE_MIN_SIZE # See https://github.com/boost-ext/sml/issues/249. Without this defined, UB detected.
+                         CATCH_CONFIG_ENABLE_BENCHMARKING=1
                        )
 
 
@@ -19,17 +23,20 @@ add_compile_options( -Wall
                      -sFORCE_FILESYSTEM=1
                      -sALLOW_MEMORY_GROWTH=1
                      -sENVIRONMENT=\"node\"
-                     -sTOTAL_MEMORY=1200MB
-                     -fdiagnostics-show-template-tree )
+                     -sTOTAL_MEMORY=2048MB
+                     -fdiagnostics-show-template-tree
+                   )
 
 add_link_options( --bind
-                  -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
+                )
+                  # -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
 
 # Note: Resorted to using -02, rather than -03, due to experience of UB. Follow-up: UB persisted in -02.
 if (CMAKE_BUILD_TYPE MATCHES "Release")
     add_compile_definitions( ZLIB_CONST=1
-                            #  BOOST_CONTRACT_NO_PRECONDITIONS=1
-                            #  BOOST_CONTRACT_NO_POSTCONDITIONS=1
+                             BOOST_CONTRACT_NO_PRECONDITIONS=1
+                             BOOST_CONTRACT_NO_POSTCONDITIONS=1
+                             BOOST_CONTRACT_DISABLE_THREADS=1
                              NDEBUG=1
                              KMAP_DEBUG=0
                              KMAP_LOGGING_DB=0
@@ -40,10 +47,17 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
                              KMAP_PROFILE=0
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -Wall
-                         -O3 
-                         -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
+                         -O2 
                          -sWASM=1 )
-    add_link_options()
+                        #  -sEVAL_CTORS )
+                        #  -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
+    add_link_options( -sALLOW_MEMORY_GROWTH=1
+                      # -00 # Reduce link times
+                      # -sERROR_ON_WASM_CHANGES_AFTER_LINK # Reduce link times
+                      # -sWASM_BIGINT # Reduce link times 
+                    )
+                      # -sEVAL_CTORS )
+                      # -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
 else() # Warning: There is a known but in which a false-positive assert is triggered in DEBUG builds for file operations, so avoid using those in this mode.
     add_compile_definitions( KMAP_DEBUG=1 
                              KMAP_LOGGING_DB=0
@@ -53,11 +67,13 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
                              KMAP_LOG_EXCEPTION=1
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -g3 
-                         -O1 
+                         -O0 
                          -sEXCEPTION_DEBUG=1 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sDEMANGLE_SUPPORT=1 
                          -sSAFE_HEAP=1 
+                        #  -fsanitize=address
+                        #  -fsanitize=undefined
                          -sASSERTIONS=2 
                          -sSTACK_OVERFLOW_CHECK=2 
                          -sWASM=1
@@ -66,17 +82,17 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
                         #  -finstrument-functions
                         #  -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
                         #  -sALLOW_MEMORY_GROWTH=1
-                        #  -fsanitize=address # Dramatically decreases runtime performance
-                        #  -fsanitize=undefined # Even More Dramatically decreases runtime performance
-                        #  -sINITIAL_MEMORY=400MB # Needed for -fsanitize=undefined
                          --emit-symbol-map )
 add_link_options( -sALLOW_MEMORY_GROWTH=1 
                 #   -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
+                  -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
+
                   # -fsanitize=address
-                  # -fsanitize=undefined
-                         -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
-                         -sASSERTIONS=2 
-                         -sSTACK_OVERFLOW_CHECK=2 
+                  -sSTACK_SIZE=100MB
+                  # -fsanitize=undefined 
+
+                  -sASSERTIONS=2 
+                  -sSTACK_OVERFLOW_CHECK=2 
                   -sINITIAL_MEMORY=400MB
                    ) # Flag must be present in both compile and link options
 endif()
@@ -117,6 +133,7 @@ add_executable( emcc.index.html
                 com/database/cache.cpp com/database/cache.hpp
                 com/database/db.cpp com/database/db.hpp
                 com/database/db_fs.cpp com/database/db_fs.hpp
+                com/database/query_cache.cpp com/database/query_cache.hpp
                 com/database/root_node.cpp com/database/root_node.hpp
                 com/database/sm.cpp com/database/sm.hpp
                 com/event/event.cpp com/event/event.hpp
@@ -144,18 +161,44 @@ add_executable( emcc.index.html
                 kmap.cpp kmap.hpp
                 lineage.cpp
                 path.cpp
+                # path/view/chain.cpp path/view/chain.hpp
                 path/act/abs_path.cpp path/act/abs_path.hpp
                 path/act/erase.cpp path/act/erase.hpp
                 path/act/fetch_body.cpp path/act/fetch_body.hpp
                 path/act/fetch_heading.cpp path/act/fetch_heading.hpp
                 path/act/front.cpp path/act/front.hpp
                 path/act/order.cpp path/act/order.hpp
+                path/act/select_node.cpp path/act/select_node.hpp
                 path/act/take.cpp path/act/take.hpp
                 path/act/to_string.cpp path/act/to_string.hpp
                 path/act/update_body.cpp path/act/update_body.hpp
                 path/node_view.cpp path/node_view.hpp
                 path/node_view2.cpp path/node_view2.hpp
                 path/sm.cpp
+                path/view/act/abs_path.cpp path/view/act/abs_path.hpp
+                path/view/act/count.cpp path/view/act/count.hpp
+                path/view/act/exists.cpp path/view/act/exists.hpp
+                path/view/act/fetch_node.cpp path/view/act/fetch_node.hpp
+                path/view/act/to_fetch_set.cpp path/view/act/to_fetch_set.hpp
+                path/view/act/to_heading_set.cpp path/view/act/to_heading_set.hpp
+                path/view/act/to_node_set.cpp path/view/act/to_node_set.hpp
+                path/view/act/to_string.cpp path/view/act/to_string.hpp
+                path/view/alias.cpp path/view/alias.hpp
+                path/view/all_of.cpp path/view/all_of.hpp
+                path/view/ancestor.cpp path/view/ancestor.hpp
+                path/view/anchor/abs_root.cpp path/view/anchor/abs_root.hpp
+                path/view/anchor/root.cpp path/view/anchor/root.hpp
+                path/view/any_of.cpp path/view/any_of.hpp
+                path/view/child.cpp path/view/child.hpp
+                path/view/desc.cpp path/view/desc.hpp
+                path/view/direct_desc.cpp path/view/direct_desc.hpp
+                path/view/left_lineal.cpp path/view/left_lineal.hpp
+                path/view/link.cpp path/view/link.hpp
+                path/view/none_of.cpp path/view/none_of.hpp
+                path/view/parent.cpp path/view/parent.hpp
+                path/view/resolve.cpp path/view/resolve.hpp
+                path/view/right_lineal.cpp path/view/right_lineal.hpp
+                path/view/tether.cpp path/view/tether.hpp
                 # stmt_prep.cpp
                 test/autosave.cpp
                 test/canvas/canvas.cpp
@@ -217,6 +260,7 @@ link_directories( ${CMAKE_BINARY_DIR}/lib )
 
 target_link_libraries( emcc.index.html
                       ${CMAKE_BINARY_DIR}/lib/libboost_chrono.bc
+                      ${CMAKE_BINARY_DIR}/lib/libboost_contract.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_filesystem.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_system.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_timer.bc

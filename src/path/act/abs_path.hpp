@@ -43,7 +43,7 @@ auto operator|( Intermediary const& i, AbsPath const& op )
 auto operator|( Intermediary const& i, AbsPathFlat const& op )
     -> Result< std::string >;
 
-} // namespace kmap::act
+} // namespace kmap::view::act
 
 namespace kmap
 {

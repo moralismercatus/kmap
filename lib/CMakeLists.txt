@@ -11,6 +11,8 @@ ExternalProject_Add(
 
     GIT_REPOSITORY https://github.com/boostorg/boost
     UPDATE_COMMAND ""
+    GIT_TAG
+        boost-1.81.0
     CONFIGURE_COMMAND
         ${CMAKE_BINARY_DIR}/lib/boost-prefix/src/boost/bootstrap.sh
     BUILD_IN_SOURCE 1
@@ -22,8 +24,10 @@ ExternalProject_Add(
 			target-os=linux # Even on Windows, use MSYS and mingw32-make.exe.
             link=static
             threading=single
+            cxxflags=-O2
              --stagedir=${CMAKE_BINARY_DIR}
             --with-chrono
+            --with-contract
             --with-filesystem
             --with-system
             --with-test
@@ -31,6 +35,7 @@ ExternalProject_Add(
             define=BOOST_TEST_ALTERNATIVE_INIT_API
             define=BOOST_TEST_NO_MAIN
             define=BOOST_TEST_DISABLE_ALT_STACK
+            define=BOOST_CONTRACT_DISABLE_THREADS
     INSTALL_COMMAND ""
 )
 
@@ -57,7 +62,7 @@ ExternalProject_Add(
         -DFMT_TEST=FALSE
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_COMPILER_WORKS=1
-        -DCMAKE_CXX_FLAGS="-std=c++14"
+        -DCMAKE_CXX_FLAGS="-std=c++14 -O3"
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
     UPDATE_COMMAND ""
     INSTALL_COMMAND emranlib libfmt.a
@@ -210,7 +215,7 @@ ExternalProject_Add(
     dry_comparisons 
 
     GIT_REPOSITORY https://github.com/rollbear/dry-comparisons.git
-    GIT_TAG master
+    GIT_TAG main 
     GIT_SUBMODULES ""
     UPDATE_COMMAND ""
     CONFIGURE_COMMAND ""

@@ -206,7 +206,7 @@ auto fetch_descendants( KMap const& kmap
 
     for( auto const& child : nw->fetch_children( root ) )
     {
-        auto const descs = KMAP_TRY( fetch_descendants( kmap, child, pred ) );
+        auto const descs = KTRY( fetch_descendants( kmap, child, pred ) );
 
         matches.insert( descs.begin(), descs.end() );
     }

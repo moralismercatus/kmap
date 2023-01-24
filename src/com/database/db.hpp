@@ -7,10 +7,11 @@
 #ifndef KMAP_DB_HPP
 #define KMAP_DB_HPP
 
-#include "common.hpp"
-#include "component.hpp"
 #include "com/database/cache.hpp"
 #include "com/database/common.hpp"
+#include "com/database/query_cache.hpp"
+#include "common.hpp"
+#include "component.hpp"
 #include "path.hpp"
 #include "utility.hpp" // TODO: Remove. Only reason this is here is for testing.
 
@@ -33,6 +34,7 @@ class Database : public Component
     FsPath path_ = {};
     std::unique_ptr< sqlpp::sqlite3::connection > con_ = {}; // TODO: I think this actually belongs in com::DatabaseFilesystem. In the future.
     mutable db::Cache cache_ = {}; // Needs to be mutable, as fetching/reading operations are const, but may update the cache. TODO: Really? I think what I had in mind was when it needed to be loaded from disk, but this all happens at one time via explicit command, so I don't think mutable is necessary.
+    mutable db::QueryCache query_cache_ = {};
 
 public:
     // using TableId = db::TableId;
@@ -113,19 +115,19 @@ public:
     auto contains( auto const& key ) const
         -> bool
     {
-        return cache_.contains< Table >( key );
+        return cache().contains< Table >( key );
     }
     template< typename Table >
-    auto erase( auto const& key ) const
+    auto erase( auto const& key )
         -> Result< void > 
     {
-        return cache_.erase< Table >( key );
+        return cache().erase< Table >( key );
     }
     template< typename Table >
     auto fetch() const
         -> Table const&
     {
-        return cache_.fetch< Table >();
+        return cache().fetch< Table >();
     }
 
     auto has_file_on_disk()
@@ -158,6 +160,7 @@ public:
         -> std::vector< Uuid >;
     auto init_db_on_disk( FsPath const& path )
         -> Result< void >;
+    [[ nodiscard ]]
     auto cache() const
         -> db::Cache const&;
     auto create_tables()
@@ -195,6 +198,12 @@ public:
         -> Result< std::string >;
     auto fetch_genesis_time( Uuid const& id ) const
         -> Optional< uint64_t >;
+    [[ nodiscard ]]
+    auto query_cache()
+        -> db::QueryCache&;
+    [[ nodiscard ]]
+    auto query_cache() const
+        -> db::QueryCache const&;
     auto update_heading( Uuid const& node
                        , Heading const& heading )
         -> Result< void >;
@@ -215,8 +224,8 @@ public:
     auto erase_alias( Uuid const& src
                     , Uuid const& dst )
         -> Result< void >;
-    auto erase_all( Uuid const& id ) // Ensures all lhs/rhs for all tables is erased ("cascading erase")
-        -> void;
+    auto erase_all( Uuid const& id ) // TODO: Ensures all lhs/rhs for all tables is erased ("cascading erase")? Or not DB's responsibilty?
+        -> Result< void >;
     auto erase_child( Uuid const& parent
                     , Uuid const& child )
         -> Result< void >;
@@ -236,6 +245,9 @@ public:
     auto has_delta() const
         -> bool;
 
+protected:
+    auto cache()
+        -> db::Cache&;
 //protected: // Allowing access for "repair-state". TODO: Better handle this.
     // auto action_seq()
     //     -> ActionSequence;

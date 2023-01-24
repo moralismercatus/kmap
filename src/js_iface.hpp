@@ -163,8 +163,6 @@ template< typename Return >
 auto fetch_element_by_id( std::string const& id )
     -> Result< Return >
 {
-    using emscripten::val;
-
     auto rv = KMAP_MAKE_RESULT( Return ); 
 
     rv = eval< Return >( io::format( "return document.getElementById( '{}' );", id ) );
@@ -176,6 +174,8 @@ auto exists( Uuid const& id )
     -> bool;
 auto element_exists( std::string const& doc_id )
     -> bool;
+auto fetch_style_member( std::string const& elem_id )
+    -> Result< emscripten::val >;
 auto is_global_kmap_valid()
     -> bool;
 
