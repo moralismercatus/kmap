@@ -48,16 +48,15 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -Wall
                          -O2 
-                         -sWASM=1 )
+                         -sWASM=1
+                         -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
                         #  -sEVAL_CTORS )
-                        #  -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
     add_link_options( -sALLOW_MEMORY_GROWTH=1
                       # -00 # Reduce link times
                       # -sERROR_ON_WASM_CHANGES_AFTER_LINK # Reduce link times
                       # -sWASM_BIGINT # Reduce link times 
-                    )
+                      -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
                       # -sEVAL_CTORS )
-                      # -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
 else() # Warning: There is a known but in which a false-positive assert is triggered in DEBUG builds for file operations, so avoid using those in this mode.
     add_compile_definitions( KMAP_DEBUG=1 
                              KMAP_LOGGING_DB=0
@@ -84,6 +83,7 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
                         #  -sALLOW_MEMORY_GROWTH=1
                          --emit-symbol-map )
 add_link_options( -sALLOW_MEMORY_GROWTH=1 
+                  -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                 #   -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
                   -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
 
@@ -187,8 +187,9 @@ add_executable( emcc.index.html
                 path/view/all_of.cpp path/view/all_of.hpp
                 path/view/ancestor.cpp path/view/ancestor.hpp
                 path/view/anchor/abs_root.cpp path/view/anchor/abs_root.hpp
-                path/view/anchor/root.cpp path/view/anchor/root.hpp
+                path/view/anchor/node.cpp path/view/anchor/node.hpp
                 path/view/any_of.cpp path/view/any_of.hpp
+                path/view/attr.cpp path/view/attr.hpp
                 path/view/child.cpp path/view/child.hpp
                 path/view/desc.cpp path/view/desc.hpp
                 path/view/direct_desc.cpp path/view/direct_desc.hpp

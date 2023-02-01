@@ -217,6 +217,14 @@ SCENARIO( "act::abs_path", "[node_view][abs_path]" )
 
             REQUIRE( flatten( r ) == "root" );
         }
+        THEN( "[3] => /1.2.3" )
+        {
+            auto const n3 = REQUIRE_TRY( view::make( root ) | view::direct_desc( "1.2.3" ) | view::fetch_node( km ) );
+            auto const r = REQUIRE_TRY( view::make( n3 )
+                                      | act::abs_path( km ) );
+
+            REQUIRE( flatten( r ) == "3" );
+        }
     }
 }
 

@@ -8,7 +8,7 @@
 #include "com/network/network.hpp"
 #include "path.hpp"
 #include "path/view/ancestor.hpp"
-#include "path/view/anchor/root.hpp"
+#include "path/view/anchor/node.hpp"
 #include "test/util.hpp"
 #include "utility.hpp"
 
@@ -71,7 +71,7 @@ auto LeftLineal::fetch( FetchContext const& ctx
         ,   [ & ]( LinkPtr const& pred )
             {
                 auto const left_lineals = view2::left_lineal.fetch( ctx, node );
-                auto const ns = anchor::root( node ) | pred | act::to_fetch_set( ctx );
+                auto const ns = anchor::node( node ) | pred | act::to_fetch_set( ctx );
 
                 return rvs::set_intersection( left_lineals, ns )
                      | ranges::to< FetchSet >();
@@ -102,7 +102,7 @@ auto LeftLineal::fetch( FetchContext const& ctx
     }
     else
     {
-        auto rs = anchor::root( node )
+        auto rs = anchor::node( node )
                 | view2::ancestor
                 | act::to_fetch_set( ctx );
 
@@ -126,22 +126,22 @@ SCENARIO( "view::LeftLineal::fetch", "[node_view][left_lineal]" )
 
         THEN( "view::left_lineal" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::left_lineal | act::fetch_node( km ) );
-            REQUIRE( root == fn );
+            auto const fn = anchor::node( n1 ) | view2::left_lineal | act::to_node_set( km );
+            REQUIRE( fn == UuidSet{ root, n1 } );
         }
         THEN( "view::left_lineal( <heading> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::left_lineal( "root" ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::left_lineal( "root" ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
         THEN( "view::left_lineal( Uuid )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::left_lineal( root ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::left_lineal( root ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
         THEN( "view::left_lineal( <Tether> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::left_lineal( anchor::root( n1 ) | view2::parent ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::left_lineal( anchor::node( n1 ) | view2::parent ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
     }

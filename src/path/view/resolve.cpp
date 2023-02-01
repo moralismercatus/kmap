@@ -71,7 +71,7 @@ auto Resolve::fetch( FetchContext const& ctx
                 auto const resolutions = view2::resolve.fetch( ctx, node );
 
                 return resolutions
-                     | rvs::filter( [ & ]( auto const& c ){ return anchor::root( c.id ) | pred | act2::exists( ctx.km ); } )
+                     | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
                      | ranges::to< FetchSet >();
             }
         ,   [ & ]( Tether const& pred )
@@ -103,7 +103,7 @@ auto Resolve::fetch( FetchContext const& ctx
                 for( auto const& e : rvs::set_intersection( resolutions, ns )
                                    | ranges::to< FetchSet >() )
                 {
-                    fmt::print( "[resolve] {}: {}\n", pred | act::to_string, anchor::root( e.id ) | act::abs_path_flat( ctx.km ) );
+                    fmt::print( "[resolve] {}: {}\n", pred | act::to_string, anchor::node( e.id ) | act::abs_path_flat( ctx.km ) );
                 }
 
                 return rvs::set_intersection( resolutions, ns )

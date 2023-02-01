@@ -209,7 +209,7 @@ auto AliasStore::aliases() const
     return alias_set_;
 }
 
-auto AliasStore::fetch_alias_children( Uuid const& parent ) const
+auto AliasStore::fetch_alias_children( AliasItem::alias_type const& parent ) const
     -> std::set< Uuid >
 {
     auto rv = std::set< Uuid >{};
@@ -237,7 +237,47 @@ auto AliasStore::fetch_alias_children( Uuid const& parent ) const
     return rv;
 }
 
-auto AliasStore::fetch_aliases_dsts( Uuid const& src ) const
+SCENARIO( "AliasStore::fetch_alias_children", "[alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+    auto const& astore = nw->alias_store();
+
+    GIVEN( "4 siblings who each alias sibling above: /1, /2, /3, /4: /1, /2.1, /3.2.1, /4.3.2.1" )
+    {
+        auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        auto const n4 = REQUIRE_TRY( nw->create_child( root, "4" ) );
+        auto const n21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+        auto const n32 = REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+        auto const n321 = REQUIRE_TRY( anchor::node( n32 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+        auto const n43 = REQUIRE_TRY( nw->create_alias( n3, n4 ) );
+        auto const n432 = REQUIRE_TRY( anchor::node( n43 ) | view2::alias( view2::resolve( n2 ) ) | act2::fetch_node( km ) );
+        auto const n4321 = REQUIRE_TRY( anchor::node( n432 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+
+        auto const check = [ & ]( auto const& parent, UuidSet const& children )
+        {
+            return astore.fetch_alias_children( parent ) == children;
+        };
+
+        THEN( "fac( /1 ) == {}" ) { REQUIRE( check( n1, {} ) ); }
+        THEN( "fac( /2 ) == { /2.1 }" ) { REQUIRE( check( n2, { n21 } ) ); }
+        THEN( "fac( /2.1 ) == {}" ) { REQUIRE( check( n21, {} ) ); }
+        THEN( "fac( /3 ) == { /3.2 }" ) { REQUIRE( check( n3, { n32 } ) ); }
+        THEN( "fac( /3.2 ) == { /3.2.1 }" ) { REQUIRE( check( n32, { n321 } ) ); }
+        THEN( "fac( /3.2.1 ) == {}" ) { REQUIRE( check( n321, {} ) ); }
+        THEN( "fac( /4 ) == { /4.3 }" ) { REQUIRE( check( n4, { n43 } ) ); }
+        THEN( "fac( /4.3 ) == { /4.3.2 }" ) { REQUIRE( check( n43, { n432 } ) ); }
+        THEN( "fac( /4.3.2 ) == { /4.3.2.1 }" ) { REQUIRE( check( n432, { n4321 } ) ); }
+        THEN( "fac( /4.3.2.1 ) == {}" ) { REQUIRE( check( n4321, {} ) ); }
+    }
+}
+
+auto AliasStore::fetch_aliases( AliasItem::rsrc_type const& rsrc ) const
     -> std::set< Uuid > 
 {
     auto rv = std::set< Uuid >{};
@@ -252,8 +292,8 @@ auto AliasStore::fetch_aliases_dsts( Uuid const& src ) const
         })
     ;
 
-    auto const& av = alias_set_.get< AliasItem::src_type >();
-    auto const er = av.equal_range( AliasItem::src_type{ src } );
+    auto const& av = alias_set_.get< AliasItem::rsrc_type >();
+    auto const er = av.equal_range( rsrc );
     
     for( auto it = er.first
        ; it != er.second
@@ -265,12 +305,120 @@ auto AliasStore::fetch_aliases_dsts( Uuid const& src ) const
     return rv;
 }
 
-auto AliasStore::fetch_entry( Uuid const& id ) const
+SCENARIO( "AliasStore::fetch_aliases", "[alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+    auto const& astore = nw->alias_store();
+
+    GIVEN( "4 siblings who each alias sibling above: /1, /2, /3, /4: /1, /2.1, /3.2.1, /4.3.2.1" )
+    {
+        auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        auto const n4 = REQUIRE_TRY( nw->create_child( root, "4" ) );
+        auto const n21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+        auto const n32 = REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+        auto const n321 = REQUIRE_TRY( anchor::node( n32 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+        auto const n43 = REQUIRE_TRY( nw->create_alias( n3, n4 ) );
+        auto const n432 = REQUIRE_TRY( anchor::node( n43 ) | view2::alias( view2::resolve( n2 ) ) | act2::fetch_node( km ) );
+        auto const n4321 = REQUIRE_TRY( anchor::node( n432 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+
+        auto const check = [ & ]( auto const& src, UuidSet const& aliases )
+        {
+            return astore.fetch_aliases( AliasItem::rsrc_type{ src } ) == aliases;
+        };
+
+        THEN( "fas( /1 ) == { /2.1, /3.2.1, /4.3.2.1 }" ) { REQUIRE( check( n1, { n21, n321, n4321 } ) ); }
+        THEN( "fas( /2 ) == { /3.2, /4.3.2 }" ) { REQUIRE( check( n2, { n32, n432 } ) ); }
+        THEN( "fas( /2.1 ) == {}" ) { REQUIRE( check( n21, {} ) ); }
+        THEN( "fas( /3 ) == { /4.3 }" ) { REQUIRE( check( n3, { n43 } ) ); }
+        THEN( "fas( /3.2 ) == {}" ) { REQUIRE( check( n32, {} ) ); }
+        THEN( "fas( /3.2.1 ) == {}" ) { REQUIRE( check( n321, {} ) ); }
+        THEN( "fas( /4 ) == {}" ) { REQUIRE( check( n4, {} ) ); }
+        THEN( "fas( /4.3 ) == {}" ) { REQUIRE( check( n43, {} ) ); }
+        THEN( "fas( /4.3.2 ) == {}" ) { REQUIRE( check( n432, {} ) ); }
+        THEN( "fas( /4.3.2.1 ) == {}" ) { REQUIRE( check( n4321, {} ) ); }
+    }
+}
+
+auto AliasStore::fetch_dsts( AliasItem::rsrc_type const& rsrc ) const
+    -> std::set< Uuid > 
+{
+    auto rv = std::set< Uuid >{};
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            for( auto const& e : rv )
+            {
+                BC_ASSERT( is_alias( e ) );
+            }
+        })
+    ;
+
+    auto const& av = alias_set_.get< AliasItem::rsrc_type >();
+    auto const er = av.equal_range( rsrc );
+    
+    for( auto it = er.first
+       ; it != er.second
+       ; ++it )
+    {
+        rv.emplace( it->dst().value() );
+    }
+
+    return rv;
+}
+
+SCENARIO( "AliasStore::fetch_dsts", "[alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+    auto const& astore = nw->alias_store();
+
+    GIVEN( "4 siblings who each alias sibling above: /1, /2, /3, /4: /1, /2.1, /3.2.1, /4.3.2.1" )
+    {
+        auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        auto const n4 = REQUIRE_TRY( nw->create_child( root, "4" ) );
+        auto const n21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+        auto const n32 = REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+        auto const n321 = REQUIRE_TRY( anchor::node( n32 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+        auto const n43 = REQUIRE_TRY( nw->create_alias( n3, n4 ) );
+        auto const n432 = REQUIRE_TRY( anchor::node( n43 ) | view2::alias( view2::resolve( n2 ) ) | act2::fetch_node( km ) );
+        auto const n4321 = REQUIRE_TRY( anchor::node( n432 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+
+        auto const check = [ & ]( auto const& src, UuidSet const& dsts )
+        {
+            return astore.fetch_dsts( AliasItem::rsrc_type{ src } ) == dsts;
+        };
+
+        THEN( "fads( /1 ) == { /2.1, /3.2.1, /4.3.2.1 }" ) { REQUIRE( check( n1, { n2, n32, n432 } ) ); }
+        THEN( "fads( /2 ) == { /3, /4.3 }" ) { REQUIRE( check( n2, { n3, n43 } ) ); }
+        THEN( "fads( /2.1 ) == {}" ) { REQUIRE( check( n21, {} ) ); }
+        THEN( "fads( /3 ) == { /4 }" ) { REQUIRE( check( n3, { n4 } ) ); }
+        THEN( "fads( /3.2 ) == {}" ) { REQUIRE( check( n32, {} ) ); }
+        THEN( "fads( /3.2.1 ) == {}" ) { REQUIRE( check( n321, {} ) ); }
+        THEN( "fads( /4 ) == {}" ) { REQUIRE( check( n4, {} ) ); }
+        THEN( "fads( /4.3 ) == {}" ) { REQUIRE( check( n43, {} ) ); }
+        THEN( "fads( /4.3.2 ) == {}" ) { REQUIRE( check( n432, {} ) ); }
+        THEN( "fads( /4.3.2.1 ) == {}" ) { REQUIRE( check( n4321, {} ) ); }
+    }
+}
+
+auto AliasStore::fetch_entry( AliasItem::alias_type const& id ) const
     -> Result< AliasItem >
 {
     auto rv = KMAP_MAKE_RESULT( AliasItem );
     auto const& av = alias_set_.get< AliasItem::alias_type >();
-    auto const er = av.equal_range( AliasItem::alias_type{ id } );
+    auto const er = av.equal_range( id );
 
     if( std::distance( er.first, er.second ) == 1 )
     {
@@ -285,7 +433,7 @@ auto AliasStore::fetch_entry( Uuid const& id ) const
     return rv;
 }
 
-auto AliasStore::fetch_parent( Uuid const& child ) const
+auto AliasStore::fetch_parent( AliasItem::alias_type const& child ) const
     -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
@@ -294,13 +442,6 @@ auto AliasStore::fetch_parent( Uuid const& child ) const
     auto rv = KMAP_MAKE_RESULT( Uuid );
     
     rv = KTRY( fetch_entry( child ) ).dst().value();
-    // auto const& av = alias_set_.get< AliasItem::alias_type >();
-    // auto const er = av.equal_range( AliasItem::alias_type{ child } ); // TODO: equal_range, BC_ASSERT size == 1?
-
-    // if( std::distance( er.first, er.second ) == 1 )
-    // {
-    //     rv = er.first->dst().value();
-    // }
 
     return rv;
 }

@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "path/view/anchor/root.hpp"
+#include "path/view/anchor/node.hpp"
 
 #include "common.hpp"
 #include "kmap.hpp"
@@ -16,7 +16,7 @@ namespace rvs = ranges::views;
 
 namespace kmap::view2::anchor {
 
-auto Root::fetch( FetchContext const& ctx ) const
+auto Node::fetch( FetchContext const& ctx ) const
     -> FetchSet
 {
     return nodes
@@ -24,7 +24,7 @@ auto Root::fetch( FetchContext const& ctx ) const
          | ranges::to< FetchSet >();
 }
 
-auto Root::to_string() const
+auto Node::to_string() const
     -> std::string
 {
     auto const flattened = nodes
@@ -32,10 +32,10 @@ auto Root::to_string() const
                          | rvs::join( ',' )
                          | ranges::to< std::string >();
 
-    return fmt::format( "root( {} )", flattened );
+    return fmt::format( "node( {} )", flattened );
 }
 
-auto Root::compare_less( Anchor const& other ) const
+auto Node::compare_less( Anchor const& other ) const
     -> bool
 {
     auto const cmp = compare_anchors( *this, other );
@@ -54,23 +54,23 @@ auto Root::compare_less( Anchor const& other ) const
     }
 }
 
-// auto root( Tether const& tether )
+// auto node( Tether const& tether )
 //     -> Tether
 // {
-//     KMAP_THROW_EXCEPTION_MSG( "TODO: Allow variant for root to be UuidSet or Tether" );
-//     // return Tether{ .anchor = std::make_shared< Root >( tether ) };
+//     KMAP_THROW_EXCEPTION_MSG( "TODO: Allow variant for node to be UuidSet or Tether" );
+//     // return Tether{ .anchor = std::make_shared< Node >( tether ) };
 // }
 
-auto root( Uuid const& node )
-    -> Root
+auto node( Uuid const& n )
+    -> Node
 {
-    return Root{ UuidSet{ node } };
+    return Node{ UuidSet{ n } };
 }
 
-auto root( UuidSet const& nodes )
-    -> Root
+auto node( UuidSet const& ns )
+    -> Node
 {
-    return Root{ nodes };
+    return Node{ ns };
 }
 
 } // namespace kmap::view2::anchor

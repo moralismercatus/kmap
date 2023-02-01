@@ -71,7 +71,7 @@ auto Desc::fetch( FetchContext const& ctx
                 auto const descs = desc.fetch( ctx, node );
 
                 return descs 
-                     | rvs::filter( [ & ]( auto const& c ){return anchor::root( c.id ) | pred | act2::exists( ctx.km ); } )
+                     | rvs::filter( [ & ]( auto const& c ){return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
                      | ranges::to< FetchSet >();
             }
         };
@@ -105,22 +105,22 @@ SCENARIO( "view::Desc::fetch", "[node_view][desc]" )
 
     //     THEN( "view::alias" )
     //     {
-    //         auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias | act::fetch_node( km ) );
+    //         auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias | act::fetch_node( km ) );
     //         REQUIRE( a21 == fn );
     //     }
     //     THEN( "view::alias( <heading> )" )
     //     {
-    //         auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias( "1" ) | act::fetch_node( km ) );
+    //         auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias( "1" ) | act::fetch_node( km ) );
     //         REQUIRE( a21 == fn );
     //     }
     //     THEN( "view::alias( Uuid )" )
     //     {
-    //         auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias( a21 ) | act::fetch_node( km ) );
+    //         auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias( a21 ) | act::fetch_node( km ) );
     //         REQUIRE( a21 == fn );
     //     }
     //     THEN( "view::alias( <Chain> )" )
     //     {
-    //         auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias( view2::resolve( n1 ) | view2::parent( root ) ) | act::fetch_node( km ) );
+    //         auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias( view2::resolve( n1 ) | view2::parent( root ) ) | act::fetch_node( km ) );
     //         REQUIRE( a21 == fn );
     //     }
     // }

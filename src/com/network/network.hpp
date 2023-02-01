@@ -234,20 +234,19 @@ public:
         -> Result< Uuid >;
 
 protected:
-    auto create_internal_alias( Uuid const& src
-                              , Uuid const& dst )
+    auto create_alias_leaf( Uuid const& src
+                          , Uuid const& dst )
         -> Result< Uuid >;
     auto create_child_internal( Uuid const& parent
                               , Uuid const& child
                               , Heading const& heading
                               , Title const& title )
         -> kmap::Result< void >;
-    auto erase_alias( Uuid const& node )
+    auto erase_alias_desc( Uuid const& id )
         -> Result< void >;
-    auto erase_desc_alias( Uuid const& src
-                         , Uuid const& dst )
+    auto erase_alias_leaf( Uuid const& id )
         -> Result< void >;
-    auto erase_root_alias( Uuid const& id )
+    auto erase_alias_root( Uuid const& id )
         -> Result< void >;
     auto erase_node_internal( Uuid const& id )
         -> Result< void >;

@@ -7,7 +7,7 @@
 
 #include "common.hpp"
 #include "path/view/act/to_string.hpp"
-#include "path/view/anchor/root.hpp"
+#include "path/view/anchor/node.hpp"
 #include "path/view/child.hpp"
 #include "path/view/common.hpp"
 #include "test/util.hpp"
@@ -55,7 +55,7 @@ auto AllOf::fetch( FetchContext const& ctx
        ; auto const& link : ls )
     {
         
-        if( auto const fetched = anchor::root( node ) | link | act::to_fetch_set( ctx )
+        if( auto const fetched = anchor::node( node ) | link | act::to_fetch_set( ctx )
           ; fetched.size() > 0 )
         {
             rset.insert( fetched.begin(), fetched.end() );
@@ -85,11 +85,11 @@ SCENARIO( "view::AllOf::fetch", "[node_view][all_of]" )
         auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
         auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
 
-        REQUIRE(( anchor::root( root ) | view2::all_of( view2::child, std::set< std::string >{ "1", "2", "3" } ) | act2::exists( km ) ));
+        REQUIRE(( anchor::node( root ) | view2::all_of( view2::child, std::set< std::string >{ "1", "2", "3" } ) | act2::exists( km ) ));
 
         THEN( "all_of( child, '1', '2', '3' )" )
         {
-            auto const matches = anchor::root( root )
+            auto const matches = anchor::node( root )
                                | view2::all_of( view2::child, std::set< std::string >{ "1", "2", "3" } )
                                | act2::to_node_set( km );
 
@@ -100,7 +100,7 @@ SCENARIO( "view::AllOf::fetch", "[node_view][all_of]" )
         }
         THEN( "all_of( child, '1', '2', '3', '4' )" )
         {
-            auto const matches = anchor::root( root )
+            auto const matches = anchor::node( root )
                                | view2::all_of( view2::child, std::set< std::string >{ "1", "2", "3", "4" } )
                                | act2::to_node_set( km );
 
@@ -108,7 +108,7 @@ SCENARIO( "view::AllOf::fetch", "[node_view][all_of]" )
         }
         THEN( "all_of( child, '1', '2', '4' )" )
         {
-            auto const matches = anchor::root( root )
+            auto const matches = anchor::node( root )
                                | view2::all_of( view2::child, std::set< std::string >{ "1", "2", "3", "4" } )
                                | act2::to_node_set( km );
 

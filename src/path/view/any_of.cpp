@@ -7,7 +7,7 @@
 
 #include "common.hpp"
 #include "path/view/act/to_string.hpp"
-#include "path/view/anchor/root.hpp"
+#include "path/view/anchor/node.hpp"
 #include "path/view/child.hpp"
 #include "path/view/common.hpp"
 #include "test/util.hpp"
@@ -41,7 +41,7 @@ auto AnyOf::fetch( FetchContext const& ctx
        ; auto const& link : ls )
     {
         fmt::print( "[any_of] fetching: {}\n", *link | act::to_string );
-        auto const fetched = anchor::root( node ) | link | act::to_fetch_set( ctx );
+        auto const fetched = anchor::node( node ) | link | act::to_fetch_set( ctx );
 
         rset.insert( fetched.begin(), fetched.end() );
     }

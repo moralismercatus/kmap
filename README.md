@@ -19,12 +19,12 @@ Ensure Emscripten's emcc is accessible via your $PATH.
 ```bash
 git clone https://github.com/emscripten-core/emsdk.git
 git pull
-./emsdk install 3.1.15
-./emsdk activate 3.1.15
+./emsdk install 3.1.27
+./emsdk activate 3.1.27
 source ./emsdk_env.sh
 ```
 
-> 3.1.15 is latest known working version, but other versions may work as well.
+> 3.1.27 is latest known working version, but other versions may work as well.
 
 ### Clone Kmap
 

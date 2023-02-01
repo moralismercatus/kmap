@@ -434,7 +434,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
                 auto const node_and_aliases = [ & ]
                 {
-                    auto all = nw->alias_store().fetch_aliases_dsts( nid );
+                    auto all = nw->alias_store().fetch_aliases( com::AliasItem::rsrc_type{ nid } );
 
                     all.emplace( nid );
 
@@ -728,6 +728,25 @@ auto absolute_path_flat( Kmap const& km
         rv = KTRY( anchor::abs_root
                  | act2::abs_path_flat( km ) );
     }
+    else if( auto const attr_root = anchor::node( node )
+                                  | view2::left_lineal( "$" ) // TODO: Foolproof to fetch attr_root? Maybe... []( const& n ){ return nw->is_attr_root( n ); } ???
+                                  | act2::fetch_node( km )
+      ; attr_root )
+    {
+        auto const nw = KTRY( km.fetch_component< com::Network >() );
+
+        if( "$" == KTRY( nw->fetch_heading( node ) ) )
+        {
+            rv = KTRY( anchor::node( attr_root.value() )
+                     | act2::abs_path_flat( km ) );
+        }
+        else
+        {
+            rv = KTRY( anchor::node( attr_root.value() )
+                     | view2::desc( node )
+                     | act2::abs_path_flat( km ) );
+        }
+    }
     else
     {
         rv = KTRY( anchor::abs_root
@@ -771,7 +790,7 @@ auto complete_any( Kmap const& kmap
 
         auto const node_and_aliases = [ & ]
         {
-            auto all = nw->alias_store().fetch_aliases_dsts( nid );
+            auto all = nw->alias_store().fetch_aliases( com::AliasItem::rsrc_type{ nid } );
 
             all.emplace( nid );
 

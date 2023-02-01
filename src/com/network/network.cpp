@@ -104,7 +104,7 @@ auto Network::load_aliases()
         auto const src = entry.left().value();
         auto const dst = entry.right().value();
 
-        KTRY( create_internal_alias( src, dst ) );
+        KTRY( create_alias_leaf( src, dst ) );
     }
 
     rv = outcome::success();
@@ -193,12 +193,17 @@ auto Network::create_alias( Uuid const& src
         KTRY( attr::push_order( km, rdst, rsrc ) ); // Resolve src ID gets placed in ordering, rather than the alias ID.
     }
 
-    auto const pushed_id = KTRY( create_internal_alias( rsrc, dst ) );
+    auto const pushed_id = KTRY( create_alias_leaf( rsrc, rdst ) );
+
+    for( auto const& alias : astore_.fetch_aliases( AliasItem::rsrc_type{ rdst } ) )
+    {
+        KTRY( create_alias_leaf( rsrc, alias ) );
+    }
 
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {
-        KTRY( estore.value()->fire_event( { "network", "verb.created", "alias" }, id ) );
+        KTRY( estore.value()->fire_event( { "subject.network", "verb.created", "object.alias" }, id ) );
     }
 
     rv = pushed_id;
@@ -206,9 +211,94 @@ auto Network::create_alias( Uuid const& src
     return rv;
 }
 
-SCENARIO( "Network::create_alias", "[alias]" )
+SCENARIO( "Network::create_alias", "[network][alias]" )
 {
-    // TODO: ...mucho grande thorough testing...
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const rnc = REQUIRE_TRY( km.fetch_component< com::RootNode >() );
+    auto const rootn = rnc->root_node();
+
+    GIVEN( "/1, /2" )
+    {
+        auto const n1 = REQUIRE_TRY( nw->create_child( rootn, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( rootn, "2" ) );
+
+        GIVEN( "create_alias( src:/1, dst:/2 )" )
+        {
+            auto const a2_1 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+
+            THEN( "/2.1[/1] is alias" )
+            {
+                REQUIRE( nw->is_alias( a2_1 ) );
+                REQUIRE( nw->is_top_alias( a2_1 ) );
+                REQUIRE(( anchor::node( n2 )
+                        | view2::alias( view2::resolve( n1 ) )
+                        | act2::exists( km ) ));
+            }
+
+            GIVEN( "/1.1" )
+            {
+                auto const n1_1 = REQUIRE_TRY( nw->create_child( n1, "1" ) );
+
+                THEN( "/2.1.1" )
+                {
+                    auto const a2_1_1 = REQUIRE_TRY(( anchor::node( n2 )
+                                                    | view2::alias( view2::resolve( n1 ) )
+                                                    | view2::alias( view2::resolve( n1_1 ) )
+                                                    | act2::fetch_node( km ) ));
+
+                    REQUIRE( nw->resolve( n1_1 ) == nw->resolve( a2_1_1 ) );
+                }
+
+                GIVEN( "/3" )
+                {
+                    auto const n3 = REQUIRE_TRY( nw->create_child( rootn, "3" ) );
+
+                    GIVEN( "create_alias( src:/3, dst:/1.1 )" )
+                    {
+                        auto const a1_1_3 = REQUIRE_TRY( nw->create_alias( n3, n1_1 ) );
+
+                        REQUIRE(( anchor::node( n1_1 )
+                                | view2::alias( view2::resolve( n3 ) )
+                                | act2::exists( km ) ));
+
+                        REQUIRE( nw->resolve( a1_1_3 ) == n3 );
+
+                        THEN( "/2.1[/1].1[/1.1].3[/3] exists" )
+                        {
+                            REQUIRE(( anchor::node( n2 )
+                                    | view2::alias( view2::resolve( n1 ) )
+                                    | view2::alias( view2::resolve( n1_1 ) )
+                                    | view2::alias( view2::resolve( n3 ) )
+                                    | act2::exists( km ) ));
+                        }
+                    }
+
+                    GIVEN( "create_alias( src:/3, dst:/2.1.1 )" )
+                    {
+                        auto const a2_1_1 = REQUIRE_TRY(( anchor::node( n2 )
+                                                        | view2::alias( view2::resolve( n1 ) )
+                                                        | view2::alias( view2::resolve( n1_1 ) )
+                                                        | act2::fetch_node( km ) ));
+                        auto const a2_1_1_3 = REQUIRE_TRY( nw->create_alias( n3, a2_1_1 ) );
+
+                        REQUIRE( nw->resolve( a2_1_1_3 ) == n3 );
+
+                        THEN( "/2.1[/1].1[/1.1].3[/3] exists" )
+                        {
+                            REQUIRE(( anchor::node( n2 )
+                                    | view2::alias( view2::resolve( n1 ) )
+                                    | view2::alias( view2::resolve( n1_1 ) )
+                                    | view2::alias( view2::resolve( n3 ) )
+                                    | act2::exists( km ) ));
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 auto Network::create_child( Uuid const& parent
@@ -331,8 +421,8 @@ auto Network::create_child( Uuid const& parent
     return rv;
 }
 
-auto Network::create_internal_alias( Uuid const& src
-                                   , Uuid const& dst )
+auto Network::create_alias_leaf( Uuid const& src
+                               , Uuid const& dst )
     -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
@@ -361,7 +451,7 @@ auto Network::create_internal_alias( Uuid const& src
 
     for( auto const& e : fetch_children( rsrc ) )
     {
-        KTRY( create_internal_alias( e, alias_id ) );
+        KTRY( create_alias_leaf( e, alias_id ) );
     }
 
     rv = alias_id;
@@ -393,7 +483,7 @@ auto Network::create_child_internal( Uuid const& parent
     return rv;
 }
 
-SCENARIO( "Network::create_child", "[benchmark][com][nw]" )
+SCENARIO( "Network::create_child", "[benchmark][com][network]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -453,205 +543,106 @@ SCENARIO( "Network::create_child", "[benchmark][com][nw]" )
     }
 }
 
-auto Network::erase_alias( Uuid const& node )
+auto Network::erase_alias_desc( Uuid const& id )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "node", node );
-
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    if( is_top_alias( node ) )
-    {
-        KTRY( erase_root_alias( node ) );
-    }
-    else
-    {
-        auto const src = resolve( node );
-        auto const dst = KTRY( fetch_parent( node ) );
-
-        KTRY( erase_desc_alias( src, dst ) );
-    }
-
-    rv = outcome::success();
-
-    return rv;
-}
-
-auto Network::erase_desc_alias( Uuid const& src
-                              , Uuid const& dst )
-    -> Result< void >
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "src", src );
-        KM_RESULT_PUSH( "dst", dst );
-
-    auto rv = KMAP_MAKE_RESULT( void );
-    auto const alias_id = make_alias_id( src, dst );
-
-    KMAP_ENSURE( exists( src ), error_code::network::invalid_node );
-    KMAP_ENSURE( exists( dst ), error_code::network::invalid_node );
-    KMAP_ENSURE( exists( alias_id ), error_code::network::invalid_node );
-    KMAP_ENSURE_MSG( !is_top_alias( alias_id ), error_code::node::invalid_alias, to_string( alias_id ) );
-    KMAP_ENSURE_MSG( !is_alias( src ), error_code::node::invalid_alias, to_string( src ) );
-
-    auto& astore = alias_store();
-
-    for( auto const& achild : astore.fetch_alias_children( alias_id ) )
-    {
-        auto const rsrc = resolve( achild );
-
-        KTRY( erase_desc_alias( rsrc, achild ) );
-    }
-
-    KTRY( astore.erase_alias( alias_id ) );
-
-    rv = outcome::success();
-
-    return rv;
-}
-
-auto Network::erase_root_alias( Uuid const& id )
-    -> Result< void >
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "root", id );
+        KM_RESULT_PUSH( "id", id );
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
-
-    BC_CONTRACT()
-        BC_POST([ &
-                , parent = fetch_parent( id ) ]
-        {
-            if( rv )
-            {
-                BC_ASSERT( !exists( id ) );
-
-                if( parent ) // Not root
-                {
-                    BC_ASSERT( exists( parent.value() ) );
-                    BC_ASSERT( !attr::is_in_order( km, parent.value(), id ) );
-                }
-            }
-        })
-    ;
-
-    KMAP_ENSURE_MSG( is_top_alias( id ), error_code::node::is_nontoplevel_alias, to_string( id ) );
-
-    BC_ASSERT( is_alias( id ) ); // top_alias implies alias.
-
     auto& astore = alias_store();
-    auto const entry = KTRY( astore.fetch_entry( id ) );
-    auto const rsrc = entry.rsrc().value(); BC_ASSERT( rsrc == resolve( id ) );
-    auto const dst = entry.dst().value(); BC_ASSERT( dst == KTRYE( fetch_parent( id ) ) ); BC_ASSERT( dst == resolve( dst ) /*root alias dsts always non-alias*/ );
 
-    for( auto const& dst_dst : astore.fetch_aliases_dsts( dst ) )
+    KMAP_ENSURE( is_alias( id ), error_code::node::invalid_alias );
+    KMAP_ENSURE( !is_top_alias( id ), error_code::node::invalid_alias );
+
+    for( auto const children = view::make( id )
+                             | view::child
+                             | view::to_node_set( km )
+                             | act::order( km )
+       ; auto const& child : children | views::reverse )
     {
-        KTRY( erase_desc_alias( rsrc, dst_dst ) );
+        KTRY( erase_alias_desc( child ) );
     }
 
-    for( auto const& achild : astore.fetch_alias_children( id ) )
-    {
-        auto const ac_entry = KTRYE( astore.fetch_entry( achild ) );
-
-        KTRY( erase_desc_alias( ac_entry.rsrc().value(), ac_entry.dst().value() ) );
-    }
-
-    KTRY( alias_store().erase_alias( id ) );
-
-    auto const db = KTRY( fetch_component< com::Database >() );
-
-    KTRY( db->erase_alias( rsrc, dst ) );
-
-    KTRY( attr::pop_order( km, dst, rsrc ) ); // TODO: Replace with event system.
+    KTRY( astore.erase_alias( AliasItem::alias_type{ id } ) );
 
     rv = outcome::success();
 
     return rv;
 }
-    
 
-SCENARIO( "Network::erase_alias", "[alias]" )
+auto Network::erase_alias_leaf( Uuid const& id )
+    -> Result< void >
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
 
-    auto& km = kmap::Singleton::instance();
-    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
-    auto const root = nw->root_node();
+    auto rv = KMAP_MAKE_RESULT( void );
 
-    GIVEN( "3 siblings who each alias sibling above: 1, 2.1, 3.2.1" )
-    {
-        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
-        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
-        auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
-        auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
-        auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
-        auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+    KMAP_ENSURE( is_alias( id ), error_code::node::invalid_alias );
+    KMAP_ENSURE( !is_top_alias( id ), error_code::node::invalid_alias );
 
-        WHEN( "erase 3.2.1" )
+    KTRY( alias_store().erase_alias( AliasItem::alias_type{ id } ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Network::erase_alias_root( Uuid const& id )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& km = kmap_inst();
+    auto const& astore = alias_store();
+    auto const rsrc = resolve( id );
+    auto const dst = KTRY( fetch_parent( id ) ); BC_ASSERT( dst == resolve( dst ) );
+
+    KMAP_ENSURE( is_alias( id ), error_code::node::invalid_alias );
+    KMAP_ENSURE( is_top_alias( id ), error_code::node::invalid_alias );
+
+    { // Only erase alias dsts that map to this specific top alias, but not this specific alias (currently being erased).
+        auto const rsrc_aliases = astore.fetch_aliases( AliasItem::rsrc_type{ dst } );
+
+        for( auto const& alias : rsrc_aliases )
         {
-            THEN( "attempted erase fails; non-top-level alias" )
+            for( auto const children = view::make( alias )
+                                     | view::child
+                                     | view::to_node_set( km )
+                                     | act::order( km )
+               ; auto const& child : children | views::reverse )
             {
-                REQUIRE( test::fail( nw->erase_node( a321 ) ) );
+                KTRY( erase_alias_desc( child ) );
             }
-        }
-        WHEN( "erase 3.2 successful; erasing top-level alias" )
-        {
-            fmt::print( "a32:{}, resolve(a32):{}, c2:{}\n", to_string( a32 ), to_string( nw->resolve( a32 ) ), to_string( c2 ) );
-            REQUIRE_RES( nw->erase_node( a32 ) );
-
-            THEN( "3.2.1, 3.2 erased" )
-            {
-                REQUIRE( !nw->exists( a321 ) );
-                REQUIRE( !nw->exists( a32 ) );
-            }
-        }
-        WHEN( "erase 3 successful" )
-        {
-            REQUIRE_RES( nw->erase_node( c3 ) );
-        }
-        WHEN( "erase 2.1" )
-        {
-            REQUIRE_RES( nw->erase_node( a21 ) );
-
-            THEN( "2.1, 3.2.1 erased" )
-            {
-                REQUIRE( !nw->exists( a21 ) );
-                REQUIRE( !nw->exists( a321 ) );
-            }
-        }
-        WHEN( "erase 2" )
-        {
-            REQUIRE_RES( nw->erase_node( c2 ) );
-
-            THEN( "3.2 erased" )
-            {
-                REQUIRE( !nw->exists( a32 ) );
-            }
-        }
-        WHEN( "erase 1" )
-        {
-            REQUIRE_RES( nw->erase_node( c1 ) );
-
-            THEN( "2.1 erased" )
-            {
-                REQUIRE( !nw->exists( a21 ) );
-            }
-            THEN( "3.2.1 erased" )
-            {
-                REQUIRE( !nw->exists( a321 ) );
-            }
-        }
-        GIVEN( "erase first alias source" )
-        {
-            REQUIRE_RES( nw->erase_node( c1 ) );
-        }
-        GIVEN( "erase middle alias source" )
-        {
-            REQUIRE_RES( nw->erase_node( c2 ) );
         }
     }
+
+    for( auto const children = view::make( id )
+                             | view::child
+                             | view::to_node_set( km )
+                             | act::order( km )
+       ; auto const& child : children | views::reverse )
+    {
+        KTRY( erase_alias_desc( child ) );
+    }
+
+    {
+        auto const db = KTRY( fetch_component< com::Database >() );
+
+        KTRY( db->erase_alias( rsrc, dst ) );
+
+        KTRY( attr::pop_order( km, dst, rsrc ) ); // TODO: Replace with event system.
+    }
+
+    KTRY( alias_store().erase_alias( AliasItem::alias_type{ id } ) ); // TODO: What happens if this fails? Need to undo db->erase_alias, for correctness.
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Network::erase_node_internal( Uuid const& id )
@@ -682,28 +673,34 @@ auto Network::erase_node_internal( Uuid const& id )
     ;
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
+    KMAP_ENSURE( !is_alias( id ) || is_top_alias( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != km.root_node_id(), error_code::network::invalid_node );
 
-    // Delete children.
-    for( auto const children = view::make( id )
-                             | view::child
-                             | view::to_node_set( km )
-                             | act::order( km )
-       ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
+    if( is_top_alias( id ) )
     {
-        BC_ASSERT( !is_alias( e ) || is_top_alias( e ) ); // A child of a regular node should be a top alias or not an alias.
-
-        if( is_top_alias( e ) )
-        {
-            KTRY( erase_root_alias( e ) );
-        }
-        else
-        {
-            KTRY( erase_node_internal( e ) );
-        }
+        KTRY( erase_alias_root( id ) );
     }
+    else
+    {
+        // Delete children.
+        for( auto const children = view::make( id )
+                                | view::child
+                                | view::to_node_set( km )
+                                | act::order( km )
+           ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
+        {
+            if( is_top_alias( e ) )
+            {
+                KTRY( erase_alias_root( e ) );
+            }
+            else
+            {
+                KTRY( erase_node_internal( e ) );
+            }
+        }
 
-    KTRY( erase_node_leaf( id ) );
+        KTRY( erase_node_leaf( id ) );
+    }
 
     rv = outcome::success();
 
@@ -722,7 +719,7 @@ auto Network::erase_node_leaf( Uuid const& id )
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !is_alias( id ) ); // Should only be called with non-aliases. Others should be call erase_alias().
+            BC_ASSERT( id == resolve( id ) );
         })
         BC_POST([ &
                 , parent = fetch_parent( id ) ]
@@ -742,6 +739,7 @@ auto Network::erase_node_leaf( Uuid const& id )
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
     KMAP_ENSURE( id != km.root_node_id(), error_code::network::invalid_node );
+    KMAP_ENSURE( fetch_children( id ).empty(), error_code::network::invalid_node ); // Only applies to non-top-alias. AliasStore::erase_alias destroys descendants.
 
     auto const db = KTRY( fetch_component< com::Database >() );
 
@@ -750,22 +748,36 @@ auto Network::erase_node_leaf( Uuid const& id )
     //       that isn't being erased, so fetch_children is reporting a (alias) child that no longer exists.
     //       I feel that I can test this by examining alias_store from the SCENARIO, but I'd rather not, actually, as that's internal.
     // KTRYE( print_tree( km, id ) );
-    KMAP_ENSURE( fetch_children( id ).empty(), error_code::network::invalid_node ); // Only applies to non-top-alias. AliasStore::erase_alias destroys descendants.
+    // Erase desc aliases prior to top aliases, such that any dependent indirect alias is erased prior to the direct alias.
+    auto const aliases = astore_.fetch_aliases( AliasItem::rsrc_type{ id } );
+    auto const desc_aliases = aliases
+                            | rvs::filter( [ & ]( auto const& n ){ return !is_top_alias( n ); } )
+                            | ranges::to< std::set< Uuid > >();
+    auto const top_aliases = aliases
+                           | rvs::filter( [ & ]( auto const& n ){ return is_top_alias( n ); } )
+                           | ranges::to< std::set< Uuid > >();
 
-    for( auto const& alias : astore_.fetch_aliases_dsts( id ) )
+    for( auto const& dalias : desc_aliases )
     {
-        KTRY( erase_alias( alias ) );
+        KTRY( erase_alias_leaf( dalias ) );
+    }
+    for( auto const& talias : top_aliases )
+    {
+        KTRY( erase_alias_root( talias ) );
     }
 
+    // TODO: I think alias root needs to be accounted for here.
     if( !attr::is_in_attr_tree( km, id ) )
     {
         auto const parent = KTRY( fetch_parent( id ) );
 
+        // TODO: Order should be done via event, I think? It's an add-on feature. Unless... event relies on order which complicates things.
         KTRY( attr::pop_order( km, parent, id ) );
 
         // TODO: What does this get us vs. erase_all, and why both called?
+        //       Answer: db->erase_all() has no notion of a cascading attribute tree - only the attribute itself.
         if( auto const at = fetch_attr_node( id )
-            ; at )
+          ; at )
         {
             KTRY( erase_attr( at.value() ) );
         }
@@ -909,14 +921,7 @@ auto Network::erase_node( Uuid const& id )
         next_selected = selected; // If not deleting selected, just return selected.
     }
 
-    if( is_alias( id ) )
-    {
-        KTRY( erase_root_alias( id ) );
-    }
-    else
-    {
-        KTRY( erase_node_internal( id ) );
-    }
+    KTRY( erase_node_internal( id ) );
 
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
@@ -927,6 +932,180 @@ auto Network::erase_node( Uuid const& id )
     rv = next_selected;
 
     return rv;
+}
+
+SCENARIO( "Network::erase_node", "[alias]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "4 siblings who each alias sibling above: /1, /2, /3, /4: /1, /2.1, /3.2.1, /4.3.2.1" )
+    {
+        auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        auto const n4 = REQUIRE_TRY( nw->create_child( root, "4" ) );
+        auto const n21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+        auto const n32 = REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+        auto const n321 = REQUIRE_TRY( anchor::node( n32 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+        auto const n43 = REQUIRE_TRY( nw->create_alias( n3, n4 ) );
+        auto const n432 = REQUIRE_TRY( anchor::node( n43 ) | view2::alias( view2::resolve( n2 ) ) | act2::fetch_node( km ) );
+        auto const n4321 = REQUIRE_TRY( anchor::node( n432 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+
+        WHEN( "erase_node( /1 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n1 ) );
+
+            THEN( "[ ] /1" )       { REQUIRE( !nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[ ] /2.1" )     { REQUIRE( !nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[ ] /3.2.1" )   { REQUIRE( !nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[x] /4.3.2" )   { REQUIRE( nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /2 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n2 ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[ ] /2" )       { REQUIRE( !nw->exists( n2 ) ); }
+            THEN( "[ ] /2.1" )     { REQUIRE( !nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[ ] /3.2" )     { REQUIRE( !nw->exists( n32 ) ); }
+            THEN( "[ ] /3.2.1" )   { REQUIRE( !nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[ ] /4.3.2" )   { REQUIRE( !nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /2.1 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n21 ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[ ] /2.1" )     { REQUIRE( !nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[ ] /3.2.1" )   { REQUIRE( !nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[x] /4.3.2" )   { REQUIRE( nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /3 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n3 ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[ ] /3" )       { REQUIRE( !nw->exists( n3 ) ); }
+            THEN( "[ ] /3.2" )     { REQUIRE( !nw->exists( n32 ) ); }
+            THEN( "[ ] /3.2.1" )   { REQUIRE( !nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[ ] /4.3" )     { REQUIRE( !nw->exists( n43 ) ); }
+            THEN( "[ ] /4.3.2" )   { REQUIRE( !nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /3.2 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n32 ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[ ] /3.2" )     { REQUIRE( !nw->exists( n32 ) ); }
+            THEN( "[ ] /3.2.1" )   { REQUIRE( !nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[ ] /4.3.2" )   { REQUIRE( !nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /3.2.1 )" )
+        {
+            REQUIRE( test::fail( nw->erase_node( n321 ) ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[x] /3.2.1" )   { REQUIRE( nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[x] /4.3.2" )   { REQUIRE( nw->exists( n432 ) ); }
+            THEN( "[x] /4.3.2.1" ) { REQUIRE( nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /4 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n4 ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[x] /3.2.1" )   { REQUIRE( nw->exists( n321 ) ); }
+            THEN( "[ ] /4" )       { REQUIRE( !nw->exists( n4 ) ); }
+            THEN( "[ ] /4.3" )     { REQUIRE( !nw->exists( n43 ) ); }
+            THEN( "[ ] /4.3.2" )   { REQUIRE( !nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /4.3 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n43 ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[x] /3.2.1" )   { REQUIRE( nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[ ] /4.3" )     { REQUIRE( !nw->exists( n43 ) ); }
+            THEN( "[ ] /4.3.2" )   { REQUIRE( !nw->exists( n432 ) ); }
+            THEN( "[ ] /4.3.2.1" ) { REQUIRE( !nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /4.3.2 )" )
+        {
+            REQUIRE( test::fail( nw->erase_node( n432 ) ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[x] /3.2.1" )   { REQUIRE( nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[x] /4.3.2" )   { REQUIRE( nw->exists( n432 ) ); }
+            THEN( "[x] /4.3.2.1" ) { REQUIRE( nw->exists( n4321 ) ); }
+        }
+        WHEN( "erase_node( /4.3.2.1 )" )
+        {
+            REQUIRE( test::fail( nw->erase_node( n4321 ) ) );
+
+            THEN( "[x] /1" )       { REQUIRE( nw->exists( n1 ) ); }
+            THEN( "[x] /2" )       { REQUIRE( nw->exists( n2 ) ); }
+            THEN( "[x] /2.1" )     { REQUIRE( nw->exists( n21 ) ); }
+            THEN( "[x] /3" )       { REQUIRE( nw->exists( n3 ) ); }
+            THEN( "[x] /3.2" )     { REQUIRE( nw->exists( n32 ) ); }
+            THEN( "[x] /3.2.1" )   { REQUIRE( nw->exists( n321 ) ); }
+            THEN( "[x] /4" )       { REQUIRE( nw->exists( n4 ) ); }
+            THEN( "[x] /4.3" )     { REQUIRE( nw->exists( n43 ) ); }
+            THEN( "[x] /4.3.2" )   { REQUIRE( nw->exists( n432 ) ); }
+            THEN( "[x] /4.3.2.1" ) { REQUIRE( nw->exists( n4321 ) ); }
+        }
+    }
 }
 
 SCENARIO( "erase_node erases attributes", "[nw][iface]" )
@@ -1148,6 +1327,12 @@ SCENARIO( "Network::fetch_below", "[com][nw]" )
     }
 }
 
+// Equiv: anchor( id ) | left_lineal( alias_src ) ? // Well, we don't have an alias_src view, as of yet, so IDK...
+// What is the purpose of this function... what does it do? It fetches all aliases whose source is a part of this node's lineage.
+// Put another way: does any node alias a node in this lineage?
+// Why it is important: so that these nodes can update their aliases to reflect the changes sources.
+//                      Note that this needs to be recursive. If a source is updated, and that dst has an aliased ancestry, then that needs to be updated, and so on.
+//                      ... while avoiding infinite recursion.
 auto Network::fetch_aliased_ancestry( Uuid const& id ) const
     -> std::vector< Uuid >
 {
@@ -1165,7 +1350,7 @@ auto Network::fetch_aliased_ancestry( Uuid const& id ) const
     
     while( parent )
     {
-        if( auto const aliases_from = astore_.fetch_aliases_dsts( child )
+        if( auto const aliases_from = astore_.fetch_aliases( AliasItem::rsrc_type{ child } )
           ; aliases_from.size() > 0 )
         {
             rv.emplace_back( child );
@@ -1438,39 +1623,29 @@ SCENARIO( "Network::resolve", "[alias]" )
     auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     auto const root = nw->root_node();
 
-    GIVEN( "3 siblings who each alias sibling above: 1, 2.1, 3.2.1" )
+    GIVEN( "4 siblings who each alias sibling above: /1, /2, /3, /4: /1, /2.1, /3.2.1, /4.3.2.1" )
     {
-        auto const c1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
-        auto const c2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
-        auto const c3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
-        auto const a21 = REQUIRE_TRY( nw->create_alias( c1, c2 ) );
-        auto const a32 = REQUIRE_TRY( nw->create_alias( c2, c3 ) );
-        auto const a321 = REQUIRE_TRY( view::make( a32 ) | view::child | view::fetch_node( km ) );
+        auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+        auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+        auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+        auto const n4 = REQUIRE_TRY( nw->create_child( root, "4" ) );
+        auto const n21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+        auto const n32 = REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+        auto const n321 = REQUIRE_TRY( anchor::node( n32 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
+        auto const n43 = REQUIRE_TRY( nw->create_alias( n3, n4 ) );
+        auto const n432 = REQUIRE_TRY( anchor::node( n43 ) | view2::alias( view2::resolve( n2 ) ) | act2::fetch_node( km ) );
+        auto const n4321 = REQUIRE_TRY( anchor::node( n432 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
 
-        THEN( "resolve 3.2.1 => /1" )
-        {
-            REQUIRE( c1 == nw->resolve( a321 ) );
-        }
-        THEN( "resolve 3.2 => /2" )
-        {
-            REQUIRE( c2 == nw->resolve( a32 ) );
-        }
-        THEN( "resolve 3 => /3" )
-        {
-            REQUIRE( c3 == nw->resolve( c3 ) );
-        }
-        THEN( "resolve 2.1 => /1" )
-        {
-            REQUIRE( c1 == nw->resolve( a21 ) );
-        }
-        THEN( "resolve 2 => /2" )
-        {
-            REQUIRE( c2 == nw->resolve( c2 ) );
-        }
-        THEN( "resolve 1 => /1" )
-        {
-            REQUIRE( c1 == nw->resolve( c1 ) );
-        }
+        THEN( "resolve( /1 ) == /1" ) { REQUIRE( nw->resolve( n1 ) == n1 ); }
+        THEN( "resolve( /2 ) == /2" ) { REQUIRE( nw->resolve( n2 ) == n2 ); }
+        THEN( "resolve( /2.1 ) == /1" ) { REQUIRE( nw->resolve( n21 ) == n1 ); }
+        THEN( "resolve( /3 ) == /3" ) { REQUIRE( nw->resolve( n3 ) == n3 ); }
+        THEN( "resolve( /3.2 ) == /2" ) { REQUIRE( nw->resolve( n32 ) == n2 ); }
+        THEN( "resolve( /3.2.1 ) == /1" ) { REQUIRE( nw->resolve( n321 ) == n1 ); }
+        THEN( "resolve( /4 ) == /4" ) { REQUIRE( nw->resolve( n4 ) == n4 ); }
+        THEN( "resolve( /4.3 ) == /3" ) { REQUIRE( nw->resolve( n43 ) == n3 ); }
+        THEN( "resolve( /4.3.2 ) == /2" ) { REQUIRE( nw->resolve( n432 ) == n2 ); }
+        THEN( "resolve( /4.3.2.1 ) == /1" ) { REQUIRE( nw->resolve( n4321 ) == n1 ); }
     }
 }
 
@@ -1677,7 +1852,7 @@ auto Network::move_node( Uuid const& from
         auto const db = KTRY( fetch_component< com::Database >() );
         auto const rfrom = resolve( from );
 
-        KTRY( erase_root_alias( from ) );
+        KTRY( erase_alias_root( from ) );
 
         auto const alias = KTRY( create_alias( rfrom, to ) );
 
@@ -1886,7 +2061,6 @@ SCENARIO( "swap two sibling aliases", "[nw][iface][swap_nodes][order]" )
 
         WHEN( "swap aliases" )
         {
-            REQUIRE_RES( print_tree( kmap, root ) );
             REQUIRE_RES( nw->swap_nodes( a31, a32 ) );
 
             THEN( "aliases swapped" )
@@ -2055,7 +2229,7 @@ auto Network::update_alias( Uuid const& from
         KM_RESULT_PUSH( "src", from );
         KM_RESULT_PUSH( "dst", to );
 
-      auto rv = result::make_result< Uuid >();
+    auto rv = result::make_result< Uuid >();
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -2095,7 +2269,7 @@ auto Network::update_aliases( Uuid const& node )
 
     KMAP_ENSURE( exists( node ), error_code::common::uncategorized );
 
-    auto const rnode = astore_.resolve( node );
+    auto const rnode = resolve( node );
     auto const db = KTRY( fetch_component< com::Database >() );
 
     for( auto const& id : fetch_aliased_ancestry( rnode ) )
@@ -2113,7 +2287,6 @@ auto Network::update_aliases( Uuid const& node )
     return rv;
 }
 
-// TODO: Am I crazy or doesn't id need to be resolved?
 auto Network::update_body( Uuid const&  node
                          , std::string const& contents )
     -> Result< void >

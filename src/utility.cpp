@@ -1150,7 +1150,7 @@ auto print_tree( Kmap const& km
 
     auto const nw = KTRY( km.fetch_component< com::Network >() );
 
-    if( nw->is_top_alias( root ) )
+    if( nw->is_alias( root ) )
     {
         auto const abs_path = KTRY( nw->fetch_heading( root ) );
         auto const alias_abs_path = KTRY( absolute_path_flat( km, nw->resolve( root ) ) );
@@ -1162,11 +1162,27 @@ auto print_tree( Kmap const& km
         fmt::print( "{}{}\n", indent, KTRY( nw->fetch_heading( root ) ) );
     }
 
-    for( auto const children = view::make( root )
-                             | view::child
-                             | view::to_node_set( km )
-                             | act::order( km )
-       ; auto const& child : children )
+    auto const children = [ & ]
+    {
+        if( anchor::node( root )
+          | view2::left_lineal( "$" )
+          | act2::exists( km ) )
+        {
+            return view::make( root )
+                 | view::child
+                 | view::to_node_set( km )
+                 | ranges::to< std::vector >();
+        }
+        else
+        {
+            return view::make( root )
+                 | view::child
+                 | view::to_node_set( km )
+                 | act::order( km );
+        }
+    }();
+
+    for( auto const& child : children )
     {
         KTRY( print_tree( km, child, indent + "-" ) );
     }
@@ -1195,11 +1211,27 @@ auto print_tree( Kmap const& km
         fmt::print( ">{}\n", KTRY( absolute_path_flat( km, root ) ) );
     }
 
-    for( auto const children = view::make( root )
-                             | view::child
-                             | view::to_node_set( km )
-                             | act::order( km )
-       ; auto const& child : children )
+    auto const children = [ & ]
+    {
+        if( anchor::node( root )
+          | view2::left_lineal( "$" )
+          | act2::exists( km ) )
+        {
+            return view::make( root )
+                 | view::child
+                 | view::to_node_set( km )
+                 | ranges::to< std::vector >();
+        }
+        else
+        {
+            return view::make( root )
+                 | view::child
+                 | view::to_node_set( km )
+                 | act::order( km );
+        }
+    }();
+
+    for(  auto const& child : children )
     {
         KTRY( print_tree( km, child, "-" ) );
     }

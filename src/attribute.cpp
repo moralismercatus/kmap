@@ -162,6 +162,7 @@ auto push_order( Kmap& kmap
     return rv;
 }
 
+// TODO: Unit test that $.order is erased when parent has no more children
 auto pop_order( Kmap& kmap
               , Uuid const& parent
               , Uuid const& child )

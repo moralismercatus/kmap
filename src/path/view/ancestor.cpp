@@ -69,7 +69,7 @@ auto Ancestor::fetch( FetchContext const& ctx
         ,   [ & ]( LinkPtr const& pred )
             {
                 auto const ancestors = view2::ancestor.fetch( ctx, node );
-                auto const ns = anchor::root( node ) | pred | act::to_fetch_set( ctx );
+                auto const ns = anchor::node( node ) | pred | act::to_fetch_set( ctx );
 
                 return rvs::set_intersection( ancestors, ns )
                      | ranges::to< FetchSet >();
@@ -130,22 +130,22 @@ SCENARIO( "view::Ancestor::fetch", "[node_view][ancestor]" )
 
         THEN( "view::ancestor" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::ancestor | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
         THEN( "view::ancestor( <heading> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::ancestor( "root" ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor( "root" ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
         THEN( "view::ancestor( Uuid )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::ancestor( root ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor( root ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
         THEN( "view::ancestor( <Tether> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n1 ) | view2::ancestor( anchor::root( n1 ) | view2::parent ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor( anchor::node( n1 ) | view2::parent ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
     }

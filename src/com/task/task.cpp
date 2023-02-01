@@ -223,13 +223,19 @@ auto TaskStore::create_subtask( Uuid const& supertask
 
     KMAP_ENSURE( is_task( supertask ), error_code::common::uncategorized );
 
-    auto& kmap = kmap_inst();
-    auto const subtask = KTRY( create_task( title ) );
-    auto const st_alias = KTRY( view::make( supertask )
-                              | view::child( "subtask" )
-                              | view::alias( subtask )
-                              | view::create_node( kmap )
-                              | view::to_single );
+    auto& km = kmap_inst();
+    auto const subtask_node = KTRY( create_task( title ) );
+
+    KTRY( view::make( supertask )
+        | view::child( "subtask" )
+        | view::alias( view::Alias::Src{ subtask_node } )
+        | view::create_node( km )
+        | view::to_single );
+
+    auto const st_alias = KTRY( anchor::node( supertask )
+                              | view2::child( "subtask" )
+                              | view2::alias( view2::resolve( subtask_node ) )
+                              | act2::fetch_node( km ) );
 
     KTRY( eclerk_.fire_event( { "subject.task_store", "verb.created", "object.subtask" } ) );
 
@@ -238,18 +244,24 @@ auto TaskStore::create_subtask( Uuid const& supertask
     return rv;
 }
 
+// task = task_root | child( all_of( child( "problem" ), child( "result" ) ) )
+// subtask = child( "subtask" ) | alias | current( task_root | task )
+// What about stacking predicates... sure? Why not?:
+// subtask = child( "subtask" )( parent( task ) ) | alias( task_root | task ) // OK: alias ready to accept another predicate i.e., name of subtask, etc.
+
+
 SCENARIO( "TaskStore::create_subtask", "[task][create]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
 
-    auto& kmap = Singleton::instance();
-    auto tstore = REQUIRE_TRY( kmap.fetch_component< TaskStore >() );
+    auto& km = Singleton::instance();
+    auto tstore = REQUIRE_TRY( km.fetch_component< TaskStore >() );
 
     GIVEN( "no tasks" )
     {
         WHEN( "create subtask with task root as supertask" )
         {
-            auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
+            auto const troot = REQUIRE_TRY( fetch_task_root( km ) );
 
             REQUIRE( kmap::test::fail( tstore->create_subtask( troot, "1" ) ) );
         }
@@ -260,42 +272,56 @@ SCENARIO( "TaskStore::create_subtask", "[task][create]" )
 
         GIVEN( "create.subtask sub" )
         {
-            auto const sub = REQUIRE_TRY( tstore->create_subtask( super, "sub" ) );
+            auto const super_subtask_sub = REQUIRE_TRY( tstore->create_subtask( super, "sub" ) );
 
             THEN( "'sub' is task" )
             {
-                REQUIRE( tstore->is_task( sub ) );
+                REQUIRE( tstore->is_task( super_subtask_sub ) );
             }
-            THEN( "'sub' is subtask to 'super'" )
+            THEN( "result 'sub' is subtask to 'super'" )
             {
-                auto const subalias = REQUIRE_TRY(( view::make( super )
-                                                  | view::child( "subtask" )
-                                                  | view::child
-                                                  | view::fetch_node( kmap ) ));
+                auto const subalias = REQUIRE_TRY(( anchor::node( super )
+                                                  | view2::child( "subtask" )
+                                                  | view2::alias
+                                                  | act2::fetch_node( km ) ));
 
-                REQUIRE( subalias == sub );
+                REQUIRE( subalias == super_subtask_sub );
             }
 
             GIVEN( "@super.subtask.sub :create.subtask subsub" )
             {
-                auto const subalias = REQUIRE_TRY(( view::make( super )
-                                                  | view::child( "subtask" )
-                                                  | view::child
-                                                  | view::fetch_node( kmap ) ));
-                auto const subsub = REQUIRE_TRY( tstore->create_subtask( subalias, "subsub" ) );
+                auto const sub_subtask_subsub = REQUIRE_TRY( tstore->create_subtask( super_subtask_sub, "subsub" ) );
 
+                THEN( "result 'subsub' is sub.subtask.subsub alias" )
+                {
+                    KTRYE( print_tree( km, super ) );
+                    REQUIRE(( anchor::node( super )
+                            | view2::child( "subtask" )
+                            | view2::alias( "sub" )
+                            | view2::child( "subtask" )
+                            | view2::alias( sub_subtask_subsub )
+                            | act2::exists( km ) ));
+                }
                 THEN( "'subsub' is task" )
                 {
-                    REQUIRE( tstore->is_task( subsub ) );
+                    REQUIRE( tstore->is_task( sub_subtask_subsub ) );
+                }
+                THEN( "'subsub' is a subtask of resolve( 'sub' )" )
+                {
+                    // auto const rsub = REQUIRE_TRY(( anchor::node( sub_subtask_sub ) 
+                    //                               | view2::resolve
+                    //                               | act2::fetch_node( km ) ));
+                    // auto const sub_subtask_sub = REQUIRE_TRY( anchor::node( rsub )
+                    //                                         |  );
                 }
                 THEN( "'subsub' is subtask to 'sub'" )
                 {
-                    auto subsubalias = REQUIRE_TRY( ( view::make( sub )
-                                                    | view::child( "subtask" )
-                                                    | view::child
-                                                    | view::fetch_node( kmap ) ) );
+                    // auto subsubalias = REQUIRE_TRY( ( view::make( subalias )
+                    //                                 | view::child( "subtask" )
+                    //                                 | view::child
+                    //                                 | view::fetch_node( km ) ) );
 
-                    REQUIRE( subsubalias == subsub );
+                    // REQUIRE( subsubalias == subsub );
                 }
             }
         }

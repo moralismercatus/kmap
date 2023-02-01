@@ -10,7 +10,7 @@
 #include "path/view/act/fetch_node.hpp"
 #include "path/view/act/to_string.hpp"
 #include "path/view/ancestor.hpp"
-#include "path/view/anchor/root.hpp"
+#include "path/view/anchor/node.hpp"
 #include "path/view/parent.hpp"
 #include "path/view/resolve.hpp"
 #include "path/view/tether.hpp"
@@ -73,7 +73,7 @@ auto Alias::fetch( FetchContext const& ctx
                 auto const aliases = view2::alias.fetch( ctx, node );
 
                 return aliases
-                     | rvs::filter( [ & ]( auto const& c ){ return anchor::root( c.id ) | pred | act2::exists( ctx.km ); } )
+                     | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
                      | ranges::to< FetchSet >();
             }
         ,   [ & ]( Tether const& pred )
@@ -127,22 +127,22 @@ SCENARIO( "view::Alias::fetch", "[node_view][alias]" )
 
         THEN( "view::alias" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias | act::fetch_node( km ) );
             REQUIRE( a21 == fn );
         }
         THEN( "view::alias( <heading> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias( "1" ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias( "1" ) | act::fetch_node( km ) );
             REQUIRE( a21 == fn );
         }
         THEN( "view::alias( Uuid )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias( a21 ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias( a21 ) | act::fetch_node( km ) );
             REQUIRE( a21 == fn );
         }
         THEN( "view::alias( Link )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::root( n2 ) | view2::alias( view2::resolve( n1 ) | view2::parent( root ) ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n2 ) | view2::alias( view2::resolve( n1 ) | view2::parent( root ) ) | act::fetch_node( km ) );
             REQUIRE( a21 == fn );
         }
     }

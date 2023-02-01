@@ -18,7 +18,6 @@ namespace kmap::view2 {
 
 bool Link::operator<( Link const& other ) const
 {
-    KMAP_LOG_LINE();
     auto const tp = prev();
     auto const op = other.prev();
 
@@ -30,7 +29,7 @@ bool Link::operator<( Link const& other ) const
         }
         else
         {
-            return tp < op;
+            return *tp < *op;
         }
     }
     else if( !tp && !op )
@@ -56,14 +55,14 @@ SCENARIO( "view::Link::operator<", "[node_view][link]" )
 
     THEN( "global unpredicated links are same" )
     {
-        // REQUIRE( is_same( view2::child, view2::child ) );
+        REQUIRE( is_same( view2::child, view2::child ) );
     }
     THEN( "base-referenced unpredicated links are same" )
     {
         Link const& c1 = view2::child;
         Link const& c2 = view2::child;
 
-        // REQUIRE( is_same( c1, c2 ) );
+        REQUIRE( is_same( c1, c2 ) );
     }
     THEN( "links with same predicate" )
     {
@@ -94,8 +93,6 @@ SCENARIO( "view::Link::operator<", "[node_view][link]" )
         REQUIRE( is_same( caca1, caca1 ) );
         REQUIRE( is_same( caca1, caca2 ) );
         REQUIRE( !is_same( cac1, caca1 ) );
-        // REQUIRE( !is_same( cv1, cc1 ) );
-        // REQUIRE( !is_same( cv2, cc1 ) );
     }
 }
 

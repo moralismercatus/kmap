@@ -129,7 +129,7 @@ auto EventStore::event_root() const
     auto& km = kmap_inst();
     auto const mroot = km.root_node_id();
 
-    rv = KTRY( anchor::root( mroot )
+    rv = KTRY( anchor::node( mroot )
              | view2::direct_desc( "meta.event" ) 
              | act2::fetch_node( km ) );
 
@@ -187,7 +187,7 @@ auto EventStore::fetch_outlet_tree( Uuid const& outlet )
     auto rv = KMAP_MAKE_RESULT( UuidSet );
     auto& km = kmap_inst();
     auto const obase = KTRY( fetch_outlet_base( outlet ) );
-    auto const otree = anchor::root( obase )
+    auto const otree = anchor::node( obase )
                      | view2::desc // TODO: Confirm: Because outlet could be a branch?
                      | view2::child( "requisite" )
                      | view2::parent
@@ -852,12 +852,11 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-    if( auto const oroot = anchor::abs_root
-                         | view2::direct_desc( "meta.event.object" )
+    if( auto const oroot = view2::event::object_root
                          | act2::fetch_node( km )
       ; oroot )
     {
-        auto const eroot = KTRY( anchor::root( oroot.value() )
+        auto const eroot = KTRY( anchor::node( oroot.value() )
                                | view2::parent
                                | act2::fetch_node( km ) );
         auto const objects = requisites
@@ -871,7 +870,7 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
 
         for( auto const& opath : objects )
         {
-            if( auto rnode = anchor::root( eroot )
+            if( auto rnode = anchor::node( eroot )
                            | view2::direct_desc( opath )
                            | act2::fetch_node( km )
               ; rnode )
@@ -881,7 +880,7 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
                 while( oroot.value() != node )
                 {
                     auto combined = others;
-                    auto const abspath = KTRY( anchor::root( oroot.value() )
+                    auto const abspath = KTRY( anchor::node( oroot.value() )
                                              | view2::desc( node )
                                              | act2::abs_path_flat( km ) );
 
@@ -928,7 +927,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
-    auto const ver = anchor::root( KTRY( event_root() ) );
+    auto const ver = anchor::node( KTRY( event_root() ) );
 
     auto const vreqs = ver | view2::all_of( view2::direct_desc, requisites );
     auto const voutlet_root = ver | view2::child( "outlet" );
@@ -947,7 +946,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
         // Ensure all req coms have been initialized.
         for( auto const& outlet : all_matches )
         {
-            auto const vcom_req = anchor::root( outlet )
+            auto const vcom_req = anchor::node( outlet )
                                 | view2::event::requisite( view2::resolve | view2::ancestor( vcom_root ) );
 
             if( vcom_req | act2::exists( km ) )
@@ -956,7 +955,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
                                       | view2::resolve 
                                       | act2::to_node_set( km ) )
                 {
-                    auto const abs_com_path = KTRYE( anchor::root( vcom_root | act2::to_node_set( km ) )
+                    auto const abs_com_path = KTRYE( anchor::node( vcom_root | act2::to_node_set( km ) )
                                                    | view2::desc( creq )
                                                    | act2::abs_path_flat( km ) );
                     auto const com_name = abs_com_path
@@ -990,7 +989,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
         }
         if( is_active_outlet( outlet ) )
         {
-            if( auto const actionn = anchor::root( outlet ) 
+            if( auto const actionn = anchor::node( outlet ) 
                                    | view2::child( "action" )
                                    | act2::fetch_node( km )
               ; actionn )
@@ -1009,7 +1008,7 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
     {
         if( is_active_outlet( outlet ) )
         {
-            if( auto const actionn = anchor::root( outlet ) 
+            if( auto const actionn = anchor::node( outlet ) 
                                    | view2::child( "action" )
                                    | act2::fetch_node( km )
             ; !actionn )
@@ -1509,15 +1508,13 @@ auto outlet_matches( Kmap const& km
                    , std::set< Uuid > const& req_srcs ) // TODO: Rather: `event_root | direct_desc( reqs )`; Tether< EventRoot, DirectDesc >.
     -> bool
 {
-    auto const reqs = anchor::root( outlet )
+    auto const reqs = anchor::node( outlet )
                     | view2::event::requisite;
     auto const req_count = reqs
                          | act2::count( km );
     auto const match_count = reqs
                            | view2::resolve( view2::any_of( view2::left_lineal, req_srcs ) ) // TODO: Rather, view2::left_lineal( req_src ) => view2::lineal( event_root, req_src )
                            | act2::count( km );
-    fmt::print( "[outlet_matches] req_count: {}\n", req_count );
-    fmt::print( "[outlet_matches] match_count: {}\n", match_count );
 
     return match_count == req_count;
 }
@@ -1589,30 +1586,7 @@ REGISTER_COMPONENT
 
 } // namespace kmap::com
 
-namespace kmap::view2::event 
-{
-
-// auto EventRoot::fetch( FetchContext const& ctx ) const
-//     -> FetchSet
-// {
-//     return anchor::abs_root
-//          | view2::direct_desc( "meta.event" )
-//          | act2::to_fetch_set( ctx );
-// }
-
-// auto EventRoot::to_string() const
-//     -> std::string
-// {
-//     return "event_root";
-// }
-
-// auto EventRoot::compare_less( Anchor const& other ) const
-//     -> bool
-// {
-//     auto const cmp = compare_anchors( *this, other );
-
-//     return cmp == std::strong_ordering::less;
-// }
+namespace kmap::view2::event {
 
 SCENARIO( "view::event::Requisite::fetch", "[node_view][event]" )
 {
@@ -1635,11 +1609,8 @@ SCENARIO( "view::event::Requisite::fetch", "[node_view][event]" )
                                        , .requisites = { "subject.sierra", "verb.victored", "object.oscar" }
                                        , .description = "VCD"
                                        , .action = "kmap.create_child( kmap.rood_node(), '1' );" };
-            auto const oleaf = REQUIRE_TRY( estore->install_outlet( leaf ) );
+            REQUIRE_TRY( estore->install_outlet( leaf ) );
 
-            THEN( "requisite( sierra ) found" )
-            {
-            }
             THEN( "all_of( requisite, { sierra, victored, oscar } ) found" )
             {
                 auto const req_srcs = view2::event::event_root

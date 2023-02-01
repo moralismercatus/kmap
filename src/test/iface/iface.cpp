@@ -59,12 +59,9 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
 
         WHEN( "create child" )
         {
-            auto const child = nw->create_child( kmap.root_node_id(), "h1" );
+            auto const cv = REQUIRE_TRY( nw->create_child( kmap.root_node_id(), "h1" ) );
 
-            REQUIRE( succ( child ) );
             REQUIRE( nw->fetch_children( root ).size() == 1 );
-
-            auto const cv = child.value();
 
             THEN( "erase child" )
             {
@@ -83,30 +80,24 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
     GIVEN( "two children of root" )
     {
         auto const root = kmap.root_node_id();
-        auto const c1 = nw->create_child( root, "h1" );
-        auto const c2 = nw->create_child( root, "h2" );
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "h1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "h2" ) );
 
         REQUIRE( nw->fetch_children( root ).size() == 2 );
 
-        REQUIRE( succ( c1 ) );
-        REQUIRE( succ( c2 ) );
-
-        auto const c1v = c1.value();
-        auto const c2v = c2.value();
-
         WHEN( "child 1 aliases child 2" )
         {
-            REQUIRE( !nw->alias_store().is_alias( c2v, c1v ) );
-            REQUIRE( succ( nw->create_alias( c2v, c1v ) ) );
+            REQUIRE( !nw->alias_store().is_alias( c2, c1 ) );
+            REQUIRE( succ( nw->create_alias( c2, c1 ) ) );
 
             THEN( "alias is a child of 1" )
             {
-                REQUIRE( nw->fetch_children( c1v ).size() == 1 );
+                REQUIRE( nw->fetch_children( c1 ).size() == 1 );
 
-                auto const ac = REQUIRE_TRY( view::make( c1v ) | view::child( "h2" ) | view::fetch_node( kmap ) );
+                auto const ac = REQUIRE_TRY( view::make( c1 ) | view::child( "h2" ) | view::fetch_node( kmap ) );
 
                 REQUIRE( nw->alias_store().is_alias( ac ) );
-                REQUIRE( nw->alias_store().is_alias( c2v, c1v ) );
+                REQUIRE( nw->alias_store().is_alias( c2, c1 ) );
                 REQUIRE( nw->is_top_alias( ac ) );
                 REQUIRE( nw->erase_node( ac ) );
             }
@@ -116,15 +107,15 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
         //       `erase_node()` is also erasing the parent-child relationship from the DB - but what if such a relationship is already marked as
         //       erased? Wouldn't that constitute an error? Need to confirm that we're duplicate erasing the same entry, to figure out if this the cause.
         //       Actually, I'm thinking this doesn't make sense... c1 and c2 are uniquely generated, so they should never overlap...
-        REQUIRE( succ( nw->erase_node( c2v ) ) );
-        REQUIRE( succ( nw->erase_node( c1v ) ) );
+        REQUIRE( succ( nw->erase_node( c2 ) ) );
+        REQUIRE( succ( nw->erase_node( c1 ) ) );
     }
     GIVEN( "alias exists" )
     {
         auto const root = kmap.root_node_id();
-        auto const c1 = nw->create_child( root, "h1" ).value();
-        auto const c2 = nw->create_child( root, "h2" ).value();
-        auto const ac = nw->create_alias( c2, c1 ).value();
+        auto const c1 = REQUIRE_TRY( nw->create_child( root, "h1" ) );
+        auto const c2 = REQUIRE_TRY( nw->create_child( root, "h2" ) );
+        auto const ac = REQUIRE_TRY( nw->create_alias( c2, c1 ) );
 
         WHEN( "alias deleted" )
         {
