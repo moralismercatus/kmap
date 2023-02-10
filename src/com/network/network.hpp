@@ -91,6 +91,8 @@ public:
     [[ nodiscard ]]
     auto fetch_children( Uuid const& parent ) const
         -> kmap::UuidSet;
+    auto fetch_children_ordered( Uuid const& parent ) const
+        -> Result< UuidVec >;
     auto fetch_heading( Uuid const& node ) const
         -> Result< Heading >;
     // TODO [cleanup]: move to attr.hpp? Rather, node.genesis component?
@@ -137,8 +139,8 @@ public:
     // TODO [cleanup]: Belongs in node_view: view::make( n1 ) | view::parent | view::child( view::all_of( n1, n2 ) ) | act::exists( km );
     //                 Because this routine may be quite common, perhaps a path.hpp/utility.hpp entry is warranted.
         [[ nodiscard ]]
-        auto are_siblings( Uuid const& n1
-                         , Uuid const& n2 ) const
+        auto is_sibling( Uuid const& n1
+                       , Uuid const& n2 ) const
             -> bool;
     auto copy_body( Uuid const& src
                 , Uuid const& dst )
@@ -251,6 +253,9 @@ protected:
     auto erase_node_internal( Uuid const& id )
         -> Result< void >;
     auto erase_node_leaf( Uuid const& id )
+        -> Result< void >;
+    auto create_child_aliases( Uuid const& parent
+                             , Uuid const& child )
         -> Result< void >;
     [[ nodiscard ]]
     auto is_child_internal( Uuid const& parent

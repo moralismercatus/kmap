@@ -5,14 +5,15 @@
  ******************************************************************************/
 #include "path/view/act/to_node_set.hpp"
 
-#include "com/database/db.hpp"
-#include "com/database/query_cache.hpp"
 #include "contract.hpp"
 #include "kmap.hpp"
+#include "path/view/act/to_fetch_set.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/view/transform.hpp>
 #include <range/v3/range/conversion.hpp>
+
+#include <deque>
 
 namespace rvs = ranges::views;
 
@@ -30,6 +31,7 @@ auto operator|( Tether const& lhs
 {
     auto rv = UuidSet{};
     // auto const db = KTRYE( rhs.km.fetch_component< com::Database >() );
+    // // TODO: qcaching should happen with to_fetch_set, rather.
     // auto& qcache = db->query_cache();
 
     // if( auto const qr = qcache.fetch( lhs )

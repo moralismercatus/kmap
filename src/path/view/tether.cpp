@@ -9,6 +9,8 @@
 #include "path/view/anchor/anchor.hpp"
 #include "path/view/chain.hpp"
 
+#include <catch2/catch_test_macros.hpp>
+
 namespace kmap::view2 {
 
 Tether::Tether( Anchor::AnchorPtr anc )
@@ -42,6 +44,30 @@ auto Tether::operator<( Tether const& other ) const
     {
         return ( *tail_link ) < ( *other.tail_link );
     }
+}
+
+SCENARIO( "Tether::operator<", "[node_view][link]")
+{
+    // TODO: Impl. test.
+    // GIVEN( "anchor::node( id ) | view2::all_of( view2::direct_desc, { <str>, <str>, <str> } )" )
+    // {
+    //     auto const acn = gen_uuid();
+    //     auto const t1_ct = anchor::node( acn )
+    //                      | view2::all_of( view2::direct_desc
+    //                                     , { "subject.sierra", "verb.victor", "object.oscar" } );
+    //     auto const t1 = t1_ct | to_tether;
+    //     auto const t2 = t1_ct | to_tether;
+    //     auto const t3_ct = anchor::node( acn )
+    //                      | view2::all_of( view2::direct_desc
+    //                                     , { "subject.sierra", "verb.victor", "object.oscar" } );
+    //     auto const t3 = t3_ct | to_tether;
+        
+    //     REQUIRE( !( t1 < t1 ) );
+    //     REQUIRE( !( t2 < t2 ) );
+    //     REQUIRE( !( t3 < t3 ) );
+    //     REQUIRE(( !( t1 < t2 ) && !( t2 < t1 ) ));
+    //     REQUIRE(( !( t1 < t3 ) && !( t3 < t1 ) ));
+    // }
 }
 
 auto Tether::to_string() const

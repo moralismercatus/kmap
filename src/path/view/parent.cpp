@@ -35,28 +35,34 @@ auto Parent::fetch( FetchContext const& ctx
         ,   [ & ]( std::string const& pred )
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const parent = KTRYE( nw->fetch_parent( node ) );
-                if( pred == KTRYE( nw->fetch_heading( parent ) ) )
+                auto fs = FetchSet{};
+
+                if( auto const parent = nw->fetch_parent( node )
+                  ; parent )
                 {
-                    return FetchSet{ LinkNode{ .id = parent } };
+                    if( pred == KTRYE( nw->fetch_heading( parent.value() ) ) )
+                    {
+                        return FetchSet{ LinkNode{ .id = parent.value() } };
+                    }
                 }
-                else
-                {
-                    return FetchSet{};
-                }
+
+                return fs;
             }
         ,   [ & ]( Uuid const& pred )
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const parent = KTRYE( nw->fetch_parent( node ) );
-                if( pred == parent )
+                auto fs = FetchSet{};
+
+                if( auto const parent = nw->fetch_parent( node )
+                  ; parent )
                 {
-                    return FetchSet{ LinkNode{ .id = parent } };
+                    if( pred == parent.value() )
+                    {
+                        fs = FetchSet{ LinkNode{ .id = pred } };
+                    }
                 }
-                else
-                {
-                    return FetchSet{};
-                }
+
+                return fs;
             }
         };
 
@@ -65,9 +71,16 @@ auto Parent::fetch( FetchContext const& ctx
     else
     {
         auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-        auto const parent = KTRYE( nw->fetch_parent( node ) );
 
-        return FetchSet{ LinkNode{ .id = parent } };
+        if( auto const parent = nw->fetch_parent( node )
+          ; parent )
+        {
+            return FetchSet{ LinkNode{ .id = parent.value() } };
+        }
+        else
+        {
+            return FetchSet{};
+        }
     }
 }
 

@@ -5,14 +5,20 @@
  ******************************************************************************/
 #include "path/view/act/to_fetch_set.hpp"
 
+#include "com/database/db.hpp"
+#include "com/database/query_cache.hpp"
 #include "contract.hpp"
 #include "kmap.hpp"
 #include "path/view/anchor/anchor.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/transform.hpp>
 
 // testing
 #include "utility.hpp"
+
+namespace rvs = ranges::views;
 
 namespace kmap::view2::act {
 
@@ -27,34 +33,55 @@ auto operator|( Tether const& lhs
     -> FetchSet
 {
     auto rv = FetchSet{};
-    auto ns = lhs.anchor->fetch( rhs.ctx );
-    auto const links = [ & ]
+    auto const db = KTRYE( rhs.ctx.km.fetch_component< com::Database >() );
+    auto& qcache = db->query_cache();
+
+    if( auto const qr = qcache.fetch( lhs )
+      ; qr )
     {
-        auto rlinks = std::deque< Link::LinkPtr >{};
-        auto link = lhs.tail_link;
-        while( link )
-        {
-            rlinks.emplace_front( link );
-            link = link->prev();
-        }
-        return rlinks;
-    }();
-
-    for( auto const& link : links )
-    {
-        auto next_ns = decltype( ns ){};
-
-        for( auto const& node : ns )
-        {
-            auto const tns = link->fetch( rhs.ctx, node.id );
-
-            next_ns.insert( tns.begin(), tns.end() );
-        }
-
-        ns = next_ns;
+        rv = qr.value()
+           | rvs::transform( []( auto const& e ){ return LinkNode{ .id = e }; } )
+           | ranges::to< FetchSet >();
     }
+    else
+    {
+        auto fs = lhs.anchor->fetch( rhs.ctx );
+        auto const links = [ & ]
+        {
+            auto rlinks = std::deque< Link::LinkPtr >{};
+            auto link = lhs.tail_link;
+            while( link )
+            {
+                rlinks.emplace_front( link );
+                link = link->prev();
+            }
+            return rlinks;
+        }();
 
-    rv = ns;
+        for( auto const& link : links )
+        {
+            auto next_fs = decltype( fs ){};
+
+            for( auto const& node : fs )
+            {
+                auto const tfs = link->fetch( rhs.ctx, node.id );
+
+                next_fs.insert( tfs.begin(), tfs.end() );
+            }
+
+            fs = next_fs;
+        }
+
+        {
+            auto const ns = fs
+                          | rvs::transform( []( auto const& e ){ return e.id; } )
+                          | ranges::to< UuidSet >();
+            KTRYE( const_cast< db::QueryCache& >( qcache ).push( lhs, ns ) ); // TODO: WARNING FLAGS!!! VERY TEMPORARY! const_cast a no-no!
+            KMAP_ENSURE_EXCEPT( qcache.fetch( lhs ) );
+        }
+
+        rv = fs;
+    }
 
     return rv;
 }

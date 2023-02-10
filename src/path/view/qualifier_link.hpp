@@ -46,7 +46,7 @@ public:
     auto operator()( Args&&... args ) const
     {
         auto nlinks = Links{};
-        ( nlinks.emplace_back( std::make_shared< Args >( std::forward< Args >( args ) ) ), ... );
+        ( nlinks.emplace_back( std::make_unique< Args >( std::forward< Args >( args ) ) ), ... );
         return Derived{ nlinks };
     }
     template< typename Range >
@@ -58,7 +58,7 @@ public:
         auto links = Links{};
         for( auto const& e : rng )
         {
-            links.emplace_back( std::make_shared< LinkType >( e ) );
+            links.emplace_back( std::make_unique< LinkType >( e ) );
         }
         return Derived{ links };
     };

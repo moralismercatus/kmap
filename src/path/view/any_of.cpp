@@ -10,6 +10,7 @@
 #include "path/view/anchor/node.hpp"
 #include "path/view/child.hpp"
 #include "path/view/common.hpp"
+#include "path/view/direct_desc.hpp"
 #include "test/util.hpp"
 #include "util/result.hpp"
 
@@ -35,12 +36,10 @@ auto AnyOf::fetch( FetchContext const& ctx
     -> FetchSet
 {
     auto rset = FetchSet{};
-    fmt::print( "[any_of] fetch\n");
 
     for( auto const& ls = links()
        ; auto const& link : ls )
     {
-        fmt::print( "[any_of] fetching: {}\n", *link | act::to_string );
         auto const fetched = anchor::node( node ) | link | act::to_fetch_set( ctx );
 
         rset.insert( fetched.begin(), fetched.end() );
@@ -85,6 +84,29 @@ auto AnyOf::compare_less( Link const& other ) const
     else
     {
         return false;
+    }
+}
+
+SCENARIO( "AnyOf::compare_less", "[node_view][link]")
+{
+    GIVEN( "anchor::node( id ) | view2::any_of( view2::direct_desc, { <str>, <str>, <str> } )" )
+    {
+        auto const acn = gen_uuid();
+        auto const t1_ct = anchor::node( acn )
+                         | view2::any_of( view2::direct_desc
+                                        , { "subject.sierra", "verb.victor", "object.oscar" } );
+        auto const t1 = t1_ct | to_tether;
+        auto const t2 = t1_ct | to_tether;
+        auto const t3_ct = anchor::node( acn )
+                         | view2::any_of( view2::direct_desc
+                                        , { "subject.sierra", "verb.victor", "object.oscar" } );
+        auto const t3 = t3_ct | to_tether;
+        
+        REQUIRE( !( t1 < t1 ) );
+        REQUIRE( !( t2 < t2 ) );
+        REQUIRE( !( t3 < t3 ) );
+        REQUIRE(( !( t1 < t2 ) && !( t2 < t1 ) ));
+        REQUIRE(( !( t1 < t3 ) && !( t3 < t1 ) ));
     }
 }
 

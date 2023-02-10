@@ -468,7 +468,10 @@ auto TextArea::show_preview( std::string const& text )
     //                          , to_string( canvas.preview_pane() )
     //                          , text ) );
 
-    KTRY( canvas->reveal( canvas->preview_pane() ) );
+    if( KTRY( canvas->pane_hidden( canvas->preview_pane() ) ) )
+    {
+        KTRY( canvas->reveal( canvas->preview_pane() ) );
+    }
 
     rv = outcome::success();
 

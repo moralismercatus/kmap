@@ -9,7 +9,7 @@
 
 #include "path/view/common.hpp"
 // #include "path/view/tether.hpp"
-#include "util/unique_clone_ptr.hpp"
+#include "util/polymorphic_value.hpp"
 
 #include <concepts>
 #include <memory>
@@ -21,7 +21,7 @@ namespace kmap::view2 {
 class Anchor
 {
 public:
-    using AnchorPtr = UniqueClonePtr< Anchor >;
+    using AnchorPtr = PolymorphicValue< Anchor >;
 
     virtual ~Anchor() = default;
     virtual auto clone() const -> std::unique_ptr< Anchor > = 0;

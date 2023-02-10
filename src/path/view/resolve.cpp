@@ -57,6 +57,11 @@ auto Resolve::fetch( FetchContext const& ctx
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
 
+                fmt::print( "resolve( node ):\n" );
+                KTRYE( print_tree( ctx.km, nw->resolve( node ) ) );
+                fmt::print( "resolve::pred:\n" );
+                KTRYE( print_tree( ctx.km, pred ) );
+
                 if( nw->resolve( node ) == pred )
                 {
                     return FetchSet{ LinkNode{ .id = pred } };
@@ -151,7 +156,18 @@ auto Resolve::compare_less( Link const& other ) const
 {
     auto const cmp = compare_links( *this, other );
 
-    return ( cmp == std::strong_ordering::less );
+    if( cmp == std::strong_ordering::equal )
+    {
+        return pred_ < dynamic_cast< decltype( *this )& >( other ).pred_;
+    }
+    else if( cmp == std::strong_ordering::less )
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 } // namespace kmap::view2

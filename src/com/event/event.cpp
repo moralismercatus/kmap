@@ -166,7 +166,7 @@ auto EventStore::fetch_outlet_base( Uuid const& node )
                             | view::parent
                             | view::parent
                             | view::to_node_set( km )
-                            | ranges::to< std::vector >()
+                            | ranges::to< std::vector >() // TODO: No longer necessary. act::order accepts any range type.
                             | act::order( km )
                             | act::front ); // act::front grabs base/root outlet for outlet tree.
 
@@ -732,8 +732,8 @@ auto EventStore::execute_body( Uuid const& node )
 
     KMAP_ENSURE( nw->exists( node ), error_code::network::invalid_node );
 
-    auto const body = KMAP_TRY( nw->fetch_body( node ) );
-    auto const code = KMAP_TRY( cmd::parser::parse_body_code( body ) );
+    auto const body = KTRY( nw->fetch_body( node ) );
+    auto const code = KTRY( cmd::parser::parse_body_code( body ) );
     auto const vres = boost::apply_visitor( [ & ]( auto const& e ) -> Result< void >
                                           {
                                               using T = std::decay_t< decltype( e ) >;
@@ -747,7 +747,7 @@ auto EventStore::execute_body( Uuid const& node )
                                               }
                                               else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                                               {
-                                                  KMAP_TRY( js::eval_void( e.code ) );
+                                                  KTRY( js::eval_void( e.code ) );
                                               }
                                               else
                                               {
@@ -782,7 +782,8 @@ auto EventStore::fetch_matching_outlets( std::set< std::string > const& requisit
     auto const ver = view::make( KTRYE( event_root() ) );
     auto const sreqs = ver
                      | view::direct_desc( view::all_of( requisites ) ) // TODO: is view::all_of an all or nothing operation? Verify. Needs to be for this case.
-                     | view::to_node_set( km );
+                     | view::to_node_set( km )
+                     | ranges::to< std::vector >();
 
     KMAP_ENSURE( sreqs.size() == requisites.size(), error_code::common::uncategorized );
 
@@ -792,7 +793,8 @@ auto EventStore::fetch_matching_outlets( std::set< std::string > const& requisit
                          | view::child( "requisite" )
                          | view::alias
                          | view::resolve
-                         | view::to_node_set( km );
+                         | view::to_node_set( km )
+                         | ranges::to< std::vector >();
 
         return ranges::distance( rvs::set_intersection( sreqs, oreqs ) ) == sreqs.size();
     };

@@ -8,7 +8,7 @@
 #define KMAP_PATH_NODE_VIEW2_LINK_HPP
 
 #include "common.hpp"
-#include "util/unique_clone_ptr.hpp"
+#include "util/polymorphic_value.hpp"
 
 #include <compare>
 #include <concepts>
@@ -21,7 +21,7 @@ namespace kmap::view2 {
 class Link
 {
 public:
-    using LinkPtr = UniqueClonePtr< Link >;
+    using LinkPtr = PolymorphicValue< Link >;
 
 private:
     LinkPtr prev_ = {};

@@ -93,7 +93,7 @@ SCENARIO( "view::Desc::fetch", "[node_view][desc]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
-    auto& km = Singleton::instance();
+    // auto& km = Singleton::instance();
     // auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     // auto const root = nw->root_node();
 

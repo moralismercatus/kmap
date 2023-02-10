@@ -6,9 +6,12 @@
 #include "path/view/none_of.hpp"
 
 #include "common.hpp"
+#include "path/view/anchor/node.hpp"
 #include "path/view/common.hpp"
+#include "path/view/direct_desc.hpp"
 #include "util/result.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/sort.hpp>
 #include <range/v3/view/set_algorithm.hpp>
 
@@ -106,5 +109,29 @@ auto NoneOf::compare_less( Link const& other ) const
         return false;
     }
 }
+
+// TODO: Missing some impl., uncomment once completed.
+// SCENARIO( "NoneOf::compare_less", "[node_view][link]")
+// {
+//     GIVEN( "anchor::node( id ) | view2::none_of( view2::direct_desc, { <str>, <str>, <str> } )" )
+//     {
+//         auto const acn = gen_uuid();
+//         auto const t1_ct = anchor::node( acn )
+//                          | view2::none_of( view2::direct_desc
+//                                          , { "subject.sierra", "verb.victor", "object.oscar" } );
+//         auto const t1 = t1_ct | to_tether;
+//         auto const t2 = t1_ct | to_tether;
+//         auto const t3_ct = anchor::node( acn )
+//                          | view2::none_of( view2::direct_desc
+//                                          , { "subject.sierra", "verb.victor", "object.oscar" } );
+//         auto const t3 = t3_ct | to_tether;
+        
+//         REQUIRE( !( t1 < t1 ) );
+//         REQUIRE( !( t2 < t2 ) );
+//         REQUIRE( !( t3 < t3 ) );
+//         REQUIRE(( !( t1 < t2 ) && !( t2 < t1 ) ));
+//         REQUIRE(( !( t1 < t3 ) && !( t3 < t1 ) ));
+//     }
+// }
 
 } // namespace kmap::view2

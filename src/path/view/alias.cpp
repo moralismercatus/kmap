@@ -79,20 +79,20 @@ auto Alias::fetch( FetchContext const& ctx
         ,   [ & ]( Tether const& pred )
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const aliases = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const aliases = [ & ]
                 {
                     auto t = view2::alias.fetch( ctx, node ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
                 }();
-                auto const ns = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const ns = [ & ]
                 {
                     auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
                 }();
 
-                return rvs::set_intersection( aliases, ns )
+                return rvs::set_intersection( aliases, ns ) // Note: set_intersection requires two sorted ranges.
                      | ranges::to< FetchSet >();
             }
         };

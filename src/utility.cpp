@@ -1496,6 +1496,8 @@ auto flatten( StringVec const& v
          | to< std::string >();
 }
 
+// TODO: This isn't fully correct. It's correct when the nodes are siblings, but order isn't taken into account they're not.
+//       Assuming order means top to bottom of the network.
 auto is_ordered( Kmap const& kmap
                , Uuid const& former 
                , Uuid const& latter )
@@ -1503,7 +1505,7 @@ auto is_ordered( Kmap const& kmap
 {
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    if( nw->are_siblings( former, latter ) )
+    if( nw->is_sibling( former, latter ) )
     {
         return KTRYE( nw->fetch_ordering_position( former ) ) < KTRYE( nw->fetch_ordering_position( latter ) );
     }

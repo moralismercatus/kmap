@@ -10,6 +10,8 @@
 #include "path/view/act/abs_path.hpp"
 #include "path/view/act/count.hpp"
 #include "path/view/act/exists.hpp"
+#include "path/view/act/fetch_body.hpp"
+#include "path/view/act/fetch_heading.hpp"
 #include "path/view/act/fetch_node.hpp"
 #include "path/view/act/to_fetch_set.hpp"
 #include "path/view/act/to_heading_set.hpp"
@@ -34,6 +36,7 @@
 #include "path/view/parent.hpp"
 #include "path/view/resolve.hpp"
 #include "path/view/right_lineal.hpp"
+#include "path/view/sibling.hpp"
 
 #include <concepts>
 
@@ -48,7 +51,7 @@ auto operator|( TetherCT< AnchorType, TailLink > const& tct
               , ToTether const& )
     -> Tether
 {
-    return Tether{ UniqueClonePtr< Anchor >{ std::make_unique< AnchorType >( tct.anchor ) }
+    return Tether{ PolymorphicValue< Anchor >{ std::make_unique< AnchorType >( tct.anchor ) }
                  , Link::LinkPtr{ std::make_unique< TailLink >( tct.tail_link ) } };
 }
 

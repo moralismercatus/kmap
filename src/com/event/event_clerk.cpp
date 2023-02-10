@@ -512,7 +512,7 @@ auto EventClerk::install_registered()
     auto rv = KMAP_MAKE_RESULT( void );
 
     for( auto const& path : registered_outlets
-                             | ranges::views::keys )
+                          | ranges::views::keys )
     {
         KTRY( install_outlet( path ) );
     }
@@ -564,12 +564,14 @@ auto match_requisites( Kmap const& km
     auto const rreq_srcs = view::make( eroot )
                         | view::child( "requisite" )
                         | view::direct_desc( view::all_of( alias_paths ) )
-                        | view::to_node_set( km );
+                        | view::to_node_set( km )
+                        | ranges::to< std::vector >();
     auto const oreq_srcs = view::make( lnode )
                          | view::child( "requisite" )
                          | view::alias
                          | view::resolve
-                         | view::to_node_set( km );
+                         | view::to_node_set( km )
+                         | ranges::to< std::vector >();
 
     rv = ranges::distance( rvs::set_intersection( rreq_srcs, oreq_srcs ) ) == rreq_srcs.size();
 

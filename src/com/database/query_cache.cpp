@@ -19,7 +19,9 @@ namespace kmap::db {
 // auto QueryCache::normalize( view2::Tether const& tether )
 //     -> view2::Tether
 // {
-//     // TODO: Normalize... unless how to achieve this.
+//     // TODO: Normalize... how to achieve this. The idea is to unfity queries into simplified form (e.g., direct_desc( "x.y" ) => child( "x" ) | child( "y" ) )
+//     //       From here, the idea is to detect unique, but semantically equivalent queries. Whether this is actually an efficency improvement or not is TBD.
+//     //       Example would be `X | child | parent | child` being equivalent to simply `X | child`.
 //     return tether;
 // }
 

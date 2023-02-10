@@ -309,7 +309,7 @@ auto Network::create_child( Uuid const& parent
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "parent", parent );
-        KM_RESULT_PUSH_NODE( "child", child );
+        // KM_RESULT_PUSH_NODE( "child", child );
         KM_RESULT_PUSH_STR( "heading", heading );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
@@ -348,17 +348,17 @@ auto Network::create_child( Uuid const& parent
     KMAP_ENSURE( !exists( child ), error_code::create_node::node_already_exists );
     KMAP_ENSURE_MSG( !is_child( parent, heading ), error_code::create_node::duplicate_child_heading, fmt::format( "{}:{}", absolute_path_flat( km, parent ), heading ) );
 
-    auto const rpid = alias_store().resolve( parent );
+    auto const rparent = alias_store().resolve( parent );
 
-    KTRY( create_child_internal( rpid, child, heading, title ) );
+    KTRY( create_child_internal( rparent, child, heading, title ) );
 
     if( !attr::is_in_attr_tree( km, child ) ) // TODO: What is the purpose of this check? And what's with it's name? Something feels half-baked about this...
     {
         KTRY( attr::push_genesis( km, child ) );
-        KTRY( attr::push_order( km, rpid, child ) );
+        KTRY( attr::push_order( km, rparent, child ) );
     }
 
-    KTRY( update_aliases( parent ) );
+    KTRY( create_child_aliases( rparent, child ) );
 
     rv = child;
 
@@ -684,9 +684,9 @@ auto Network::erase_node_internal( Uuid const& id )
     {
         // Delete children.
         for( auto const children = view::make( id )
-                                | view::child
-                                | view::to_node_set( km )
-                                | act::order( km )
+                                 | view::child
+                                 | view::to_node_set( km )
+                                 | act::order( km )
            ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
         {
             if( is_top_alias( e ) )
@@ -834,7 +834,7 @@ auto Network::erase_attr( Uuid const& id )
 // TODO: impl. body belongs in path.cpp
 auto Network::distance( Uuid const& ancestor
                       , Uuid const& descendant ) const
-    -> uint32_t
+    -> uint32_t // TODO: Result< uint32_t >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "ancestor", ancestor );
@@ -1413,11 +1413,9 @@ auto Network::fetch_children( Uuid const& parent ) const
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            // BC_ASSERT( alias_set_.size() == alias_child_set_.size() );
-
             for( auto const& e : rv )
             {
-                BC_ASSERT( exists( e ) );
+                BC_ASSERT( parent == KTRYE( fetch_parent( e ) ) );
             }
         })
     ;
@@ -1442,7 +1440,258 @@ auto Network::fetch_children( Uuid const& parent ) const
 
     auto const all = views::concat( db_children, alias_children )
                    | to< kmap::UuidSet >();
+
     return all;
+    // TODO:
+    // rv = all;
+    // return rv;
+}
+
+auto Network::fetch_children_ordered( Uuid const& parent ) const
+    -> Result< UuidVec >
+{ 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "parent", parent );
+
+    auto rv = result::make_result< UuidVec >();
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                for( auto const& e : rv.value() )
+                {
+                    BC_ASSERT( parent == KTRYE( fetch_parent( e ) ) );
+                }
+            }
+        })
+    ;
+
+    KMAP_ENSURE( exists( parent ), error_code::network::invalid_node );
+
+    auto const& km = kmap_inst();
+    auto const unord_children = fetch_children( parent );
+
+    if( unord_children.empty() )
+    {
+        rv = UuidVec{};
+    }
+    else
+    {
+        auto const r_to_a_map = unord_children
+                              | rvs::transform( [ & ]( auto const& n ){ return std::pair{ resolve( n ), n }; } )
+                              | ranges::to< std::map >();
+        auto const ordering_str = KTRY( anchor::node( parent )
+                                | view2::attr
+                                | view2::child( "order" )
+                                | act2::fetch_body( km ) );
+        auto const split = ordering_str
+                         | rvs::split( '\n' )
+                         | ranges::to< std::vector< std::string > >();
+
+        rv = split
+           | rvs::transform( [ & ]( auto const& s ) { return r_to_a_map.at( KTRYE( uuid_from_string( s ) ) ); } )
+           | ranges::to< std::vector >();
+    }
+
+    return rv;
+}
+
+SCENARIO( "Network::fetch_children_ordered", "[nw][iface][order]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = km.root_node_id();
+
+    GIVEN( "/" )
+    {
+        THEN( "foc( / ) => {}" )
+        {
+            auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( root ) );
+
+            REQUIRE( ov == UuidVec{} );
+        }
+
+        GIVEN( "/1" )
+        {
+            auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+
+            THEN( "foc( / ) => { 1 }" )
+            {
+                auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( root ) );
+
+                REQUIRE( ov == UuidVec{ n1 } );
+            }
+
+            GIVEN( "/2" )
+            {
+                auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+
+                THEN( "fco( / ) => { 1, 2 }" )
+                {
+                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( root ) );
+
+                    REQUIRE( ov == UuidVec{ n1, n2 } );
+                }
+
+                GIVEN( "/3" )
+                {
+                    auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+
+                    THEN( "fco( / ) => { 1, 2, 3 }" )
+                    {
+                        auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( root ) );
+
+                        REQUIRE( ov == UuidVec{ n1, n2, n3 } );
+                    }
+
+                    GIVEN( "alias /2.1[/1]" )
+                    {
+                        auto const a21 = REQUIRE_TRY( nw->create_alias( n1, n2 ) );
+
+                        THEN( "fco( 2 ) => { 2.1[/1] }" )
+                        {
+                            auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( n2 ) );
+
+                            REQUIRE( ov == UuidVec{ a21 } );
+                        }
+                        THEN( "fco( 2.1[/1] ) => {}" )
+                        {
+                            auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a21 ) );
+
+                            REQUIRE( ov == UuidVec{} );
+                        }
+
+                        GIVEN( "alias /3.2[/2]" )
+                        {
+                            auto const a32 = REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+                            auto const a321 = REQUIRE_TRY( anchor::node( a32 ) | view2::alias | act2::fetch_node( km ) );
+
+                            THEN( "fco( 3 ) => { 3.2[/2] }" )
+                            {
+                                auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( n3 ) );
+
+                                REQUIRE( ov == UuidVec{ a32 } );
+                            }
+                            THEN( "fco( 3.2[/2] ) => { 3.2.1[/1] }" )
+                            {
+                                auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a32 ) );
+
+                                REQUIRE( ov == UuidVec{ a321 } );
+                            }
+                            THEN( "fco( 3.2.1[/1] ) => {}" )
+                            {
+                                auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a321 ) );
+
+                                REQUIRE( ov == UuidVec{} );
+                            }
+
+                            GIVEN( "/1.x" )
+                            {
+                                auto const n1x = REQUIRE_TRY( nw->create_child( n1, "x" ) );
+                                auto const a21x = REQUIRE_TRY( anchor::node( a21 ) | view2::alias( view2::resolve( n1x ) ) | act2::fetch_node( km ) );
+                                auto const a321x = REQUIRE_TRY( anchor::node( a321 ) | view2::alias( view2::resolve( n1x ) ) | act2::fetch_node( km ) );
+
+                                THEN( "fco( 1 ) => { 1.x }" )
+                                {
+                                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( n1 ) );
+
+                                    REQUIRE( ov == UuidVec{ n1x } );
+                                }
+                                THEN( "fco( 1.x ) => {}" )
+                                {
+                                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( n1x ) );
+
+                                    REQUIRE( ov == UuidVec{} );
+                                }
+                                THEN( "fco( 2.1 ) => { 2.1.x[/1.x] }" )
+                                {
+                                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a21 ) );
+
+                                    REQUIRE( ov == UuidVec{ a21x } );
+                                }
+                                THEN( "fco( 2.1.x[/1.x] ) => {}" )
+                                {
+                                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a21x ) );
+
+                                    REQUIRE( ov == UuidVec{} );
+                                }
+                                THEN( "fco( 3.2.1 ) => { 3.2.1.x[/1.x] }" )
+                                {
+                                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a321 ) );
+
+                                    REQUIRE( ov == UuidVec{ a321x } );
+                                }
+                                THEN( "fco( 3.2.1.x[/1.x] ) => {}" )
+                                {
+                                    auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a321x ) );
+
+                                    REQUIRE( ov == UuidVec{} );
+                                }
+
+                                GIVEN( "/1.y" )
+                                {
+                                    auto const n1y = REQUIRE_TRY( nw->create_child( n1, "y" ) );
+                                    auto const a21y = REQUIRE_TRY( anchor::node( a21 ) | view2::alias( view2::resolve( n1y ) ) | act2::fetch_node( km ) );
+                                    auto const a321y = REQUIRE_TRY( anchor::node( a321 ) | view2::alias( view2::resolve( n1y ) ) | act2::fetch_node( km ) );
+
+                                    THEN( "fco( 1 ) => { 1.x, 1.y }" )
+                                    {
+                                        auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( n1 ) );
+
+                                        REQUIRE( ov == UuidVec{ n1x, n1y } );
+                                    }
+                                    THEN( "fco( 2.1 ) => { 2.1.x[/1.x], 2.1.y[/1.y] }" )
+                                    {
+                                        auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a21 ) );
+
+                                        REQUIRE( ov == UuidVec{ a21x, a21y } );
+                                    }
+                                    THEN( "fco( 3.2.1 ) => { 3.2.1.x[/1.x], 3.2.1.y[/1.y] }" )
+                                    {
+                                        auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a321 ) );
+
+                                        REQUIRE( ov == UuidVec{ a321x, a321y } );
+                                    }
+
+                                    GIVEN( "/1.z" )
+                                    {
+                                        KMAP_LOG_LINE();
+                                        auto const n1z = REQUIRE_TRY( nw->create_child( n1, "z" ) );
+                                        KMAP_LOG_LINE();
+                                        auto const a21z = REQUIRE_TRY( anchor::node( a21 ) | view2::alias( view2::resolve( n1z ) ) | act2::fetch_node( km ) );
+                                        auto const a321z = REQUIRE_TRY( anchor::node( a321 ) | view2::alias( view2::resolve( n1z ) ) | act2::fetch_node( km ) );
+
+                                        THEN( "fco( 1 ) => { 1.x, 1.y, 1.z }" )
+                                        {
+                                            auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( n1 ) );
+
+                                            REQUIRE( ov == UuidVec{ n1x, n1y, n1z } );
+                                        }
+                                        THEN( "fco( 2.1 ) => { 2.1.x[/1.x], 2.1.y[/1.y], 2.1.z[/1.z] }" )
+                                        {
+                                            auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a21 ) );
+
+                                            REQUIRE( ov == UuidVec{ a21x, a21y, a21z } );
+                                        }
+                                        THEN( "fco( 3.2.1 ) => { 3.2.1.x[/1.x], 3.2.1.y[/1.y], 3.2.1.y[/1.z] }" )
+                                        {
+                                            auto const ov = REQUIRE_TRY( nw->fetch_children_ordered( a321 ) );
+
+                                            REQUIRE( ov == UuidVec{ a321x, a321y, a321z } );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 auto Network::fetch_heading( Uuid const& node ) const
@@ -1538,7 +1787,7 @@ auto Network::fetch_ordering_position( Uuid const& node ) const
     return rv;
 }
 
-SCENARIO( "fetch_ordering_position", "[nw][iface][order]" )
+SCENARIO( "Network::fetch_ordering_position", "[nw][iface][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1556,21 +1805,6 @@ SCENARIO( "fetch_ordering_position", "[nw][iface][order]" )
 
         WHEN( "fetch_ordering_position of alias parent" )
         {
-            {
-                auto const pa31 = REQUIRE_TRY( nw->fetch_parent( a31 ) );
-                auto const porder = REQUIRE_TRY( view::make( pa31 )
-                                        | view::resolve
-                                        | view::attr
-                                        | view::child( "order" )
-                                        | view::fetch_node( kmap ) );
-                auto const body = REQUIRE_TRY( nw->fetch_body( porder ) );
-                fmt::print( "a21 id: {}\n", to_string( a21 ) );
-                fmt::print( "resolve( a21 ) id: {}\n", to_string( nw->resolve( a21 ) ) );
-                fmt::print( "a31 id: {}\n", to_string( a31 ) );
-                fmt::print( "resolve( a31 ) id: {}\n", to_string( nw->resolve( a31 ) ) );
-                fmt::print( "pa31 order.body: {}\n", body );
-            }
-
             THEN( "aliases are ordered properly" )
             {
                 auto const a21_pos = REQUIRE_TRY( nw->fetch_ordering_position( a21 ) );
@@ -2117,16 +2351,23 @@ auto Network::select_node( Uuid const& id )
 
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
 
-    // TODO: Calling upon com::EventStore is problematic, as EventStore relies on this, com::Network, in initialization order.
-    auto const estore = KTRY( fetch_component< com::EventStore >() );
     auto const prev_selected = selected_node();
     selected_node_ = id;
 
-    KTRY( estore->install_subject( "kmap" ) );
-    KTRY( estore->install_verb( "selected") );
-    KTRY( estore->install_object( "node") );
-    KTRY( estore->fire_event( { "subject.network", "verb.selected", "object.node" } ) );
+    // TODO: Calling upon com::EventStore is problematic, as EventStore relies on this, com::Network, in initialization order.
+    //       For now, checking for corner cases when this situation occurs, and not firing when event_store is not available.
+    //       Cyclic dependency. EventStore relies on Network, and Network, here, is relying on EventStore.
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        auto const& estorev = estore.value();
 
+        KTRY( estorev->install_subject( "kmap" ) );
+        KTRY( estorev->install_verb( "selected") );
+        KTRY( estorev->install_object( "node") );
+        KTRY( estorev->fire_event( { "subject.network", "verb.selected", "object.node" } ) );
+    }
+      
     // Q: I notice that the event system (above estore->fire_event) introduces an unpredictability into the flow.
     //    Fire this thing mid flow, then a listener can do _whatever_ it wants (no restrictions), and hopefully the rest of the function (or greater flow)
     //    can complete without being broken/compromised.
@@ -2398,8 +2639,8 @@ auto Network::adjust_selected( Uuid const& root ) const
     }
 }
 
-auto Network::are_siblings( Uuid const& n1
-                          , Uuid const& n2 ) const
+auto Network::is_sibling( Uuid const& n1
+                        , Uuid const& n2 ) const
     -> bool
 {
     BC_CONTRACT()
@@ -2736,7 +2977,6 @@ auto Network::fetch_visible_nodes_from( Uuid const& id ) const
     auto const limited_lineage = lineage
                                | ranges::views::take_last( 5 ) // TODO: This max should be drawn from options.
                                | ranges::to< std::vector >();
-    auto const lineage_set = limited_lineage | to< std::set< Uuid > >();
 
     BC_ASSERT( !lineage.empty() );
 
@@ -2750,12 +2990,11 @@ auto Network::fetch_visible_nodes_from( Uuid const& id ) const
                                    | act::order( km )
           ; all_ordered.size() > 0 )
         {
-            auto const all_ordered_set = all_ordered | to< std::set< Uuid > >();
             auto const sub_ordered = [ & ]() -> std::vector< Uuid >
             {
                 auto const range_size = 10u;
 
-                if( auto const intersect = views::set_intersection( all_ordered_set, lineage_set )
+                if( auto const intersect = views::set_intersection( all_ordered, limited_lineage )
                   ; begin( intersect ) != end( intersect ) )
                 {
                     // TODO: BC_ASSERT( distance( intersect ) == 1 );
@@ -2780,6 +3019,32 @@ auto Network::fetch_visible_nodes_from( Uuid const& id ) const
                      , sub_ordered.end() );
         }
     }
+
+    return rv;
+}
+
+auto Network::create_child_aliases( Uuid const& src
+                                  , Uuid const& child )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", src );
+        
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const& astore = alias_store();
+
+    KMAP_ENSURE( exists( src ), error_code::common::uncategorized );
+    KMAP_ENSURE( !is_alias( src ), error_code::common::uncategorized );
+    KMAP_ENSURE( !is_alias( child ), error_code::common::uncategorized );
+    KMAP_ENSURE( anchor::node( src ) | view2::child( child ) | act2::exists( kmap_inst() ), error_code::common::uncategorized );
+
+    for( auto const dsts = astore.fetch_aliases( AliasItem::rsrc_type{ src } )
+       ; auto const& dst : dsts )
+    {
+        KTRY( create_alias_leaf( child, dst ) );
+    }
+
+    rv = outcome::success();
 
     return rv;
 }

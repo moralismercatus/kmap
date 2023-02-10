@@ -44,7 +44,6 @@ SCENARIO( "view::operator|TetherCT Link", "[node_view][link]" )
             auto const tv = outlet_root
                           | view2::desc( outlet )
                           | requisite;
-            fmt::print( "failing: {}\n", tv | act2::to_string );
 
             THEN( "properties check out" )
             {

@@ -68,8 +68,18 @@ auto Ancestor::fetch( FetchContext const& ctx
             }
         ,   [ & ]( LinkPtr const& pred )
             {
-                auto const ancestors = view2::ancestor.fetch( ctx, node );
-                auto const ns = anchor::node( node ) | pred | act::to_fetch_set( ctx );
+                auto const ancestors = [ & ]
+                {
+                    auto t = view2::ancestor.fetch( ctx, node ) | ranges::to< std::vector >();
+                    ranges::sort( t );
+                    return t;
+                }();
+                auto const ns = [ & ] 
+                {
+                    auto t = anchor::node( node ) | pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    ranges::sort( t );
+                    return t;
+                }();
 
                 return rvs::set_intersection( ancestors, ns )
                      | ranges::to< FetchSet >();
@@ -77,21 +87,20 @@ auto Ancestor::fetch( FetchContext const& ctx
         ,   [ & ]( Tether const& pred )
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const ancestors = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const ancestors = [ & ]
                 {
                     auto t = view2::ancestor.fetch( ctx, node ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
                 }();
-                auto const ns = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const ns = [ & ]
                 {
                     auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
                 }();
 
-                // Note: set_intersection requires two sorted ranges.
-                return rvs::set_intersection( ancestors, ns )
+                return rvs::set_intersection( ancestors, ns ) // Note: set_intersection requires two sorted ranges.
                      | ranges::to< FetchSet >();
             }
         };
