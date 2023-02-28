@@ -24,7 +24,6 @@ auto operator|( Tether const& lhs
               , Count const& rhs )
     -> unsigned
 {
-    fmt::print( "[act::count] {}\n", lhs | act::to_string );
     return ( lhs | act::to_node_set( rhs.km ) ).size();
 }
 

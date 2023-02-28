@@ -22,6 +22,7 @@
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <emscripten/val.h>
 #include <openssl/md5.h>
@@ -516,6 +517,17 @@ auto is_valid_heading( Heading const& heading )
     -> bool
 {
     return !fetch_first_invalid( heading );
+}
+
+SCENARIO( "is_valid_heading", "[network]" )
+{
+    REQUIRE( is_valid_heading( "1" ) );
+    REQUIRE( is_valid_heading( "11" ) );
+    REQUIRE( is_valid_heading( "_" ) );
+    REQUIRE( is_valid_heading( "1_" ) );
+    REQUIRE( is_valid_heading( "_1" ) );
+    REQUIRE( is_valid_heading( "x" ) );
+    REQUIRE( is_valid_heading( "xyz" ) );
 }
 
 // TODO: Belongs in path.cpp, not common utility.
@@ -1168,16 +1180,16 @@ auto print_tree( Kmap const& km
           | view2::left_lineal( "$" )
           | act2::exists( km ) )
         {
-            return view::make( root )
-                 | view::child
-                 | view::to_node_set( km )
+            return anchor::node( root )
+                 | view2::child
+                 | act2::to_node_set( km )
                  | ranges::to< std::vector >();
         }
         else
         {
-            return view::make( root )
-                 | view::child
-                 | view::to_node_set( km )
+            return anchor::node( root )
+                 | view2::child
+                 | act2::to_node_set( km )
                  | act::order( km );
         }
     }();
@@ -1217,16 +1229,16 @@ auto print_tree( Kmap const& km
           | view2::left_lineal( "$" )
           | act2::exists( km ) )
         {
-            return view::make( root )
-                 | view::child
-                 | view::to_node_set( km )
+            return anchor::node( root )
+                 | view2::child
+                 | act2::to_node_set( km )
                  | ranges::to< std::vector >();
         }
         else
         {
-            return view::make( root )
-                 | view::child
-                 | view::to_node_set( km )
+            return anchor::node( root )
+                 | view2::child
+                 | act2::to_node_set( km )
                  | act::order( km );
         }
     }();
@@ -1427,9 +1439,9 @@ auto fetch_siblings_ordered( Kmap const& km
     {
         auto const siblings = [ & ]
         {
-            auto const children = view::make( parent.value() )
-                                | view::child
-                                | view::to_node_set( km )
+            auto const children = anchor::node( parent.value() )
+                                | view2::child
+                                | act2::to_node_set( km )
                                 | act::order( km );
 
             return children
@@ -1447,10 +1459,10 @@ auto fetch_siblings_inclusive( Kmap const& kmap
                              , Uuid const& id )
     -> UuidSet
 {
-    return view::make( id )
-         | view::parent
-         | view::child
-         | view::to_node_set( kmap );
+    return anchor::node( id )
+         | view2::parent
+         | view2::child
+         | act2::to_node_set( kmap );
 }
 
 auto fetch_siblings_inclusive_ordered( Kmap const& kmap

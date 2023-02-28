@@ -11,6 +11,7 @@
 #include "component.hpp"
 #include "js_iface.hpp"
 #include "kmap.hpp"
+#include "path/node_view2.hpp"
 
 #include <map>
 #include <memory>
@@ -63,15 +64,6 @@ struct Dimensions
 auto operator<<( std::ostream& lhs 
                , Dimensions const& rhs )
     -> std::ostream&;
-
-[[ nodiscard ]]
-auto fetch_overlay_root( Kmap& kmap )
-    -> Result< Uuid >;
-auto fetch_overlay_root( Kmap const& kmap )
-    -> Result< Uuid >;
-[[ nodiscard ]]
-auto fetch_subdiv_root( Kmap& kmap )
-    -> Result< Uuid >;
 
 /**
  * It should be noted that subdivisions, and their hierarchies, are represented as nodes, so all actions except for "update_*" change the node
@@ -131,10 +123,6 @@ public:
     [[ nodiscard ]]
     auto expand_path( std::string const& path )
         -> std::string;
-    auto fetch_canvas_root()
-        -> Result< Uuid >;
-    auto fetch_canvas_root() const
-        -> Result< Uuid >;
     [[ nodiscard ]]
     auto fetch_pane( std::string const& path )
         -> Result< Uuid >;
@@ -276,6 +264,16 @@ protected:
 // begin/end for iterating through all subdivisions. Just return begin/end to map< path, Division >
 
 } // namespace kmap::com
+
+namespace kmap::view2::canvas
+{
+    auto const window_root = anchor::abs_root
+                           | view2::direct_desc( "meta.setting.window" );
+    auto const canvas_root = window_root
+                           | view2::child( "canvas" );
+    auto const overlay_root = canvas_root
+                            | view2::child( "overlay" );
+}
 
 namespace kmap
 {

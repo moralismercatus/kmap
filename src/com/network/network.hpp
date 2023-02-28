@@ -172,7 +172,9 @@ public:
         -> Result< Uuid >;
     auto fetch_title( Uuid const& node ) const
         -> Result< Title >;
-    auto fetch_visible_nodes_from( Uuid const& node ) const
+    auto fetch_visible_nodes_from( Uuid const& node
+                                 , unsigned const& horizontal_max
+                                 , unsigned const& vertical_max ) const
         -> std::vector< Uuid >;
     [[ nodiscard ]]
     auto is_alias( Uuid const& node ) const

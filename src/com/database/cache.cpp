@@ -24,7 +24,7 @@
 
 using namespace ranges;
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 // auto NodesTable::contains( Uuid const& key ) const
 //     -> bool
@@ -742,4 +742,4 @@ auto create_delta( Cache const& cache
 }
 #endif // 0
 
-} // namespace kmap::db
+} // namespace kmap::com::db

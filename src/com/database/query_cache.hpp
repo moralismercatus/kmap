@@ -10,7 +10,7 @@
 #include "common.hpp"
 #include "path/node_view2.hpp"
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 class QueryCache
 {
@@ -35,7 +35,7 @@ public:
         -> TetherMap::const_iterator;
 };
 
-} // kmap::db
+} // kmap::com::db
 
 
 #endif // KMAP_DB_QUERY_CACHE_HPP

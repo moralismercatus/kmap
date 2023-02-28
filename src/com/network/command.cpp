@@ -302,10 +302,80 @@ auto NetworkCommand::register_standard_commands()
         using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
-        auto const description = "erases node";
+        auto const description = "moves node to destination path";
         auto const arguments = std::vector< Argument >{ Argument{ "destination_path", "path to destination node", "heading_path" } };
         auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "move.node" // TODO: erase as alias.
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+    // move.up
+    {
+        auto const guard_code = // TODO: Has node above...
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const sel = nw.selected_node();
+        const other = kmap.fetch_above( sel ); other.throw_on_error();
+
+        kmap.swap_nodes( sel, other.value() ).throw_on_error();
+
+        nw.select_node( sel ).throw_on_error();
+
+        rv = kmap.success( 'node moved' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "swaps node with node above";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "move.up" // TODO: move.node.up with move.up as alias.
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = guard
+                                    , .action = action_code };
+
+        cclerk_.register_command( command );
+    }
+    // move.down
+    {
+        auto const guard_code = // TODO: Has node below...
+        R"%%%(
+            return kmap.success( 'success' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const sel = nw.selected_node();
+        const other = kmap.fetch_below( sel ); other.throw_on_error();
+
+        kmap.swap_nodes( sel, other.value() ).throw_on_error();
+
+        nw.select_node( sel ).throw_on_error();
+
+        rv = kmap.success( 'node moved' );
+
+        return rv;
+        )%%%";
+
+        using Guard = com::Command::Guard;
+        using Argument = com::Command::Argument;
+
+        auto const description = "swaps node with node below";
+        auto const arguments = std::vector< Argument >{};
+        auto const guard = Guard{ "unconditional", guard_code };
+        auto const command = Command{ .path = "move.down" // TODO: move.node.down with move.down as alias.
                                     , .description = description
                                     , .arguments = arguments
                                     , .guard = guard

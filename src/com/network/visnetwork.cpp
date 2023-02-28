@@ -398,7 +398,7 @@ auto VisualNetwork::select_node( Uuid const& id )
     ;
 
     auto prev_sel = js::call< val >( *js_nw_, "selected_node_id" );
-    auto const visible_nodes = nw->fetch_visible_nodes_from( id );
+    auto const visible_nodes = nw->fetch_visible_nodes_from( id, 5, 10 );
     auto const visible_node_set = UuidSet{ visible_nodes.begin(), visible_nodes.end() };
     auto create_edge = [ & ]( auto const& nid )
     {
@@ -970,6 +970,7 @@ auto VisualNetwork::register_standard_events()
     // Well, trying to figure out here the best way to handle network changes reflection in vis.
     // Of course, the verbose way is to handle each network-altering event (move, erase, create, etc.) and select node on it.
     // Another would be to somehow treat all altering verbs to one outlet such that a re-selection (update) was done.
+    // TODO: Do these really belong in visnetwork? I don't think visnetwork is, strictly speaking, a dependecy for these. Rather, it's the network that's the dependency.
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node"
                                  , .requisites = { "subject.network", "verb.selected", "object.node" }
                                  , .description = "updates network with selected node"

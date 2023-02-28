@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include "path/view/direct_desc.hpp"
 
+#include "contract.hpp"
 #include "com/network/network.hpp"
 #include "kmap.hpp"
 #include "path.hpp"
@@ -27,7 +28,37 @@ auto DirectDesc::create( CreateContext const& ctx
                        , Uuid const& root ) const
     -> Result< UuidSet >
 {
-    return result::make_result< UuidSet >();
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "root", root );
+
+    auto rv = result::make_result< UuidSet >();
+
+    if( pred_ )
+    {
+        auto dispatch = util::Dispatch
+        {
+            [ & ]( char const* pred ) -> Result< UuidSet >
+            {
+                return view2::direct_desc( std::string{ pred } ).create( ctx, root );
+            }
+        ,   [ & ]( std::string const& pred ) -> Result< UuidSet >
+            {
+                auto const ds = KTRY( create_descendants( ctx.km, root, root, fmt::format( "/{}", pred ) ) );
+
+                BC_ASSERT( !ds.empty() );
+
+                return UuidSet{ ds.back() };
+            }
+        ,   [ & ]( Uuid const& pred ) -> Result< UuidSet >
+            {
+                KMAP_THROW_EXCEPTION_MSG( "invalid node qualifier" );
+            }
+        };
+
+        rv = KTRY( std::visit( dispatch, pred_.value() ) );
+    }
+
+    return rv;
 }
 
 auto DirectDesc::fetch( FetchContext const& ctx

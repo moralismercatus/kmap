@@ -214,9 +214,10 @@ auto ComponentStore::fire_initialized( std::string const& id )
         auto const [ name, cctor ] = *uc_it; // Note: No reference. Iterator become invalid.
         auto com = cctor->construct( km_ );
 
-        fmt::print( "[component] initializing: {}\n", name );
-
-        KTRY( com->initialize() );
+        {
+            KMAP_TIME_SCOPE( fmt::format( "[component] initializing: {}", id ) );
+            KTRY( com->initialize() );
+        }
 
         initialized_components_.emplace( name, com );
 

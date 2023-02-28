@@ -21,7 +21,6 @@ SCENARIO( "event manipulation", "[event]" )
 
     auto& kmap = Singleton::instance();
     auto const estore = REQUIRE_TRY( kmap.fetch_component< com::EventStore >() );
-    auto const eroot = REQUIRE_TRY( estore->event_root() );
 
     GIVEN( "no event state" )
     {
@@ -31,39 +30,14 @@ SCENARIO( "event manipulation", "[event]" )
 
             THEN( "corresponding action node structrue exists" )
             {
-                REQUIRE(( view::make( eroot )
-                        | view::desc( "verb.depressed" )
-                        | view::exists( kmap ) ));
+                REQUIRE(( view2::event::verb_root
+                        | view2::direct_desc( "depressed" )
+                        | act2::exists( kmap ) ));
             }
 
             REQUIRE( succ( kmap.root_view() 
                          | view::child( "meta" )
                          | view::erase_node( kmap ) ) );
-        }
-        WHEN( "install source" )
-        {
-            // REQUIRE( succ( estore.install_source( "keyboard.key_down"
-            //                                     , "Key press down fired once until 'up' event."
-            //                                     , R"%%%( kmap.network().install_keydown_handler().value_or_throw(); )%%%" ) ) );
-
-            // THEN( "corresponding action node structrue exists" )
-            // {
-            //     REQUIRE(( kmap.make_view( estore.event_root() )
-            //             | view::desc( ".source.network.key_down" )
-            //             | view::exists ));
-            //     REQUIRE(( kmap.make_view( estore.event_root() )
-            //             | view::desc( ".source.network.key_down.description" )
-            //             | view::exists ));
-            //     REQUIRE(( kmap.make_view( estore.event_root() )
-            //             | view::desc( ".source.network.key_down.installation" )
-            //             | view::exists ));
-            // }
-
-            // auto const metanode = kmap.make_view() 
-            //                     | view::child( "meta" )
-            //                     | view::fetch_node; // TODO: view::erase_nodes
-            // REQUIRE( succ( metanode ) );
-            // REQUIRE( succ( nw->erase_node( metanode.value() ) ) );
         }
     }
 }

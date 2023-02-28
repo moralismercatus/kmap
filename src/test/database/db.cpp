@@ -19,7 +19,7 @@
 namespace fs = boost::filesystem;
 namespace utf = boost::unit_test;
 using namespace kmap;
-using namespace kmap::db;
+using namespace kmap::com::db;
 using namespace kmap::test;
 
 SCENARIO( "DB basics manipulated", "[db]" )
@@ -130,7 +130,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         
         REQUIRE( succ( db.push_node( nid ) ) );
 
-        auto const& table = static_cast< com::Database const& >( db ).cache().fetch< db::NodeTable >();
+        auto const& table = static_cast< com::Database const& >( db ).cache().fetch< com::db::NodeTable >();
 
         REQUIRE( ranges::distance( table ) == 1 );
 
@@ -232,7 +232,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         REQUIRE( succ( db.push_heading( nid, h1 ) ) );
         fmt::print( "push_heading( {} )\n", to_string( nid ) );
 
-        auto const& table = std::as_const( db ).cache().fetch< db::HeadingTable >();
+        auto const& table = std::as_const( db ).cache().fetch< com::db::HeadingTable >();
 
         REQUIRE( ranges::distance( table ) == 1 );
 
@@ -273,7 +273,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
             }
             THEN( "db.fetch still finds item" )
             {
-                REQUIRE( db.contains< db::HeadingTable >( nid ) );
+                REQUIRE( db.contains< com::db::HeadingTable >( nid ) );
             }
             THEN( "item exists on disk" )
             {
@@ -339,7 +339,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
                 }
                 THEN( "db.fetch still finds item" )
                 {
-                    REQUIRE( db.contains< db::HeadingTable >( nid ) );
+                    REQUIRE( db.contains< com::db::HeadingTable >( nid ) );
                 }
                 THEN( "item exists on disk" )
                 {
@@ -406,7 +406,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         REQUIRE( succ( db.push_node( n2 ) ) ); // TODO: think this one is necessary...
         REQUIRE( succ( db.push_child( n1, n2 ) ) );
 
-        auto const& table = std::as_const( db ).cache().fetch< db::ChildTable >();
+        auto const& table = std::as_const( db ).cache().fetch< com::db::ChildTable >();
 
         REQUIRE( ranges::distance( table ) == 1 );
 
@@ -447,7 +447,7 @@ SCENARIO( "db interacts with disk", "[db][env]" )
             }
             THEN( "db.fetch still finds item" )
             {
-                REQUIRE( db.contains< db::ChildTable >( db::Right{ n2 } ) );
+                REQUIRE( db.contains< com::db::ChildTable >( com::db::Right{ n2 } ) );
             }
             THEN( "item exists on disk" )
             {

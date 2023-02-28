@@ -41,7 +41,7 @@ class Tether;
 struct CreateContext
 {
     Kmap& km;
-    Tether const& chain;
+    Tether const& tether;
 };
 struct FetchContext
 {
@@ -56,7 +56,7 @@ struct FetchContext
     }
     FetchContext( CreateContext const& ctx )
         : km{ ctx.km }
-        , tether{ ctx.chain }
+        , tether{ ctx.tether }
     {
     }
 };

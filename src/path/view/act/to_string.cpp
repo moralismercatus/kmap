@@ -8,7 +8,6 @@
 #include "contract.hpp"
 #include "kmap.hpp"
 #include "path/view/anchor/anchor.hpp"
-#include "path/view/chain.hpp"
 #include "path/view/tether.hpp"
 
 #include <catch2/catch_test_macros.hpp>

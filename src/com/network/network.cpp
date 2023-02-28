@@ -2799,7 +2799,7 @@ auto Network::travel_top()
                             | view::to_node_set( km )
                             | act::order( km );
 
-        select_node( children.front() ).value();
+        KTRYE( select_node( children.front() ) );
 
         rv = children.front();
     }
@@ -2948,7 +2948,10 @@ auto Network::fetch_child( Uuid const& parent
     return rv;
 }
 
-auto Network::fetch_visible_nodes_from( Uuid const& id ) const
+// TODO: Utility, should be free func.
+auto Network::fetch_visible_nodes_from( Uuid const& id
+                                      , unsigned const& horizontal_max
+                                      , unsigned const& vertical_max ) const
     -> std::vector< Uuid >
 { 
     auto rv = std::vector< Uuid >{};
@@ -2966,61 +2969,155 @@ auto Network::fetch_visible_nodes_from( Uuid const& id ) const
                 BC_ASSERT( exists( e ) );
             }
             auto const s = UuidSet{ rv.begin(), rv.end() };
-            BC_ASSERT( rv.size() == s.size() );
+            BC_ASSERT( s.contains( id ) ); // Visible must include node itself.
+            BC_ASSERT( rv.size() == s.size() ); // No duplicate nodes.
         })
     ;
 
-    auto const lineage = view::make( id )
-                       | view::lineage/*( view::count( 5 ) ), rather than take_last( N )*/
-                       | view::to_node_set( km )
+    auto const lineage = anchor::node( id )
+                       | view2::left_lineal
+                       | act2::to_node_set( km )
                        | act::order( km );
     auto const limited_lineage = lineage
-                               | ranges::views::take_last( 5 ) // TODO: This max should be drawn from options.
+                               | ranges::views::take_last( horizontal_max )
                                | ranges::to< std::vector >();
 
-    BC_ASSERT( !lineage.empty() );
-
-    rv.emplace_back( lineage[ 0 ] );
-
-    for( auto const& e : lineage )
+    auto push = [ &rv ]( auto const& r ) mutable
     {
-        if( auto const all_ordered = view::make( e )
-                                   | view::child
-                                   | view::to_node_set( km )
-                                   | act::order( km )
-          ; all_ordered.size() > 0 )
+        rv.insert( rv.end(), r.begin(), r.end() );
+    };
+
+    for( auto const& e : limited_lineage )
+    {
+        auto const siblings_ordered = anchor::node( e )
+                                    | view2::sibling_incl
+                                    | act2::to_node_set( km )
+                                    | act::order( km );
+        auto const limited_siblings = select_median_range( siblings_ordered, e, vertical_max );
+
+        if( e == id )
         {
-            auto const sub_ordered = [ & ]() -> std::vector< Uuid >
+            for( auto const& sibling : limited_siblings )
             {
-                auto const range_size = 10u;
+                rv.emplace_back( sibling );
 
-                if( auto const intersect = views::set_intersection( all_ordered, limited_lineage )
-                  ; begin( intersect ) != end( intersect ) )
+                if( sibling == id )
                 {
-                    // TODO: BC_ASSERT( distance( intersect ) == 1 );
+                    auto const children_ordered = anchor::node( e )
+                                                | view2::child
+                                                | act2::to_node_set( km )
+                                                | act::order( km );
+                    auto const limited_children = select_median_range( children_ordered, vertical_max );
 
-                    auto const lineal_child = *begin( intersect );
-
-                    return select_median_range( all_ordered
-                                              , lineal_child
-                                              , range_size );
+                    push( limited_children );
                 }
-                else
-                {
-                    return select_median_range( all_ordered
-                                              , range_size );
-                }
+            }
 
-                return {};
-            }();
-
-            rv.insert( rv.end()
-                     , sub_ordered.begin()
-                     , sub_ordered.end() );
+        }
+        else
+        {
+            push( limited_siblings );
         }
     }
 
     return rv;
+}
+
+SCENARIO( "Network::fetch_visible_nodes_from", "[com][nw]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "/" )
+    {
+        THEN( "f( /, h:3, v:3 ): /" )
+        {
+            auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+            REQUIRE( nv == UuidVec{ root } );
+        }
+
+        GIVEN( "/1" )
+        {
+            auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+
+            THEN( "f( /, h:3, v:3 ): /, 1" )
+            {
+                auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                REQUIRE( nv == UuidVec{ root, n1 } );
+            }
+            THEN( "f( 1, h:2, v:2 ): /, 1" )
+            {
+                auto const nv = nw->fetch_visible_nodes_from( root, 2, 2 );
+
+                REQUIRE( nv == UuidVec{ root, n1 } );
+            }
+            THEN( "f( 1, h:1, v:1 ): /, 1" )
+            {
+                auto const nv = nw->fetch_visible_nodes_from( root, 1, 1 );
+
+                REQUIRE( nv == UuidVec{ root, n1 } );
+            }
+
+            GIVEN( "/2" )
+            {
+                auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+
+                THEN( "f( /, h:3, v:3 ): /, 1, 2" )
+                {
+                    auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                    REQUIRE( nv == UuidVec{ root, n1, n2 } );
+                }
+                THEN( "f( 1, h:3, v:3 ): /, 1, 2" )
+                {
+                    auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                    REQUIRE( nv == UuidVec{ root, n1, n2 } );
+                }
+                THEN( "f( 2, h:3, v:3 ): /, 1, 2" )
+                {
+                    auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                    REQUIRE( nv == UuidVec{ root, n1, n2 } );
+                }
+
+                GIVEN( "/3" )
+                {
+                    auto const n3 = REQUIRE_TRY( nw->create_child( root, "3" ) );
+
+                    THEN( "f( /, h:3, v:3 ): /, 1, 2, 3" )
+                    {
+                        auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                        REQUIRE( nv == UuidVec{ root, n1, n2, n3 } );
+                    }
+                    THEN( "f( 1, h:3, v:3 ): /, 1, 2, 3" )
+                    {
+                        auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                        REQUIRE( nv == UuidVec{ root, n1, n2, n3 } );
+                    }
+                    THEN( "f( 2, h:3, v:3 ): /, 1, 2, 3" )
+                    {
+                        auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                        REQUIRE( nv == UuidVec{ root, n1, n2, n3 } );
+                    }
+                    THEN( "f( 3, h:3, v:3 ): /, 1, 2, 3" )
+                    {
+                        auto const nv = nw->fetch_visible_nodes_from( root, 3, 3 );
+
+                        REQUIRE( nv == UuidVec{ root, n1, n2, n3 } );
+                    }
+                }
+            }
+        }
+    }
 }
 
 auto Network::create_child_aliases( Uuid const& src

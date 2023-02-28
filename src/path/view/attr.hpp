@@ -7,7 +7,6 @@
 #ifndef KMAP_PATH_NODE_VIEW2_ATTR_HPP
 #define KMAP_PATH_NODE_VIEW2_ATTR_HPP
 
-#include "path/view/chain.hpp"
 #include "path/view/link.hpp"
 #include "path/view/tether.hpp"
 

@@ -14,7 +14,7 @@
 
 #include <map>
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 // auto QueryCache::normalize( view2::Tether const& tether )
 //     -> view2::Tether
@@ -134,4 +134,4 @@ auto QueryCache::end() const
     return map_.end();
 }
 
-} // kmap::db
+} // kmap::com::db

@@ -10,7 +10,7 @@
 
 using namespace ranges;
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 CacheDeciderSm::CacheDeciderSm( Cache const& cache
                               , OutputPtr output )
@@ -59,4 +59,4 @@ auto make_unique_cache_decider( Cache const& cache )
 //     return { driver, output };
 // }
 
-} // namespace kmap::db
+} // namespace kmap::com::db

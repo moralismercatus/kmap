@@ -7,7 +7,7 @@ set( CMAKE_CXX_STANDARD 20 )
 set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")
 
 add_compile_definitions( ZLIB_CONST=1
-                        BOOST_CONTRACT_STATIC_LINK=1
+                         BOOST_CONTRACT_STATIC_LINK=1
                          BOOST_SML_CFG_DISABLE_MIN_SIZE # See https://github.com/boost-ext/sml/issues/249. Without this defined, UB detected.
                          CATCH_CONFIG_ENABLE_BENCHMARKING=1
                        )
@@ -39,6 +39,7 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
                              BOOST_CONTRACT_DISABLE_THREADS=1
                              NDEBUG=1
                              KMAP_DEBUG=0
+                            #  KMAP_EXCEPTIONS_ENABLED=1
                              KMAP_LOGGING_DB=0
                              KMAP_LOGGING_PATH=0
                              KMAP_LOG_EXCEPTION=1
@@ -49,21 +50,24 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
     add_compile_options( -Wall
                          -O2 
                          -sWASM=1
-                         -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
-                        #  -sEVAL_CTORS )
+                        #  -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
+                        #  -sEVAL_CTORS
+                        )
     add_link_options( -sALLOW_MEMORY_GROWTH=1
                       # -00 # Reduce link times
                       # -sERROR_ON_WASM_CHANGES_AFTER_LINK # Reduce link times
                       # -sWASM_BIGINT # Reduce link times 
-                      -sNO_DISABLE_EXCEPTION_CATCHING ) # Flag must be present in both compile and link options
-                      # -sEVAL_CTORS )
+                      # -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
+                      # -sEVAL_CTORS
+                      )
 else() # Warning: There is a known but in which a false-positive assert is triggered in DEBUG builds for file operations, so avoid using those in this mode.
     add_compile_definitions( KMAP_DEBUG=1 
+                             KMAP_EXCEPTIONS_ENABLED=1
                              KMAP_LOGGING_DB=0
                              KMAP_LOGGING_PATH=0 
-                             KMAP_LOG_KTRY=1
-                             KMAP_LOG_KTRYE=1
                              KMAP_LOG_EXCEPTION=1
+                             KMAP_LOG_KTRY=0
+                             KMAP_LOG_KTRYE=1
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -g3 
                          -O0 
@@ -136,6 +140,7 @@ add_executable( emcc.index.html
                 com/database/query_cache.cpp com/database/query_cache.hpp
                 com/database/root_node.cpp com/database/root_node.hpp
                 com/database/sm.cpp com/database/sm.hpp
+                com/database/util.cpp com/database/util.hpp
                 com/event/event.cpp com/event/event.hpp
                 com/event/event_clerk.cpp com/event/event_clerk.hpp
                 com/filesystem/filesystem.cpp com/filesystem/filesystem.hpp
@@ -159,9 +164,9 @@ add_executable( emcc.index.html
                 filesystem.cpp filesystem.hpp
                 js_iface.cpp
                 kmap.cpp kmap.hpp
+                kmap/binding/js/result.cpp kmap/binding/js/result.hpp
                 lineage.cpp
                 path.cpp
-                # path/view/chain.cpp path/view/chain.hpp
                 path/act/abs_path.cpp path/act/abs_path.hpp
                 path/act/erase.cpp path/act/erase.hpp
                 path/act/fetch_body.cpp path/act/fetch_body.hpp
@@ -178,11 +183,15 @@ add_executable( emcc.index.html
                 path/view/act/abs_path.cpp path/view/act/abs_path.hpp
                 path/view/act/count.cpp path/view/act/count.hpp
                 path/view/act/exists.cpp path/view/act/exists.hpp
+                path/view/act/fetch_body.cpp path/view/act/fetch_body.hpp
+                path/view/act/fetch_heading.cpp path/view/act/fetch_heading.hpp
                 path/view/act/fetch_node.cpp path/view/act/fetch_node.hpp
+                path/view/act/fetch_or_create_node.cpp path/view/act/fetch_or_create_node.hpp
                 path/view/act/to_fetch_set.cpp path/view/act/to_fetch_set.hpp
                 path/view/act/to_heading_set.cpp path/view/act/to_heading_set.hpp
                 path/view/act/to_node_set.cpp path/view/act/to_node_set.hpp
                 path/view/act/to_string.cpp path/view/act/to_string.hpp
+                path/view/act/update_body.cpp path/view/act/update_body.hpp
                 path/view/alias.cpp path/view/alias.hpp
                 path/view/all_of.cpp path/view/all_of.hpp
                 path/view/ancestor.cpp path/view/ancestor.hpp
@@ -199,6 +208,7 @@ add_executable( emcc.index.html
                 path/view/parent.cpp path/view/parent.hpp
                 path/view/resolve.cpp path/view/resolve.hpp
                 path/view/right_lineal.cpp path/view/right_lineal.hpp
+                path/view/sibling.cpp path/view/sibling.hpp
                 path/view/tether.cpp path/view/tether.hpp
                 # stmt_prep.cpp
                 test/autosave.cpp

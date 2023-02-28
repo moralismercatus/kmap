@@ -19,7 +19,7 @@
 #include "path/act/abs_path.hpp"
 #include "path/act/order.hpp"
 #include "path/act/update_body.hpp"
-#include "path/node_view.hpp"
+#include "path/node_view2.hpp"
 #include "util/macro.hpp"
 #include "util/result.hpp"
 #include "util/window.hpp"
@@ -66,49 +66,6 @@ auto to_string( Orientation const& orientation )
     }
 }
 
-auto fetch_overlay_root( Kmap& kmap )
-    -> Result< Uuid >
-{
-    auto const abs_root = kmap.root_node_id();
-    auto const root_path = "meta.setting.window.canvas.overlay";
-
-    return view::make( abs_root )
-         | view::direct_desc( root_path )
-         | view::fetch_or_create_node( kmap );
-}
-
-auto fetch_overlay_root( Kmap const& kmap )
-    -> Result< Uuid >
-{
-    auto const abs_root = kmap.root_node_id();
-
-    return view::make( abs_root )
-         | view::direct_desc( "meta.setting.window.canvas.overlay" )
-         | view::fetch_node( kmap );
-}
-
-auto fetch_subdiv_root( Kmap& kmap )
-    -> Result< Uuid >
-{
-    auto const abs_root = kmap.root_node_id();
-    auto const root_path = "meta.setting.window.canvas.subdivision";
-
-    return view::make( abs_root )
-         | view::direct_desc( root_path )
-         | view::fetch_or_create_node( kmap );
-}
-
-auto fetch_window_root( Kmap& kmap )
-    -> Result< Uuid >
-{
-    auto const abs_root = kmap.root_node_id();
-    auto const root_path = "meta.setting.window";
-
-    return view::make( abs_root )
-         | view::direct_desc( root_path )
-         | view::fetch_or_create_node( kmap );
-}
-
 Canvas::Canvas( Kmap& kmap
               , std::set< std::string > const& requisites
               , std::string const& description )
@@ -129,9 +86,8 @@ Canvas::~Canvas()
         auto const& km = kmap_inst();
         auto const nw = KTRYE( fetch_component< com::Network >() );
 
-        if( auto const croot = view::abs_root // Not using fetch_canvas_root(), because don't want to create if not already made.
-                             | view::direct_desc( "meta.setting.window.canvas" )
-                             | view::fetch_node( km )
+        if( auto const croot = view2::canvas::canvas_root
+                             | act2::fetch_node( km )
           ; croot )
         {
             KTRYE( nw->erase_node( croot.value() ) );
@@ -185,30 +141,6 @@ auto Canvas::load()
     rv = outcome::success();
 
     return rv;
-}
-
-auto Canvas::fetch_canvas_root()
-    -> Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto& km = kmap_inst();
-
-    return KTRY( view::abs_root
-               | view::direct_desc( "meta.setting.window.canvas" )
-               | view::fetch_or_create_node( km ) );
-}
-
-auto Canvas::fetch_canvas_root() const
-    -> Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto const& km = kmap_inst();
-
-    return KTRY( view::abs_root
-               | view::direct_desc( "meta.setting.window.canvas" )
-               | view::fetch_node( km ) );
 }
 
 // auto Canvas::init_event_callbacks()
@@ -404,11 +336,12 @@ auto Canvas::complete_path( std::string const& path )
     -> StringVec
 {
     auto rv = StringVec{};
-    if( auto const canvas_root = fetch_canvas_root()
+    auto const& km = kmap_inst();
+    if( auto const canvas_root = view2::canvas::canvas_root
+                               | act2::fetch_node( km )
       ; canvas_root )
     {
         auto const inflated = std::regex_replace( path, std::regex{ "\\." }, ".subdivision." );
-        auto const& km = kmap_inst();
         if( auto const completed = complete_path_reducing( km
                                                          , canvas_root.value()
                                                          , canvas_root.value()
@@ -437,7 +370,8 @@ auto Canvas::is_overlay( Uuid const& node )
     auto const& km = kmap_inst();
     auto const nw = KTRYE( fetch_component< com::Network >() );
 
-    if( auto const overlay_root = fetch_overlay_root( km )
+    if( auto const overlay_root = view2::canvas::overlay_root
+                                | act2::fetch_node( km )
       ; overlay_root )
     {
         rv = is_ancestor( *nw, overlay_root.value(), node );
@@ -452,9 +386,11 @@ auto Canvas::is_pane( Uuid const& node ) const
     using emscripten::val;
 
     auto rv = false;
+    auto const& km = kmap_inst();
     auto const nw = KTRYE( fetch_component< com::Network >() );
 
-    if( auto const canvas_root = fetch_canvas_root()
+    if( auto const canvas_root = view2::canvas::canvas_root
+                               | act2::fetch_node( km )
       ; canvas_root )
     {
         if( auto const parent = nw->fetch_parent( node )
@@ -581,9 +517,9 @@ auto Canvas::subdivide( Uuid const& parent_pane
     KMAP_ENSURE( is_valid_heading( heading ), error_code::network::invalid_heading );
 
     auto& km = kmap_inst();
-    auto const parent_pane_subdivn = KTRY( view::make( parent_pane )
-                                         | view::child( "subdivision" )
-                                         | view::fetch_node( km ) );
+    auto const parent_pane_subdivn = KTRY( anchor::node( parent_pane )
+                                         | view2::child( "subdivision" )
+                                         | act2::fetch_node( km ) );
 
     rv = create_subdivision( parent_pane_subdivn
                            , heading
@@ -599,12 +535,12 @@ auto Canvas::update_overlays()
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto const& km = kmap_inst();
-    auto const canvas_root = KTRY( fetch_canvas_root() );
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_node( km ) );
 
-    for( auto const overlays = view::make( canvas_root )
-                             | view::child( "overlay" )
-                             | view::child
-                             | view::to_node_set( km )
+    for( auto const overlays = view2::canvas::overlay_root
+                             | view2::child
+                             | act2::to_node_set( km )
        ; auto const& overlay : overlays )
     {
         if( !js::exists( overlay ) )
@@ -624,7 +560,9 @@ auto Canvas::update_all_panes()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
-    auto const canvas_root = KTRY( static_cast< Canvas const& >( *this ).fetch_canvas_root() );
+    auto const& km = kmap_inst();
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_node( km ) );
 
     KTRY( update_pane( canvas_root ) );
 
@@ -677,7 +615,8 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     // html element creation must happen before subdiv, as subdiv depends on parent element.
     if( !js::exists( root ) )
     {
-        auto const canvas_root = KTRY( static_cast< Canvas const& >( *this ).fetch_canvas_root() );
+        auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                     | act2::fetch_node( km ) );
 
         if( root == canvas_root )
         {
@@ -686,7 +625,7 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
         else
         {
             auto const parent_pane = KTRY( fetch_parent_pane( root ) );
-            auto const typen = KTRY( view::make( root ) | view::child( "type" ) | view::fetch_node( km ) );
+            auto const typen = KTRY( anchor::node( root ) | view2::child( "type" ) | act2::fetch_node( km ) );
             auto const elem_type = KTRY( nw->fetch_body( typen ) );
             KTRY( create_html_child_element( elem_type, parent_pane, root ) );
         }
@@ -736,7 +675,9 @@ auto Canvas::update_panes()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
-    auto const canvas_root = KTRY( static_cast< Canvas const& >( *this ).fetch_canvas_root() );
+    auto const& km = kmap_inst();
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_node( km ) );
 
     KMAP_ENSURE( is_pane( canvas_root ), error_code::network::invalid_node );
 
@@ -761,20 +702,20 @@ auto Canvas::rebase_internal( Uuid const& pane
 
     auto& km = kmap_inst();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-    auto const basen = KTRY( view::make( pane )
-                           | view::child( "base" )
-                           | view::fetch_node( km ) );
+    auto const basen = KTRY( anchor::node( pane )
+                           | view2::child( "base" )
+                           | act2::fetch_node( km ) );
 
     KTRY( nw->update_body( basen, io::format( "{:.4f}", base ) ) );
 
     // Ensure network displays them as ordered according to their position.
     {
         auto const parent = KTRY( nw->fetch_parent( pane ) );
-        auto const children = view::make( parent )
-                            | view::child
-                            | view::to_node_set( km )
+        auto const children = anchor::node( parent )
+                            | view2::child
+                            | act2::to_node_set( km )
                             | act::order( km )
-                            | actions::sort( [ & ]( auto const& lhs, auto const& rhs ){ return pane_base( lhs ).value() < pane_base( rhs ).value(); } );
+                            | actions::sort( [ & ]( auto const& lhs, auto const& rhs ){ return KTRYE( pane_base( lhs ) ) < KTRYE( pane_base( rhs ) ); } );
         KTRY( nw->reorder_children( parent, children ) );
     }
 
@@ -812,9 +753,9 @@ auto Canvas::reorient_internal( Uuid const& pane
 
     KMAP_ENSURE( is_pane( pane ), error_code::canvas::invalid_pane );
 
-    KTRY( view::make( pane )
-        | view::child( "orientation" )
-        | act::update_body( km, to_string( orientation ) ) );
+    KTRY( anchor::node( pane )
+        | view2::child( "orientation" )
+        | act2::update_body( km, to_string( orientation ) ) );
 
     rv = outcome::success();
 
@@ -904,9 +845,9 @@ auto Canvas::hide_internal( Uuid const& pane
     KMAP_ENSURE_MSG( nw->exists( pane ), error_code::network::invalid_node, to_string_elaborated( km, pane ) );
     KMAP_ENSURE_MSG( is_pane( pane ), error_code::network::invalid_node, to_string_elaborated( km, pane ) );
 
-    auto const hiddenn = KTRY( view::make( pane )
-                             | view::child( "hidden" )
-                             | view::fetch_node( km ) );
+    auto const hiddenn = KTRY( anchor::node( pane )
+                             | view2::child( "hidden" )
+                             | act2::fetch_node( km ) );
     auto const hidden_str = kmap::to_string( hidden );
 
     KTRY( nw->update_body( hiddenn, hidden_str ) );
@@ -973,10 +914,12 @@ auto Canvas::initialize_panes()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
+    auto& km = kmap_inst();
 
     KTRY( create_html_canvas( util_canvas_uuid ) );
 
-    auto const canvas = KTRY( fetch_canvas_root() );
+    auto const canvas = KTRY( view2::canvas::canvas_root
+                            | act2::fetch_or_create_node( km ) );
                             //KTRY( reset_breadcrumb( canvas ) );
     auto const workspace  = KTRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } ) );
                             KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false, "div" } ) );
@@ -1050,18 +993,18 @@ auto Canvas::make_subdivision( Uuid const& target
     ;
 
     auto& km = kmap_inst();
-    auto const vsub = view::make( target );
+    auto const vsub = anchor::node( target );
 
-    KTRY( vsub | view::child( "orientation" ) | view::fetch_or_create_node( km ) );
-    KTRY( vsub | view::child( "base" ) | view::fetch_or_create_node( km ) );
-    KTRY( vsub | view::child( "hidden" ) | view::fetch_or_create_node( km ) );
-    KTRY( vsub | view::child( "type" ) | view::fetch_or_create_node( km ) );
-    KTRY( vsub | view::child( "subdivision" ) | view::fetch_or_create_node( km ) );
+    KTRY( vsub | view2::child( "orientation" ) | act2::fetch_or_create_node( km ) );
+    KTRY( vsub | view2::child( "base" ) | act2::fetch_or_create_node( km ) );
+    KTRY( vsub | view2::child( "hidden" ) | act2::fetch_or_create_node( km ) );
+    KTRY( vsub | view2::child( "type" ) | act2::fetch_or_create_node( km ) );
+    KTRY( vsub | view2::child( "subdivision" ) | act2::fetch_or_create_node( km ) );
 
-    KTRY( vsub | view::child( "orientation" ) | act::update_body( km, to_string( subdiv.orientation ) ) );
-    KTRY( vsub | view::child( "base" ) | act::update_body( km, io::format( "{:.4f}", subdiv.base ) ) );
-    KTRY( vsub | view::child( "hidden" ) | act::update_body( km, kmap::to_string( subdiv.hidden ) ) );
-    KTRY( vsub | view::child( "type" ) | act::update_body( km, subdiv.elem_type ) );
+    KTRY( vsub | view2::child( "orientation" ) | act2::update_body( km, to_string( subdiv.orientation ) ) );
+    KTRY( vsub | view2::child( "base" ) | act2::update_body( km, io::format( "{:.4f}", subdiv.base ) ) );
+    KTRY( vsub | view2::child( "hidden" ) | act2::update_body( km, kmap::to_string( subdiv.hidden ) ) );
+    KTRY( vsub | view2::child( "type" ) | act2::update_body( km, subdiv.elem_type ) );
 
     rv = outcome::success();
 
@@ -1092,8 +1035,8 @@ auto Canvas::create_overlay( Uuid const& id
 
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
-    // auto const canvas_root = KTRY( fetch_canvas_root() );
-    auto const overlay_root = KTRY( fetch_overlay_root( km ) );
+    auto const overlay_root = KTRY( view2::canvas::overlay_root
+                                  | act2::fetch_or_create_node( km ) );
     auto const overlay = KTRY( nw->create_child( overlay_root, id, heading ) );
 
     rv = overlay;
@@ -1183,7 +1126,9 @@ auto Canvas::initialize_root()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const canvas_root = KTRY( fetch_canvas_root() );
+    auto& km = kmap_inst();
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_or_create_node( km ) );
 
     KTRY( make_subdivision( canvas_root, { Orientation::horizontal, 0.0f, false } ) );
 
@@ -1312,10 +1257,10 @@ auto Canvas::pane_path( Uuid const& subdiv )
     auto rv = KMAP_MAKE_RESULT( std::string );
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
-    auto const canvas_root = KTRY( fetch_canvas_root() );
-    auto const ids = KTRY( view::make( canvas_root )
-                         | view::desc( subdiv )
-                         | act::abs_path( km ) );
+    auto const ids = view2::canvas::canvas_root
+                   | view2::desc( subdiv )
+                   | view2::left_lineal
+                   | act2::to_node_set( km );
 
     KMAP_ENSURE( is_pane( subdiv ), error_code::network::invalid_node );
 
@@ -1368,10 +1313,10 @@ auto Canvas::delete_subdivisions( Uuid const& pane )
 
     KMAP_ENSURE( is_pane( pane ), error_code::canvas::invalid_pane );
 
-    for( auto const children = view::make( pane )
-                             | view::child( "subdivision" )
-                             | view::child
-                             | view::to_node_set( km )
+    for( auto const children = anchor::node( pane )
+                             | view2::child( "subdivision" )
+                             | view2::child
+                             | act2::to_node_set( km )
         ; auto const& child : children )
     {
         KTRY( delete_pane( child ) );
@@ -1389,8 +1334,9 @@ auto Canvas::dimensions( Uuid const& target )
         KM_RESULT_PUSH_NODE( "target", target );
 
     auto rv = KMAP_MAKE_RESULT( Dimensions );
-    auto const canvas_root = KTRY( fetch_canvas_root() ); 
     auto& km = kmap_inst();
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_node( km ) ); 
     auto const nw = KTRY( fetch_component< com::Network >() );
 
     KMAP_ENSURE( nw->is_lineal( canvas_root, target ), error_code::network::invalid_lineage );
@@ -1409,8 +1355,8 @@ auto Canvas::dimensions( Uuid const& target )
         auto const compute_percents = [ & ]( auto const& siblings )
         {
             auto const sibmap = siblings
-                              | views::remove_if( [ & ]( auto const& e ) { return pane_hidden( e ).value(); } )
-                              | views::transform( [ & ]( auto const& e ){ return std::pair{ pane_base( e ).value(), e }; } )
+                              | views::remove_if( [ & ]( auto const& e ) { return KTRYE( pane_hidden( e ) ); } )
+                              | views::transform( [ & ]( auto const& e ){ return std::pair{ KTRYE( pane_base( e ) ), e }; } )
                               | to< std::map< float, Uuid > >();
             if( auto const target_it = find_if( sibmap, [ & ]( auto const& e ){ return e.second == target; } )
               ; target_it != end( sibmap ) )
@@ -1449,10 +1395,9 @@ auto Canvas::dimensions( Uuid const& target )
         };
         auto const parent_pane = KTRY( fetch_parent_pane( target ) );
         auto const orientation = KTRY( pane_orientation( parent_pane ) );
-        auto const siblings = view::make( target )
-                            | view::parent
-                            | view::child
-                            | view::to_node_set( km )
+        auto const siblings = anchor::node( target )
+                            | view2::sibling_incl
+                            | act2::to_node_set( km )
                             | act::order( km );
         auto const percs = compute_percents( siblings );
         auto const pdims = KTRY( dimensions( parent_pane ) );
@@ -1528,16 +1473,16 @@ auto Canvas::fetch_subdivisions( Uuid const& pane )
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( view::make( pane ) | view::desc( "subdivision" ) | view::exists( km ) );
+            BC_ASSERT( anchor::node( pane ) | view2::desc( "subdivision" ) | act2::exists( km ) );
         })
     ;
 
     KMAP_ENSURE( is_pane( pane ), error_code::canvas::invalid_pane );
 
-    rv = view::make( pane )
-       | view::child( "subdivision" )
-       | view::child
-       | view::to_node_set( km );
+    rv = anchor::node( pane )
+       | view2::child( "subdivision" )
+       | view2::child
+       | act2::to_node_set( km );
 
     return rv;
 }
@@ -1576,11 +1521,10 @@ auto Canvas::fetch_pane( std::string const& path )
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
-    auto const win_root = KTRY( fetch_window_root( km ) );
     auto const expanded = expand_path( path );
-    auto const desc = KTRY( view::make( win_root )
-                          | view::desc( io::format( "{}", expanded ) )
-                          | view::fetch_node( km ) );
+    auto const desc = KTRY( view2::canvas::window_root
+                          | view2::desc( io::format( "{}", expanded ) )
+                          | act2::fetch_node( km ) );
 
     if( is_pane( desc ) )
     {

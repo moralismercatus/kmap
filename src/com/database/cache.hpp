@@ -33,7 +33,7 @@
 
 namespace bmi = boost::multi_index;
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 // template< typename Left
 //         , typename Right >
@@ -127,7 +127,7 @@ class Cache
     // ReversalMap units_ = {};
     // TransactionIdSet curr_groups_ = {}; // Rather, should it not be a UUID assigned to a group, rather than an index?
 
-    friend class kmap::db::CacheDeciderSm;
+    friend class kmap::com::db::CacheDeciderSm;
 
 public:
     Cache() = default;
@@ -930,6 +930,6 @@ protected:
 auto print_deltas( db::Cache const& cache )
     -> void;
 
-} // namespace kmap::db
+} // namespace kmap::com::db
 
 #endif // KMAP_DB_HPP

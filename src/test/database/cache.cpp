@@ -10,14 +10,14 @@
 #include <catch2/catch_test_macros.hpp>
 
 using namespace kmap;
-using namespace kmap::db;
+using namespace kmap::com::db;
 using namespace kmap::test;
 
 SCENARIO( "cache is manipulated", "[cache]" )
 {
     GIVEN( "umono table is empty" )
     {
-        auto cache = db::Cache{};
+        auto cache = Cache{};
 
         WHEN( "entry is pushed" )
         {
@@ -40,7 +40,7 @@ SCENARIO( "cache is manipulated", "[cache]" )
     }
     GIVEN( "umono table has entry" )
     {
-        auto cache = db::Cache{};
+        auto cache = Cache{};
         auto const n1 = gen_uuid();
 
         REQUIRE( succ( cache.push< NodeTable >( n1 ) ) );
@@ -63,7 +63,7 @@ SCENARIO( "cache is manipulated", "[cache]" )
     }
     GIVEN( "ulhs table is empty" )
     {
-        auto cache = db::Cache{};
+        auto cache = com::db::Cache{};
 
         WHEN( "fetch heading" )
         {
@@ -102,7 +102,7 @@ SCENARIO( "cache is manipulated", "[cache]" )
     }
     GIVEN( "ulhs table has delta heading entry" )
     {
-        auto cache = db::Cache{};
+        auto cache = com::db::Cache{};
         auto const n1 = gen_uuid();
         auto const h1 = "h1";
 
@@ -139,7 +139,7 @@ SCENARIO( "cache is manipulated", "[cache]" )
     }
     GIVEN( "ulr table is empty" )
     {
-        auto cache = db::Cache{};
+        auto cache = com::db::Cache{};
 
         WHEN( "entry is created" )
         {
@@ -147,32 +147,32 @@ SCENARIO( "cache is manipulated", "[cache]" )
             auto const n2 = gen_uuid();
 
             // TODO: contains (and variants) should allow Left, Right arguemnts, rather than forcing unique_key_type{ left, right }
-            REQUIRE( !cache.contains< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-            REQUIRE( !cache.contains_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-            REQUIRE( !cache.contains_cached< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-            REQUIRE( !cache.contains_erased_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( !cache.contains< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( !cache.contains_delta< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( !cache.contains_cached< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( !cache.contains_erased_delta< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
 
             REQUIRE( succ( cache.push< AliasTable >( Src{ n2 }, Dst{ n1 } ) ) );
 
-            REQUIRE( cache.contains< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-            REQUIRE( cache.contains_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-            REQUIRE( !cache.contains_cached< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-            REQUIRE( !cache.contains_erased_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( cache.contains< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( cache.contains_delta< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( !cache.contains_cached< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( !cache.contains_erased_delta< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
 
             THEN( "is erased" )
             {
                 REQUIRE( succ( cache.erase< AliasTable >( Src{ n2 }, Dst{ n1 } ) ) );
 
-                REQUIRE( !cache.contains< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-                REQUIRE( !cache.contains_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-                REQUIRE( !cache.contains_cached< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
-                REQUIRE( !cache.contains_erased_delta< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+                REQUIRE( !cache.contains< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+                REQUIRE( !cache.contains_delta< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+                REQUIRE( !cache.contains_cached< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+                REQUIRE( !cache.contains_erased_delta< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
             }
         }
     }
     GIVEN( "ulr table has delta entry" )
     {
-        auto cache = db::Cache{};
+        auto cache = Cache{};
         auto const n1 = gen_uuid();
         auto const n2 = gen_uuid();
 
@@ -180,7 +180,7 @@ SCENARIO( "cache is manipulated", "[cache]" )
 
         THEN( "alias src and dst exists" )
         {
-            REQUIRE( cache.contains< AliasTable >( db::AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
+            REQUIRE( cache.contains< AliasTable >( AliasTable::unique_key_type{ Src{ n2 }, Dst{ n1 } } ) );
             REQUIRE( cache.contains< AliasTable >( Src{ n2 } ) );
             REQUIRE( cache.contains< AliasTable >( Dst{ n1 } ) );
             REQUIRE( !cache.contains< AliasTable >( Src{ n1 } ) );

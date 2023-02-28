@@ -67,9 +67,9 @@ auto select_node( Kmap& kmap
 
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
-    if( auto const target = view::make( kmap.root_node_id() )
-                          | view::desc( dst )
-                          | view::fetch_node( kmap )
+    if( auto const target = anchor::node( kmap.root_node_id() )
+                          | view2::desc( dst )
+                          | act2::fetch_node( kmap )
       ; target )
     {
         KTRY( nw->select_node( target.value() ) );

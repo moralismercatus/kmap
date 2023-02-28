@@ -356,10 +356,10 @@ auto Cli::fetch_general_command( Heading const& path ) const
     auto rv = Optional< Uuid >{};
     auto const& km = kmap_inst();
 
-    if( auto const desc = km.root_view()
-                        | view::direct_desc( "meta.setting.command" )
-                        | view::direct_desc( path )
-                        | view::fetch_node( km )
+    if( auto const desc = anchor::abs_root
+                        | view2::direct_desc( "meta.setting.command" )
+                        | view2::direct_desc( path )
+                        | act2::fetch_node( km )
       ; desc )
     {
         rv = desc.value();
@@ -379,9 +379,9 @@ auto Cli::resolve_contextual_guard( Uuid const& cmd ) const
 
     if( cmd::is_general_command( km, cmd ) )
     {
-        for( auto const children = view::make( cmd )
-                                 | view::child
-                                 | view::to_node_set( km )
+        for( auto const children = anchor::node( cmd )
+                                 | view2::child
+                                 | act2::to_node_set( km )
                                  | act::order( km )
            ; auto const guard : children )
         {
@@ -529,9 +529,9 @@ auto Cli::complete_command( std::string const& input ) const
         })
     ;
 
-    auto const cmds_root = KTRYE( km.root_view()
-                                | view::direct_desc( "meta.setting.command" )
-                                | view::fetch_node( km ) );
+    auto const cmds_root = KTRYE( anchor::abs_root
+                                | view2::direct_desc( "meta.setting.command" )
+                                | act2::fetch_node( km ) );
     auto const ctx_filter = views::filter( [ & ]( auto const& e )
     {
         auto const resolved = resolve_contextual_guard( e.target );
@@ -590,9 +590,9 @@ auto Cli::complete_command( std::string const& scmd
              && params.value().size() >= args.size() )
             {
                 auto const tcarg = args.back();
-                auto const completer = KTRYE( view::make( params.value()[ args.size() - 1 ] )
-                                            | view::child( "completion" )
-                                            | view::fetch_node( km ) );
+                auto const completer = KTRYE( anchor::node( params.value()[ args.size() - 1 ] )
+                                            | view2::child( "completion" )
+                                            | act2::fetch_node( km ) );
                 auto const possible_completions = cmd::evaluate_completer( km
                                                                          , completer
                                                                          , tcarg );

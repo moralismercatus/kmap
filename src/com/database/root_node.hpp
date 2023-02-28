@@ -4,8 +4,8 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #pragma once
-#ifndef KMAP_COM_TIMER_HPP
-#define KMAP_COM_TIMER_HPP
+#ifndef KMAP_COM_ROOT_NODE_HPP
+#define KMAP_COM_ROOT_NODE_HPP
 
 #include "common.hpp"
 #include "component.hpp"
@@ -17,6 +17,7 @@ namespace kmap
 
 namespace kmap::com {
 
+// TODO: Belongs in network rather than db.
 class RootNode : public Component
 {
     Uuid root_ = {};
@@ -39,4 +40,4 @@ public:
 
 } // namespace kmap::com
 
-#endif // KMAP_COM_TIMER_HPP
+#endif // KMAP_COM_ROOT_NODE_HPP

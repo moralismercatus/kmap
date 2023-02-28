@@ -60,8 +60,6 @@ auto TaskStore::initialize()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    fmt::print( "task_store :: initialize\n" );
-
     KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();

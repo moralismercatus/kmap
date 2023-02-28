@@ -11,6 +11,7 @@
 #include "error/network.hpp"
 #include "kmap.hpp"
 #include "path/node_view.hpp"
+#include "path/node_view2.hpp"
 #include "utility.hpp"
 
 #include <range/v3/algorithm/count.hpp>
@@ -41,9 +42,9 @@ auto is_in_attr_tree( Kmap const& kmap
     -> bool
 {
     return is_attr( kmap, node )
-        || ( view::make( node )
-           | view::ancestor( "$" ) // TODO: Can't I do something like view::ancestor( view::attr ); composable?
-           | view::exists( kmap ) );
+        || ( anchor::node( node )
+           | view2::ancestor( "$" ) // TODO: Can't I do something like view::ancestor( view::attr ); composable?
+           | act2::exists( kmap ) );
 }
 
 auto is_in_order( Kmap const& kmap
@@ -56,10 +57,10 @@ auto is_in_order( Kmap const& kmap
     auto const rparent = nw->resolve( parent );
     auto const rchild = nw->resolve( child );
 
-    if( auto const ordern = view::make( rparent )
-                          | view::attr
-                          | view::child( "order" )
-                          | view::fetch_node( kmap ) )
+    if( auto const ordern = anchor::node( rparent )
+                          | view2::attr
+                          | view2::child( "order" )
+                          | act2::fetch_node( kmap ) )
     {
         if( auto const ob = nw->fetch_body( ordern.value() )
           ; ob )

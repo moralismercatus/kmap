@@ -164,10 +164,10 @@ auto EventClerk::check_registered( Branch const& branch )
     auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
     auto const eroot = KTRY( estore->event_root() );
 
-    if( auto const bnode = view::make( eroot )
-                         | view::child( "outlet" )
-                         | view::direct_desc( branch.heading )
-                         | view::fetch_node( kmap )
+    if( auto const bnode = anchor::node( eroot )
+                         | view2::child( "outlet" )
+                         | view2::direct_desc( branch.heading )
+                         | act2::fetch_node( kmap )
       ; bnode )
     {
         auto const matches = match_requisites( kmap, eroot, bnode.value(), branch.requisites );

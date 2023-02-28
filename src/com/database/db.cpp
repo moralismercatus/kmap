@@ -11,6 +11,7 @@
 
 #include "contract.hpp"
 #include "com/database/table_decl.hpp"
+#include "com/database/util.hpp"
 #include "com/filesystem/filesystem.hpp" // TODO: only present until sql db moves to DatabaseFilesystem.
 #include "emcc_bindings.hpp"
 #include "error/db.hpp"
@@ -53,45 +54,9 @@ using namespace emscripten;
 using namespace ranges;
 namespace fs = boost::filesystem;
 namespace sql = sqlpp::sqlite3;
+namespace rvs = ranges::views;
 
 namespace kmap::com {
-
-#if KMAP_LOGGING_DB
-auto dbErrorLogCallback( void* pArg
-                       , int iErrCode
-                       , char const* zMsg )
-    -> void
-{
-    fmt::print( stderr
-              , "{} {}\n"
-              , iErrCode
-              , zMsg );
-}
-#endif // KMAP_LOGGING_DB
-
-/**
- * Note:
- *   - Use of "unix-dotfile" as a locking mechanism is done because some platforms/VFSs aren't supporting the default locking mechanism for SQLITE.
- *     Requires file{}?vfs=unix-dotfile in the path and SQLITE_OPEN_URI in the flags.
- */
-auto make_connection_confg( FsPath const& db_path
-                          , int flags )
-    -> sql::connection_config
-{
-    auto cfg = sql::connection_config{};
-
-    cfg.path_to_database = fmt::format( "file:{}?vfs=unix-dotfile", db_path.string() ); 
-    cfg.flags = flags | SQLITE_OPEN_URI;
-#if KMAP_LOGGING_DB 
-    cfg.debug = true;
-
-    sqlite3_config( SQLITE_CONFIG_LOG
-                  , dbErrorLogCallback
-                  , NULL );
-#endif // KMAP_LOGGING_DB
-
-    return cfg;
-}
 
 #if 0
 Database::ActionSequence::ActionSequence( Database& db )
@@ -140,18 +105,29 @@ auto Database::initialize()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
-    fmt::print( "Database :: initialize\n" );
-
     rv = outcome::success();
 
     return rv;
 }
 
-// TODO: Shouldn't the load-from-db-file functionality actually be in DatabaseFilesystem?
 auto Database::load()
     -> Result< void >
 {
+    return load_internal( kmap_inst().database_path() );
+}
+
+auto Database::load( FsPath const& path )
+    -> Result< void >
+{
+    return load_internal( path );
+}
+
+// TODO: Shouldn't the load-from-db-file functionality actually be in DatabaseFilesystem?
+auto Database::load_internal( FsPath const& path )
+    -> Result< void >
+{
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", path.string() );
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -167,19 +143,18 @@ auto Database::load()
         })
     ;
 
-    path_ = kmap_inst().database_path();
+    path_ = path;
 
     KMAP_ENSURE( !path_.empty(), error_code::filesystem::file_not_found );
+    KMAP_ENSURE( fs::exists( path ), error_code::filesystem::file_not_found );
 
     fmt::print( "Database :: load: {}\n", path_.string() );
 
-    // TODO: OK, load is failing here... reason? Have something to do with unmounting in filesystem::dtor?
-    con_ = std::make_unique< sql::connection >( make_connection_confg( path_, SQLITE_OPEN_READONLY ) );
-
-    auto const handle = con_->native_handle();
-
-    // Sqlite3 disables extended error reporting by default. Enable it.
-    sqlite3_extended_result_codes( handle, 1 );
+#if KMAP_LOGGING_DB
+    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READONLY, true ) );
+#else
+    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READONLY, false ) );
+#endif
 
     {
         auto proc_table = [ & ]( auto&& table ) mutable
@@ -187,7 +162,7 @@ auto Database::load()
             using namespace db;
             using Table = std::decay_t< decltype( table ) >;
 
-            if constexpr( std::is_same_v< Table, NodeTable > )
+            if constexpr( std::is_same_v< Table, db::NodeTable > )
             {
                 auto t = nodes::nodes{};
                 auto rows = execute( select( all_of( t ) )
@@ -199,7 +174,7 @@ auto Database::load()
                     KTRYE( push_node( KTRYE( uuid_from_string( e.uuid ) ) ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, HeadingTable > )
+            else if constexpr( std::is_same_v< Table, db::HeadingTable > )
             {
                 auto t = headings::headings{};
                 auto rows = execute( select( all_of( t ) )
@@ -211,7 +186,7 @@ auto Database::load()
                     KTRYE( push_heading( KTRYE( uuid_from_string( e.uuid ) ), e.heading ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, TitleTable > )
+            else if constexpr( std::is_same_v< Table, db::TitleTable > )
             {
                 auto t = titles::titles{};
                 auto rows = execute( select( all_of( t ) )
@@ -223,7 +198,7 @@ auto Database::load()
                     KTRYE( push_title( KTRYE( uuid_from_string( e.uuid ) ), e.title ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, BodyTable > )
+            else if constexpr( std::is_same_v< Table, db::BodyTable > )
             {
                 auto t = bodies::bodies{};
                 auto rows = execute( select( all_of( t ) )
@@ -235,7 +210,7 @@ auto Database::load()
                     KTRYE( push_body( KTRYE( uuid_from_string( e.uuid ) ), e.body ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, ChildTable > )
+            else if constexpr( std::is_same_v< Table, db::ChildTable > )
             {
                 auto t = children::children{};
                 auto rows = execute( select( all_of( t ) )
@@ -247,7 +222,7 @@ auto Database::load()
                     KTRYE( push_child( KTRYE( uuid_from_string( e.parent_uuid ) ), KTRYE( uuid_from_string( e.child_uuid ) ) ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, AliasTable > )
+            else if constexpr( std::is_same_v< Table, db::AliasTable > )
             {
                 auto t = aliases::aliases{};
                 auto rows = execute( select( all_of( t ) )
@@ -259,7 +234,7 @@ auto Database::load()
                     KTRYE( push_alias( KTRYE( uuid_from_string( e.src_uuid ) ), KTRYE( uuid_from_string( e.dst_uuid ) ) ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, AttributeTable > )
+            else if constexpr( std::is_same_v< Table, db::AttributeTable > )
             {
                 auto t = attributes::attributes{};
                 auto rows = execute( select( all_of( t ) )
@@ -271,7 +246,7 @@ auto Database::load()
                     KTRYE( push_attr( KTRYE( uuid_from_string( e.parent_uuid ) ), KTRYE( uuid_from_string( e.child_uuid ) ) ) );
                 }
             }
-            else if constexpr( std::is_same_v< Table, ResourceTable > )
+            else if constexpr( std::is_same_v< Table, db::ResourceTable > )
             {
                 // assert( false && "TODO" );
                 // KMAP_THROW_EXCEPTION_MSG( "TODO" );
@@ -293,12 +268,11 @@ auto Database::load()
     }
 
     {
-        con_ = std::make_unique< sql::connection >( make_connection_confg( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE ) );
-
-        auto const handle = con_->native_handle();
-
-        // Sqlite3 disables extended error reporting by default. Enable it.
-        sqlite3_extended_result_codes( handle, 1 );
+#if KMAP_LOGGING_DB
+        con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, true ) );
+#else
+        con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, false ) );
+#endif
     }
 
     rv = outcome::success();
@@ -329,12 +303,11 @@ auto Database::init_db_on_disk( FsPath const& path )
         path_.replace_extension( "kmap" );
     }
 
-    con_ = std::make_unique< sql::connection >( make_connection_confg( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE ) );
-
-    auto const handle = con_->native_handle();
-
-    // Sqlite3 disables extended error reporting by default. Enable it.
-    sqlite3_extended_result_codes( handle, 1 );
+#if KMAP_LOGGING_DB
+    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, true ) );
+#else
+    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, false ) );
+#endif
 
     // TODO: Is this necessary anymore, now that cascading is done outside of sqlite?
     // Sqlite3 requires that foriegn key support is enabled for each new connection.
@@ -344,6 +317,7 @@ auto Database::init_db_on_disk( FsPath const& path )
         PRAGMA foreign_keys = ON;
         )"
     );
+    // TODO:
     // Disabling synchronous improves performance, but can result in a corrupted DB if crash happens mid-write.
     // Currently, the safer synchronous is ENABLED.
     // con_->execute
@@ -389,92 +363,7 @@ auto Database::query_cache() const
 auto Database::create_tables()
     -> void
 {
-    // Note: "IF NOT EXISTS" is used to allow create_tables to be called for
-    // each connection, in case the database does not contain a new table that
-    // has been added after original database creation.
-    
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS nodes
-(   uuid
-,   PRIMARY KEY( uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS children
-(   parent_uuid TEXT
-,   child_uuid TEXT
-,   PRIMARY KEY( parent_uuid
-               , child_uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS headings
-(   uuid TEXT
-,   heading TEXT
-,   PRIMARY KEY( uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS titles
-(   uuid TEXT
-,   title TEXT
-,   PRIMARY KEY( uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS bodies
-(   uuid TEXT
-,   body TEXT
-,   PRIMARY KEY( uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS aliases
-(   src_uuid TEXT
-,   dst_uuid TEXT
-,   PRIMARY KEY( src_uuid
-               , dst_uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS attributes
-(   parent_uuid TEXT
-,   child_uuid TEXT
-,   PRIMARY KEY( parent_uuid
-               , child_uuid )
-);
-        )"
-    );
-    con_->execute
-    (
-        R"(
-CREATE TABLE IF NOT EXISTS resources
-(   uuid TEXT
-,   resource BLOB
-,   PRIMARY KEY( uuid )
-);
-        )"
-    );
+    kmap::com::create_tables( *con_ );
 }
 
 // TODO: What about case where external actor overwrites db file? `con_` is still valid, and file still exists.
@@ -650,10 +539,10 @@ auto Database::push_attr( Uuid const& parent
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "parent", parent );
-        // KM_RESULT_PUSH_NODE( "attr", attr );
+        KM_RESULT_PUSH( "parent", to_string( parent ) );
+        KM_RESULT_PUSH( "attr", to_string( attr ) );
 
-    KMAP_ENSURE_EXCEPT( node_exists( parent ) ); // TODO: replace with ensure_result
+    KMAP_ENSURE( node_exists( parent ), error_code::common::uncategorized );
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -988,9 +877,10 @@ auto Database::fetch_attr( Uuid const& id ) const
     // TODO: attr should only ever 1 parent, so the table type should represent this.
     auto const attr = KTRY( cache().fetch_values< db::AttributeTable >( db::Left{ id } ) );
 
-    BC_ASSERT( attr.size() == 1 );
-
-    rv = attr.at( 0 ).value();
+    if( attr.size() == 1 )
+    {
+        rv = attr.at( 0 ).value();
+    }
 
     return rv;
 }
@@ -1821,54 +1711,13 @@ auto Database::has_delta() const
 
 // TODO: I don't know if execute_raw should even be public... very dangerous, as the cache isn't reflected.
 auto Database::execute_raw( std::string const& stmt )
-    -> std::map< std::string, std::string >
+    -> std::multimap< std::string, std::string >
 {
-    {
-        KMAP_ENSURE_EXCEPT( has_file_on_disk() );
+    KMAP_ENSURE_EXCEPT( has_file_on_disk() );
 
-        KTRYE( flush_delta_to_disk() );
-    }
+    KTRYE( flush_delta_to_disk() );
 
-    auto rv = std::map< std::string, std::string >{};
-    auto const handle = con_->native_handle();
-    char* err_msg = {};
-    auto const callback = []( void* output
-                            , int argc
-                            , char* argv[]
-                            , char* name[] )
-    {
-        auto& sout = *static_cast< std::map< std::string, std::string >* >( output );
-
-        if( argc == 2 )// Assumes all tables are in the form k,v
-        {
-            sout.emplace( std::string{ argv[ 0 ] ? argv[ 0 ] : "NULL" }
-                        , std::string{ argv[ 1 ] ? argv[ 1 ] : "NULL" } );
-        }
-        else
-        {
-            sout.emplace( "error"
-                        , fmt::format( "[db][error] Row cardinality invalid. Expected all tables to be in form k,v" ) );
-
-            return 1;
-        }
-
-        return 0;
-    };
-
-    if( auto const rc = sqlite3_exec( handle
-                                    , stmt.c_str()
-                                    , callback
-                                    , static_cast< void* >( &rv )
-                                    , &err_msg )
-      ; rc != SQLITE_OK )
-    {
-        rv.emplace( "error"
-                  ,  err_msg );
-
-        sqlite3_free( err_msg );
-    }
-
-    return rv;
+    return kmap::com::execute_raw( *con_, stmt );
 }
 
 auto create_attr_node( Database& db
@@ -1891,6 +1740,61 @@ auto create_attr_node( Database& db
     return rv;
 }
 
+auto create_tables( sqlpp::sqlite3::connection& con )
+    -> void
+{
+    // Note: "IF NOT EXISTS" is used to allow create_tables to be called for
+    // each connection, in case the database does not contain a new table that
+    // has been added after original database creation.
+
+    for( auto const& sql : db::table_map | rvs::values )
+    {
+        con.execute( sql );
+    }
+}
+
+auto execute_raw( sqlpp::sqlite3::connection& con
+                , std::string const& stmt )
+    -> std::multimap< std::string, std::string >
+{
+    auto rv = std::multimap< std::string, std::string >{};
+    auto const handle = con.native_handle();
+    char* err_msg = {};
+    auto const callback = []( void* output
+                            , int argc
+                            , char** argv
+                            , char** name )
+    {
+        auto& sout = *static_cast< std::multimap< std::string, std::string >* >( output );
+
+        for( auto i = 0
+           ; i < argc
+           ; ++i )
+        {
+            BC_ASSERT( name[ i ] != nullptr );
+
+            sout.emplace( std::string{ name[ i ] }
+                        , std::string{ argv[ i ] == nullptr ? "NULL" : argv[ i ] } );
+        }
+
+        return 0;
+    };
+
+    if( auto const rc = sqlite3_exec( handle
+                                    , stmt.c_str()
+                                    , callback
+                                    , static_cast< void* >( &rv )
+                                    , &err_msg )
+      ; rc != SQLITE_OK )
+    {
+        rv.emplace( "error"
+                  ,  err_msg );
+
+        sqlite3_free( err_msg );
+    }
+
+    return rv;
+}
 
 namespace binding {
 

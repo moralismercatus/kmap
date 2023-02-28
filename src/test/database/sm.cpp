@@ -11,8 +11,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 using namespace kmap;
-using namespace kmap::db;
-using namespace kmap::db::sm;
+using namespace kmap::com::db;
+using namespace kmap::com::db::sm;
 using namespace kmap::test;
 namespace bsm = boost::sml;
 
@@ -20,8 +20,8 @@ SCENARIO( "unqiue lhs table sm is manipulated", "[db][cache][sm][ulhs_table]" )
 {
     GIVEN( "an empty cache" )
     {
-        auto cache = db::Cache{};
-        auto decider = db::make_unique_cache_decider( cache );
+        auto cache = Cache{};
+        auto decider = make_unique_cache_decider( cache );
         auto const tbl = HeadingTable{};
         auto const n1 = gen_uuid();
         auto const h1 = "h1";
@@ -54,8 +54,8 @@ SCENARIO( "unqiue lhs table sm is manipulated", "[db][cache][sm][ulhs_table]" )
     }
     GIVEN( "heading exists" )
     {
-        auto cache = db::Cache{};
-        auto decider = db::make_unique_cache_decider( cache );
+        auto cache = Cache{};
+        auto decider = make_unique_cache_decider( cache );
         auto const tbl = HeadingTable{};
         auto const n1 = gen_uuid();
         auto const h1 = "h1";

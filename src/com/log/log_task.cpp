@@ -65,8 +65,6 @@ struct LogTask : public Component
 
         auto rv = KMAP_MAKE_RESULT( void );
 
-        fmt::print( "log_task :: initialize\n" );
-
         KTRY( eclerk_.install_registered() );
 
         rv = outcome::success();

@@ -114,7 +114,7 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         {
             auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
-            return db->contains< db::HeadingTable >( ev );
+            return db->contains< com::db::HeadingTable >( ev );
         };
 
         auto is_root = [ & ]( auto const& ev )
@@ -416,8 +416,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
             auto const nw = KTRYE( kmap_.fetch_component< com::Network>() );
             auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
             // auto const& headings = db.fetch_headings().get< 2 >();
-            auto const& ht = db->fetch< db::HeadingTable >().underlying();
-            auto const& hv = ht.get< db::right_ordered >();
+            auto const& ht = db->fetch< com::db::HeadingTable >().underlying();
+            auto const& hv = ht.get< com::db::right_ordered >();
             auto matches = std::vector< UuidPath >{};
             
             for( auto it = hv.lower_bound( ev )
@@ -772,8 +772,8 @@ auto complete_any( Kmap const& kmap
 
     auto const nw = KTRY( kmap.fetch_component< com::Network>() );
     auto const db = KTRY( kmap.fetch_component< com::Database >() );
-    auto const& ht = db->fetch< db::HeadingTable >().underlying();
-    auto const& hv = ht.get< db::right_ordered >();
+    auto const& ht = db->fetch< com::db::HeadingTable >().underlying();
+    auto const& hv = ht.get< com::db::right_ordered >();
     auto matches = UuidSet{};
     
     for( auto it = hv.lower_bound( heading )
@@ -1559,17 +1559,17 @@ auto fetch_nearest_ascending( Kmap const& kmap
 
     auto const check = [ & ]( Uuid const& c ){ return pred( kmap, c ); }; // TODO: Replace with std::bind_front. TODO: Assume predicate has captured kmap, and just call pred( c ).
     auto child = leaf;
-    auto parent = view::make( root )
-                | view::child( child )
-                | view::fetch_node( kmap );
+    auto parent = anchor::node( root )
+                | view2::child( child )
+                | act2::fetch_node( kmap );
 
     while( parent
         && !check( child ) )
     {
         child = parent.value();
-        parent = view::make( root )
-               | view::child( child )
-               | view::fetch_node( kmap );
+        parent = anchor::node( root )
+               | view2::child( child )
+               | act2::fetch_node( kmap );
     }
 
     if( check( child ) )

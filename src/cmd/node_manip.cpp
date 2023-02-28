@@ -67,9 +67,9 @@ auto merge_nodes( Kmap& kmap )
 
         if( nw->exists( heading ) )
         {
-            auto const dst = KTRYE( view::make( kmap.root_node_id() )
-                                  | view::desc( heading )
-                                  | view::fetch_node( kmap ) );
+            auto const dst = KTRYE( anchor::node( kmap.root_node_id() )
+                                  | view2::desc( heading )
+                                  | act2::fetch_node( kmap ) );
             auto const src = nw->selected_node();
 
             merge_trees( *nw, src, dst );
@@ -1247,9 +1247,9 @@ auto create_reference( Uuid const& src
 
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-    auto const ref = KTRY( view::make( dst )
-                         | view::child( "references" )
-                         | view::fetch_or_create_node( km ) );
+    auto const ref = KTRY( anchor::node( dst )
+                         | view2::child( "references" )
+                         | act2::fetch_or_create_node( km ) );
 
     return nw->create_alias( src, ref );
 }

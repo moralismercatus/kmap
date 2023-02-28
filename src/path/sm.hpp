@@ -105,7 +105,7 @@ auto process_token( Driver& driver
     }
     else
     {
-        KMAP_THROW_EXCEPTION_MSG( io::format( "invalid token: {}", token ) );
+        KMAP_THROW_EXCEPTION_MSG( io::format( "invalid token: '{}'", token ) );
     }
 }
 
@@ -367,6 +367,7 @@ public:
     auto operator()() 
     {
         using namespace boost::sml;
+        using namespace kmap::com::db;
         using namespace kmap::sm::ev::detail;
         using namespace kmap::sm::state::detail;
         using namespace ranges;
@@ -386,7 +387,7 @@ public:
 
             auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
-            return db->contains< db::HeadingTable >( ev.heading );
+            return db->contains< HeadingTable >( ev.heading );
         };
         auto const has_prospect = [ & ]( auto const& ev ) -> bool
         {
@@ -394,7 +395,7 @@ public:
 
             for( auto const& decider : output_->prospects )
             {
-                if( !decider.driver->is( boost::sml::state< sm::state::Error > ) )
+                if( !decider.driver->is( boost::sml::state< kmap::sm::state::Error > ) )
                 {
                     return true;
                 }
@@ -418,14 +419,14 @@ public:
         auto const start_selected = [ & ]( auto const& ev ) -> void
         {
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, selected_node_ ) );
-            output_->prospects.back().driver->process_event( sm::ev::Fwd{} );
+            output_->prospects.back().driver->process_event( kmap::sm::ev::Fwd{} );
         };
         auto const start_selected_parent = [ & ]( auto const& ev ) -> void
         {
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto const parent = KTRYE( nw->fetch_parent( selected_node_ ) );
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, parent ) );
-            output_->prospects.back().driver->process_event( sm::ev::Bwd{} );
+            output_->prospects.back().driver->process_event( kmap::sm::ev::Bwd{} );
         };
         auto const start_any_leads = [ & ]( auto const& ev ) -> void
         {
@@ -448,13 +449,13 @@ public:
                                   | filter_lineal )
             {
                 output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, node ) );
-                output_->prospects.back().driver->process_event( sm::ev::Heading{ ev.heading } );
+                output_->prospects.back().driver->process_event( kmap::sm::ev::Heading{ ev.heading } );
             }
         };
         auto const start_root = [ & ]( auto const& ev ) -> void
         {
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, root_ ) );
-            output_->prospects.back().driver->process_event( sm::ev::Fwd{} );
+            output_->prospects.back().driver->process_event( kmap::sm::ev::Fwd{} );
         };
         auto const propagate = [ & ]( auto const& ev ) -> void
         {

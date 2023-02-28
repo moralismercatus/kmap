@@ -8,7 +8,6 @@
 #define KMAP_PATH_NODE_VIEW2_TETHER_HPP
 
 #include "path/view/anchor/anchor.hpp"
-#include "path/view/chain.hpp"
 #include "path/view/link.hpp"
 
 #include <range/v3/range/conversion.hpp>

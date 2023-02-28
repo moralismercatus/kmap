@@ -76,7 +76,7 @@ auto operator|( Tether const& lhs
             auto const ns = fs
                           | rvs::transform( []( auto const& e ){ return e.id; } )
                           | ranges::to< UuidSet >();
-            KTRYE( const_cast< db::QueryCache& >( qcache ).push( lhs, ns ) ); // TODO: WARNING FLAGS!!! VERY TEMPORARY! const_cast a no-no!
+            KTRYE( const_cast< com::db::QueryCache& >( qcache ).push( lhs, ns ) ); // TODO: WARNING FLAGS!!! VERY TEMPORARY! const_cast a no-no!
             KMAP_ENSURE_EXCEPT( qcache.fetch( lhs ) );
         }
 

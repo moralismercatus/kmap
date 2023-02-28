@@ -68,7 +68,7 @@ SCENARIO( "autosave", "[com][autosave]" )
                 {
                     for( auto const& t_item : table )
                     {
-                        REQUIRE( 0 == ranges::count_if( t_item.delta_items, []( auto const& e ){ return e.action == db::DeltaType::erased; } ) );
+                        REQUIRE( 0 == ranges::count_if( t_item.delta_items, []( auto const& e ){ return e.action == com::db::DeltaType::erased; } ) );
                     }
                 };
 

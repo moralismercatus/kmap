@@ -27,7 +27,7 @@
 #include <memory>
 #include <type_traits>
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 class Cache;
 
@@ -105,8 +105,8 @@ public:
     auto operator()()
     {
         using namespace boost::sml;
-        using namespace kmap::db::sm::ev::detail;
-        using namespace kmap::db::sm::state::detail;
+        using namespace kmap::com::db::sm::ev::detail;
+        using namespace kmap::com::db::sm::state::detail;
         using namespace ranges;
 
         /* Guards */
@@ -271,6 +271,6 @@ struct CacheDecider
 auto make_unique_cache_decider( Cache const& cache )
     -> CacheDecider;
 
-} // namespace kmap::db
+} // namespace kmap::com::db
 
 #endif // KMAP_DB_SM_HPP

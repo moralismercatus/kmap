@@ -106,7 +106,9 @@ public:
     }
     // TODO: There may be a way to make a const-version of this by opening the DB as READONLY.
     auto execute_raw( std::string const& stmt )
-        -> std::map< std::string, std::string >; // Note: sqlite3 has no distinction of "const", so it can't be enforced even if I wanted to make a const version.
+        -> std::multimap< std::string, std::string >; // Note: sqlite3 has no distinction of "const", so it can't be enforced even if I wanted to make a const version.
+    auto load( FsPath const& path )
+        -> Result< void >;
     auto path() const
         -> FsPath;
 
@@ -248,6 +250,8 @@ public:
 protected:
     auto cache()
         -> db::Cache&;
+    auto load_internal( FsPath const& path )
+        -> Result< void >;
 //protected: // Allowing access for "repair-state". TODO: Better handle this.
     // auto action_seq()
     //     -> ActionSequence;
@@ -264,6 +268,11 @@ protected:
 auto create_attr_node( Database& db
                      , Uuid const& parent)
     -> Result< Uuid >;
+auto create_tables( sqlpp::sqlite3::connection& con )
+    -> void;
+auto execute_raw( sqlpp::sqlite3::connection& con
+                , std::string const& stmt )
+    -> std::multimap< std::string, std::string >;
 
 } // namespace kmap::com
 

@@ -49,9 +49,9 @@ auto is_general_command( Kmap const& kmap
     auto rv = bool{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = view::make( kmap.root_node_id() )
-                            | view::direct_desc( "meta.setting.command" )
-                            | view::fetch_node( kmap )
+    if( auto const cmd_root = anchor::node( kmap.root_node_id() )
+                            | view2::direct_desc( "meta.setting.command" )
+                            | act2::fetch_node( kmap )
       ; cmd_root )
     {
         rv = view::make( id )
@@ -73,9 +73,9 @@ auto is_particular_command( Kmap const& kmap
     auto rv = bool{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = view::make( kmap.root_node_id() )
-                            | view::direct_desc( "meta.setting.command" )
-                            | view::fetch_node( kmap )
+    if( auto const cmd_root = anchor::node( kmap.root_node_id() )
+                            | view2::direct_desc( "meta.setting.command" )
+                            | act2::fetch_node( kmap )
       ; cmd_root )
     {
         rv = nw->is_lineal( cmd_root.value(), id )
@@ -95,9 +95,9 @@ auto is_argument( Kmap const& km
     auto rv = bool{};
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = view::abs_root
-                            | view::direct_desc( "meta.setting.argument" )
-                            | view::fetch_node( km )
+    if( auto const cmd_root = anchor::abs_root
+                            | view2::direct_desc( "meta.setting.argument" )
+                            | act2::fetch_node( km )
       ; cmd_root )
     {
         rv = nw->is_lineal( cmd_root.value(), id )
@@ -341,12 +341,12 @@ auto has_unconditional_arg( Kmap const& kmap
     ;
 
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
-    auto const unconditional = KTRYE( view::make( args_root )
-                                    | view::child( "unconditional" )
-                                    | view::fetch_node( kmap ) );
-    auto const arg_node = KTRYE( view::make( cmd )
-                               | view::child( "argument" )
-                               | view::fetch_node( kmap ) );
+    auto const unconditional = KTRYE( anchor::node( args_root )
+                                    | view2::child( "unconditional" )
+                                    | act2::fetch_node( kmap ) );
+    auto const arg_node = KTRYE( anchor::node( cmd )
+                               | view2::child( "argument" )
+                               | act2::fetch_node( kmap ) );
     auto const children = nw->fetch_children( arg_node );
 
     for( auto const& arg_descr : children )
@@ -387,15 +387,17 @@ auto fetch_args( Kmap& kmap
     ;
 
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
-    auto const arg_node = KTRY( view::make( cmd_id ) | view::child( "argument" ) | view::fetch_node( kmap ) );
-    auto const arg_nodes = view::make( arg_node )
-                         | view::child
-                         | view::to_node_set( kmap )
+    auto const arg_node = KTRY( anchor::node( cmd_id )
+                              | view2::child( "argument" )
+                              | act2::fetch_node( kmap ) );
+    auto const arg_nodes = anchor::node( arg_node )
+                         | view2::child
+                         | act2::to_node_set( kmap )
                          | act::order( kmap );
 
-    if( auto const args_root = view::make( kmap.root_node_id() )
-                             | view::direct_desc( "meta.setting.argument" )
-                             | view::fetch_node( kmap )
+    if( auto const args_root = anchor::node( kmap.root_node_id() )
+                             | view2::direct_desc( "meta.setting.argument" )
+                             | act2::fetch_node( kmap )
       ; args_root )
     {
         auto const split_args = arg
@@ -441,9 +443,9 @@ auto fetch_args( Kmap& kmap
                             }
                             else
                             {
-                                auto const validity_check = KTRY( view::make( arg_node )
-                                                                | view::child( "guard" )
-                                                                | view::fetch_node( kmap ) );
+                                auto const validity_check = KTRY( anchor::node( arg_node )
+                                                                | view2::child( "guard" )
+                                                                | act2::fetch_node( kmap ) );
 
                                 if( auto const arg_res = evaluate_guard( kmap, validity_check, sarg | to< std::string >() )
                                   ; !arg_res )
@@ -507,10 +509,10 @@ auto fetch_params_ordered( Kmap& kmap
     KMAP_ENSURE( nw->exists( cmd_id ), error_code::network::invalid_node );
 
     auto params = UuidVec{};
-    auto const children = view::make( cmd_id )
-                        | view::child( "argument" )
-                        | view::child
-                        | view::to_node_set( kmap )
+    auto const children = anchor::node( cmd_id )
+                        | view2::child( "argument" )
+                        | view2::child
+                        | act2::to_node_set( kmap )
                         | act::order( kmap );
 
     for( auto const& child : children )
@@ -547,9 +549,9 @@ auto execute_command( Kmap& kmap
     if( is_particular_command( kmap, cmd_id ) ) 
     {
         auto const args = KMAP_TRY( fetch_args( kmap, cmd_id, arg ) );
-        auto const action = KTRY( view::make( cmd_id )
-                                | view::child( "action" )
-                                | view::fetch_node( kmap ) );
+        auto const action = KTRY( anchor::node( cmd_id )
+                                | view2::child( "action" )
+                                | act2::fetch_node( kmap ) );
 
          rv = KMAP_TRY( execute_body( kmap, action, args ) );
     }
@@ -584,9 +586,9 @@ auto execute_command( Kmap& kmap )
             {
                 auto const heading = args[ 0 ];
 
-                return view::make( kmap.root_node_id() )
-                     | view::desc( heading )
-                     | view::fetch_node( kmap );
+                return anchor::node( kmap.root_node_id() )
+                     | view2::desc( heading )
+                     | act2::fetch_node( kmap );
             }
         }();
 
@@ -720,9 +722,9 @@ auto fetch_nearest_command( Uuid const& node )
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& kmap = Singleton::instance();
-    auto const cmd_root = KTRY( view::make( kmap.root_node_id() )
-                              | view::direct_desc( "meta.setting.command" )
-                              | view::fetch_node( kmap ) );
+    auto const cmd_root = KTRY( anchor::node( kmap.root_node_id() )
+                              | view2::direct_desc( "meta.setting.command" )
+                              | act2::fetch_node( kmap ) );
 
     auto parent = Optional< Uuid >( node );
 

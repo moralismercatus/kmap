@@ -24,7 +24,7 @@
 #include <tuple>
 #include <variant>
 
-namespace kmap::db {
+namespace kmap::com::db {
 
 class Cache;
 
@@ -715,12 +715,12 @@ auto fetch_deltas( Cache const& cache
                  , UniqueKeyVariant const& key )
     -> Result< DeltaItems< ValueVariant > >;
 
-} // namespace kmap::db
+} // namespace kmap::com::db
 
 namespace fmt {
 
 template <>
-struct formatter< kmap::db::UniqueKeyVariant >
+struct formatter< kmap::com::db::UniqueKeyVariant >
 {
     constexpr auto parse( format_parse_context& ctx )
     {
@@ -731,7 +731,7 @@ struct formatter< kmap::db::UniqueKeyVariant >
     }
 
     template< typename FormatContext >
-    auto format( kmap::db::UniqueKeyVariant const& key
+    auto format( kmap::com::db::UniqueKeyVariant const& key
                , FormatContext& ctx )
     {
         auto fstr = std::string{};
@@ -744,19 +744,19 @@ struct formatter< kmap::db::UniqueKeyVariant >
                         {
                             fstr = kmap::to_string( arg );
                         }
-                        else if constexpr( std::is_same_v< T, kmap::db::LRPair > )
+                        else if constexpr( std::is_same_v< T, kmap::com::db::LRPair > )
                         {
                             fstr = fmt::format( "('{}':'{}')", arg.first.value(), arg.second.value() );
                         }
-                        else if constexpr( std::is_same_v< T, kmap::db::UuidPair > )
+                        else if constexpr( std::is_same_v< T, kmap::com::db::UuidPair > )
                         {
                             fstr = fmt::format( "{}", arg );
                         }
-                        else if constexpr( std::is_same_v< T, kmap::db::Left > )
+                        else if constexpr( std::is_same_v< T, kmap::com::db::Left > )
                         {
                             fstr = fmt::format( "{}", arg.value() );
                         }
-                        else if constexpr( std::is_same_v< T, kmap::db::Right > )
+                        else if constexpr( std::is_same_v< T, kmap::com::db::Right > )
                         {
                             fstr = fmt::format( "{}", arg.value() );
                         }

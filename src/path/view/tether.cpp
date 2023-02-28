@@ -7,7 +7,6 @@
 
 #include "path/view/act/to_string.hpp"
 #include "path/view/anchor/anchor.hpp"
-#include "path/view/chain.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

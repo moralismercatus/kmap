@@ -217,15 +217,15 @@ namespace kmap::view2::event
 {
     auto const component_root = anchor::abs_root | view2::direct_desc( "meta.event.component" );
     auto const event_root = anchor::abs_root | view2::direct_desc( "meta.event" );
-    auto const object_root = anchor::abs_root | view2::direct_desc( "meta.event.object" );
-    auto const outlet_root = anchor::abs_root | view2::direct_desc( "meta.event.outlet" );
+    auto const object_root = event_root | view2::child( "object" );
+    auto const outlet_root = event_root | view2::child( "outlet" );
     // TODO: Start here.. Yeah.. this is the problem. What this returns is actually requisite node - not the outlet itself, which would be | parent?
     // Note: This doesn't "select" the outlet. It is a predicate. It actually returns "requisite" node, unless `| parent` should be used.
     // Note: Maybe view2::current( view2::any_of( event::leaf, event::branch ) )? A view that just works on "this" node? Nah.. a "view2::current" would obscure predicate usage, no?
     auto const outlet = view2::all_of( view2::child, { "requisite" } ); // TODO: Needs improvement: any_of( outlet_branch, outlet_leaf )
     auto const requisite = view2::child( "requisite" ) | view2::alias;
-    auto const subject_root = anchor::abs_root | view2::direct_desc( "meta.event.subject" );
-    auto const verb_root = anchor::abs_root | view2::direct_desc( "meta.event.verb" );
+    auto const subject_root = event_root | view2::child( "subject" );
+    auto const verb_root = event_root | view2::child( "verb" );
 } // kmap::view2::event
 
 #endif // KMAP_EVENT_EVENT_HPP

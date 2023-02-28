@@ -135,6 +135,15 @@ SCENARIO( "view::SiblingIncl::fetch", "[node_view][sibling_incl]" )
     auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     auto const root = nw->root_node();
 
+    GIVEN( "/" )
+    {
+        THEN( "si: /" )
+        {
+            auto const ns = anchor::node( root ) | view2::sibling_incl | act::to_node_set( km );
+            REQUIRE( ns == UuidSet{ root } );
+        }
+    }
+
     GIVEN( "sibling_incl" )
     {
         auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
