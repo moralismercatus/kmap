@@ -37,21 +37,25 @@ KMAP_BIND_RESULT2( uint32_t );
 KMAP_BIND_RESULT2( uint64_t );
 KMAP_BIND_RESULT2( uint8_t );
 
-auto error_message_void( kmap::Result< void > const& rt )
-    -> std::string
+namespace void_t
 {
-    return to_string( rt.error() );
+    auto has_error( kmap::Result< void > const& rt ) -> bool { return rt.has_error(); }
+    auto has_exception( kmap::Result< void > const& rt ) -> bool { return rt.has_exception(); }
+    auto has_failure( kmap::Result< void > const& rt ) -> bool { return rt.has_failure(); }
+    auto has_lost_consistency( kmap::Result< void > const& rt ) -> bool { return rt.has_lost_consistency(); }
+    auto has_value( kmap::Result< void > const& rt ) -> bool { return rt.has_value(); }
+    auto error( kmap::Result< void > const& rt ) -> std::string { return to_string( rt.error() ); }
 }
 
 EMSCRIPTEN_BINDINGS( kmap_binding_result_void )
 {
     emscripten::class_< kmap::Result< void > >( "Result2<void>" )
-        .function( "has_error", &kmap::Result< void >::has_error ) \
-        .function( "has_exception", &kmap::Result< void >::has_exception ) \
-        .function( "has_failure", &kmap::Result< void >::has_failure ) \
-        .function( "has_lost_consistency", &kmap::Result< void >::has_lost_consistency ) \
-        .function( "has_value", &kmap::Result< void >::has_value ) \
-        .function( "error", &error_message_void ) 
+        .function( "has_error", &void_t::has_error )
+        .function( "has_exception", &void_t::has_exception )
+        .function( "has_failure", &void_t::has_failure )
+        .function( "has_lost_consistency", &void_t::has_lost_consistency )
+        .function( "has_value", &void_t::has_value )
+        .function( "error", &void_t::error ) 
         ;
 }
 

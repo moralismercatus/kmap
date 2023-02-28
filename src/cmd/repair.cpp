@@ -78,106 +78,6 @@ auto repair_missing_entry( com::Database& db
 
 } // namespace anon
 
-/**
- * Searches for discrepancies between children and orderings and attempts to repair.
-**/
-auto repair_orderings( com::Database& db )
-    -> void
-{
-    KMAP_THROW_EXCEPTION_MSG( "TODO: Impl." );
-
-#if 0
-    for( auto const pid : db.fetch_nodes() )
-    {
-        auto const children = [ & ]
-        {
-            auto const rcids = KMAP_TRYE( db.fetch_children( pid ) );
-            auto const ass = db.fetch_alias_sources( pid );
-
-            return views::concat( rcids
-                               , ass )
-                 | to_vector;
-        }();
-        auto cos = db.fetch_child_ordering( pid );
-        auto const child_map = children
-                             | views::transform( [ & ]( auto const& e )
-                             {
-                                 return std::make_pair( to_ordering_id( e )
-                                                      , e );
-                             } )
-                             | to< std::map< std::string, Uuid > >();
-        auto cabbrevs = child_map
-                      | views::keys
-                      | to_vector;
-        sort( cos );
-        sort( cabbrevs );
-        auto const missing_ordering = views::set_difference( cabbrevs
-                                                          , cos )
-                                    | to_vector;
-        auto const missing_children = views::set_difference( cos
-                                                          , cabbrevs );
-        
-        for( auto const& e : missing_ordering )
-        {
-            fmt::print( "[repair.state] Repairing child ordering for: [ {}, {} ]\n"
-                        , to_string( pid )
-                        , db.fetch_heading( pid ).value() );
-            
-            db.append_child_to_ordering( pid
-                                       , child_map.at( e ) );
-        }
-        for( auto const& e : missing_children )
-        {
-            fmt::print( "[repair.state] Repairing child ordering for: [ {}, {} ]\n"
-                        , to_string( pid )
-                        , db.fetch_heading( pid ).value() );
-            
-            db.remove_from_ordering( pid
-                                   , e );
-        }
-    }
-#endif // 0
-}
-
-// TODO: Account for aliases. This does not account for child alias headings that conflict.
-/**
- * Searches all nodes for conflicting heading paths, and attempts to resolve the conflict.
-**/
-auto repair_conflicting_headings( com::Database& db )
-    -> void
-{
-    for( auto const pid : db.fetch_nodes() )
-    {
-        auto const cids = KMAP_TRYE( db.fetch_children( pid ) );
-        auto chs = cids
-                 | rvs::transform( [ & ]( auto const& e ){ return std::make_pair( e, db.fetch_heading( e ).value() ); } )
-                 | ranges::to< std::vector >();
-
-        for( auto it1 = chs.begin()
-           ; it1 != chs.end()
-           ; ++it1 )
-        {
-            for( auto it2 = chs.cbegin()
-            ; it2 != chs.end()
-            ; ++it2 )
-            {
-                if( it1 != it2
-                 && it1->second == it2->second )
-                {
-                    fmt::print( "[repair.state] Repairing conflicting child heading for: [ {}, {} ]\n"
-                              , db.fetch_heading( it1->first ).value()
-                              , db.fetch_heading( it2->first ).value() );
-                    
-                    auto const new_heading = fmt::format( "{}_conflict", db.fetch_heading( it2->first ).value() );
-
-                    KMAP_TRYE( db.update_heading( it2->first, new_heading ) );
-                    it1->second = new_heading;
-                }
-            }
-        }
-    }
-}
-
 auto back_up_state( FsPath const& fp )
     -> Result< void >
 {
@@ -1019,12 +919,16 @@ auto push_attr( sql::connection& con
     {
         auto att = attributes::attributes{};
         auto ht = headings::headings{};
+        auto tt = titles::titles{};
         auto const nattroot = to_string( gen_uuid() );
 
         con( insert_into( att ).set( att.parent_uuid = node, att.child_uuid = nattroot ) );
         con( insert_into( ht ).set( ht.uuid = nattroot, ht.heading = "$" ) );
+        con( insert_into( tt ).set( tt.uuid = nattroot, tt.title = "$" ) );
         con( insert_into( ct ).set( ct.parent_uuid = nattroot, ct.child_uuid = attrn ) );
     }
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -1040,6 +944,7 @@ auto check_genesis( sql::connection& con
     auto rv = result::make_result< void >();
     auto nt = nodes::nodes{};
     auto ht = headings::headings{};
+    auto tt = titles::titles{};
     auto bt = bodies::bodies{};
     auto alls_well = true;
     auto const attrs = KTRYE( com::db::select_attributes( con, node ) );
@@ -1063,6 +968,7 @@ auto check_genesis( sql::connection& con
 
             con( insert_into( nt ).set( nt.uuid = genesisn ) );
             con( insert_into( ht ).set( ht.uuid = genesisn, ht.heading = "genesis" ) );
+            con( insert_into( tt ).set( tt.uuid = genesisn, tt.title = "Genesis" ) );
             con( insert_into( bt ).set( bt.uuid = genesisn, bt.body = std::to_string( present_time() ) ) );
 
             KTRY( push_attr( con, node, genesisn ) );
@@ -1092,14 +998,20 @@ auto check_order( sql::connection& con
     auto nt = nodes::nodes{};
     auto ht = headings::headings{};
     auto bt = bodies::bodies{};
+    auto tt = titles::titles{};
     auto alls_well = true;
     auto const attrs = KTRYE( com::db::select_attributes( con, node ) );
     auto const attr_headings = attrs
                              | rvs::transform( [ & ]( auto const& e ){ return std::pair{ KTRYE( com::db::select_heading( con, e ) ), e }; } )
                              | ranges::to< std::map< std::string, std::string > >();
-    auto const children = KTRYE( com::db::select_children( con, node ) );
+    auto const children = [ & ]
+    {
+        auto as = KTRYE( com::db::select_aliases( con, node ) );
+        auto cs = KTRYE( com::db::select_children( con, node ) );
+        cs.insert( as.begin(), as.end() );
+        return cs;
+    }();
 
-    // $.order
     if( !children.empty() && !attr_headings.contains( "order" ) )
     {
         io::print( "[log][error] Abnormality detected: NO 'order' attribute found for node with children: '{}'\n"
@@ -1107,21 +1019,17 @@ auto check_order( sql::connection& con
 
         if( fix )
         {
-            // TODO: Should probably order by genesis node, but that requires that this is called after children are processed, to ensure that they have genesis nodes.
-            auto const body = [ & ]
-            {
-                auto rb = std::string{};
-                auto const aliases = KTRYE( com::db::select_aliases( con, node ) );
-                
-                rb += children | rvs::join( '\n' ) | ranges::to< std::string >();
-                rb += aliases | rvs::join( '\n' ) | ranges::to< std::string >();
+            io::print( "[log][repair] Generating 'order' attribute for: '{}'\n"
+                     , node );
 
-                return rb;
-            }();
+            // TODO: Should probably order by genesis node, but that requires that this is called after children are processed, to ensure that they have genesis nodes.
+            //       But.. interestingly, an alias doesn't have a genesis time recorded, only its source genesis.
+            auto const body = children | rvs::join( '\n' ) | ranges::to< std::string >(); //[ & ]
             auto const ordern = to_string( gen_uuid() );
 
             con( insert_into( nt ).set( nt.uuid = ordern ) );
             con( insert_into( ht ).set( ht.uuid = ordern, ht.heading = "order" ) );
+            con( insert_into( tt ).set( tt.uuid = ordern, tt.title = "Order" ) );
             con( insert_into( bt ).set( bt.uuid = ordern, bt.body = body ) );
 
             KTRY( push_attr( con, node, ordern ) );
@@ -1138,6 +1046,9 @@ auto check_order( sql::connection& con
 
         if( fix )
         {
+            io::print( "[log][repair] Erasing 'order' attribute for: '{}'\n"
+                     , node );
+
             KTRY( erase_node( con, attr_headings.at( "order" ) ) );
         }
         else
@@ -1167,11 +1078,15 @@ auto check_order( sql::connection& con
         for( auto const& d : rvs::set_difference( order_vec, body_vec ) )
         {
             // Existent child not represented in body; insert
-            io::print( "[log][error] Abnormality detected: 'order' attribute missing node entry: '{}'\n"
-                     , d );
+            io::print( "[log][error] Abnormality detected: 'order' attribute missing node entry: '{}', for node: '{}'\n"
+                     , d
+                     , node );
 
             if( fix )
             {
+                io::print( "[log][repair] Inserting missing node entry for 'order': '{}'\n"
+                         , d );
+
                 auto const new_body = [ & ]
                 {
                     if( auto const tbody = KTRYE( com::db::select_body( con, attr_headings.at( "order" ) ) )
@@ -1200,6 +1115,7 @@ auto check_order( sql::connection& con
 
             if( fix )
             {
+                io::print( "[log][repair] TODO: Impl. repair\n" );
                 // TODO: Remove entry... needs to maintain order, so a little more care needs to be taken.
             }
             else
