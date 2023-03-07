@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include "db_fs.hpp"
 
+#include "com/cli/cli.hpp"
 #include "com/cmd/cclerk.hpp"
 #include "com/database/db.hpp"
 #include "com/filesystem/filesystem.hpp"
@@ -92,13 +93,13 @@ auto DatabaseFilesystem::register_standard_commands()
             if( !kmap.fs_path_exists( path ) )
             {
                 kmap.database().init_db_on_disk( path ).throw_on_error();
-                kmap.database().flush_delta_to_disk().throw_on_error();
+                kmap.database().flush_cache_to_disk().throw_on_error();
 
                 rv = kmap.success( 'saved as: ' + path );
             }
             else
             {
-                rv = kmap.failure( "file already exists found" );
+                rv = kmap.failure( 'file already exists found' );
             }
 
             return rv;
@@ -327,6 +328,7 @@ SCENARIO( "saved data mirrors runtime data", "[db][fs]")
 // TODO: Simply put, I believe there is a bug in emscripten's ___syscall_newfstatat that is called by fs::exists, that will trigger in Debug builds
 //       because there assertions are included. It doesn't seem to be a real problem, but a false positive "assert()", so testing on files cannot proceed
 //       in Debug mode. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
+//       Update: https://github.com/emscripten-core/emscripten/pull/18261 claims to have fixed this issue. TBD.
 SCENARIO( "save and load results in identical state", "[db][fs]")
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network", "event_store"/*nw->select_node() fires an event*/, "option_store" ); // TODO: option_store needed because Kmap::load() applies options after loading. That whole dependency needs to be sorted out.
@@ -341,10 +343,7 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
         auto const disk_path = ".db_fs_test.kmap";
         auto const abs_disk_path = com::kmap_root_dir / disk_path;
 
-        if( exists( abs_disk_path ) )
-        {
-            boost::filesystem::remove( abs_disk_path );
-        }
+        if( exists( abs_disk_path ) ) { boost::filesystem::remove( abs_disk_path ); }
 
         GIVEN( "init_db_on_disk" )
         {
@@ -458,12 +457,56 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
                 }
             }
 
-            if( exists( abs_disk_path ) )
+            if( exists( abs_disk_path ) ) { boost::filesystem::remove( abs_disk_path ); }
+        }
+    }
+}
+
+SCENARIO( "save.as after save.as output DBs are mirrored", "[db][fs]")
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network", "event_store"/*nw->select_node() fires an event*/, "option_store", "cli" ); // TODO: option_store needed because Kmap::load() applies options after loading. That whole dependency needs to be sorted out.
+
+    auto& km = Singleton::instance();
+    auto initialized_coms = km.component_store().all_initialized_components();
+    auto const disk_path_1 = ".db_fs_test.1.kmap";
+    auto const disk_path_2 = ".db_fs_test.2.kmap";
+    auto const abs_disk_path_1 = com::kmap_root_dir / disk_path_1;
+    auto const abs_disk_path_2 = com::kmap_root_dir / disk_path_2;
+    auto const cli = [ & ] { return REQUIRE_TRY( km.fetch_component< com::Cli >() ); };
+    auto const fetch_cache = [ & ]()
+    {
+        auto const db = REQUIRE_TRY( km.fetch_component< com::Database >() );
+        return std::as_const( *db ).cache();
+    };
+
+    GIVEN( "map state provided by dependencies: network, option_store, etc." )
+    {
+        if( exists( abs_disk_path_1 ) ) { boost::filesystem::remove( abs_disk_path_1 ); }
+        if( exists( abs_disk_path_2 ) ) { boost::filesystem::remove( abs_disk_path_2 ); }
+
+        GIVEN( "save.as path_1" )
+        {
+            REQUIRE_TRY( cli()->parse_raw( fmt::format( ":save.as {}", disk_path_1 ) ) );
+            REQUIRE_TRY( km.load( disk_path_1, initialized_coms ) );
+            auto const cache_post_save_1 = fetch_cache();
+
+            WHEN( "save.as path_2" )
             {
-                boost::filesystem::remove( abs_disk_path );
+                REQUIRE_TRY( cli()->parse_raw( fmt::format( ":save.as {}", disk_path_2 ) ) );
+                REQUIRE_TRY( km.load( disk_path_2, initialized_coms ) );
+
+                auto const cache_post_save_2 = fetch_cache();
+
+                THEN( "path_1 and path_2 represent identical files" )
+                {
+                    REQUIRE( cache_post_save_1.tables() == cache_post_save_2.tables() );
+                }
             }
         }
     }
+
+    if( exists( abs_disk_path_1 ) ) { boost::filesystem::remove( abs_disk_path_1 ); }
+    if( exists( abs_disk_path_2 ) ) { boost::filesystem::remove( abs_disk_path_2 ); }
 }
 
 auto DatabaseFilesystem::copy_state( FsPath const& dst )

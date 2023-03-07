@@ -464,7 +464,7 @@ auto Database::push_node( Uuid const& id )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "id", id );
+        KM_RESULT_PUSH( "id", to_string( id ) );
 
     KMAP_ENSURE( !node_exists( id ), error_code::network::duplicate_node );
 
@@ -482,10 +482,10 @@ auto Database::push_heading( Uuid const& node
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "node", node );
-        KM_RESULT_PUSH_STR( "heading", heading );
+        KM_RESULT_PUSH( "node", to_string( node ) );
+        KM_RESULT_PUSH( "heading", heading );
 
-    KMAP_ENSURE_EXCEPT( node_exists( node ) ); // TODO: replace with ensure_result
+    KMAP_ENSURE( node_exists( node ), error_code::common::uncategorized );
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -501,10 +501,10 @@ auto Database::push_body( Uuid const& node
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "node", node );
-        KM_RESULT_PUSH_STR( "body", body );
+        KM_RESULT_PUSH( "node", to_string( node ) );
+        KM_RESULT_PUSH( "body", body );
 
-    KMAP_ENSURE_EXCEPT( node_exists( node ) ); // TODO: replace with ensure_result
+    KMAP_ENSURE( node_exists( node ), error_code::common::uncategorized );
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -520,10 +520,10 @@ auto Database::push_title( Uuid const& node
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "node", node );
-        KM_RESULT_PUSH_STR( "title", title );
+        KM_RESULT_PUSH( "node", to_string( node ) );
+        KM_RESULT_PUSH( "title", title );
 
-    KMAP_ENSURE_EXCEPT( node_exists( node ) ); // TODO: replace with ensure_result
+    KMAP_ENSURE( node_exists( node ), error_code::common::uncategorized );
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -609,8 +609,8 @@ auto Database::push_alias( Uuid const& src
     -> Result< void >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "src", src );
-        // KM_RESULT_PUSH_NODE( "dst", dst );
+        KM_RESULT_PUSH( "src", to_string( src ) );
+        KM_RESULT_PUSH( "dst", to_string( dst ) );
 
     auto rv = KMAP_MAKE_RESULT( void );
 
@@ -1663,6 +1663,107 @@ auto Database::flush_delta_to_disk()
     return rv;
 }
 
+// TODO: This should probably be part of db_fs, and not db proper.
+auto Database::flush_cache_to_disk()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    BC_CONTRACT()
+        BC_PRE([ & ]
+        {
+            BC_ASSERT( con_ );
+        })
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( !has_delta() );
+            }
+        })
+    ;
+
+    KMAP_ENSURE( has_file_on_disk(), error_code::common::uncategorized );
+
+    auto proc_table = [ & ]( auto&& table ) mutable
+    {
+        using namespace db;
+        using Table = std::decay_t< decltype( table ) >;
+
+        auto nt = nodes::nodes{};
+        auto nt_ins = insert_into( nt ).columns( nt.uuid );
+        auto ht = headings::headings{};
+        auto ht_ins = insert_into( ht ).columns( ht.uuid, ht.heading );
+        auto tt = titles::titles{};
+        auto tt_ins = insert_into( tt ).columns( tt.uuid, tt.title );
+        auto bt = bodies::bodies{};
+        auto bt_ins = insert_into( bt ).columns( bt.uuid, bt.body );
+        auto ct = children::children{};
+        auto ct_ins = insert_into( ct ).columns( ct.parent_uuid, ct.child_uuid );
+        auto at = aliases::aliases{};
+        auto at_ins = insert_into( at ).columns( at.src_uuid, at.dst_uuid );
+        auto att = attributes::attributes{};
+        auto att_ins = insert_into( att ).columns( att.parent_uuid, att.child_uuid );
+
+        for( auto const& item : table )
+        {
+            if constexpr( std::is_same_v< Table, NodeTable > ) { nt_ins.values.add( nt.uuid = to_string( item.key() ) ); }
+            else if constexpr( std::is_same_v< Table, HeadingTable > ) { ht_ins.values.add( ht.uuid = to_string( item.left() ), ht.heading = item.right() ); }
+            else if constexpr( std::is_same_v< Table, TitleTable > ) { tt_ins.values.add( tt.uuid = to_string( item.left() ), tt.title = item.right() ); }
+            else if constexpr( std::is_same_v< Table, BodyTable > ) { bt_ins.values.add( bt.uuid = to_string( item.left() ), bt.body = item.right() ); }
+            else if constexpr( std::is_same_v< Table, ChildTable > ) { ct_ins.values.add( ct.parent_uuid = to_string( item.left().value() ), ct.child_uuid = to_string( item.right().value() ) ); }
+            else if constexpr( std::is_same_v< Table, AliasTable > ) { at_ins.values.add( at.src_uuid = to_string( item.left().value() ) , at.dst_uuid = to_string( item.right().value() ) ); }
+            else if constexpr( std::is_same_v< Table, AttributeTable > ) { att_ins.values.add( att.parent_uuid = to_string( item.left().value() ) , att.child_uuid = to_string( item.right().value() ) ); }
+            else if constexpr( std::is_same_v< Table, ResourceTable > )
+            {
+                // Frankly... this one is a bit of a toughy because the size of the resource may be very large.
+                // It may make more general sense to pass around a file string, res heading, or some such that, at this point,
+                // the file may be stored into the db, so we don't have huge binaries sitting around in the cache. It'll take some thought.
+                assert( false && "TODO" );
+                KMAP_THROW_EXCEPTION_MSG( "TODO" );
+            }
+            else
+            {
+                static_assert( always_false< Table >::value, "non-exhaustive visitor!" );
+            }
+        }
+
+        auto push_to_db = [ & ]( auto const& ins ) mutable
+        {
+            if( !ins.values._data._insert_values.empty() )
+            {
+                execute( ins );
+            }
+        };
+
+        if constexpr( std::is_same_v< Table, NodeTable > ) { push_to_db( nt_ins ); }
+        else if constexpr( std::is_same_v< Table, HeadingTable > ) { push_to_db( ht_ins ); }
+        else if constexpr( std::is_same_v< Table, TitleTable > ) { push_to_db( tt_ins ); }
+        else if constexpr( std::is_same_v< Table, BodyTable > ) { push_to_db( bt_ins ); }
+        else if constexpr( std::is_same_v< Table, ChildTable > ) { push_to_db( ct_ins ); }
+        else if constexpr( std::is_same_v< Table, AliasTable > ) { push_to_db( at_ins ); }
+        else if constexpr( std::is_same_v< Table, AttributeTable > ) { push_to_db( att_ins ); }
+        else if constexpr( std::is_same_v< Table, ResourceTable > ) { /*TODO*/ }
+        else { static_assert( always_false< Table >::value, "non-exhaustive visitor!" ); }
+    };
+    auto apply_delta = [ & ]( auto&& table ) mutable
+    {
+        using Table = std::decay_t< decltype( table ) >;
+
+        // Only apply delta after write is complete.
+        cache().apply_delta_to_cache< Table >();
+    };
+
+    boost::hana::for_each( cache().tables(), proc_table );
+    boost::hana::for_each( cache().tables(), apply_delta );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto Database::has_delta() const
     -> bool
 {
@@ -1837,6 +1938,23 @@ struct Database
         }
     }
 
+    auto flush_cache_to_disk()
+        -> kmap::binding::Result< void >
+    {
+        KM_RESULT_PROLOG();
+
+        try
+        {
+            auto const db = KTRY( kmap_.fetch_component< com::Database >() );
+
+            return db->flush_cache_to_disk();
+        }
+        catch( std::exception const& e )
+        {
+            return kmap::Result< void >{ KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, e.what() ) };
+        }
+    }
+
     auto has_delta()
         -> bool
     {
@@ -1866,6 +1984,7 @@ EMSCRIPTEN_BINDINGS( kmap_database )
     class_< kmap::com::binding::Database >( "Database" )
         .function( "init_db_on_disk", &kmap::com::binding::Database::init_db_on_disk )
         .function( "flush_delta_to_disk", &kmap::com::binding::Database::flush_delta_to_disk )
+        .function( "flush_cache_to_disk", &kmap::com::binding::Database::flush_cache_to_disk )
         .function( "has_delta", &kmap::com::binding::Database::has_delta )
         .function( "has_file_on_disk", &kmap::com::binding::Database::has_file_on_disk )
         ;

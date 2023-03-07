@@ -925,6 +925,9 @@ protected:
 
         return rv;
     }
+
+    // TODO: Why doesn't the use of this compile?
+    // std::strong_ordering operator<=>( Cache const& ) const = default;
 };
 
 auto print_deltas( db::Cache const& cache )

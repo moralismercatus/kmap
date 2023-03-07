@@ -704,7 +704,7 @@ auto check_heading( sql::connection& con
 
         if( std::distance( rows.begin(), rows.end() ) != 1 )
         {
-            io::print( "[log][error] Abnormality detected: did not find single heading for node: '{}'\n"
+            io::print( "[log][error] Abnormality detected: did not find exactly one heading for node: '{}'\n"
                      , node );
 
             alls_well = false;
@@ -716,7 +716,7 @@ auto check_heading( sql::connection& con
 
             if( !is_valid_heading( heading ) )
             {
-                io::print( "[log][error] Abnormality detected: did not find single heading for node: '{}'\n"
+                io::print( "[log][error] Abnormality detected: did not find exactly one heading for node: '{}'\n"
                         , node );
 
                 if( fix )
@@ -880,18 +880,59 @@ auto check_title( sql::connection& con
     auto tt = titles::titles{};
     
     {
-        // No specific formatting for title, so just ensure that the node has a title.
         auto rows = con( select( all_of( tt ) ).from( tt ).where( tt.uuid == node ) );
 
-        if( std::distance( rows.begin(), rows.end() ) != 1 )
+        if( auto const count = std::distance( rows.begin(), rows.end() )
+          ; count != 1 )
         {
-            io::print( "[log][error] Abnormality detected: did not find single title for node: '{}'\n"
-                     , node );
+            io::print( "[log][error] Abnormality detected: did not find exactly one title for node: '{}' (found: {})\n"
+                     , node
+                     , count );
 
             alls_well = false;
         }
     }
 
+    if( alls_well )
+    {
+        rv = outcome::success();
+    }
+
+    return rv;
+}
+
+auto check_has_no_attr( sql::connection& con
+                      , std::string const& node
+                      , bool fix )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+    auto alls_well = true;
+
+    if( auto const attrs = com::db::select_attributes( con, node )
+      ; attrs && attrs.value().size() > 0 )
+    {
+        io::print( "[log][error] Abnormality detected: attribute node has attribute for node: '{}'\n"
+                 , node );
+
+        if( fix )
+        {
+            io::print( "[log][repair] Erasing attributes attribute for: '{}'\n"
+                     , node );
+
+            for( auto const& attr : attrs.value() )
+            {
+                KTRY( repair::erase_node( con, attr ) );
+            }
+        }
+        else
+        {
+            alls_well = false;
+        }
+    }
+    
     if( alls_well )
     {
         rv = outcome::success();
@@ -1147,6 +1188,7 @@ auto traverse_check_attr_node( sql::connection& con
     KTRY( check_heading_conflict( con, node, fix ) );
     KTRY( check_body( con, node, fix ) );
     KTRY( check_title( con, node, fix ) );
+    KTRY( check_has_no_attr( con, node, fix ) );
 
     for( auto const children = KTRYE( com::db::select_children( con, node ) )
        ; auto const& child : children )
@@ -1253,169 +1295,7 @@ auto repair_map( sql::connection& con
     return rv;
 }
 
-#if 0
-auto repair_map( FsPath const& fp )
-    -> Result< void >
-{   
-    KM_RESULT_PROLOG();
-
-    auto rv = result::make_result< void >();
-
-    KMAP_ENSURE( fs::exists( fp ), error_code::filesystem::file_not_found );
-
-    KTRY( back_up_state( fp ) );
-
-    auto con = db::open_connection( fp, SQLITE_OPEN_READWRITE, false );
-    // Note: Database::load blindly loads the nodes. The only sanity checking it does is to ensure each table UUID loaded exists in the node table. That's it.
-    //       So, it follows that, once missing node table entries are resolved (do that first), we can use the DB itself for queries, thus saving us from having to reinvent
-    //       the load()-wheel. It would seem that I could even use a com::Network to begin to construct the map, although I don't know if that's overkill.
-    //       Fetch node is a challenge. OK, I think what I can 
-    auto const root = KTRY( fetch_unbegotten_nodes( con ) );
-
-    KTRY( check_orphaned_nodes( con, root, fix ) );
-
-    auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
-
-    KTRY( traverse_check_node( con, db, root, fix ) );
-
-    auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
-
-    KMAP_TRYE( db.init_db_on_disk( fp ) );
-
-    db.create_tables();
-
-    // Note: Using `/meta.repair` for generating missing nodes.
-    // repair_orphaned_children( db );
-    fmt::print( "Analyzing orderings...\n" );
-    repair_orderings( db );
-    fmt::print( "Analyzing missing entries...\n" );
-    repair_missing_entry( db
-                        , "heading"
-                        , [ &db ]( auto const& e ) -> bool { return db.fetch_heading( e ).has_value(); }
-                        , [ &db ]( auto const& e ){ auto t = headings::headings{}; 
-                                                    db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.heading = format_heading( to_string( e ) ) ) ); } );
-    repair_missing_entry( db
-                        , "title"
-                        , [ &db ]( auto const& e ) -> bool { return db.fetch_title( e ).has_value(); }
-                        , [ &db ]( auto const& e ){ auto t = titles::titles{}; 
-                                                    db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.title = to_string( e ) ) ); } );
-    repair_missing_entry( db
-                        , "body"
-                        , [ &db ]( auto const& e ) -> bool { return db.fetch_body( e ).has_value(); }
-                        , [ &db ]( auto const& e ){ auto t = bodies::bodies{}; 
-                                                    db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.body = "" ) ); } );
-    // repair_missing_entry( db
-    //                     , "genesis_time"
-    //                     , [ &db ]( auto const& e ) -> bool { return db.fetch_genesis_time( e ).has_value(); }
-    //                     , [ &db ]( auto const& e ){ auto t = genesis_times::genesis_times{}; 
-    //                                                 db.execute( insert_into( t ).set( t.uuid = to_string( e ), t.unix_time = present_time() ) ); } );
-    fmt::print( "Analyzing heading conflicts...\n" );
-    repair_conflicting_headings( db ); // depends_on( "repair_missing_nodes" )
-
-    rv = outcome::success();
-
-    return rv;
-}
-#endif // 0
-
 namespace {
-
-#if 0
-namespace check_map_def {
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'unconditional' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-let rv = null;
-const fs_path = args.get( 0 );
-const res = kmap.check_map( fs_path );
-
-if( res.has_value() )
-{
-    kmap.select_node( kmap.selected_node() );
-
-    rv = kmap.success( 'check complete' );
-}
-else
-{
-    rv = res.error_message();
-}
-
-return rv;
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "examines state of the target map for abnormalities";
-auto const arguments = std::vector< Argument >{ Argument{ "file_path"
-                                                        , "path of map to be examined"
-                                                        , "filesystem_path" } };
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    check.state
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace check_map_def
-#endif // 0
-
-#if 0
-namespace repair_map_def {
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'unconditional' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-let rv = null;
-const fs_path = args.get( 0 );
-const res = kmap.repair_map( fs_path );
-
-if( res.has_value() )
-{
-    kmap.select_node( kmap.selected_node() );
-
-    rv = kmap.success( 'repaired' );
-}
-else
-{
-    rv = res.error_message();
-}
-
-return rv;
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "attempts to repair state of the target map";
-auto const arguments = std::vector< Argument >{ Argument{ "file_path"
-                                                        , "path of map to be repaired"
-                                                        , "filesystem_path" } };
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    repair.state
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace repair_map_def
-#endif // 0
-
 namespace binding {
 
 using namespace emscripten;

@@ -270,7 +270,7 @@ auto TextArea::register_standard_outlets()
 {
     eclerk_.register_outlet( Leaf{ .heading = "text_area.load_preview_on_select_node"
                                  , .requisites = { "subject.network", "verb.selected", "object.node" }
-                                 , .description = "loads select node body in preview pane"
+                                 , .description = "Loads select node body in preview pane."
                                  , .action = R"%%%(kmap.text_area().load_preview( kmap.selected_node() );)%%%" } );
 }
 

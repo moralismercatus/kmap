@@ -20,6 +20,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/stable_sort.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/transform.hpp>
+
+namespace rvs = ranges::views;
 
 namespace kmap::com {
 
@@ -94,16 +98,6 @@ auto TaskStore::cascade_tags( Uuid const& task )
                      | view::tag( view::none_of( "task.status.open.active", "task.status.open.inactive", "task.status.closed" ) )
                      | view::resolve
                      | view::to_node_set( km );
-
-    // TODO:
-    // KTRY( view::make( task )
-    //     | view::desc( view::PredFn{ [ this ]( auto const& n ){ return is_task( n ); } } ) // TODO: Replace with `view::desc | view::task`
-    //     | view::tag( rtags )
-    //     | view::fetch_or_create_node( kmap ) );
-    //     Discussion:
-    //     Basically, the problem is, tag( <set> ) doesn't understand fetch_or_create, it only understands fetch_all( <set> ) and create_all( <set> ).
-    //     Discussed in detail elsewhere, along with possible "currying" solution.
-    //     For now, this is a workaround:
     auto const subtasks = view::make( task )
                         | view::desc( view::PredFn{ [ this ]( auto const& n ){ return is_task( n ); } } ) // TODO: Replace with `view::desc | view::task`
                         | view::to_node_set( km );
@@ -194,6 +188,7 @@ SCENARIO( "create_task", "[task][create][tag][order]" )
                         | view::tag( "task.status.open.active" )
                         | view::exists( km ) ));
             }
+
             GIVEN( "create.task 2" )
             {
                 auto const t2 = REQUIRE_TRY( tstore->create_task( "2" ) );
@@ -413,23 +408,26 @@ auto TaskStore::close_task( Uuid const& task )
 
         // Sort 
         {
+            enum class Status : int { active, inactive, closed, nontask }; // Ordered.
             auto const task_root = KTRYE( fetch_task_root( km ) );
             auto tasks = view::make( task_root )
                              | view::child
                              | view::to_node_set( km )
                              | ranges::to< std::vector >();
+            auto const map_status = [ & ]( auto const& n )
+            {
+                     if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )   { return Status::active; }
+                else if( view::make( n ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ) { return Status::inactive; }
+                else if( view::make( n ) | view::tag( "task.status.closed" ) | view::exists( km ) )        { return Status::closed; }
+                else                                                                                       { return Status::nontask; }
+            };
+            auto status_map = tasks
+                            | rvs::transform( [ & ]( auto const& t ){ return std::pair{ t, map_status( t ) }; } )
+                            | ranges::to< std::map< Uuid, Status > >();
             auto const pred = [ & ]( auto const& t1, auto const& t2 )
             {
-                enum class Status : int { active, inactive, closed, nontask }; // Ordered.
-                auto const map_status = [ & ]( auto const& n )
-                {
-                         if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )  { return Status::active; }
-                    else if( view::make( n ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ){ return Status::inactive; }
-                    else if( view::make( n ) | view::tag( "task.status.closed" ) | view::exists( km ) )       { return Status::closed; }
-                    else                                                                                      { return Status::nontask; }
-                };
 
-                return static_cast< int >( map_status( t1 ) ) < static_cast< int >( map_status( t2 ) ); 
+                return static_cast< int >( status_map.at( t1 ) ) < static_cast< int >( status_map.at( t2 ) ); 
             };
 
             ranges::stable_sort( tasks, pred ); // stable_sort maintains pre-sort order for equivalent items.

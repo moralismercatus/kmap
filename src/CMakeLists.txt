@@ -182,6 +182,7 @@ add_executable( emcc.index.html
                 path/sm.cpp
                 path/view/act/abs_path.cpp path/view/act/abs_path.hpp
                 path/view/act/count.cpp path/view/act/count.hpp
+                path/view/act/create_node.cpp path/view/act/create_node.hpp
                 path/view/act/exists.cpp path/view/act/exists.hpp
                 path/view/act/fetch_body.cpp path/view/act/fetch_body.hpp
                 path/view/act/fetch_heading.cpp path/view/act/fetch_heading.hpp

@@ -17,9 +17,9 @@ namespace kmap::view2 {
 namespace kmap::view2::concepts {
 
 template< typename... Args >
-concept LinkArgs = ( std::derived_from< Args, kmap::view2::Link > && ... );
+concept LinkArgs = ( std::derived_from< std::decay_t< Args >, kmap::view2::Link > && ... );
 template< typename... Args >
-concept TetherArgs = ( std::derived_from< Args, kmap::view2::Tether > && ... );
+concept TetherArgs = ( std::derived_from< std::decay_t< Args >, kmap::view2::Tether > && ... );
 
 } // namespace kmap::view2::concepts
 

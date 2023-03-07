@@ -244,6 +244,8 @@ public:
         -> std::vector< Heading >;
     auto flush_delta_to_disk()
         -> Result< void >;
+    auto flush_cache_to_disk()
+        -> Result< void >;
     auto has_delta() const
         -> bool;
 

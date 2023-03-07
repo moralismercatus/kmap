@@ -341,6 +341,8 @@ public:
 
     auto begin() const { return table.begin(); }
     auto end() const { return table.end(); }
+
+    std::strong_ordering operator<=>( SetTable const& ) const = default;
 };
 
 template< typename Key
@@ -479,6 +481,8 @@ public:
 
     auto begin() const { return table.begin(); }
     auto end() const { return table.end(); }
+
+    std::strong_ordering operator<=>( MapTable const& ) const = default;
 };
 
 template< typename Left
@@ -658,6 +662,8 @@ public:
 
     auto begin() const { return table.begin(); }
     auto end() const { return table.end(); }
+
+    std::strong_ordering operator<=>( BimapTable const& ) const = default;
 };
 
 // template< typename T >

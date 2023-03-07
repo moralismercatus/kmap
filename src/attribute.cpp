@@ -38,7 +38,7 @@ auto is_attr( Kmap const& kmap
 
 /// Returns whether 'node' is a descendant of an attribute node.
 auto is_in_attr_tree( Kmap const& kmap
-                 , Uuid const& node )
+                    , Uuid const& node )
     -> bool
 {
     return is_attr( kmap, node )

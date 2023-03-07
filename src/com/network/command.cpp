@@ -581,7 +581,7 @@ auto NetworkCommand::register_standard_commands()
     }
 }
 
-SCENARIO( "count.descendants", "[nw][cmd]" )
+SCENARIO( "count.descendants", "[network][cmd]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network.command", "cli" );
 
@@ -615,7 +615,7 @@ SCENARIO( "count.descendants", "[nw][cmd]" )
     }
 }
 
-SCENARIO( "resolve.alias", "[nw][cmd][alias]" )
+SCENARIO( "resolve.alias", "[network][cmd][alias]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network.command", "cli" );
     auto& km = Singleton::instance();

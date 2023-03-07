@@ -705,9 +705,19 @@ auto Canvas::rebase_internal( Uuid const& pane
     auto const basen = KTRY( anchor::node( pane )
                            | view2::child( "base" )
                            | act2::fetch_node( km ) );
+    auto const baseb = KTRY( anchor::node( basen )
+                           | act2::fetch_body( km ) );
+    auto base_val_str = fmt::format( "{:.4f}", base );
 
-    KTRY( nw->update_body( basen, io::format( "{:.4f}", base ) ) );
+    if( baseb != base_val_str )
+    {
+        KTRY( nw->update_body( basen, base_val_str ) );
+    }
 
+    // TODO: We don't want to reorder unnecessarily. Make sure the orders don't match, first, before updating and triggering a cache clearing.
+    //       Ah, but there's a problem. Because we change base on enter/exit :edit, text_area.base gets updated, so the cache is cleared.
+    //       Q: Should base be stored in the node info? For one, it's duplicated. It exists in both JS canvas node and kmap. Maybe kmap can do without?
+    //          Thereby eliminating the possibilty of dissymmetry.
     // Ensure network displays them as ordered according to their position.
     {
         auto const parent = KTRY( nw->fetch_parent( pane ) );
@@ -1695,6 +1705,22 @@ struct Canvas
         return KTRYE( km.fetch_component< kmap::com::Canvas >() )->subdivide( pane, heading, Division{ parsed_orient, base, false, elem_type } );
     }
 
+    auto toggle_pane( Uuid const& pane )
+        -> kmap::binding::Result< void >
+    {
+        auto canvas = KTRYE( km.fetch_component< kmap::com::Canvas >() );
+        auto const hidden = KTRYE( canvas->pane_hidden( pane ) );
+
+        if( hidden )
+        {
+            return canvas->reveal( pane );
+        }
+        else
+        {
+            return canvas->hide( pane );
+        }
+    }
+
     auto update_all_panes()
         -> kmap::binding::Result< void >
     {
@@ -1743,6 +1769,7 @@ EMSCRIPTEN_BINDINGS( kmap_canvas )
         .function( "reorient", &kmap::com::binding::Canvas::reorient )
         .function( "reveal", &kmap::com::binding::Canvas::reveal )
         .function( "text_area_pane", &kmap::com::binding::Canvas::text_area_pane )
+        .function( "toggle_pane", &kmap::com::binding::Canvas::toggle_pane )
         .function( "update_all_panes", &kmap::com::binding::Canvas::update_all_panes )
         .function( "workspace_pane", &kmap::com::binding::Canvas::workspace_pane )
         ;

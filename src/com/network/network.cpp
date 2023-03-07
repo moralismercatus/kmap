@@ -188,7 +188,10 @@ auto Network::create_alias( Uuid const& src
         auto const db = KTRY( km.fetch_component< com::Database >() );
 
         KTRY( db->push_alias( rsrc, rdst ) );
-
+    }
+    
+    if( !attr::is_in_attr_tree( km, dst ) )
+    {
         // TODO: Replace with event/outlet.
         KTRY( attr::push_order( km, rdst, rsrc ) ); // Resolve src ID gets placed in ordering, rather than the alias ID.
     }
@@ -301,6 +304,56 @@ SCENARIO( "Network::create_alias", "[network][alias]" )
     }
 }
 
+SCENARIO( "create_alias on attribute", "[network][alias][attribute]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+
+    GIVEN( "alias source" )
+    {
+        auto const tag = REQUIRE_TRY( anchor::abs_root
+                                    | view2::child( "tag" )
+                                    | act2::create_node( km ) );
+
+        GIVEN( "/1" )
+        {
+            auto const n1 = REQUIRE_TRY( anchor::abs_root
+                                    | view2::child( "1" )
+                                    | act2::create_node( km ) );
+            GIVEN( "/1.$.t" )
+            {
+                auto const attrn = REQUIRE_TRY( anchor::node( n1 )
+                                            | view2::attr
+                                            | view2::child( "t" )
+                                            | act2::create_node( km ) );
+
+                WHEN( "alias: /1.$.t.<alias:/tag>" )
+                {
+                    REQUIRE_TRY( nw->create_alias( tag, attrn ) );
+
+                    THEN( "no node in /1.$ tree has an attribute itself" )
+                    {
+                        for( auto const& att : anchor::node( attrn )
+                                                | view2::desc( view2::none_of( view2::alias ) )
+                                                | view2::attr
+                                                | act2::to_node_set( km ) )
+                        {
+                            fmt::print( "ATTRIBUTE OF ATTRIBUTE: {}\n", att );
+                        }
+
+                        REQUIRE( !( anchor::node( attrn )
+                                  | view2::desc( view2::none_of( view2::alias ) )
+                                  | view2::attr
+                                  | act2::exists( km ) ) );
+                    }
+                }
+            }
+        } 
+    }
+}
+
 auto Network::create_child( Uuid const& parent
                           , Uuid const& child
                           , Heading const& heading
@@ -352,7 +405,7 @@ auto Network::create_child( Uuid const& parent
 
     KTRY( create_child_internal( rparent, child, heading, title ) );
 
-    if( !attr::is_in_attr_tree( km, child ) ) // TODO: What is the purpose of this check? And what's with it's name? Something feels half-baked about this...
+    if( !attr::is_in_attr_tree( km, child ) )
     {
         KTRY( attr::push_genesis( km, child ) );
         KTRY( attr::push_order( km, rparent, child ) );
@@ -634,7 +687,10 @@ auto Network::erase_alias_root( Uuid const& id )
         auto const db = KTRY( fetch_component< com::Database >() );
 
         KTRY( db->erase_alias( rsrc, dst ) );
+    }
 
+    if( !attr::is_in_attr_tree( km, dst ) )
+    {
         KTRY( attr::pop_order( km, dst, rsrc ) ); // TODO: Replace with event system.
     }
 
@@ -774,8 +830,6 @@ auto Network::erase_node_leaf( Uuid const& id )
         // TODO: Order should be done via event, I think? It's an add-on feature. Unless... event relies on order which complicates things.
         KTRY( attr::pop_order( km, parent, id ) );
 
-        // TODO: What does this get us vs. erase_all, and why both called?
-        //       Answer: db->erase_all() has no notion of a cascading attribute tree - only the attribute itself.
         if( auto const at = fetch_attr_node( id )
           ; at )
         {
@@ -790,6 +844,7 @@ auto Network::erase_node_leaf( Uuid const& id )
     return rv;
 }
 
+// TODO: Unit test needed for alias as attribute child (e.g., a tag).
 auto Network::erase_attr( Uuid const& id )
     -> Result< Uuid >
 {
@@ -817,7 +872,7 @@ auto Network::erase_attr( Uuid const& id )
         //       Negative... they are like ordinary nodes except without attributes themselves.
         //       Errghhh... this further complicates things if I use an alias as a $.tag., as the alias will then have attributes.
         //       But as long as such can be accounted for, it should be fine.
-        KMAP_TRY( erase_node_internal( child ) );
+        KTRY( erase_node_internal( child ) );
     }
 
     auto const db = KTRY( fetch_component< com::Database >() );
@@ -934,7 +989,7 @@ auto Network::erase_node( Uuid const& id )
     return rv;
 }
 
-SCENARIO( "Network::erase_node", "[alias]" )
+SCENARIO( "Network::erase_node", "[network][alias]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
 
@@ -1108,7 +1163,7 @@ SCENARIO( "Network::erase_node", "[alias]" )
     }
 }
 
-SCENARIO( "erase_node erases attributes", "[nw][iface]" )
+SCENARIO( "erase_node erases attributes", "[network][attribute]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "database", "network", "root_node" );
 
@@ -1121,24 +1176,27 @@ SCENARIO( "erase_node erases attributes", "[nw][iface]" )
     auto const attr_original_count = count( attr_tbl );
     auto const node_original_count = count( node_tbl );
 
-    GIVEN( "node" )
+    GIVEN( "root node" )
     {
-        auto const n1 = REQUIRE_TRY( nw->create_child( kmap.root_node_id(), "1" ) );
-
-        THEN( "new attribute nodes detected" )
+        GIVEN( "create.child 1" )
         {
-            REQUIRE( count( attr_tbl ) > attr_original_count );
-            REQUIRE( count( node_tbl ) > node_original_count );
-        }
+            auto const n1 = REQUIRE_TRY( nw->create_child( kmap.root_node_id(), "1" ) );
 
-        WHEN( "erase node" )
-        {
-            REQUIRE_RES( nw->erase_node( n1 ) );
-
-            THEN( "attr nodes return to previous count" )
+            THEN( "new attribute nodes detected" )
             {
-                REQUIRE( count( attr_tbl ) == attr_original_count );
-                REQUIRE( count( node_tbl ) == node_original_count );
+                REQUIRE( count( attr_tbl ) > attr_original_count );
+                REQUIRE( count( node_tbl ) > node_original_count );
+            }
+
+            WHEN( "erase node" )
+            {
+                REQUIRE_RES( nw->erase_node( n1 ) );
+
+                THEN( "attr nodes return to previous count" )
+                {
+                    REQUIRE( count( attr_tbl ) == attr_original_count );
+                    REQUIRE( count( node_tbl ) == node_original_count );
+                }
             }
         }
     }
@@ -1201,7 +1259,7 @@ auto Network::fetch_above( Uuid const& node ) const
     return rv;
 }
 
-SCENARIO( "Network::fetch_above", "[com][nw]" )
+SCENARIO( "Network::fetch_above", "[com][network]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1284,7 +1342,7 @@ auto Network::fetch_below( Uuid const& node ) const
     return rv;
 }
 
-SCENARIO( "Network::fetch_below", "[com][nw]" )
+SCENARIO( "Network::fetch_below", "[com][network]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1498,7 +1556,7 @@ auto Network::fetch_children_ordered( Uuid const& parent ) const
     return rv;
 }
 
-SCENARIO( "Network::fetch_children_ordered", "[nw][iface][order]" )
+SCENARIO( "Network::fetch_children_ordered", "[network][iface][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1787,7 +1845,7 @@ auto Network::fetch_ordering_position( Uuid const& node ) const
     return rv;
 }
 
-SCENARIO( "Network::fetch_ordering_position", "[nw][iface][order]" )
+SCENARIO( "Network::fetch_ordering_position", "[network][iface][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -1904,7 +1962,7 @@ auto Network::fetch_parent( Uuid const& child ) const
     return rv;
 }
 
-SCENARIO( "Network::fetch_parent", "[com][nw]" )
+SCENARIO( "Network::fetch_parent", "[com][network]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
 
@@ -1990,7 +2048,7 @@ auto Network::fetch_title( Uuid const& id ) const
     return rv;
 }
 
-SCENARIO( "Network::fetch_title", "[com][nw]" )
+SCENARIO( "Network::fetch_title", "[com][network]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -2114,7 +2172,7 @@ auto Network::move_node( Uuid const& from
     return rv;
 }
 
-SCENARIO( "Network::move_node", "[nw][iface][move_node][order]" )
+SCENARIO( "Network::move_node", "[network][iface][move_node][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -2269,7 +2327,7 @@ auto Network::swap_nodes( Uuid const& t1
     return rv;
 }
 
-SCENARIO( "swap two sibling aliases", "[nw][iface][swap_nodes][order]" )
+SCENARIO( "swap two sibling aliases", "[network][iface][swap_nodes][order]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network", "root_node" );
 
@@ -2860,7 +2918,7 @@ auto Network::is_top_alias( Uuid const& id ) const
     return rv;
 }
 
-SCENARIO( "Network::is_top_alias", "[com][nw][alias]" )
+SCENARIO( "Network::is_top_alias", "[com][network][alias]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
 
@@ -3023,7 +3081,7 @@ auto Network::fetch_visible_nodes_from( Uuid const& id
     return rv;
 }
 
-SCENARIO( "Network::fetch_visible_nodes_from", "[com][nw]" )
+SCENARIO( "Network::fetch_visible_nodes_from", "[com][network]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
 
@@ -3152,7 +3210,7 @@ auto Network::is_alias( Uuid const& node ) const
     return alias_store().is_alias( node );
 }
 
-SCENARIO( "Network::is_alias", "[com][nw][alias]" )
+SCENARIO( "Network::is_alias", "[com][network][alias]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
 

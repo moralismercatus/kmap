@@ -658,9 +658,6 @@ auto print_deltas( db::Cache const& cache )
             }
             else if constexpr( std::is_same_v< Table, ResourceTable > )
             {
-                // Frankly... this one is a bit of a toughy because the size of the resource may be very large.
-                // It may make more general sense to pass around a file string, res heading, or some such that, at this point,
-                // the file may be stored into the db, so we don't have huge binaries sitting around in the cache. It'll take some thought.
                 assert( false && "TODO" );
                 KMAP_THROW_EXCEPTION_MSG( "TODO" );
             }

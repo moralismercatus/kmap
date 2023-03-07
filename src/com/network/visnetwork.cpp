@@ -1062,6 +1062,17 @@ auto VisualNetwork::register_standard_events()
                                      , .description = "resets keyboard transition states aften timeout expiration"
                                      , .action = script } );
     }
+    {
+        auto const script =
+        R"%%%(
+            kmap.canvas().toggle_pane( kmap.canvas().text_area_pane() );
+            kmap.canvas().update_all_panes();
+        )%%%";
+        eclerk_.register_outlet( Leaf{ .heading = "workspace.toggle_preview"
+                                     , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.p" }
+                                     , .description = "Toggles visibility of the preview pane."
+                                     , .action = script } );
+    }
 
     rv = outcome::success();
     
