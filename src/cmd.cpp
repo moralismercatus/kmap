@@ -28,6 +28,7 @@
 #include "path.hpp"
 #include "test/master.hpp"
 #include "com/text_area/text_area.hpp"
+#include <path/node_view2.hpp>
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -66,9 +67,9 @@ auto fetch_leaf( com::CliCommand::Args const& args
 
     if( args.size() >= Index + 1 )
     {
-        auto const p = view::abs_root
-                     | view::desc( args[ Index ]  )
-                     | view::to_node_set();
+        auto const p = anchor::abs_root
+                     | view2::desc( args[ Index ]  )
+                     | act2::to_node_set();
         
         rv = !p.empty() ? *p.value().begin() : Optional< Uuid >{}; // TODO: This is clearly wrong. Simply selected the "first" possible path returned is not good practice!
     }

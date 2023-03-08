@@ -35,9 +35,9 @@ SCENARIO( "event manipulation", "[event]" )
                         | act2::exists( kmap ) ));
             }
 
-            REQUIRE( succ( kmap.root_view() 
-                         | view::child( "meta" )
-                         | view::erase_node( kmap ) ) );
+            REQUIRE( succ( anchor::abs_root
+                         | view2::child( "meta" )
+                         | act2::erase_node( kmap ) ) );
         }
     }
 }
@@ -83,9 +83,9 @@ SCENARIO( "objects fire in ascension", "[event]" )
                 }
                 THEN( "result nodes are in ascending order" )
                 {
-                    auto const ctrl     = REQUIRE_TRY( kmap.root_view() | view::child( "ctrl" ) | view::fetch_node( kmap ) );
-                    auto const key      = REQUIRE_TRY( kmap.root_view() | view::child( "key" ) | view::fetch_node( kmap ) );
-                    auto const keyboard = REQUIRE_TRY( kmap.root_view() | view::child( "keyboard" ) | view::fetch_node( kmap ) );
+                    auto const ctrl     = REQUIRE_TRY( anchor::abs_root | view2::child( "ctrl" ) | act2::fetch_node( kmap ) );
+                    auto const key      = REQUIRE_TRY( anchor::abs_root | view2::child( "key" ) | act2::fetch_node( kmap ) );
+                    auto const keyboard = REQUIRE_TRY( anchor::abs_root | view2::child( "keyboard" ) | act2::fetch_node( kmap ) );
                     auto const ctrl_pos = REQUIRE_TRY( nw->fetch_ordering_position( ctrl ) );
                     auto const key_pos  = REQUIRE_TRY( nw->fetch_ordering_position( key ) );
                     auto const keyboard_pos = REQUIRE_TRY( nw->fetch_ordering_position( keyboard ) );

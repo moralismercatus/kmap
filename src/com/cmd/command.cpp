@@ -155,10 +155,10 @@ auto CommandStore::install_command( Command const& cmd )
     for( auto const& arg : cmd.arguments )
     {
         auto const argn = KTRY( vguard | view::child( "argument" ) | view::fetch_node( km ) );
-        auto const arg_src = KTRY( km.root_view()
-                                 | view::direct_desc( "meta.setting.argument" )
-                                 | view::direct_desc( arg.argument_alias)
-                                 | view::fetch_node( km ) );
+        auto const arg_src = KTRY( anchor::abs_root
+                                 | view2::direct_desc( "meta.setting.argument" )
+                                 | view2::direct_desc( arg.argument_alias)
+                                 | act2::fetch_node( km ) );
         auto const arg_dst = KTRY( nw->create_child( argn, arg.heading ) );
         auto const nw = KTRY( fetch_component< com::Network >() );
 

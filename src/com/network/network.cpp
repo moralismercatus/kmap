@@ -1541,9 +1541,9 @@ auto Network::fetch_children_ordered( Uuid const& parent ) const
                               | rvs::transform( [ & ]( auto const& n ){ return std::pair{ resolve( n ), n }; } )
                               | ranges::to< std::map >();
         auto const ordering_str = KTRY( anchor::node( parent )
-                                | view2::attr
-                                | view2::child( "order" )
-                                | act2::fetch_body( km ) );
+                                      | view2::attr
+                                      | view2::child( "order" )
+                                      | act2::fetch_body( km ) );
         auto const split = ordering_str
                          | rvs::split( '\n' )
                          | ranges::to< std::vector< std::string > >();

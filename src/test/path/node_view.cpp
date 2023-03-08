@@ -73,9 +73,9 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             }
             THEN( "alias placed where expected" )
             {
-                auto const desc = REQUIRE_TRY( kmap.root_view()
-                                             | view::direct_desc( "1.2" )
-                                             | view::fetch_node( kmap ) );
+                auto const desc = REQUIRE_TRY( anchor::abs_root
+                                             | view2::direct_desc( "1.2" )
+                                             | act2::fetch_node( kmap ) );
 
                 REQUIRE( desc == a1.value() );
             }
@@ -98,9 +98,9 @@ SCENARIO( "node_view view::alias", "[path][node_view]" )
             }
             THEN( "alias placed where expected" )
             {
-                auto const desc = REQUIRE_TRY( kmap.root_view()
-                                             | view::direct_desc( "1.2" )
-                                             | view::fetch_node( kmap ) );
+                auto const desc = REQUIRE_TRY( anchor::abs_root
+                                             | view2::direct_desc( "1.2" )
+                                             | act2::fetch_node( kmap ) );
 
                 REQUIRE( desc == a1.value() );
             }

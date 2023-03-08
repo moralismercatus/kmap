@@ -77,8 +77,6 @@ public:
         -> void;
     auto on_leaving_editor()
         -> Result< void >;
-    auto root_view() const
-        -> view::Intermediary;
 
     // TODO: In theory, since this is component-dependent, even this shouldn't be here, lest it is used out of init order.
     [[ nodiscard ]]

@@ -56,9 +56,9 @@ auto add_resource( Kmap& kmap )
         {
             if( args.size() == 2 )
             {
-                auto const rv = kmap.root_view()
-                              | view::desc( args[ 1] )
-                              | view::fetch_node( kmap );
+                auto const rv = anchor::abs_root
+                              | view2::desc( args[ 1 ] )
+                              | act2::fetch_node( kmap );
                 
                 return rv ? rv.value() : Uuid{};
             }

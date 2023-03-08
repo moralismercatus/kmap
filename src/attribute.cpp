@@ -137,25 +137,25 @@ auto push_order( Kmap& kmap
 
     KMAP_ENSURE( !is_in_order( kmap, rparent, rchild ), error_code::network::attribute ); // TODO: Is this redundant with the other ensure on unresolved nodes?
 
-    auto const ordern = KMAP_TRY( view::make( rparent )
-                                | view::attr
-                                | view::child( "order" )
-                                | view::fetch_or_create_node( kmap ) );
+    auto const ordern = KTRY( anchor::node( rparent )
+                            | view2::attr
+                            | view2::child( "order" )
+                            | act2::fetch_or_create_node( kmap ) );
 
     if( auto const b = nw->fetch_body( ordern )
       ; b && !b.value().empty() )
     {
         auto const ub = fmt::format( "{}\n{}", b.value(), to_string( rchild ) );
 
-        KMAP_TRY( nw->update_body( ordern, ub ) );
+        KTRY( nw->update_body( ordern, ub ) );
 
-        auto const test_body = KMAP_TRY( nw->fetch_body( ordern ) );
+        auto const test_body = KTRY( nw->fetch_body( ordern ) );
     }
     else
     {
         auto const ub = fmt::format( "{}", to_string( rchild ) );
 
-        KMAP_TRY( nw->update_body( ordern, ub ) );
+        KTRY( nw->update_body( ordern, ub ) );
     }
 
     rv = ordern;
@@ -193,11 +193,11 @@ auto pop_order( Kmap& kmap
 
     KMAP_ENSURE( is_in_order( kmap, rparent, rchild ), error_code::network::attribute ); // TODO: Is this redundant with the other ensure on unresolved nodes?
 
-    auto const pordern = KMAP_TRY( view::make( rparent )
-                                 | view::attr
-                                 | view::child( "order" )
-                                 | view::fetch_node( kmap ) );
-    auto const ob = KMAP_TRY( nw->fetch_body( pordern ) );
+    auto const pordern = KTRY( anchor::node( rparent )
+                             | view2::attr
+                             | view2::child( "order" )
+                             | act2::fetch_node( kmap ) );
+    auto const ob = KTRY( nw->fetch_body( pordern ) );
     auto const split = ob
                      | views::split( '\n' )
                      | to< std::vector< std::string > >();

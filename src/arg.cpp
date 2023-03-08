@@ -15,6 +15,7 @@
 #include "kmap.hpp"
 #include "path.hpp"
 #include "utility.hpp"
+#include <path/node_view2.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
@@ -256,9 +257,9 @@ auto HeadingPathArg::complete( std::string const& raw ) const
     auto rv = StringVec{};
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-    if( auto const root = view::abs_root
-                        | view::desc( root_ )
-                        | view::fetch_node( kmap_ )
+    if( auto const root = anchor::abs_root
+                        | view2::desc( root_ )
+                        | act2::fetch_node( kmap_ )
       ; root )
     {
         if( raw.empty() )
@@ -429,9 +430,9 @@ auto DailyLogArg::is_fmt_malformed( std::string const& raw ) const
 auto DailyLogArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
-    auto const log_root = view::abs_root
-                        | view::direct_desc( "log.daily" )
-                        | view::fetch_node( kmap_ );
+    auto const log_root = anchor::abs_root
+                        | view2::direct_desc( "log.daily" )
+                        | act2::fetch_node( kmap_ );
 
     if( !log_root )
     {
@@ -562,9 +563,9 @@ auto DefinitionPathArg::complete( std::string const& raw ) const
     -> StringVec 
 {
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-    auto const defs_root = view::abs_root
-                         | view::direct_desc( "definitions" )
-                         | view::fetch_node( kmap_ );
+    auto const defs_root = anchor::abs_root
+                         | view2::direct_desc( "definitions" )
+                         | act2::fetch_node( kmap_ );
 
     if( !defs_root )
     {
@@ -608,9 +609,9 @@ auto ResourcePathArg::complete( std::string const& raw ) const
     -> StringVec 
 {
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-    auto const resources_root = view::abs_root
-                              | view::direct_desc( "resources" )
-                              | view::fetch_node( kmap_ );
+    auto const resources_root = anchor::abs_root
+                              | view2::direct_desc( "resources" )
+                              | act2::fetch_node( kmap_ );
 
     if( !resources_root )
     {
@@ -685,9 +686,9 @@ auto ProjectArg::complete( std::string const& raw ) const
                     , auto const& raw ) -> StringVec
     {
         auto const nw = KTRYE( kmap.template fetch_component< com::Network >() );
-        auto const root = view::abs_root
-                        | view::direct_desc( rel_root )
-                        | view::fetch_node( kmap );
+        auto const root = anchor::abs_root
+                        | view2::direct_desc( rel_root )
+                        | act2::fetch_node( kmap );
 
         if( !root )
         {
@@ -860,9 +861,9 @@ auto CommandPathArg::complete( std::string const& raw ) const
     auto const cmd_abs_path = "/setting.command";
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = view::abs_root
-                            | view::desc( cmd_abs_path )
-                            | view::fetch_node( kmap_ )
+    if( auto const cmd_root = anchor::abs_root
+                            | view2::desc( cmd_abs_path )
+                            | act2::fetch_node( kmap_ )
       ; cmd_root )
     {
         auto const prospects = complete_path( kmap_

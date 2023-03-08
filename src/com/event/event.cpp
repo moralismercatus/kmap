@@ -1398,23 +1398,20 @@ auto EventStore::reset_transitions( std::set< std::string > const& requisites )
         })
     ;
 
-    fmt::print( "[reset_transitions] {}\n", requisites | rvs::join( ',' ) | ranges::to< std::string >() );
+    // fmt::print( "[reset_transitions] {}\n", requisites | rvs::join( ',' ) | ranges::to< std::string >() );
 
     auto const all_outlets = view2::event::outlet_root
                            | view2::desc( view2::event::outlet )
                            | act2::to_node_set( km );
-    fmt::print( "[reset_transitions] all_outlets: {}\n", all_outlets.size() );
     auto const req_srcs = view2::event::event_root
                         | view2::all_of( view2::direct_desc, requisites )
                         | act2::to_node_set( km );
-    fmt::print( "[reset_transitions] req_srcs: {}\n", req_srcs.size() );
 
     KMAP_ENSURE( req_srcs.size() == requisites.size(), error_code::common::uncategorized ); // TODO: error_code should be something about non-existent requisite.
                             
     for( auto const& outlet : all_outlets
                             | rvs::filter( [ & ]( auto const& e ){ return outlet_matches( km, e, req_srcs ); } ) )
     {
-        fmt::print( "[reset_transitions] matched\n" );
         KTRY( reset_transitions( outlet ) );
     }
 

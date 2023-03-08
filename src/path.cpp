@@ -1659,9 +1659,9 @@ auto create_descendants( Kmap& kmap
                     KMAP_ENSURE_EXCEPT( prospect.output != nullptr );
                     KMAP_ENSURE_EXCEPT( prospect.output->prospect.size() != 0 );
 
-                    return KTRYE( kmap.root_view()
-                                | view::desc( prospect.output->prospect.back() )
-                                | act::abs_path_flat( kmap ) );
+                    return KTRYE( anchor::abs_root
+                                | view2::desc( prospect.output->prospect.back() )
+                                | act2::abs_path_flat( kmap ) );
                 };
 
                 auto const prospects_flattened = decider.output->prospects

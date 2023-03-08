@@ -43,12 +43,6 @@ auto Kmap::root_node_id() const
     return dbr->root_node();
 }
 
-auto Kmap::root_view() const
-    -> view::Intermediary
-{
-    return view::make( root_node_id() );
-}
-
 auto Kmap::component_store()
     -> ComponentStore&
 {

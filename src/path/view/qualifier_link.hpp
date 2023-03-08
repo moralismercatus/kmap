@@ -46,7 +46,7 @@ public:
     auto operator()( Args&&... args ) const
     {
         auto nlinks = Links{};
-        ( nlinks.emplace_back( std::make_unique< Args >( std::forward< Args >( args ) ) ), ... );
+        ( nlinks.emplace_back( std::make_unique< std::decay_t< Args > >() ), ... );
         return Derived{ nlinks };
     }
     template< typename Range >

@@ -300,9 +300,9 @@ auto fetch_daily_log( Kmap const& km
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    rv = KTRY( km.root_view()
-             | view::direct_desc( date )
-             | view::fetch_node( km ) );
+    rv = KTRY( anchor::abs_root
+             | view2::direct_desc( date )
+             | act2::fetch_node( km ) );
 
     return rv;
 }

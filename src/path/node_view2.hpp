@@ -10,6 +10,7 @@
 #include "path/view/act/abs_path.hpp"
 #include "path/view/act/count.hpp"
 #include "path/view/act/create_node.hpp"
+#include "path/view/act/erase_node.hpp"
 #include "path/view/act/exists.hpp"
 #include "path/view/act/fetch_body.hpp"
 #include "path/view/act/fetch_heading.hpp"
