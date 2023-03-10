@@ -24,7 +24,7 @@
 #define KMAP_TIME_SCOPE( msg ) \
     fmt::print( "{}...\n", msg ); \
     boost::timer::auto_cpu_timer kmap_scope_timer( fmt::format( "{} done: %ws\n", msg ) );
-#if KMAP_PROFILE
+#if KMAP_PROFILE || 1
     #define KMAP_PROFILE_SCOPE() \
             boost::timer::auto_cpu_timer KMAP_CONCAT( kmap_profile_scope_timer_, __LINE__ )( fmt::format( "{}|{}| done: %ws\n", __PRETTY_FUNCTION__, __LINE__ ) ); 
 #else

@@ -1274,9 +1274,9 @@ auto traverse_check_root( sql::connection& con
 }
 
 // TODO: Should be renamed check_map, as the fix is a toggle switch.
-auto repair_map( sql::connection& con
-               , Uuid const& root
-               , bool fix )
+auto check_map( sql::connection& con
+              , Uuid const& root
+              , bool fix )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
@@ -1323,9 +1323,9 @@ auto check_map( std::string const& fs_path )
     }
     else
     {
-        return repair::repair_map( con
-                                 , *unbegotten_set.begin()
-                                 , false );
+        return repair::check_map( con
+                                , *unbegotten_set.begin()
+                                , false );
     }
 }
 
@@ -1342,9 +1342,9 @@ auto check_map_root( std::string const& fs_path
 
     auto con = db::open_connection( fp, SQLITE_OPEN_READWRITE, false );
 
-    return repair::repair_map( con
-                             , KTRY( uuid_from_string( root_id ) )
-                             , false );
+    return repair::check_map( con
+                            , KTRY( uuid_from_string( root_id ) )
+                            , false );
 }
 
 auto repair_map( std::string const& fs_path )
@@ -1372,9 +1372,9 @@ auto repair_map( std::string const& fs_path )
     }
     else
     {
-        return repair::repair_map( con
-                                 , *unbegotten_set.begin()
-                                 , true );
+        return repair::check_map( con
+                                , *unbegotten_set.begin()
+                                , true );
     }
 }
 
@@ -1393,9 +1393,9 @@ auto repair_map_root( std::string const& fs_path
 
     auto con = db::open_connection( fp, SQLITE_OPEN_READWRITE, false );
 
-    return repair::repair_map( con
-                             , KTRY( uuid_from_string( root_id ) )
-                             , true );
+    return repair::check_map( con
+                            , KTRY( uuid_from_string( root_id ) )
+                            , true );
 }
 
 EMSCRIPTEN_BINDINGS( kmap_module )

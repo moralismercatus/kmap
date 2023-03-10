@@ -70,9 +70,10 @@ SCENARIO( "kmap iface manipulation", "[kmap_iface]" )
                 REQUIRE( fail( nw->fetch_heading( cv ) ) );
                 REQUIRE( fail( nw->fetch_title( cv ) ) );
                 {
-                    // TODO: Test exceptions when enabled
-                    // KMAP_DISABLE_EXCEPTION_LOG_SCOPED();
-                    // REQUIRE_THROWS( nw->fetch_children( cv ) ); // Currently, throws if cv doesn't exist. May change to Result< vector > in future.
+                    #if KMAP_EXCEPTIONS_ENABLED
+                    KMAP_DISABLE_EXCEPTION_LOG_SCOPED();
+                    REQUIRE_THROWS( nw->fetch_children( cv ) ); // Currently, throws if cv doesn't exist. May change to Result< vector > in future.
+                    #endif // KMAP_EXCEPTIONS_ENABLED
                 }
                 REQUIRE( nw->fetch_children( root ).empty() );
             }

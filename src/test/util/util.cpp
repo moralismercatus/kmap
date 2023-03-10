@@ -42,8 +42,9 @@ SCENARIO( "test kmap::Result" )
         {
             KMAP_DISABLE_EXCEPTION_LOG_SCOPED();
 
-            // TODO: Test exceptions when enabled
-            // REQUIRE_THROWS( r.value() );
+            #if KMAP_EXCEPTIONS_ENABLED
+            REQUIRE_THROWS( r.value() );
+            #endif // KMAP_EXCEPTIONS_ENABLED
         }
     }
     GIVEN( "default Result< void >" )
