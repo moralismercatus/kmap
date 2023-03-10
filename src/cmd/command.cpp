@@ -200,7 +200,7 @@ auto execute_body( Kmap& kmap
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( view::make( node ) | view::exists( kmap ) );
+            BC_ASSERT( anchor::node( node ) | act2::exists( kmap ) );
         })
     ;
 
@@ -414,7 +414,9 @@ auto fetch_args( Kmap& kmap
             }
             else
             {
-                auto const unconditional = KTRY( view::make( args_root.value() ) | view::child( "unconditional" ) | view::fetch_node( kmap ) );
+                auto const unconditional = KTRY( anchor::node( args_root.value() )
+                                               | view2::child( "unconditional" )
+                                               | act2::fetch_node( kmap ) );
                 auto validated_args = StringVec{}; // TODO: Is this even of use?
 
                 for( auto const [ index, sarg ] : split_args | views::enumerate )

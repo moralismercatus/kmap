@@ -75,7 +75,7 @@ auto dump_about( Kmap const& km
     {
         if( km.fetch_component< com::Network >().has_value() ) // Note: fetch_heading depends on this component.
         {
-            return result::value_or( ( view::make( node ) | act::fetch_heading( km ) ), "N/A" );
+            return result::value_or( ( anchor::node( node ) | act2::fetch_heading( km ) ), "N/A" );
         }
         else
         {

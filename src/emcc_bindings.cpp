@@ -126,7 +126,7 @@ auto count_ancestors( Uuid const& node )
 
     auto const& kmap = Singleton::instance();
     
-    return kmap::Result< uint32_t >{ view::make( node ) | view::ancestor | view::count( kmap )  };
+    return kmap::Result< uint32_t >{ anchor::node( node ) | view2::ancestor | act2::count( kmap )  };
 }
 
 auto count_descendants( Uuid const& node )
@@ -136,7 +136,7 @@ auto count_descendants( Uuid const& node )
 
     auto const& kmap = Singleton::instance();
 
-    return kmap::Result< uint32_t >{ view::make( node ) | view::desc | view::count( kmap ) };
+    return kmap::Result< uint32_t >{ anchor::node( node ) | view2::desc | act2::count( kmap ) };
 }
 
 auto fetch_body( Uuid const& node )
@@ -293,9 +293,9 @@ auto delete_children( Uuid const& parent )
     KM_RESULT_PROLOG();
 
     auto& km = Singleton::instance();
-    auto const res = view::make( parent )
-                   | view::child 
-                   | view::erase_node( km );
+    auto const res = anchor::node( parent )
+                   | view2::child 
+                   | act2::erase_node( km );
     
     if( !res )
     {
@@ -576,6 +576,7 @@ auto travel_top()
 auto travel_up()
     -> binding::Result< Uuid >
 {
+    KMAP_PROFILE_SCOPE();
     KM_RESULT_PROLOG();
 
     auto& km = Singleton::instance();

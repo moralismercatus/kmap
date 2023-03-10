@@ -83,7 +83,7 @@ auto process_search_results( Kmap& kmap
     auto const nw = KTRY( kmap_.fetch_component< com::Network>() );
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto sorted_matches = matching_nodes;
-    auto const count_ancestors = [ &kmap ]( auto const& node ){ return view::make( node ) | view::ancestor | view::count( kmap ); };
+    auto const count_ancestors = [ &kmap ]( auto const& node ){ return anchor::node( node ) | view2::ancestor | act2::count( kmap ); };
 
     sorted_matches |= actions::sort( [ & ]( auto const& lhs
                                           , auto const& rhs ) { return count_ancestors( lhs ) < count_ancestors( rhs ); } );
@@ -120,7 +120,7 @@ auto process_search_results( Kmap& kmap
         auto const details = fmt::format( "Path: `{}`<br>iPath: `{}`<br>distance from root: {}"
                                         , kmap.absolute_path_flat( id )
                                         , kmap.absolute_ipath_flat( id )
-                                        , view::make( id ) | view::ancestor | view::count( kmap ) );
+                                        , anchor::node( id ) | view2::ancestor | act2::count( kmap ) );
 
         KTRY( nw->update_body( iid.value(), details ) );
         KTRY( nw->create_alias( id, iid.value() ) );

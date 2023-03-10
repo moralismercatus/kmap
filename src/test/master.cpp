@@ -86,11 +86,11 @@ auto select_each_descendant_test( Kmap& kmap
                                 , Uuid const& node )
     -> bool
 {
-    auto rv = view::make( node ) | view::exists( kmap );
+    auto rv = anchor::node( node ) | act2::exists( kmap );
 
-    for( auto const& child : view::make( node )
-                           | view::child
-                           | view::to_node_set( kmap ) )
+    for( auto const& child : anchor::node( node )
+                           | view2::child
+                           | act2::to_node_set( kmap ) )
     {
         if( rv = select_each_descendant_test( kmap, child )
           ; !rv )

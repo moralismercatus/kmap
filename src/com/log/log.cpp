@@ -272,9 +272,9 @@ auto fetch_or_create_daily_log( Kmap& kmap
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
-    rv = KTRY( view::make( kmap.root_node_id() )
-             | view::direct_desc( present_daily_log_path() )
-             | view::fetch_or_create_node( kmap ) );
+    rv = KTRY( anchor::abs_root
+             | view2::direct_desc( present_daily_log_path() )
+             | act2::fetch_or_create_node( kmap ) );
 
     return rv;
 }

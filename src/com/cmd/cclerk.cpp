@@ -11,6 +11,7 @@
 #include "kmap.hpp"
 #include "path/act/fetch_body.hpp"
 #include "util/result.hpp"
+#include <path/node_view2.hpp>
 
 #include <boost/variant/apply_visitor.hpp>
 #include <range/v3/algorithm/all_of.hpp>
@@ -77,8 +78,8 @@ auto match_body_code( Kmap const& km
 {
     auto rv = false;
 
-    if( auto const body = view::make( node )
-                        | act::fetch_body( km )
+    if( auto const body = anchor::node( node )
+                        | act2::fetch_body( km )
       ; body )
     {
         auto const code = KTRYB( cmd::parser::parse_body_code( body.value() ) );
@@ -115,8 +116,8 @@ auto match_raw_body( Kmap const& km
 {
     auto rv = false;
 
-    if( auto const body = view::make( node )
-                        | act::fetch_body( km )
+    if( auto const body = anchor::node( node )
+                        | act2::fetch_body( km )
       ; body )
     {
         rv = ( body.value() == content );
@@ -135,9 +136,9 @@ auto CommandClerk::check_registered( Argument const& arg )
 
     auto const cstore = KTRY( kmap.fetch_component< com::CommandStore >() );
     auto const aroot = KTRY( cstore->argument_root() );
-    if( auto const anode = view::make( aroot )
-                         | view::direct_desc( arg.path )
-                         | view::fetch_node( kmap )
+    if( auto const anode = anchor::node( aroot )
+                         | view2::direct_desc( arg.path )
+                         | act2::fetch_node( kmap )
       ; anode )
     {
         auto const vnode = view::make( anode.value() );

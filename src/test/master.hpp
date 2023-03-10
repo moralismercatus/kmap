@@ -61,9 +61,9 @@ auto create_lineages( T&&... args )
         auto const descv = desc.value();
         for( auto const& node : descv )
         {
-            rv.emplace( KTRYE( view::make( kmap.root_node_id() )
-                             | view::desc( node )
-                             | act::abs_path_flat( kmap ) )
+            rv.emplace( KTRYE( anchor::abs_root
+                             | view2::desc( node )
+                             | act2::abs_path_flat( kmap ) )
                       , node );
         }
     }
