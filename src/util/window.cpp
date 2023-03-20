@@ -34,9 +34,9 @@ auto set_default_window_title()
     -> Result< void >
 {
 #if KMAP_DEBUG
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "Debug" ) );
+    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "[Debug]" ) );
 #else
-    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "Release" ) );
+    return js::eval_void( io::format( "document.title = 'Knowledge Map {} {}';", "0.0.2", "[Release]" ) );
 #endif // KMAP_DEBUG
 }
 
