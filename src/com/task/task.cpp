@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "task.hpp"
+#include <com/task/task.hpp>
 
 #include "com/cmd/cclerk.hpp"
 #include "com/network/network.hpp"
@@ -15,8 +15,10 @@
 #include "path/act/update_body.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"
-#include "utility.hpp"
 #include "util/result.hpp"
+#include "utility.hpp"
+#include <path/node_view2.hpp>
+#include <path/act/order.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/stable_sort.hpp>
@@ -149,13 +151,9 @@ auto TaskStore::create_task( std::string const& title )
         | view::child( view::all_of( "problem", "result" ) )
         | view::create_node( km ) );
 
-    KTRY( tag_store->fetch_or_create_tag( "task.status.open.active" ) );
-    
     KTRY( eclerk_.fire_event( { "subject.task_store", "verb.created", "object.task" }, to_string( task ) ) );
 
-    KTRY( activate_task( task ) );
-
-    KTRY( nw->set_ordering_position( task, 0 ) );
+    KTRY( deactivate_task( task ) );
 
     rv = task;
 
@@ -182,10 +180,10 @@ SCENARIO( "create_task", "[task][create][tag][order]" )
                               | view::child( view::all_of( "problem", "result" ) )
                               | view::count( km ) ) );
             }
-            THEN( "1 is open and active" )
+            THEN( "1 is open and inactive" )
             {
                 REQUIRE(( view::make( t1 )
-                        | view::tag( "task.status.open.active" )
+                        | view::tag( "task.status.open.inactive" )
                         | view::exists( km ) ));
             }
 
@@ -193,11 +191,12 @@ SCENARIO( "create_task", "[task][create][tag][order]" )
             {
                 auto const t2 = REQUIRE_TRY( tstore->create_task( "2" ) );
 
-                THEN( "task is top of task list" )
+                THEN( "2 below 1" )
                 {
+                    auto const t1_pos = REQUIRE_TRY( nw->fetch_ordering_position( t1 ) );
                     auto const t2_pos = REQUIRE_TRY( nw->fetch_ordering_position( t2 ) );
 
-                    REQUIRE( t2_pos == 0 );
+                    REQUIRE( t1_pos < t2_pos );
                 }
             }
         }
@@ -323,6 +322,7 @@ SCENARIO( "TaskStore::create_subtask", "[task][create]" )
 
 // Return true if a tag other than `status.open` is found.
 // TODO: Rather, task has tag other than tag.status desc found.
+// TODO: What about task.status.closed?
 auto TaskStore::is_categorized( Uuid const& task ) const
     -> bool
 {
@@ -363,6 +363,7 @@ auto TaskStore::close_task( Uuid const& task )
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const tag_store = KTRY( fetch_component< TagStore >() );
+    auto const task_root = KTRY( fetch_task_root( km ) );
 
     KMAP_ENSURE( is_task( task ), error_code::common::uncategorized );
     KMAP_ENSURE( !( view::make( task ) | view::tag( "task.status.closed" ) | view::exists( km ) ), error_code::common::uncategorized );
@@ -406,33 +407,11 @@ auto TaskStore::close_task( Uuid const& task )
                 | view::create_node( km ) );
         }
 
-        // Sort 
+        // Order.
         {
-            enum class Status : int { active, inactive, closed, nontask }; // Ordered.
-            auto const task_root = KTRYE( fetch_task_root( km ) );
-            auto tasks = view::make( task_root )
-                             | view::child
-                             | view::to_node_set( km )
-                             | ranges::to< std::vector >();
-            auto const map_status = [ & ]( auto const& n )
-            {
-                     if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )   { return Status::active; }
-                else if( view::make( n ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ) { return Status::inactive; }
-                else if( view::make( n ) | view::tag( "task.status.closed" ) | view::exists( km ) )        { return Status::closed; }
-                else                                                                                       { return Status::nontask; }
-            };
-            auto status_map = tasks
-                            | rvs::transform( [ & ]( auto const& t ){ return std::pair{ t, map_status( t ) }; } )
-                            | ranges::to< std::map< Uuid, Status > >();
-            auto const pred = [ & ]( auto const& t1, auto const& t2 )
-            {
+            auto const ordered = KTRY( order_tasks( km ) );
 
-                return static_cast< int >( status_map.at( t1 ) ) < static_cast< int >( status_map.at( t2 ) ); 
-            };
-
-            ranges::stable_sort( tasks, pred ); // stable_sort maintains pre-sort order for equivalent items.
-
-            KTRY( nw->reorder_children( task_root, tasks ) );
+            KTRY( nw->reorder_children( task_root, ordered ) );
         }
 
         KTRY( eclerk_.fire_event( { "subject.task_store", "verb.closed", "object.task" }, to_string( task ) ) );
@@ -457,7 +436,7 @@ SCENARIO( "close_task", "[task][close]" )
         {
             auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
 
-            REQUIRE(( view::make( t1 ) | view::tag( "task.status.open.active" ) | view::exists( km ) ));
+            REQUIRE(( view::make( t1 ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ));
 
             THEN( "close.task 1 fails" )
             {
@@ -501,9 +480,10 @@ auto TaskStore::activate_task( Uuid const& task )
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto& kmap = kmap_inst();
-    auto const vactive_tag = view::tag( "task.status.open.active" );
+    auto const nw = KTRY( fetch_component< com::Network >() );
+    auto const tag_store = KTRY( fetch_component< TagStore >() );
 
-    KMAP_ENSURE( !( view::make( task ) | vactive_tag | view::exists( kmap ) ), error_code::common::uncategorized ); // TODO: Needs to convey: "task already active"
+    KTRY( tag_store->fetch_or_create_tag( "task.status.open.active" ) );
 
     // Remove closed tag if it exists.
     if( auto const vt_closed = view::make( task )
@@ -520,10 +500,12 @@ auto TaskStore::activate_task( Uuid const& task )
     }
     // Append open tag.
     {
-        auto const vt_active = view::make( task )
-                           | vactive_tag;
-        KTRY( vt_active | view::create_node( kmap ) );
+        KTRY( view::make( task )
+            | view::tag( "task.status.open.active" )
+            | view::create_node( kmap ) );
     }
+
+    KTRY( nw->set_ordering_position( task, 0 ) );
 
     KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.activated", "object.task" }, to_string( task ) ) );
 
@@ -532,7 +514,122 @@ auto TaskStore::activate_task( Uuid const& task )
     return rv;
 }
 
-// TODO: unit test...
+SCENARIO( "TaskStore::activate_task", "[task]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
+
+    auto& km = Singleton::instance();
+    auto const tstore = REQUIRE_TRY( km.fetch_component< com::TaskStore >() );
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const push_closure_reqs = [ & ]( auto const& task )
+    {
+        auto const tag_store = REQUIRE_TRY( km.fetch_component< com::TagStore >() );
+        /*auto const test_tag = */REQUIRE_TRY( tag_store->create_tag( "test" ) );
+
+        REQUIRE_TRY(( view::make( task ) | view::tag( "test" ) | view::create_node( km ) ));
+        REQUIRE_TRY(( anchor::node( task ) | view2::child( "result" ) | act2::update_body( km, "test" ) ));
+    };
+
+    GIVEN( "active task" )
+    {
+        auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
+
+        WHEN( "activate.task" )
+        {
+            REQUIRE_TRY( tstore->activate_task( t1 ) );
+
+            THEN( "active tag still applied" )
+            {
+                REQUIRE(( view::make( t1 )
+                        | view::tag( "task.status.open.active" )
+                        | view::exists( km ) ));
+            }
+        }
+    }
+    GIVEN( "inactive task" )
+    {
+        auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
+
+        WHEN( "activate.task" )
+        {
+            REQUIRE_TRY( tstore->activate_task( t1 ) );
+
+            THEN( "active tag applied" )
+            {
+                REQUIRE(( view::make( t1 )
+                        | view::tag( "task.status.open.active" )
+                        | view::exists( km ) ));
+            }
+        }
+    }
+    GIVEN( "closed task" )
+    {
+        auto const t1 = REQUIRE_TRY( tstore->create_task( "1" ) );
+
+        push_closure_reqs( t1 );
+
+        REQUIRE_TRY( tstore->close_task( t1 ) );
+
+        WHEN( "activate.task" )
+        {
+            REQUIRE_TRY( tstore->activate_task( t1 ) );
+
+            THEN( "active tag applied" )
+            {
+                REQUIRE(( view::make( t1 )
+                        | view::tag( "task.status.open.active" )
+                        | view::exists( km ) ));
+            }
+        }
+    }
+}
+
+auto TaskStore::deactivate_task( Uuid const& task )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "task", task );
+
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto& km = kmap_inst();
+    auto const tag_store = KTRY( fetch_component< TagStore >() );
+    auto const nw = KTRY( fetch_component< Network >() );
+
+    KTRY( tag_store->fetch_or_create_tag( "task.status.open.inactive" ) );
+
+    // Remove closed tag if it exists.
+    if( auto const vt_closed = view::make( task )
+                             | view::tag( "task.status.closed" )
+      ; vt_closed | view::exists( km ) )
+    {
+        KTRY( vt_closed | view::erase_node( km ) );
+    }
+    if( auto const vt_active = view::make( task )
+                             | view::tag( "task.status.open.active" )
+      ; vt_active | view::exists( km ) )
+    {
+        KTRY( vt_active | view::erase_node( km ) );
+    }
+    // Append open tag.
+    {
+        auto const vt_inactive = view::make( task )
+                               | view::tag( "task.status.open.inactive" );
+        KTRY( vt_inactive | view::create_node( km ) );
+    }
+    // Order.
+    {
+        auto const task_root = KTRYE( fetch_task_root( km ) );
+        auto const ordered = KTRY( order_tasks( km ) );
+
+        KTRY( nw->reorder_children( task_root, ordered ) );
+    }
+
+    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.deactivated", "object.task" }, to_string( task ) ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
 
 auto TaskStore::register_standard_commands()
     -> void
@@ -540,10 +637,158 @@ auto TaskStore::register_standard_commands()
     using Guard = com::Command::Guard;
     using Argument = com::Command::Argument;
 
+    // arg.task_path
+    {
+        auto const guard_code =
+        R"%%%(
+            return kmap.is_valid_heading_path( arg );
+        )%%%";
+        auto const completion_code =
+        R"%%%(
+            const troot = kmap.fetch_node( "/task" );
+
+            if( troot.has_error() )
+            {
+                return new kmap.VectorString();
+            }
+            else
+            {
+                return kmap.complete_heading_path_from( troot.value(), troot.value(), arg );
+            }
+        )%%%";
+
+        auto const description = "task heading";
+        
+        cclerk_.register_argument( com::Argument{ .path = "task_heading"
+                                                , .description = description
+                                                , .guard = guard_code
+                                                , .completion = completion_code } );
+    }
     // add.subtask
     {
-        // guard: in_task()
-        // action: :create.child subtask; :create.alias tag.$ctx.args[0]
+        auto const guard_code = 
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        // TODO: Start here.
+        // const supertask = kmap.selected_node();
+        // const target = kmap.fetch_node( args.get( 0 ) );
+        // Ensure target is task.
+        // subtask = create_child( supertask, "subtask" );
+        // create_alias( target, subtask );
+
+        if( taskn.has_value() )
+        {
+            kmap.select_node( taskn.value() );
+
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( taskn.error_message() );
+        }
+        )%%%";
+        auto const description = "adds existent task as subtask of current task";
+        auto const arguments = std::vector< Argument >{ Argument{ "task_heading"
+                                                                , "task heading"
+                                                                , "task_heading" } };
+
+        cclerk_.register_command( com::Command{ .path = "add.subtask"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "unconditional", guard_code }
+                                              , .action = action_code } );
+    }
+    // activate.task
+    {
+        auto const guard_code = 
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+            console.log( '1' );
+        const selected = kmap.selected_node();
+            console.log( '2' );
+        const res = kmap.task_store().activate_task( selected );
+            console.log( '3' );
+
+        if( res.has_value() )
+        {
+            console.log( '4' );
+            kmap.select_node( selected );
+            console.log( '5' );
+
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            console.log( '6' );
+            return kmap.failure( res.error_message() );
+        }
+        )%%%";
+        auto const description = "opens task and marks as inactive";
+        auto const arguments = std::vector< Argument >{};
+
+        cclerk_.register_command( com::Command{ .path = "activate.task"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", guard_code }
+                                              , .action = action_code } );
+    }
+    // deactivate.task
+    {
+        auto const guard_code = 
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const selected = kmap.selected_node();
+        const res = kmap.task_store().deactivate_task( selected );
+
+        if( res.has_value() )
+        {
+            kmap.select_node( selected );
+
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( res.error_message() );
+        }
+        )%%%";
+        auto const description = "opens task and marks as inactive";
+        auto const arguments = std::vector< Argument >{};
+
+        cclerk_.register_command( com::Command{ .path = "deactivate.task"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", guard_code }
+                                              , .action = action_code } );
     }
     // close.task
     {
@@ -591,11 +836,12 @@ auto TaskStore::register_standard_commands()
         )%%%";
         auto const action_code =
         R"%%%(
-        const taskn = kmap.task_store().create_task( args.get( 0 ) );
+        const tstore = kmap.task_store();
+        const taskn = tstore.create_task( args.get( 0 ) );
 
         if( taskn.has_value() )
         {
-            kmap.select_node( taskn.value() );
+            kmap.select_node( taskn.value() ).throw_on_error();
 
             return kmap.success( 'success' );
         }
@@ -610,6 +856,39 @@ auto TaskStore::register_standard_commands()
                                                                 , "unconditional" } };
 
         cclerk_.register_command( com::Command{ .path = "create.task"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "unconditional", guard_code }
+                                              , .action = action_code } );
+    }
+    // create.task.inactive
+    {
+        auto const guard_code =
+        R"%%%(
+            return kmap.success( 'unconditional' );
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const tstore = kmap.task_store();
+        const taskn = tstore.create_task( args.get( 0 ) );
+
+        if( taskn.has_value() )
+        {
+            kmap.select_node( taskn.value() ).throw_on_error();
+
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( taskn.error_message() );
+        }
+        )%%%";
+        auto const description = "creates task in inactive state";
+        auto const arguments = std::vector< Argument >{ Argument{ "task_title"
+                                                                , "task title"
+                                                                , "unconditional" } };
+
+        cclerk_.register_command( com::Command{ .path = "create.task.inactive"
                                               , .description = description
                                               , .arguments = arguments 
                                               , .guard = Guard{ "unconditional", guard_code }
@@ -630,11 +909,12 @@ auto TaskStore::register_standard_commands()
         )%%%";
         auto const action_code =
         R"%%%(
-            const taskn = kmap.task_store().create_subtask( kmap.selected_node(), args.get( 0 ) );
+            const tstore = kmap.task_store();
+            const taskn = tstore.create_subtask( kmap.selected_node(), args.get( 0 ) );
 
             if( taskn.has_value() )
             {
-                kmap.select_node( taskn.value() );
+                kmap.select_node( taskn.value() ).throw_on_error();
 
                 return kmap.success( 'success' );
             }
@@ -649,6 +929,46 @@ auto TaskStore::register_standard_commands()
                                                                 , "unconditional" } };
 
         cclerk_.register_command( com::Command{ .path = "create.subtask"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", is_task_guard_code }
+                                              , .action = action_code } );
+    }
+    // create.subtask.inactive
+    {
+        auto const is_task_guard_code =
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+            const tstore = kmap.task_store();
+            const taskn = tstore.create_subtask( kmap.selected_node(), args.get( 0 ) );
+
+            if( taskn.has_value() )
+            {
+                kmap.select_node( taskn.value() ).throw_on_error();
+
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( taskn.error_message() );
+            }
+        )%%%";
+        auto const description = "creates subtask in inactive state";
+        auto const arguments = std::vector< Argument >{ Argument{ "task_title"
+                                                                , "task title"
+                                                                , "unconditional" } };
+
+        cclerk_.register_command( com::Command{ .path = "create.subtask.inactive"
                                               , .description = description
                                               , .arguments = arguments 
                                               , .guard = Guard{ "is_task", is_task_guard_code }
@@ -692,6 +1012,92 @@ auto TaskStore::register_standard_commands()
                                               , .guard = Guard{ "is_task", is_task_guard_code }
                                               , .action = action_code } );
     }
+    // open.task
+    {
+        auto const guard_code = 
+        R"%%%(
+            if( kmap.task_store().is_task( kmap.selected_node() ) )
+            {
+                return kmap.success( 'success' );
+            }
+            else
+            {
+                return kmap.failure( 'not task' );
+            }
+        )%%%";
+        auto const action_code =
+        R"%%%(
+        const selected = kmap.selected_node();
+        const res = kmap.task_store().activate_task( selected );
+
+        if( res.has_value() )
+        {
+            kmap.select_node( selected );
+
+            return kmap.success( 'success' );
+        }
+        else
+        {
+            return kmap.failure( res.error_message() );
+        }
+        )%%%";
+        auto const description = "opens closed task and marks it as active";
+        auto const arguments = std::vector< Argument >{};
+
+        cclerk_.register_command( com::Command{ .path = "open.task"
+                                              , .description = description
+                                              , .arguments = arguments 
+                                              , .guard = Guard{ "is_task", guard_code }
+                                              , .action = action_code } );
+    }
+}
+
+auto is_order_regular( Kmap const& km )
+    -> bool
+{
+    auto const children = view2::task::task_root
+                        | view2::task::task
+                        | act2::to_node_set( km )
+                        | act::order( km );
+    auto const ots = KTRYE( order_tasks( km ) );
+
+    return children == ots;
+}
+
+auto order_tasks( Kmap const& km )
+    -> Result< UuidVec >
+{
+    KM_RESULT_PROLOG();
+
+    enum class Status : int { active, inactive, closed, nontask }; // Ordered.
+
+    auto rv = result::make_result< UuidVec >();
+    auto const task_root = KTRYE( fetch_task_root( km ) );
+    auto tasks = view::make( task_root )
+               | view::child
+               | view::to_node_set( km )
+               | act::order( km );
+    auto const map_status = [ & ]( auto const& n )
+    {
+             if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )   { return Status::active; }
+        else if( view::make( n ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ) { return Status::inactive; }
+        else if( view::make( n ) | view::tag( "task.status.closed" ) | view::exists( km ) )        { return Status::closed; }
+        else                                                                                       { return Status::nontask; }
+    };
+    auto status_map = tasks
+                    | rvs::transform( [ & ]( auto const& t ){ return std::pair{ t, map_status( t ) }; } )
+                    | ranges::to< std::map< Uuid, Status > >();
+    auto const pred = [ & ]( auto const& t1, auto const& t2 )
+    {
+
+        return static_cast< int >( status_map.at( t1 ) ) < static_cast< int >( status_map.at( t2 ) ); 
+    };
+
+    ranges::stable_sort( tasks, pred ); // stable_sort maintains pre-sort order for equivalent items.
+
+    rv = tasks;
+
+    return rv;
 }
 
 } // namespace kmap
@@ -742,10 +1148,15 @@ struct TaskStore
         return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->close_task( task );
     }
     auto activate_task( kmap::Uuid const& task )
-                   
         -> kmap::binding::Result< void >
     {
         return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->activate_task( task );
+    }
+    auto deactivate_task( kmap::Uuid const& task )
+                   
+        -> kmap::binding::Result< void >
+    {
+        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->deactivate_task( task );
     }
     auto is_task( kmap::Uuid const& task )
         -> bool
@@ -774,6 +1185,7 @@ EMSCRIPTEN_BINDINGS( kmap_task_store )
         .function( "create_subtask", &::TaskStore::create_subtask )
         .function( "close_task", &::TaskStore::close_task )
         .function( "activate_task", &::TaskStore::activate_task )
+        .function( "deactivate_task", &::TaskStore::deactivate_task )
         .function( "is_task", &::TaskStore::is_task )
         ;
 }

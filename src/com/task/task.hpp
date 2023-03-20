@@ -7,10 +7,11 @@
 #ifndef KMAP_TASK_HPP
 #define KMAP_TASK_HPP
 
-#include "common.hpp"
-#include "com/event/event_clerk.hpp"
 #include "com/cmd/cclerk.hpp"
+#include "com/event/event_clerk.hpp"
+#include "common.hpp"
 #include "component.hpp"
+#include "path/node_view2.hpp"
 
 namespace kmap
 {
@@ -62,11 +63,24 @@ public:
         -> Result< void >;
     auto activate_task( Uuid const& node )
         -> Result< void >;
+    auto deactivate_task( Uuid const& node )
+        -> Result< void >;
     
     auto register_standard_commands()
         -> void;
 };
 
+auto is_order_regular( Kmap const& km ) // Could be com::Network
+    -> bool;
+auto order_tasks( Kmap const& km )
+    -> Result< UuidVec >;
+
 } // namespace kmap
+
+namespace kmap::view2::task
+{
+    auto const task_root = anchor::abs_root | view2::direct_desc( "task" );
+    auto const task = view2::child( view2::all_of( view2::child, { "problem", "result" } ) ); // TODO: Factor is_categorized into the equation.
+} // kmap::view2::task
 
 #endif // KMAP_TASK_HPP

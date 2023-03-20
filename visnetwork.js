@@ -612,6 +612,7 @@ function network_onkeydown( e )
         , 'k'
         , 'l'
         , 'o'
+        , 'p'
         , 'shift'
         , 'v'
         ]
@@ -650,6 +651,7 @@ function network_onkeyup( e )
         , 'k'
         , 'l'
         , 'o'
+        , 'p'
         , 'shift'
         , 'v'
         ]

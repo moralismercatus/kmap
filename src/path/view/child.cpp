@@ -7,6 +7,7 @@
 
 #include "com/network/network.hpp"
 #include "util/result.hpp"
+#include <contract.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -50,6 +51,10 @@ auto Child::create( CreateContext const& ctx
             {
                 KMAP_THROW_EXCEPTION_MSG( "invalid node qualifier" );
             }
+        ,   [ & ]( LinkPtr const& pred ) -> Result< UuidSet >
+            {
+                KMAP_THROW_EXCEPTION_MSG( "TODO: Impl." );
+            }
         };
 
         rv = KTRY( std::visit( dispatch, pred_.value() ) );
@@ -87,6 +92,14 @@ auto Child::fetch( FetchContext const& ctx
                      | rvs::filter( [ & ]( auto const& e ){ return pred == e.id; } )
                      | ranges::to< FetchSet >();
             }
+        ,   [ & ]( LinkPtr const& pred )
+            {
+                auto const children = view2::child.fetch( ctx, node );
+
+                return children 
+                     | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
+                     | ranges::to< FetchSet >();
+            }
         };
 
         return std::visit( dispatch, pred_.value() );
@@ -116,6 +129,7 @@ auto Child::to_string() const
         auto const dispatch = util::Dispatch
         {
             [ & ]( auto const& arg ){ return fmt::format( "child( '{}' )", arg ); }
+        ,   [ & ]( Link::LinkPtr const& arg ){ BC_ASSERT( arg ); return fmt::format( "child( {} )", ( *arg ) | act::to_string ); }
         };
 
         return std::visit( dispatch, pred_.value() );

@@ -7,7 +7,7 @@
 #ifndef KMAP_UTILITY_HPP
 #define KMAP_UTILITY_HPP
 
-#include "common.hpp"
+#include <common.hpp>
 #include "error/node_manip.hpp"
 #include "io.hpp"
 // #include "path.hpp"
@@ -31,7 +31,7 @@
     #define KMAP_PROFILE_SCOPE() ( void )0;
 #endif // KMAP_PROFILE
 #if KMAP_DEBUG_LOG || 1
-    #define KMAP_LOG_LINE() fmt::print( "[log.line] {}|{}|{}\n", __func__, __LINE__, FsPath{ __FILE__ }.filename().string() )
+    #define KMAP_LOG_LINE() fmt::print( "[log.line] {}|{}|{}\n", __func__, __LINE__, kmap::FsPath{ __FILE__ }.filename().string() ); std::cout.flush();
 #else
     #define KMAP_LOG_LINE()
 #endif

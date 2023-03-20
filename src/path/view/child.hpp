@@ -20,9 +20,9 @@ class Child : public Link
     using PredVariant = std::variant< char const*
                                     , std::string
                                     , Uuid
+                                    , LinkPtr
                                     // Tether?
                                     // Chain?
-                                    // Link?
                                      >;
 
     std::optional< PredVariant > pred_ = std::nullopt; 
@@ -32,6 +32,10 @@ public:
     virtual ~Child() = default;
 
     auto operator()( PredVariant const& pred ) const { auto nl = *this; nl.pred_ = pred; return nl; };
+    template< typename LinkType >
+        requires std::derived_from< LinkType, Link >
+    auto operator()( LinkType const& pred ) const { auto nl = *this; nl.pred_ = LinkPtr{ std::make_unique< LinkType >( pred ) }; return nl; };
+
     auto clone() const -> std::unique_ptr< Link > override { return { std::make_unique< std::decay_t< decltype( *this ) > >( *this ) }; }
     auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > override;
     auto fetch( FetchContext const& ctx, Uuid const& node ) const -> FetchSet override;

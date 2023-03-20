@@ -2506,11 +2506,12 @@ auto Network::set_ordering_position( Uuid const& id
       ; siblings.size() > pos )
     {
         auto const parent = KTRY( fetch_parent( id ) );
-        auto const it = find( siblings, id );
+        auto const id_it = find( siblings, id );
 
-        BC_ASSERT( it != end( siblings) );
+        BC_ASSERT( id_it != end( siblings) );
 
-        std::iter_swap( it, begin( siblings ) + pos );
+        siblings.erase( id_it );
+        siblings.insert( begin( siblings ) + pos, id );
 
         KTRY( reorder_children( parent, siblings ) );
 
@@ -2518,6 +2519,64 @@ auto Network::set_ordering_position( Uuid const& id
     }
 
     return rv;
+}
+
+SCENARIO( "Network::set_ordering_position", "[com][network]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "/1" )
+    {
+        // TODO: I think I've solved the outstanding issue - just hoping I haven't introduced another.
+        //       Once some basic testing is complete (especially for boundary cases) should be able to call it good.
+        auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+
+        GIVEN( "/1.2" )
+        {
+            auto const n2 = REQUIRE_TRY( nw->create_child( n1, "2" ) );
+
+            THEN( "sop( 1.2, 0 ) => 0" )
+            {
+                REQUIRE_TRY( nw->set_ordering_position( n2, 0 ) );
+                REQUIRE( REQUIRE_TRY( nw->fetch_ordering_position( n2 ) ) == 0 );
+            }
+            THEN( "sop( 1.2, 1 ) => fail" )
+            {
+                REQUIRE( test::fail( nw->set_ordering_position( n2, 1 ) ) );
+                REQUIRE( REQUIRE_TRY( nw->fetch_ordering_position( n2 ) ) == 0 );
+            }
+            THEN( "sop( 1.2, 2 ) => fail" )
+            {
+                REQUIRE( test::fail( nw->set_ordering_position( n2, 2 ) ) );
+                REQUIRE( REQUIRE_TRY( nw->fetch_ordering_position( n2 ) ) == 0 );
+            }
+
+            GIVEN( "/1.3" )
+            {
+                REQUIRE_TRY( nw->create_child( n1, "3" ) );
+
+                THEN( "sop( 1.2, 0 ) => 0" )
+                {
+                    REQUIRE_TRY( nw->set_ordering_position( n2, 0 ) );
+                    REQUIRE( REQUIRE_TRY( nw->fetch_ordering_position( n2 ) ) == 0 );
+                }
+                THEN( "sop( 1.2, 1 ) => 1" )
+                {
+                    REQUIRE_TRY( nw->set_ordering_position( n2, 1 ) );
+                    REQUIRE( REQUIRE_TRY( nw->fetch_ordering_position( n2 ) ) == 1 );
+                }
+                THEN( "sop( 1.2, 2 ) => fail" )
+                {
+                    REQUIRE( test::fail( nw->set_ordering_position( n2, 2 ) ) );
+                    REQUIRE( REQUIRE_TRY( nw->fetch_ordering_position( n2 ) ) == 0 );
+                }
+            }
+        }
+    }
 }
 
 auto Network::update_alias( Uuid const& from

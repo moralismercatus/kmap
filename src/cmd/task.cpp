@@ -3,15 +3,18 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "task.hpp"
+#include <cmd/task.hpp>
 
 #include "../common.hpp"
 #include "../contract.hpp"
 #include "../io.hpp"
 #include "../kmap.hpp"
-#include "command.hpp"
 #include "com/cmd/command.hpp"
+#include "command.hpp"
 #include "test/util.hpp"
+#include <com/task/task.hpp>
+#include <path/node_view.hpp>
+#include <path/node_view2.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -20,62 +23,6 @@
 namespace kmap::cmd {
 
 namespace {
-
-#if 0
-auto const is_task_guard_code =
-R"%%%(```javascript
-if( kmap.task_store().is_task( nw->selected_node() ) )
-{
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( 'not task' );
-}
-```)%%%";
-
-namespace create_task_def {
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'unconditional' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-const taskn = kmap.task_store().create_task( args.get( 0 ) );
-
-if( taskn.has_value() )
-{
-    kmap.select_node( taskn.value() );
-
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( taskn.error_message() );
-}
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "creates task";
-auto const arguments = std::vector< Argument >{ Argument{ "task_title"
-                                                        , "task title"
-                                                        , "unconditional" } };
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    create.task 
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace create_task_def 
-#endif // 0
 
 SCENARIO( "cmd::create_task" , "[cmd][task]" )
 {
@@ -92,6 +39,42 @@ SCENARIO( "cmd::create_task" , "[cmd][task]" )
         WHEN( "create.task" )
         {
             REQUIRE_RES( cli->parse_raw( ":create.task Victor Charlie Delta" ) );
+        }
+    }
+}
+
+SCENARIO( "cmd::activate_task", "[cmd][task]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "task_store", "cli" );
+
+    auto& kmap = Singleton::instance();
+    auto const cli = REQUIRE_TRY( kmap.fetch_component< com::Cli >() );
+
+    GIVEN( "create.task 1" )
+    {
+        REQUIRE_TRY( cli->parse_raw( ":create.task 1" ) );
+
+        auto const t1 = REQUIRE_TRY( view2::task::task_root
+                                   | view2::child( "1" )
+                                   | act2::fetch_node( kmap ) );
+
+        THEN( "task 1 in inactivate state" )
+        {
+            REQUIRE(( view::make( t1 )
+                    | view::tag( "task.status.open.inactive" )
+                    | view::exists( kmap ) ));
+        }
+
+        WHEN( "activate.task" )
+        {
+            REQUIRE_TRY( cli->parse_raw( ":activate.task" ) );
+
+            THEN( "task 1 in activate state" )
+            {
+                REQUIRE(( view::make( t1 )
+                        | view::tag( "task.status.open.active" )
+                        | view::exists( kmap ) ));
+            }
         }
     }
 }
@@ -118,44 +101,6 @@ SCENARIO( "cmd::create_subtask" , "[cmd][task]" )
         }
     }
 }
-
-#if 0
-namespace cascade_tags_def {
-auto const action_code =
-R"%%%(```javascript
-const closed = kmap.task_store().cascade_tags( nw->selected_node() );
-
-if( closed.has_value() )
-{
-    kmap.select_node( kmap.selected_node() );
-
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( closed.error_message() );
-}
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "Applies supertask tags to subtasks";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_task", is_task_guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    cascade.tags 
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace cascade_tags_def 
-#endif // 0
 
 SCENARIO( "cmd::cascade_tags" , "[cmd][task]" )
 {
@@ -190,82 +135,6 @@ SCENARIO( "cmd::cascade_tags" , "[cmd][task]" )
         }
     }
 }
-
-#if 0
-namespace close_task_def {
-auto const action_code =
-R"%%%(```javascript
-const closed = kmap.task_store().close_task( kmap.selected_node() );
-
-if( closed.has_value() )
-{
-    kmap.select_node( kmap.selected_node() );
-
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( closed.error_message() );
-}
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "Removes status.open tag and appends status.closed tag";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_task", is_task_guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    close.task 
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace close_task_def 
-#endif // 0
-
-#if 0
-namespace open_task_def {
-auto const action_code =
-R"%%%(```javascript
-const opened = kmap.task_store().activate_task( kmap.selected_node() );
-
-if( opened.has_value() )
-{
-    kmap.select_node( kmap.selected_node() );
-
-    return kmap.success( 'success' );
-}
-else
-{
-    return kmap.failure( opened.error_message() );
-}
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "Removes status.close tag and appends status.open tag";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "is_task", is_task_guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    open.task 
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace open_task_def 
-#endif // 0
 
 SCENARIO( "open.task", "[cmd][task][open]")
 {

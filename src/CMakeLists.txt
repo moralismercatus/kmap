@@ -70,7 +70,7 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
                              KMAP_LOG_KTRYE=1
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -g3 
-                         -O0 
+                         -O1 
                          -sEXCEPTION_DEBUG=1 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sDEMANGLE_SUPPORT=1 
