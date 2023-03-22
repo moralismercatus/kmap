@@ -36,6 +36,7 @@
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/remove.hpp>
 #include <range/v3/view/transform.hpp>
+#include <range/v3/view/intersperse.hpp>
 
 using namespace ranges;
 using boost::uuids::to_string;
@@ -351,12 +352,13 @@ auto VisualNetwork::format_node_label( Uuid const& node )
                         | ranges::to< std::vector >()
                         | actions::sort;
     auto const tag_line = tag_hs
-                        | views::join( '#' )
+                        | views::intersperse( "][" )
+                        | views::join
                         | ranges::to< std::string >();
 
     if( !tags.empty() )
     {
-        rv = fmt::format( "{} ({})\n<i>#{}</i>"
+        rv = fmt::format( "{} ({})\n<i>[{}]</i>"
                         , db_title
                         , child_count
                         , tag_line );
