@@ -23,20 +23,12 @@ using boost::fusion::operator<<;
 } // kmap::ast::cli
 
 // Note: for whatever reason, these must be declared in global namespace.
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::Heading
-                         , heading )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::Title
-                         , title )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::SoloCommand
-                         , command )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::CommandArgPair
-                         , command
-                         , arg )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::SoloSelection
-                         , selection )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::SelectionCommandPair
-                         , selection
-                         , command )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::Heading, heading )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::Title, title )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::SoloCommand, command )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::CommandArgPair, command, arg )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::SoloSelection, selection )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::cli::SelectionCommandPair, selection, command )
 
 namespace kmap::parser::cli
 {

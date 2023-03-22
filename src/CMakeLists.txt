@@ -179,6 +179,7 @@ add_executable( emcc.index.html
                 path/act/update_body.cpp path/act/update_body.hpp
                 path/node_view.cpp path/node_view.hpp
                 path/node_view2.cpp path/node_view2.hpp
+                path/parser/tokenizer.cpp path/parser/tokenizer.hpp
                 path/sm.cpp
                 path/view/act/abs_path.cpp path/view/act/abs_path.hpp
                 path/view/act/count.cpp path/view/act/count.hpp

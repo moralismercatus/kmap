@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "sm.hpp"
+#include <path/sm.hpp>
 
 #include "../common.hpp"
 #include "../contract.hpp"
