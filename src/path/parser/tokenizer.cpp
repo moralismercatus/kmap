@@ -8,6 +8,7 @@
 #include <common.hpp>
 #include <test/util.hpp>
 #include <util/result.hpp>
+#include <utility.hpp>
 
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/fusion/include/io.hpp>
@@ -19,6 +20,7 @@
 
 #include <any>
 #include <iostream>
+#include <variant>
 
 namespace rvs = ranges::views;
 
@@ -26,15 +28,197 @@ namespace kmap::ast::path {
 
 using boost::fusion::operator<<;
 
+auto flatten( ast::path::HeadingPath const& hp )
+    -> std::vector< ast::path::HeadingPath >
+{
+    auto rv = std::vector< ast::path::HeadingPath >{};
+
+    boost::apply_visitor( [ & ]( auto const& arg ) mutable
+    {
+        using T = std::decay_t< decltype( arg ) >;
+
+        auto targ = arg;
+        targ.child = boost::none;
+
+        rv.emplace_back( targ );
+
+        if constexpr( std::is_same_v< T, BwdDelim > )
+        {
+            if( arg.child )
+            {
+                auto const descs = boost::apply_visitor( [ & ]( auto const& child ) mutable
+                {
+                    using U = std::decay_t< decltype( child ) >;
+
+                    if constexpr( std::is_same_v< U, BwdDelim > )
+                    {
+                        return flatten( HeadingPath{ child } );
+                    }
+                    else if constexpr( std::is_same_v< U, x3::forward_ast< DisAmbigDelim > >
+                                    || std::is_same_v< U, x3::forward_ast< FwdDelim > >
+                                    || std::is_same_v< U, x3::forward_ast< Heading > >
+                                    || std::is_same_v< U, x3::forward_ast< Tag > > )
+                    {
+                        return flatten( HeadingPath{ child.get() } );
+                    }
+                    else
+                    {
+                        static_assert( always_false< U >::value, "non-exhaustive visitor!" );
+                    }
+                }
+                , arg.child.value().get() );
+
+                rv.insert( rv.end(), descs.begin(), descs.end() );
+            }
+        }
+        else if constexpr( std::is_same_v< T, DisAmbigDelim > )
+        {
+            if( arg.child )
+            {
+                auto const descs = boost::apply_visitor( [ & ]( auto const& child ) mutable
+                {
+                    using U = std::decay_t< decltype( child ) >;
+
+                    if constexpr( std::is_same_v< U, x3::forward_ast< Heading > >
+                               || std::is_same_v< U, x3::forward_ast< Tag > > )
+                    {
+                        return flatten( HeadingPath{ child.get() } );
+                    }
+                    else
+                    {
+                        static_assert( always_false< U >::value, "non-exhaustive visitor!" );
+                    }
+                }
+                , arg.child.value().get() );
+
+                rv.insert( rv.end(), descs.begin(), descs.end() );
+            }
+        }
+        else if constexpr( std::is_same_v< T, FwdDelim > )
+        {
+            if( arg.child )
+            {
+                auto const descs = boost::apply_visitor( [ & ]( auto const& child ) mutable
+                {
+                    using U = std::decay_t< decltype( child ) >;
+
+                    if constexpr( std::is_same_v< U, FwdDelim > )
+                    {
+                        return flatten( HeadingPath{ child } );
+                    }
+                    else if constexpr( std::is_same_v< U, x3::forward_ast< BwdDelim > >
+                                    || std::is_same_v< U, x3::forward_ast< DisAmbigDelim > >
+                                    || std::is_same_v< U, x3::forward_ast< Heading > >
+                                    || std::is_same_v< U, x3::forward_ast< Tag > > )
+                    {
+                        return flatten( HeadingPath{ child.get() } );
+                    }
+                    else
+                    {
+                        static_assert( always_false< U >::value, "non-exhaustive visitor!" );
+                    }
+                }
+                , arg.child.value().get() );
+
+                rv.insert( rv.end(), descs.begin(), descs.end() );
+            }
+        }
+        else if constexpr( std::is_same_v< T, Heading > )
+        {
+            if( arg.child )
+            {
+                auto const descs = boost::apply_visitor( [ & ]( auto const& child ) mutable
+                {
+                    using U = std::decay_t< decltype( child ) >;
+
+                    if constexpr( std::is_same_v< U, x3::forward_ast< BwdDelim > >
+                               || std::is_same_v< U, x3::forward_ast< DisAmbigDelim > >
+                               || std::is_same_v< U, x3::forward_ast< FwdDelim > >
+                               || std::is_same_v< U, x3::forward_ast< Tag > > )
+                    {
+                        return flatten( HeadingPath{ child.get() } );
+                    }
+                    else
+                    {
+                        static_assert( always_false< U >::value, "non-exhaustive visitor!" );
+                    }
+                }
+                , arg.child.value().get() );
+
+                rv.insert( rv.end(), descs.begin(), descs.end() );
+            }
+        }
+        else if constexpr( std::is_same_v< T, Tag > )
+        {
+            if( arg.child )
+            {
+                auto const descs = boost::apply_visitor( [ & ]( auto const& child ) mutable
+                {
+                    using U = std::decay_t< decltype( child ) >;
+
+                    if constexpr( std::is_same_v< U, Tag > )
+                    {
+                        return flatten( HeadingPath{ child } );
+                    }
+                    else if constexpr( std::is_same_v< U, x3::forward_ast< BwdDelim > >
+                                    || std::is_same_v< U, x3::forward_ast< DisAmbigDelim > >
+                                    || std::is_same_v< U, x3::forward_ast< FwdDelim > > )
+                    {
+                        return flatten( HeadingPath{ child.get() } );
+                    }
+                    else
+                    {
+                        static_assert( always_false< U >::value, "non-exhaustive visitor!" );
+                    }
+                }
+                , arg.child.value().get() );
+
+                rv.insert( rv.end(), descs.begin(), descs.end() );
+            }
+        }
+        else
+        {
+            static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+        }
+    }
+    , hp );
+
+    return rv;
+}
+
+auto to_string( ast::path::HeadingPath const& hp )
+    -> std::string
+{
+    auto rv = std::string{};
+
+    for( auto const flattened = flatten( hp )
+       ; auto const& elem : flattened )
+    {
+        boost::apply_visitor( [ & ]( auto const& arg )
+        {
+            using T = std::decay_t< decltype( arg ) >;
+
+            if constexpr( std::is_same_v< T, Tag > )
+            {
+                rv += '#';
+            }
+
+            rv += arg.value;
+        }
+        , elem );
+    }
+
+    return rv;
+}
+
 } // kmap::ast::path
 
 // Note: for whatever reason, these must be declared in global namespace.
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::Heading, value )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::HeadingPath, value )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::Tag, value )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::BwdDelim, value )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::FwdDelim, value )
-BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::DisAmbigDelim, value )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::Heading, value, child )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::Tag, value, child )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::BwdDelim, value, child )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::FwdDelim, value, child )
+BOOST_FUSION_ADAPT_STRUCT( kmap::ast::path::DisAmbigDelim, value, child )
 
 namespace kmap::parser::path
 {
@@ -69,15 +253,13 @@ namespace kmap::parser::path
 
     struct bwd_class;
     struct disambig_class;
-    struct element_class;
     struct fwd_class;
     struct heading_class;
     struct heading_path_class;
     struct tag_class;
 
     x3::rule< bwd_class, ast::path::BwdDelim > const bwd = "bwd";
-    x3::rule< disambig_class, ast::path::DisAmbigDelim > const disambig = "disambig";
-    x3::rule< element_class, ast::path::Element > const element = "element";
+    x3::rule< disambig_class, ast::path::DisAmbigDelim > const dis = "dis";
     x3::rule< fwd_class, ast::path::FwdDelim > const fwd = "fwd";
     x3::rule< heading_class, ast::path::Heading > const heading = "heading";
     x3::rule< heading_path_class, ast::path::HeadingPath > const heading_path = "heading_path";
@@ -88,32 +270,33 @@ namespace kmap::parser::path
         ;
     auto const heading_def
         = +heading_char
+       >> -( bwd | dis | fwd | tag )
         ;
     auto const tag_def
         = lit( '#' )
-       >> +heading_char
+       >> *heading_char
+       >> -( bwd | dis | fwd | tag )
         ;
     auto const bwd_def
         = char_( ',' )
+       >> -( bwd | dis | fwd | tag | heading )
         ;
     auto const fwd_def
         = char_( '.' )
+       >> -( bwd | dis | fwd | tag | heading )
         ;
-    auto const disambig_def
+    auto const dis_def
         = char_( '\'' )
-        ;
-    auto const element_def
-        = heading | tag | bwd | fwd | disambig
+       >> -( tag | heading )
         ;
     auto const heading_path_def
-        = expect[ +element ]
+        = expect[ bwd | dis | fwd | tag | heading ]
         ;
 
     BOOST_SPIRIT_DEFINE
     (
         bwd
-    ,   disambig
-    ,   element
+    ,   dis
     ,   fwd
     ,   heading_path
     ,   heading
@@ -133,10 +316,14 @@ namespace kmap::parser::path
     {
         using boost::spirit::x3::with;
         using boost::spirit::x3::ascii::space;
-        using boost::spirit::x3::no_skip;
         using boost::spirit::x3::error_handler_tag;
         using iterator_type = std::string_view::const_iterator;
         using error_handler_type = boost::spirit::x3::error_handler< iterator_type >;
+
+        KM_RESULT_PROLOG();
+
+        KMAP_ENSURE( !raw.empty(), error_code::common::uncategorized );
+        KMAP_ENSURE( raw.find( ' ' ) == std::string::npos, error_code::common::uncategorized );
 
         auto rv = result::make_result< ast::path::HeadingPath >();
         auto hp_ast = ast::path::HeadingPath{};
@@ -170,87 +357,69 @@ namespace kmap::parser::path
         using ast::path::Heading;
         using ast::path::HeadingPath;
 
-        auto match = [ & ]( std::string const& input, std::vector< std::any > const& expecteds ) -> Result< void >
+        auto const check = [ & ]( std::string const& input )
         {
-            KM_RESULT_PROLOG();
-
-            auto const ts = KTRY( tokenize_heading_path( input ) );
-
-            KMAP_ENSURE( ts.value.size() == expecteds.size(), error_code::common::uncategorized );
-
-            // TODO: change to `auto const& [ token, expected ] when Clang supports relaxed lambda structured binding capture.
-            for( auto const& t_and_e : rvs::zip( ts.value, expecteds ) )
-            {
-                auto const& token = std::get< 0 >( t_and_e );
-                auto const& expected = std::get< 1 >( t_and_e );
-
-                auto const vrv = boost::apply_visitor( [ & ]( auto const& arg )
-                {
-                    using T = std::decay_t< decltype( arg ) >;
-
-                    if constexpr( std::is_same_v< T, Heading >
-                               || std::is_same_v< T, Tag > )
-                    {
-                        return std::any_cast< T >( &expected ) != nullptr
-                            && std::any_cast< T >( &expected )->value == arg.value;
-                    }
-                    else if constexpr( std::is_same_v< T, BwdDelim >
-                                    || std::is_same_v< T, FwdDelim >
-                                    || std::is_same_v< T, DisAmbigDelim > )
-                    {
-                        return std::any_cast< T >( &expected ) != nullptr;
-                    }
-                    else
-                    {
-                        static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                    }
-                }
-                , token );
-
-                if( !vrv )
-                {
-                    return result::make_result< void >();
-                }
-            }
-
-            return outcome::success();
+            auto const ts = KTRYB( tokenize_heading_path( input ) );
+            return to_string( ts ) == input;
         };
 
-        GIVEN( "fundamental elements" )
+        // Empty path
+        REQUIRE( !check( "" ) );
+        // Space
+        REQUIRE( !check( " " ) );
+        // ,
         {
-            THEN( "tokenized correctly" )
-            {
-                REQUIRE_TRY( match( "victor",  { Heading{ .value = "victor" } } ) );
-                REQUIRE( test::fail( match( "victor", { Heading{ .value = "not_victor" } } ) ) );
-                REQUIRE_TRY( match( "#test_tag", { Tag{ .value = "test_tag" } } ) );
-                REQUIRE( test::fail( match( "#test_tag", { Tag{ .value = "not_test_tag" } } ) ) );
-                REQUIRE_TRY( match( ".", { FwdDelim{} } ) );
-                REQUIRE_TRY( match( ",", { BwdDelim{} } ) );
-                REQUIRE_TRY( match( "'", { DisAmbigDelim{} } ) );
-            }
+            auto const prefix = std::string{ "," };
+            REQUIRE( check( prefix + "" ) );
+            REQUIRE( check( prefix + "," ) );
+            REQUIRE( check( prefix + "'" ) );
+            REQUIRE( check( prefix + "." ) );
+            REQUIRE( check( prefix + "test_heading" ) );
+            REQUIRE( check( prefix + "#" ) );
+            REQUIRE( check( prefix + "#test_tag" ) );
         }
-        GIVEN( "composite elements" )
+        // '
         {
-            THEN( "tokenized correctly" )
-            {
-                REQUIRE_TRY( match( "victor..charlie,charlie#echo#delta'"
-                                  , { Heading{ .value = "victor" }
-                                    , FwdDelim{}
-                                    , FwdDelim{}
-                                    , Heading{ .value = "charlie" }
-                                    , BwdDelim{}
-                                    , Heading{ .value = "charlie" }
-                                    , Tag{ .value = "echo" }
-                                    , Tag{ .value = "delta" }
-                                    , DisAmbigDelim{} } ) );
-            }
+            auto const prefix = std::string{ "'" };
+            REQUIRE( check( prefix + "" ) );
+            REQUIRE( !check( prefix + "," ) );
+            REQUIRE( !check( prefix + "'" ) );
+            REQUIRE( !check( prefix + "." ) );
+            REQUIRE( check( prefix + "test_heading" ) );
+            REQUIRE( check( prefix + "#" ) );
+            REQUIRE( check( prefix + "#test_tag" ) );
         }
-        GIVEN( "path with space" )
+        // .
         {
-            THEN( "fails on encountering space" )
-            {
-                REQUIRE( test::fail( match( "echo .delta", { Heading{ .value = "echo" }, FwdDelim{}, Heading{ .value = "delta" } } ) ) );
-            }
+            auto const prefix = std::string{ "." };
+            REQUIRE( check( prefix + "" ) );
+            REQUIRE( check( prefix + "," ) );
+            REQUIRE( check( prefix + "'" ) );
+            REQUIRE( check( prefix + "." ) );
+            REQUIRE( check( prefix + "test_heading" ) );
+            REQUIRE( check( prefix + "#" ) );
+            REQUIRE( check( prefix + "#test_tag" ) );
+        }
+        // #
+        {
+            auto const prefix = std::string{ "#" };
+            REQUIRE( check( prefix + "" ) );
+            REQUIRE( check( prefix + "," ) );
+            REQUIRE( check( prefix + "'" ) );
+            REQUIRE( check( prefix + "." ) );
+            REQUIRE( check( prefix + "test_heading" ) );
+            REQUIRE( check( prefix + "#" ) );
+            REQUIRE( check( prefix + "#test_tag" ) );
+        }
+        // <heading>
+        {
+            auto const prefix = std::string{ "test_heading" };
+            REQUIRE( check( prefix + "" ) );
+            REQUIRE( check( prefix + "," ) );
+            REQUIRE( check( prefix + "'" ) );
+            REQUIRE( check( prefix + "." ) );
+            REQUIRE( check( prefix + "#" ) );
+            REQUIRE( check( prefix + "#test_tag" ) );
         }
     }
 
