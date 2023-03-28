@@ -7,11 +7,12 @@
 #ifndef KMAP_CANVAS_HPP
 #define KMAP_CANVAS_HPP
 
-#include "common.hpp"
-#include "component.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/node_view2.hpp"
+#include <com/event/event_clerk.hpp>
+#include <common.hpp>
+#include <component.hpp>
+#include <js_iface.hpp>
+#include <kmap.hpp>
+#include <path/node_view2.hpp>
 
 #include <map>
 #include <memory>
@@ -75,6 +76,7 @@ class Canvas : public Component
     uint32_t next_tabindex_ = 0; // tabIndex enables divs to be focus-able, so give each an increment.
     std::vector< Uuid > canvas_element_stack_ = {};
     std::vector< js::ScopedCode > window_events_ = {};
+    EventClerk eclerk_;
 
 public:
     static constexpr auto id = "canvas";
@@ -175,6 +177,8 @@ public:
                , float const base )
         -> Result< void >;
     auto redraw()
+        -> Result< void >;
+    auto register_standard_events()
         -> Result< void >;
     auto reorient( Uuid const& pane )
         -> Result< void >;

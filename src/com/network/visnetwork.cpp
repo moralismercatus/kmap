@@ -1050,7 +1050,7 @@ auto VisualNetwork::register_standard_events()
                                  , .description = "updates network viewport scale option value"
                                  , .action = R"%%%(kmap.option_store().update_value( 'network.viewport_scale', kmap.visnetwork().viewport_scale() ).throw_on_error();)%%%" } );
     eclerk_.register_outlet( Leaf{ .heading = "network.refresh_on_window_resize"
-                                 , .requisites = { "subject.window", "verb.scaled" }
+                                 , .requisites = { "verb.scaled", "object.window" }
                                  , .description = "resizes network when window resized"
                                  , .action = R"%%%(kmap.option_store().apply( 'network.viewport_scale' ).throw_on_error(); kmap.viswnetwork().center_viewport_node( kmap.root_node() );)%%%" } );
     {

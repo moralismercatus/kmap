@@ -70,7 +70,9 @@ Canvas::Canvas( Kmap& kmap
               , std::set< std::string > const& requisites
               , std::string const& description )
     : Component{ kmap, requisites, description }
+    , eclerk_{ kmap }
 {
+    KTRYE( register_standard_events() );
 }
 
 Canvas::~Canvas()
@@ -114,6 +116,8 @@ auto Canvas::initialize()
     KTRY( hide( editor_pane() ) );
 
     KTRY( update_overlays() );
+
+    KTRY( eclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -162,7 +166,7 @@ auto Canvas::install_events()
 
     // window.onresize
     {
-        window_events_.emplace_back( js::ScopedCode{ "window.onresize = function(){ kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.scaled' ] ) ); };"
+        window_events_.emplace_back( js::ScopedCode{ "window.onresize = function(){ console.log( 'firing window resize event' ); kmap.event_store().fire_event( to_VectorString( [ 'verb.scaled', 'object.window' ] ) ); };"
                                                    , "window.onresize = null;" } );
     }
     // window.onkeydown
@@ -232,29 +236,6 @@ window.onkeydown = function( e )
         window_events_.emplace_back( js::ScopedCode{ ctor
                                                    , dtor } );
     }
-
-    #if 0
-
-    KTRY( estore->install_subject( "keyboard.key.c" ) );
-    KTRY( estore->install_verb( "depressed" ) );
-    KTRY( estore->install_object( "network" ) );
-    KTRY( estore->install_listener( "network.travel_left"
-                                 , event::any_of{ event::action{ "keyboard.key.down" } }
-                                 , event::all_of{ event::any_of{ event::object{ "keyboard.h" } }
-                                                , event::excl{ event::state{ "keyboard", "keyboard.key.down" } } } );
-    KTRY( estore->install_listener( "network.travel_left"
-                                 , event::any_of{ event::action{ "keyboard.key.down" } }
-                                 , event::all_of{ event::any_of{ event::object{ "keyboard.h" } }
-                                                , event::excl{ event::state{ "keyboard", "keyboard.key.down" } } } );
-                                                // , event::none_of{ event::state{ "keyboard.ctrl", "keyboard.key.down" }
-                                                //                 , event::state{ "keyboard.alt", "keyboard.key.down" } ) );
-    KTRY( estore->install_listener( "network.travel_left"
-                                 , event::any_of{ "keyboard.key.down" }
-                                 , event::any_of{ event::all_of{ "keyboard.key.c"
-                                                               , "keyboard.key.ctrl.state.down" }
-                                                , event::all_of{ "keyboard.key.c.state.down"
-                                                               , "keyboard.key.ctrl" } } ) );
-    #endif // 0
 
     rv = outcome::success();
 
@@ -796,6 +777,23 @@ auto Canvas::redraw()
     auto rv = result::make_result< void >();
 
     KTRY( update_all_panes() );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Canvas::register_standard_events()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+
+    eclerk_.register_outlet( Leaf{ .heading = "window.update_canvas_on_window_resize"
+                                 , .requisites = { "verb.scaled", "object.window" }
+                                 , .description = "updates canvas on window resize"
+                                 , .action = R"%%%(console.log( 'update_all_panes()' ); kmap.canvas().update_all_panes();)%%%" } );
 
     rv = outcome::success();
 
