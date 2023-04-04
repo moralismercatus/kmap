@@ -285,7 +285,7 @@ auto EventClerk::fire_event( std::set< std::string > const& requisites )
 }
 
 auto EventClerk::fire_event( std::set< std::string > const& requisites
-                           , std::string const& event_payload )
+                           , EventStore::Payload const& event_payload )
     -> Result< void >
 {
     KM_RESULT_PROLOG();

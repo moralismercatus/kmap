@@ -119,7 +119,7 @@ struct LogTask : public Component
         auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
         auto const nw = KTRY( kmap.fetch_component< com::Network >() );
         auto const payload = KTRY( estore->fetch_payload() );
-        auto const task = KTRY( uuid_from_string( payload ) ); BC_ASSERT( nw->exists( task ) );
+        auto const task = KTRY( uuid_from_string( std::string{ payload.at( "task_id" ).as_string() } ) ); BC_ASSERT( nw->exists( task ) );
         auto const dl = KTRY( com::fetch_or_create_daily_log( kmap ) );
 
         KTRY( view::make( dl )

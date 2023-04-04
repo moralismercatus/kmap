@@ -930,7 +930,9 @@ auto Canvas::initialize_panes()
                             | act2::fetch_or_create_node( km ) );
                             //KTRY( reset_breadcrumb( canvas ) );
     auto const workspace  = KTRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } ) );
-                            KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false, "div" } ) );
+                            // KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false, "div" } ) );
+                            KTRY( subdivide( workspace, jump_stack_pane(), "jump_stack", Division{ Orientation::vertical, 0.000f, false, "table" } ) );
+                            KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.120f, false, "div" } ) );
     auto const text_area  = KTRY( subdivide( workspace, text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false, "div" } ) );
                             KTRY( subdivide( text_area, editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true, "textarea" } ) );
                             KTRY( subdivide( text_area, preview_pane(), "preview", Division{ Orientation::horizontal, 1.000f, false, "div" } ) );
@@ -1584,6 +1586,12 @@ auto Canvas::editor_pane() const
     return editor_uuid;
 }
 
+auto Canvas::jump_stack_pane() const
+    -> Uuid
+{
+    return jump_stack_uuid;
+}
+
 auto Canvas::network_pane() const
     -> Uuid
 {
@@ -1731,6 +1739,7 @@ struct Canvas
     auto cli_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->cli_pane(); } 
     auto completion_overlay() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->completion_overlay(); }
     auto editor_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->editor_pane(); } 
+    auto jump_stack_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->jump_stack_pane(); }
     auto network_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->network_pane(); }
     auto preview_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->preview_pane(); }
     auto text_area_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->text_area_pane(); }
@@ -1754,6 +1763,7 @@ EMSCRIPTEN_BINDINGS( kmap_canvas )
         .function( "complete_path", &kmap::com::binding::Canvas::complete_path )
         .function( "completion_overlay", &kmap::com::binding::Canvas::completion_overlay )
         .function( "editor_pane", &kmap::com::binding::Canvas::editor_pane )
+        .function( "jump_stack_pane", &kmap::com::binding::Canvas::jump_stack_pane )
         .function( "fetch_base", &kmap::com::binding::Canvas::fetch_base )
         .function( "fetch_orientation", &kmap::com::binding::Canvas::fetch_orientation )
         .function( "fetch_pane", &kmap::com::binding::Canvas::fetch_pane )

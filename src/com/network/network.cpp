@@ -21,6 +21,7 @@
 #include "utility.hpp"
 #include "util/result.hpp"
 
+#include <boost/json.hpp>
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
@@ -206,7 +207,7 @@ auto Network::create_alias( Uuid const& src
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {
-        KTRY( estore.value()->fire_event( { "subject.network", "verb.created", "object.alias" }, id ) );
+        KTRY( estore.value()->fire_event( { "subject.network", "verb.created", "object.alias" }, { { "alias_id", id } } ) );
     }
 
     rv = pushed_id;
@@ -981,7 +982,7 @@ auto Network::erase_node( Uuid const& id )
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {
-        KTRY( estore.value()->fire_event( { "network", "verb.erased", "node" }, to_string( id ) ) );
+        KTRY( estore.value()->fire_event( { "network", "verb.erased", "node" },  { { "node_id", to_string( id ) } } ) );
     }
 
     rv = next_selected;
@@ -1547,9 +1548,26 @@ auto Network::fetch_children_ordered( Uuid const& parent ) const
         auto const split = ordering_str
                          | rvs::split( '\n' )
                          | ranges::to< std::vector< std::string > >();
+        if( unord_children.size() != split.size() )
+        {
+            fmt::print( "unord_children:\n{}\n", unord_children | rvs::transform( [ & ]( auto const& e ){ return to_string( resolve( e ) ); } ) | rvs::join( '\n' ) | ranges::to< std::string >() );
+            fmt::print( "ordering_str:\n{}\n", ordering_str );
+        }
+        KMAP_ENSURE( unord_children.size() == split.size(), error_code::common::uncategorized ); 
+
+        auto const map_resolve = [ & ]( auto const& s )
+        {  
+            auto const order_node = KTRYE( uuid_from_string( s ) );
+            fmt::print( "r_to_a_map.at( '{}' )\n", s ); 
+            if( !r_to_a_map.contains( order_node ) )
+            {
+                KMAP_THROW_EXCEPTION_MSG( fmt::format( "mismatch between children and order nodes, for node: {}\n", s ) );
+            }
+            return r_to_a_map.at( order_node );
+        };
 
         rv = split
-           | rvs::transform( [ & ]( auto const& s ) { return r_to_a_map.at( KTRYE( uuid_from_string( s ) ) ); } )
+           | rvs::transform( map_resolve )
            | ranges::to< std::vector >();
     }
 
@@ -2163,7 +2181,10 @@ auto Network::move_node( Uuid const& from
         if( auto const estore = fetch_component< com::EventStore >()
           ; estore )
         {
-            KTRY( estore.value()->fire_event( { "subject.network", "verb.moved", "object.node" }, to_string( from ) ) );
+            KTRY( estore.value()->fire_event( { "subject.network", "verb.moved", "object.node" }
+                                            , { { "child_node", to_string( from ) }
+                                              , { "old_parent_node", to_string( from_parent ) }
+                                              , { "new_parent_node", to_string( to ) } } ) );
         }
 
         rv = to;
@@ -2423,7 +2444,9 @@ auto Network::select_node( Uuid const& id )
         KTRY( estorev->install_subject( "kmap" ) );
         KTRY( estorev->install_verb( "selected") );
         KTRY( estorev->install_object( "node") );
-        KTRY( estorev->fire_event( { "subject.network", "verb.selected", "object.node" } ) );
+        KTRY( estorev->fire_event( { "subject.network", "verb.selected", "object.node" }
+                                 , { { "from_node", to_string( prev_selected ) }
+                                   , { "to_node", to_string( id ) } } ) );
     }
       
     // Q: I notice that the event system (above estore->fire_event) introduces an unpredictability into the flow.
@@ -3383,6 +3406,15 @@ struct Network
 
         return nw->fetch_parent( node );
     }
+    auto fetch_title( Uuid const& node )
+        -> kmap::binding::Result< std::string >
+    {
+        KM_RESULT_PROLOG();
+
+        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
+
+        return nw->fetch_title( node );
+    }
     auto move_node( Uuid const& src
                   , Uuid const& dst )
         -> kmap::binding::Result< void >
@@ -3432,6 +3464,7 @@ EMSCRIPTEN_BINDINGS( kmap_network )
         .function( "erase_node", &kmap::com::binding::Network::erase_node )
         .function( "fetch_node", &kmap::com::binding::Network::fetch_node )
         .function( "fetch_parent", &kmap::com::binding::Network::fetch_parent )
+        .function( "fetch_title", &kmap::com::binding::Network::fetch_title )
         // .function( "move_children", &kmap::com::binding::Network::move_children )
         .function( "move_node", &kmap::com::binding::Network::move_node )
         .function( "select_node", &kmap::com::binding::Network::select_node )

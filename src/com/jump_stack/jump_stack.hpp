@@ -8,8 +8,11 @@
 #define KMAP_JUMP_STACK_HPP
 
 #include "com/event/event_clerk.hpp"
+#include "com/option/option_clerk.hpp"
 #include "common.hpp"
 #include "component.hpp"
+
+#include <deque>
 
 namespace kmap
 {
@@ -20,7 +23,12 @@ namespace kmap::com {
 
 class JumpStack : public Component
 {
+    using Stack = std::deque< Uuid >;
+
     EventClerk eclerk_;
+    OptionClerk oclerk_;
+    std::deque< Uuid > buffer_ = {};
+    unsigned threshold_ = 100u;
 
 public:
     static constexpr auto id = "jump_stack";
@@ -38,13 +46,24 @@ public:
 
     auto register_event_outlets()
         -> Result< void >;
+    auto register_standard_options()
+        -> Result< void >;
 
-    // TODO: I think these probably don't belong? Jump stack reacts to selection events.
-    auto jump_in( Uuid const& node )
-        -> void;//Optional< Uuid >;
+    auto build_pane_table()
+        -> Result< void >;
+
+    auto is_adjacent( Uuid const& n1
+                    , Uuid const& n2 )
+        -> bool;
+    auto push_transition( Uuid const& from
+                        , Uuid const& to )
+        -> void;
     auto jump_out()
         -> Optional< Uuid >;
-protected:
+    auto set_threshold( unsigned const& max )
+        -> void;
+    auto stack() const
+        -> Stack const&;
 };
 
 } // namespace kmap::com

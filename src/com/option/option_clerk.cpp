@@ -100,6 +100,10 @@ auto OptionClerk::check_registered()
                     KTRY( install_option( option ) ); // Re-install outlet.
                 }
             }
+            else
+            {
+                installed_options_.insert( { option.heading, optn.value() } );
+            }
         }
         else
         {

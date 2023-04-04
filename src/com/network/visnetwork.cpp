@@ -336,43 +336,6 @@ auto VisualNetwork::create_edges( std::vector< std::pair< Uuid, Uuid > > const& 
 #endif // 0
 }
 
-auto VisualNetwork::format_node_label( Uuid const& node )
-    -> std::string
-{
-    auto rv = std::string{};
-    auto const& km = kmap_inst();
-    auto const nw = KTRYE( km.fetch_component< com::Network >() );
-    auto const db_title = KTRYE( nw->fetch_title( node ) );
-    auto const child_count = nw->fetch_children( node ).size();
-    auto const tags = view::make( node )
-                    | view::tag
-                    | view::to_node_set( km );
-    auto const tag_hs = tags
-                        | views::transform( [ & ]( auto const& t ){ return KTRYE( nw->fetch_heading( t ) ); } )
-                        | ranges::to< std::vector >()
-                        | actions::sort;
-    auto const tag_line = tag_hs
-                        | views::intersperse( "][" )
-                        | views::join
-                        | ranges::to< std::string >();
-
-    if( !tags.empty() )
-    {
-        rv = fmt::format( "{} ({})\n<i>[{}]</i>"
-                        , db_title
-                        , child_count
-                        , tag_line );
-    }
-    else
-    {
-        rv = fmt::format( "{} ({})"
-                        , db_title
-                        , child_count );
-    }
-
-    return rv;
-}
-
 // TODO: Add unit tests for:
 //   - node coloring
 auto VisualNetwork::select_node( Uuid const& id )
@@ -421,7 +384,7 @@ auto VisualNetwork::select_node( Uuid const& id )
     for( auto const& cid : visible_nodes )
     {
         BC_ASSERT( nw->exists( cid ) );
-        KTRY( create_node( cid, format_node_label( cid ) ) );
+        KTRY( create_node( cid, format_node_label( km, cid ) ) );
         create_edge( cid );
     }
 
@@ -962,10 +925,12 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node_on_init"
                                 , .requisites = { "subject.kmap", "verb.initialized" }
                                 , .description = "updates network with selected node"
+                                // TODO: This looks like a hack. visnetwork shouldn't be firing "network.selected", right?
                                 , .action = fmt::format( R"%%%(kmap.event_store().fire_event( to_VectorString( [ "subject.network", "verb.selected", "object.node" ] ) );)%%%", gen_uuid() ) } );
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node_on_load"
                                 , .requisites = { "subject.kmap", "verb.loaded" }
                                 , .description = "updates network with selected node"
+                                // TODO: This looks like a hack. visnetwork shouldn't be firing "network.selected", right?
                                 , .action = fmt::format( R"%%%(kmap.event_store().fire_event( to_VectorString( [ "subject.network", "verb.selected", "object.node" ] ) );)%%%", gen_uuid() ) } );
     // Movement
     // TODO:
@@ -980,6 +945,7 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.node_moved"
                                  , .requisites = { "subject.network", "verb.moved", "object.node" }
                                  , .description = "updates network with selected node"
+                                // TODO: This looks like a hack. visnetwork shouldn't be firing "network.selected", right?
                                  , .action = R"%%%(kmap.event_store().fire_event( to_VectorString( [ "subject.network", "verb.selected", "object.node" ] ) );)%%%" } );
     // Keyboard
     eclerk_.register_outlet( Leaf{ .heading = "network.travel_left.h"
@@ -1052,7 +1018,7 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.refresh_on_window_resize"
                                  , .requisites = { "verb.scaled", "object.window" }
                                  , .description = "resizes network when window resized"
-                                 , .action = R"%%%(kmap.option_store().apply( 'network.viewport_scale' ).throw_on_error(); kmap.viswnetwork().center_viewport_node( kmap.root_node() );)%%%" } );
+                                 , .action = R"%%%(kmap.option_store().apply( 'network.viewport_scale' ).throw_on_error(); kmap.visnetwork().center_viewport_node( kmap.root_node() );)%%%" } );
     {
         // TODO: Too general to belong in Network, but placing here temporarily until more appropriate home is found.
         auto const script =
@@ -1152,6 +1118,44 @@ auto VisualNetwork::underlying_js_network()
     return js_nw_;
 }
 
+auto format_node_label( Kmap const& km
+                      , Uuid const& node )
+    -> std::string // TODO: Should be Result< std::string >?
+{
+    auto rv = std::string{};
+    auto const nw = KTRYE( km.fetch_component< com::Network >() );
+    auto const db_title = KTRYE( nw->fetch_title( node ) );
+    auto const child_count = nw->fetch_children( node ).size();
+    auto const tags = view::make( node )
+                    | view::tag
+                    | view::to_node_set( km );
+    auto const tag_hs = tags
+                        | views::transform( [ & ]( auto const& t ){ return KTRYE( nw->fetch_heading( t ) ); } )
+                        | ranges::to< std::vector >()
+                        | actions::sort;
+    auto const tag_line = tag_hs
+                        | views::intersperse( "][" )
+                        | views::join
+                        | ranges::to< std::string >();
+
+    if( !tags.empty() )
+    {
+        rv = fmt::format( "{} ({})\n<i>[{}]</i>"
+                        , db_title
+                        , child_count
+                        , tag_line );
+    }
+    else
+    {
+        rv = fmt::format( "{} ({})"
+                        , db_title
+                        , child_count );
+    }
+
+    return rv;
+}
+
+
 namespace binding
 {
     using namespace emscripten;
@@ -1169,6 +1173,12 @@ namespace binding
             -> void
         {
             KTRYE( km.fetch_component< kmap::com::VisualNetwork >() )->center_viewport_node( node );
+        }
+
+        auto format_node_label( Uuid const& node )
+            -> std::string
+        {
+            return com::format_node_label( km, node );
         }
 
         auto select_node( Uuid const& node )
@@ -1207,6 +1217,7 @@ namespace binding
         function( "visnetwork", &kmap::com::binding::visnetwork );
         class_< kmap::com::binding::VisualNetwork >( "VisualNetwork" )
             .function( "center_viewport_node", &kmap::com::binding::VisualNetwork::center_viewport_node )
+            .function( "format_node_label", &kmap::com::binding::VisualNetwork::format_node_label )
             .function( "scale_viewport", &kmap::com::binding::VisualNetwork::scale_viewport )
             .function( "select_node", &kmap::com::binding::VisualNetwork::select_node )
             .function( "underlying_js_network", &kmap::com::binding::VisualNetwork::underlying_js_network )

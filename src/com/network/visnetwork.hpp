@@ -107,8 +107,6 @@ public:
         -> Result< Position2D >;
     auto focus()
         -> void;
-    auto format_node_label( Uuid const& node )
-        -> std::string;
     [[ nodiscard ]]
     auto get_appropriate_node_font_face( Uuid const& id ) const // TODO: Should be from option?
         -> std::string;
@@ -186,6 +184,11 @@ public:
     auto underlying_js_network()
         -> std::shared_ptr< emscripten::val >;
 };
+
+[[nodiscard]]
+auto format_node_label( Kmap const& km
+                      , Uuid const& node )
+    -> std::string;
 
 } // namespace kmap::com
 

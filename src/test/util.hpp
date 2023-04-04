@@ -15,6 +15,7 @@
         res.value(); \
     })
 #define REQUIRE_RES( ... ) REQUIRE( kmap::test::succ( __VA_ARGS__ ) )
+#define REQUIRE_RFAIL( ... ) REQUIRE( kmap::test::fail( __VA_ARGS__ ) )
 
 #include "com/canvas/canvas.hpp"
 #include "com/network/network.hpp"

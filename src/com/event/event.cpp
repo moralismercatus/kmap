@@ -22,6 +22,7 @@
 #include "test/util.hpp"
 #include "util/result.hpp"
 #include "util/script/script.hpp"
+#include <kmap/binding/js/result.hpp>
 
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -198,9 +199,9 @@ auto EventStore::fetch_outlet_tree( Uuid const& outlet )
 }
 
 auto EventStore::fetch_payload()
-    -> Result< std::string >
+    -> Result< Payload >
 {
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    auto rv = KMAP_MAKE_RESULT( Payload );
 
     if( payload_ )
     {
@@ -891,7 +892,7 @@ auto EventStore::fire_event( std::set< std::string > const& requisites )
 }
 
 auto EventStore::fire_event( std::set< std::string > const& requisites
-                           , std::string const& payload )
+                           , Payload const& payload )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
@@ -1521,6 +1522,22 @@ struct EventStore
 
         return estore->fire_event( requisites | ranges::to< std::set >() );
     }
+    auto fetch_payload()
+        -> kmap::Result< com::EventStore::Payload >
+    {
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< com::EventStore::Payload >();
+        auto const estore = KTRY( kmap_.fetch_component< com::EventStore >() );
+
+        if( auto const& pl = estore->fetch_payload()
+          ; pl )
+        {
+            rv = pl.value();
+        }
+
+        return rv;
+    }
     auto reset_transitions( std::vector< std::string > const& requisites )
         -> kmap::binding::Result< void >
     {
@@ -1543,9 +1560,12 @@ EMSCRIPTEN_BINDINGS( kmap_event_store )
     function( "event_store", &kmap::com::binding::event_store );
     class_< kmap::com::binding::EventStore >( "EventStore" )
         .function( "fire_event", &kmap::com::binding::EventStore::fire_event )
+        .function( "fetch_payload", &kmap::com::binding::EventStore::fetch_payload )
         .function( "reset_transitions", &kmap::com::binding::EventStore::reset_transitions )
         ;
 }
+
+KMAP_BIND_RESULT2( com::EventStore::Payload );
 
 } // namespace binding
 

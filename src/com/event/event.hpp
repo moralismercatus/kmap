@@ -11,6 +11,8 @@
 #include "component.hpp"
 #include "path/node_view2.hpp"
 
+#include <boost/json/object.hpp>
+
 #include <memory>
 #include <optional>
 #include <set>
@@ -43,17 +45,21 @@ struct Branch
 
 class EventStore : public Component
 {
-    std::vector< Transition > registered_outlets_ = {};
+public:
     struct TransitionState
     {
         UuidSet active; //  Multiple branches could be simultaneously in progress.
     };
+    using TransitionMap = std::map< Uuid, std::shared_ptr< TransitionState > >;
+    using Payload = boost::json::object;
+
+private:
+    std::vector< Transition > registered_outlets_ = {};
     // So, how this works is as follows:
     // Every outlet part of an outlet tree gets placed into this map, and all point to the same shared_ptr.
     // Only the active state gets acted upon.
-    using TransitionMap = std::map< Uuid, std::shared_ptr< TransitionState > >;
     TransitionMap transition_states_;
-    std::optional< std::string > payload_ = std::nullopt;
+    std::optional< Payload > payload_ = std::nullopt;
 
 public:
     static constexpr auto id = "event_store";
@@ -79,7 +85,7 @@ public:
     auto fetch_matching_outlets( std::set< std::string > const& requisites )
         -> Result< UuidSet >;
     auto fetch_payload()
-        -> Result< std::string >;
+        -> Result< Payload >;
 
     auto has_requisites( Uuid const& outlet
                        , std::set< std::string > const& requisites )
@@ -142,7 +148,7 @@ public:
     auto fire_event( std::set< std::string > const& requisites )
         -> Result< void >;
     auto fire_event( std::set< std::string > const& requisites
-                   , std::string const& payload )
+                   , Payload const& payload )
         -> Result< void >;
 
     auto reset_transitions( Uuid const& outlet )

@@ -36,7 +36,7 @@ public:
     std::vector< Uuid > components = {};
     std::vector< Uuid > outlets = {};
     std::vector< Uuid > outlet_transitions = {};
-    std::optional< std::string > payload = std::nullopt;
+    std::optional< EventStore::Payload > payload = std::nullopt;
     std::set< std::string > outlet_com_requisites = {};
 
     EventClerk( Kmap& km );
@@ -61,7 +61,7 @@ public:
     auto fire_event( std::set< std::string > const& requisites )
         -> Result< void >;
     auto fire_event( std::set< std::string > const& requisites
-                   , std::string const& payload )
+                   , EventStore::Payload const& payload )
         -> Result< void >;
     auto install_subject( Heading const& heading )
         -> Result< Uuid >;

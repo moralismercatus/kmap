@@ -21,6 +21,19 @@
         { \
             return to_string( rt.error() ); \
         } \
+        auto value( kmap::Result< type > const& rt ) \
+            -> type const& \
+        { \
+            return rt.value(); \
+        } \
+        auto throw_on_error( kmap::Result< type >const& rt ) \
+            -> void \
+        { \
+            if( rt.has_error() ) \
+            { \
+                KMAP_THROW_EXCEPTION_MSG( "TODO: error message payload..." ); \
+            } \
+        } \
         KMAP_EMSCRIPTEN_BINDINGS( KMAP_UNIQUE_NAME( kmap_bind_ ) ) \
         { \
             emscripten::class_< kmap::Result< type > >( "Result2<"#type">" ) \
@@ -30,6 +43,8 @@
                 .function( "has_lost_consistency", &kmap::Result< type >::has_lost_consistency ) \
                 .function( "has_value", &kmap::Result< type >::has_value ) \
                 .function( "error", &error_message ) \
+                .function( "value", &value ) \
+                .function( "throw_on_error", &throw_on_error ) \
                 ; \
         } \
     } }

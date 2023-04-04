@@ -151,7 +151,7 @@ auto TaskStore::create_task( std::string const& title )
         | view::child( view::all_of( "problem", "result" ) )
         | view::create_node( km ) );
 
-    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.created", "object.task" }, to_string( task ) ) );
+    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.created", "object.task" }, { { "task_id", to_string( task ) } } ) );
 
     KTRY( deactivate_task( task ) );
 
@@ -414,7 +414,7 @@ auto TaskStore::close_task( Uuid const& task )
             KTRY( nw->reorder_children( task_root, ordered ) );
         }
 
-        KTRY( eclerk_.fire_event( { "subject.task_store", "verb.closed", "object.task" }, to_string( task ) ) );
+        KTRY( eclerk_.fire_event( { "subject.task_store", "verb.closed", "object.task" }, { { "task_id", to_string( task ) } } ) );
         // TODO: Provide outlet that moves closed node to top of all open task and subtask lists.
 
         rv = outcome::success();
@@ -507,7 +507,7 @@ auto TaskStore::activate_task( Uuid const& task )
 
     KTRY( nw->set_ordering_position( task, 0 ) );
 
-    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.activated", "object.task" }, to_string( task ) ) );
+    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.activated", "object.task" }, { { "task_id", to_string( task ) } } ) );
 
     rv = outcome::success();
 
@@ -624,7 +624,7 @@ auto TaskStore::deactivate_task( Uuid const& task )
         KTRY( nw->reorder_children( task_root, ordered ) );
     }
 
-    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.deactivated", "object.task" }, to_string( task ) ) );
+    KTRY( eclerk_.fire_event( { "subject.task_store", "verb.open.deactivated", "object.task" }, { { "task_id", to_string( task ) } } ) );
 
     rv = outcome::success();
 

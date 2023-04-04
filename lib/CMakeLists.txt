@@ -29,6 +29,7 @@ ExternalProject_Add(
             --with-chrono
             --with-contract
             --with-filesystem
+            --with-json
             --with-system
             --with-test
             --with-timer

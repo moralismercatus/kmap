@@ -248,6 +248,7 @@ add_executable( emcc.index.html
                 test/util.cpp
                 test/util/util.cpp
                 util/clerk/clerk.cpp util/clerk/clerk.hpp
+                util/json.cpp
                 util/profile.cpp util/profile.hpp
                 util/result.cpp util/result.hpp
                 util/script/script.cpp util/script/script.hpp
@@ -276,6 +277,7 @@ target_link_libraries( emcc.index.html
                       ${CMAKE_BINARY_DIR}/lib/libboost_chrono.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_contract.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_filesystem.bc
+                      ${CMAKE_BINARY_DIR}/lib/libboost_json.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_system.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_timer.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_unit_test_framework.bc
