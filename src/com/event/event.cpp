@@ -474,8 +474,6 @@ auto EventStore::install_outlet_internal( Uuid const& root
     auto rv = KMAP_MAKE_RESULT( void );
     auto& km = kmap_inst();
 
-    KMAP_ENSURE( !branch.transitions.empty(), error_code::common::uncategorized );
-
     for( auto const& e : branch.requisites )
     {
         auto const req_alias = KTRY( view2::event::event_root

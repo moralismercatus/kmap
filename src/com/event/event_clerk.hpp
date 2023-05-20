@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "com/event/event.hpp"
 
+#include <map>
 #include <optional>
 #include <set>
 #include <string>

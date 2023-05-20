@@ -31,6 +31,7 @@
 #include <range/v3/view/concat.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
+#include <range/v3/view/remove.hpp>
 #include <range/v3/view/set_algorithm.hpp>
 #include <range/v3/view/split.hpp>
 #include <range/v3/view/take.hpp>
@@ -1156,8 +1157,12 @@ auto check_order( sql::connection& con
 
             if( fix )
             {
-                io::print( "[log][repair] TODO: Impl. repair\n" );
-                // TODO: Remove entry... needs to maintain order, so a little more care needs to be taken.
+                auto const new_body = body_vec
+                                    | rvs::remove( d )
+                                    | rvs::join( '\n' )
+                                    | ranges::to< std::string >();
+
+                con( insert_or_replace_into( bt ).set( bt.uuid = attr_headings.at( "order" ), bt.body = new_body ) );
             }
             else
             {
@@ -1347,6 +1352,22 @@ auto check_map_root( std::string const& fs_path
                             , false );
 }
 
+auto erase_node( std::string const& fs_path 
+               , std::string const& node_id )
+    -> kmap::Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", fs_path );
+
+    auto const fp = com::kmap_root_dir / fs_path;
+    
+    KMAP_ENSURE( fs::exists( fp ), error_code::filesystem::file_not_found );
+
+    auto con = db::open_connection( fp, SQLITE_OPEN_READWRITE, false );
+
+    return repair::erase_node( con, node_id );
+}
+
 auto repair_map( std::string const& fs_path )
     -> kmap::Result< void >
 {
@@ -1402,6 +1423,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
 {
     function( "check_map", &kmap::repair::binding::check_map );
     function( "check_map_root", &kmap::repair::binding::check_map_root );
+    function( "erase_node", &kmap::repair::binding::erase_node );
     function( "repair_map", &kmap::repair::binding::repair_map );
     function( "repair_map_root", &kmap::repair::binding::repair_map_root );
 }

@@ -13,6 +13,8 @@
 #include "component.hpp"
 #include "js_iface.hpp"
 #include "utility.hpp"
+#include <com/event/event_clerk.hpp>
+#include <com/canvas/pane_clerk.hpp>
 
 #include <map>
 #include <string>
@@ -48,13 +50,17 @@ class Cli : public Component
                                , CliCommand >;
 
     CommandMap valid_cmds_ = {};
+    EventClerk eclerk_;
+    PaneClerk pclerk_;
     std::vector< js::ScopedCode > scoped_events_ = {};
 
 public:
     static constexpr auto id = "cli";
     constexpr auto name() const -> std::string_view override { return id; }
 
-    using Component::Component;
+    Cli( Kmap& km
+       , std::set< std::string > const& requisites
+       , std::string const& description );
     virtual ~Cli() = default;
 
     auto initialize()
@@ -62,8 +68,13 @@ public:
     auto load()
         -> Result< void > override;
 
-    auto clear_input()
+    auto register_panes()
+        -> Result< void >;
+    auto register_standard_outlets()
         -> void;
+
+    auto clear_input()
+        -> Result< void >;
     auto complete( std::string const& input )
         -> void;
     auto complete_arg( Argument const& arg
@@ -103,7 +114,7 @@ public:
         -> std::string;
     // TODO: Should be an event-based outlet.
     auto hide_popup()
-        -> void;
+        -> Result< void >;
     auto install_events()
         -> Result< void >;
     [[ nodiscard ]]
@@ -127,13 +138,13 @@ public:
     auto set_color( Color const& c )
         -> void;
     auto show_popup( std::string const& text )
-        -> void;
+        -> Result< void >;
     auto show_popup( StringVec const& lines )
-        -> void;
+        -> Result< void >;
     auto notify_success( std::string const& message )
-        -> void;
+        -> Result< void >;
     auto notify_failure( std::string const& message )
-        -> void;
+        -> Result< void >;
     auto update_pane()
         -> void;
     [[ nodiscard ]]

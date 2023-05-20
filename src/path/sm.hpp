@@ -37,12 +37,14 @@ namespace sm::ev
     struct Fwd {};
     struct Heading { kmap::Heading heading; };
     struct Root {};
+    struct Tag { kmap::Heading heading; };
 
     namespace detail
     {
         inline auto const cmplt = boost::sml::event< sm::ev::Cmplt >;
         inline auto const any = boost::sml::event< boost::sml::_ >;
         inline auto const bwd = boost::sml::event< sm::ev::Bwd >;
+        inline auto const tag = boost::sml::event< sm::ev::Tag >;
         inline auto const dis = boost::sml::event< sm::ev::Dis >;
         inline auto const fwd = boost::sml::event< sm::ev::Fwd >;
         inline auto const heading = boost::sml::event< sm::ev::Heading >;
@@ -56,25 +58,27 @@ namespace sm::state
 {
     // Exposed States.
     class BwdNode;
-    class Delim;
     class DisNode;
     class Done;
     class Error;
     class FwdNode;
+    class Heading;
+    class Tag;
 
     namespace detail
     {
         inline auto const BwdNode = boost::sml::state< sm::state::BwdNode >;
+        inline auto const Check = boost::sml::state< class Check >;
         inline auto const Decided = boost::sml::state< class Decided >;
-        inline auto const Delim = boost::sml::state< sm::state::Delim >;
         inline auto const DisNode = boost::sml::state< sm::state::DisNode >;
         inline auto const Disam = boost::sml::state< class Disam >;
         inline auto const Done = boost::sml::state< sm::state::Done >;
-        inline auto const Next = boost::sml::state< class Next >;
-        inline auto const Check = boost::sml::state< class Check >;
         inline auto const Error = boost::sml::state< sm::state::Error >;
         inline auto const FwdNode = boost::sml::state< sm::state::FwdNode >;
+        inline auto const Heading = boost::sml::state< sm::state::Heading >;
+        inline auto const Next = boost::sml::state< class Next >;
         inline auto const Start = boost::sml::state< class Start >;
+        inline auto const Tag = boost::sml::state< sm::state::Tag >;
     }
 }
 
@@ -98,6 +102,10 @@ auto process_token( Driver& driver
     else if( token == "/" )
     {
         driver.process_event( sm::ev::Root{} );
+    }
+    else if( token.starts_with( '#' ) )
+    {
+        driver.process_event( sm::ev::Tag{} );
     }
     else if( is_valid_heading( token ) )
     {
@@ -144,6 +152,7 @@ public:
         using namespace kmap::sm::ev::detail;
         using namespace kmap::sm::state::detail;
         using namespace ranges;
+        using kmap::sm::state::detail::Heading;
 
         /* Guards */
         auto const child_heading_exists = [ & ]( auto const& ev )
@@ -276,23 +285,34 @@ public:
         (
         *   Start + bwd        = BwdNode 
         ,   Start + fwd        = FwdNode
-        ,   Start + heading    = Delim
+        ,   Start + heading    = Heading
+        ,   Start + tag        = Tag
         ,   Start + any        = Error
         ,   Start + unexpected = Error 
 
-        ,   Delim + fwd                                                           = FwdNode
-        ,   Delim + bwd [ parent_exists ] / push_parent                           = BwdNode
-        ,   Delim + bwd                   / set_error_msg( "path precedes root" ) = Error
-        ,   Delim + dis [ parent_exists ] / prime_disam                           = DisNode 
-        ,   Delim + dis                   / set_error_msg( "path precedes root" ) = Error
-        ,   Delim + root                  / set_error_msg( "invalid root path" )  = Error 
-        ,   Delim + any                                                           = Error
-        ,   Delim + unexpected                                                    = Error
+        ,   Heading + fwd                                                           = FwdNode
+        ,   Heading + bwd [ parent_exists ] / push_parent                           = BwdNode
+        ,   Heading + bwd                   / set_error_msg( "path precedes root" ) = Error
+        ,   Heading + dis [ parent_exists ] / prime_disam                           = DisNode 
+        ,   Heading + dis                   / set_error_msg( "path precedes root" ) = Error
+        ,   Heading + root                  / set_error_msg( "invalid root path" )  = Error 
+        ,   Heading + any                                                           = Error
+        ,   Heading + unexpected                                                    = Error
+
+        // ,   Tag + heading [ child_tag_exists ] / push_child_tag                 = Heading
+        ,   Tag + fwd                                                           = FwdNode
+        ,   Tag + bwd [ parent_exists ] / push_parent                           = BwdNode
+        ,   Tag + bwd                   / set_error_msg( "path precedes root" ) = Error
+        ,   Tag + dis [ parent_exists ] / prime_disam                           = DisNode 
+        ,   Tag + dis                   / set_error_msg( "path precedes root" ) = Error
+        ,   Tag + root                  / set_error_msg( "invalid root path" )  = Error 
+        ,   Tag + any                                                           = Error
+        ,   Tag + unexpected                                                    = Error
 
         ,   FwdNode + fwd                                                                      = FwdNode 
         ,   FwdNode + bwd     [ parent_exists ]        / push_parent                           = BwdNode 
         ,   FwdNode + bwd                              / set_error_msg( "path precedes root" ) = Error 
-        ,   FwdNode + heading [ child_heading_exists ] / push_child_heading                    = Delim
+        ,   FwdNode + heading [ child_heading_exists ] / push_child_heading                    = Heading
         ,   FwdNode + heading                          / set_error_msg( "invalid heading" )    = Error
         ,   FwdNode + root                             / set_error_msg( "invalid root path" )  = Error 
         ,   FwdNode + any                                                                      = Error
@@ -301,7 +321,7 @@ public:
         ,   BwdNode + fwd                                                                        = FwdNode 
         ,   BwdNode + bwd     [ parent_exists ]          / push_parent                           = BwdNode 
         ,   BwdNode + bwd                                / set_error_msg( "path precedes root" ) = Error 
-        ,   BwdNode + heading [ current_heading_exists ]                                         = Delim
+        ,   BwdNode + heading [ current_heading_exists ]                                         = Heading
         ,   BwdNode + heading                            / set_error_msg( "invalid heading" )    = Error 
         ,   BwdNode + root                               / set_error_msg( "invalid root path" )  = Error 
         ,   BwdNode + any                                                                        = Error

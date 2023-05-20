@@ -208,7 +208,7 @@ auto DatabaseFilesystem::register_standard_commands()
     }
 }
 
-SCENARIO( "saved data mirrors runtime data", "[db][fs]")
+SCENARIO( "saved data mirrors runtime data", "[db][fs][save][load]")
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network" );
 
@@ -329,9 +329,11 @@ SCENARIO( "saved data mirrors runtime data", "[db][fs]")
 //       because there assertions are included. It doesn't seem to be a real problem, but a false positive "assert()", so testing on files cannot proceed
 //       in Debug mode. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
 //       Update: https://github.com/emscripten-core/emscripten/pull/18261 claims to have fixed this issue. TBD.
-SCENARIO( "save and load results in identical state", "[db][fs]")
+SCENARIO( "save and load results in identical state for all listed components", "[db][fs][save][load]")
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network", "event_store"/*nw->select_node() fires an event*/, "option_store" ); // TODO: option_store needed because Kmap::load() applies options after loading. That whole dependency needs to be sorted out.
+    auto const all_components = REQUIRE_TRY( fetch_listed_components() );
+
+    KMAP_COMPONENT_FIXTURE_SCOPED( all_components );
 
     GIVEN( "minimal state" )
     {
@@ -462,9 +464,11 @@ SCENARIO( "save and load results in identical state", "[db][fs]")
     }
 }
 
-SCENARIO( "save.as after save.as output DBs are mirrored", "[db][fs]")
+SCENARIO( "save.as after save.as output DBs are mirrored for all listed components", "[db][fs][save][load]")
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "database.filesystem", "network", "event_store"/*nw->select_node() fires an event*/, "option_store", "cli" ); // TODO: option_store needed because Kmap::load() applies options after loading. That whole dependency needs to be sorted out.
+    auto const all_components = REQUIRE_TRY( fetch_listed_components() );
+
+    KMAP_COMPONENT_FIXTURE_SCOPED( all_components );
 
     auto& km = Singleton::instance();
     auto initialized_coms = km.component_store().all_initialized_components();

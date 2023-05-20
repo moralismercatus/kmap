@@ -6,7 +6,9 @@
 
 #include "parser.hpp"
 
-#include "../common.hpp"
+#include <common.hpp>
+#include <error/cli.hpp>
+#include <util/result.hpp>
 
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/fusion/include/io.hpp>
@@ -161,7 +163,7 @@ namespace kmap::parser::cli
     struct command_bar_class : ErrorHandler, x3::annotate_on_success {};
 
     auto parse_command_bar( std::string_view const raw )
-        -> Optional< ast::cli::CommandBar >
+        -> Result< ast::cli::CommandBar >
     {
         using boost::spirit::x3::with;
         using boost::spirit::x3::ascii::space;
@@ -169,6 +171,10 @@ namespace kmap::parser::cli
         using iterator_type = std::string_view::const_iterator;
         using error_handler_type = boost::spirit::x3::error_handler< iterator_type >;
 
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH( "raw", std::string{ raw } );
+
+        auto rv = result::make_result< ast::cli::CommandBar >();
         auto cb_ast = ast::cli::CommandBar{};
         auto rb = raw.begin();
         auto const re = raw.end();
@@ -185,7 +191,7 @@ namespace kmap::parser::cli
 
         if (r && rb == re )
         {
-            return { cb_ast };
+            rv = cb_ast;
         }
         else
         {
@@ -193,8 +199,10 @@ namespace kmap::parser::cli
             std::cout << "parse failed" << std::endl;
             std::cout << errstrm.str() << std::endl;
 
-            return Optional< ast::cli::CommandBar >{};
+            rv = KMAP_MAKE_ERROR_MSG( error_code::cli::failure, errstrm.str() );
         }
+
+        return rv;
     }
 
 auto fetch_selection_string( ast::cli::CommandBar const& cbar )

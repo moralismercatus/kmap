@@ -46,12 +46,7 @@ auto Kmap::root_node_id() const
 auto Kmap::component_store()
     -> ComponentStore&
 {
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( component_store_ );
-        })
-    ;
+    KMAP_ENSURE_EXCEPT( component_store_ );
 
     return *component_store_;
 }
@@ -59,12 +54,7 @@ auto Kmap::component_store()
 auto Kmap::component_store() const
     -> ComponentStore const&
 {
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( component_store_ );
-        })
-    ;
+    KMAP_ENSURE_EXCEPT( component_store_ );
 
     return *component_store_;
 }
@@ -142,7 +132,7 @@ auto Kmap::initialize()
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {
-        KTRY( estore.value()->fire_event( { "subject.kmap", "verb.initialized" } ) );
+        KTRY( estore.value()->fire_event( { "verb.initialized", "object.kmap" } ) );
     }
 
     {
@@ -168,7 +158,7 @@ auto Kmap::initialize()
         KMAP_TRY( estore.install_subject( "kmap" ) );
         KMAP_TRY( estore.install_verb( "shutdown" ) );
         KMAP_TRY( estore.install_outlet( "confirm_shutdown"
-                                       , Transition::Leaf{ .requisites = { "subject.kmap", "verb.shutdown" }
+                                       , Transition::Leaf{ .requisites = { "verb.shutdown", "object.kmap" }
                                                          , .description = "Ensures deltas are saved if user desires, and if exiting the program is really desired."
                                                          , .action = outlet_script } ) );
 
@@ -268,7 +258,7 @@ auto Kmap::load( FsPath const& db_path
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {
-        KTRY( estore.value()->fire_event( { "subject.kmap", "verb.loaded" } ) );
+        KTRY( estore.value()->fire_event( { "verb.loaded", "object.kmap" } ) );
     }
 
     rv = outcome::success();

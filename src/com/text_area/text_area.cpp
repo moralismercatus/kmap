@@ -26,17 +26,19 @@
 
 namespace kmap::com {
 
-TextArea::TextArea( Kmap& kmap
+TextArea::TextArea( Kmap& km
                   , std::set< std::string > const& requisites
                   , std::string const& description )
-    : Component( kmap, requisites, description )
-    , oclerk_{ kmap }
-    , eclerk_{ kmap, { TextArea::id } }
-    , cclerk_{ kmap }
+    : Component( km, requisites, description )
+    , oclerk_{ km }
+    , eclerk_{ km, { TextArea::id } }
+    , cclerk_{ km }
+    , pclerk_{ km }
 {
     register_standard_commands();
     register_standard_outlets();
     KTRYE( register_standard_options() );
+    KTRYE( register_panes() );
 }
 
 auto TextArea::initialize()
@@ -46,10 +48,12 @@ auto TextArea::initialize()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( install_event_sources() );
     KTRY( oclerk_.install_registered() );
     KTRY( cclerk_.install_registered() );
     KTRY( eclerk_.install_registered() );
+    KTRY( pclerk_.install_registered() );
+
+    KTRY( install_event_sources() );
 
     KTRY( apply_static_options() );
 
@@ -65,11 +69,13 @@ auto TextArea::load()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( install_event_sources() );
-    KTRY( apply_static_options() );
     KTRY( oclerk_.check_registered() );
     KTRY( cclerk_.check_registered() );
     KTRY( eclerk_.check_registered() );
+    KTRY( pclerk_.check_registered() );
+
+    KTRY( install_event_sources() );
+    KTRY( apply_static_options() );
 
     rv = outcome::success();
 
@@ -141,8 +147,8 @@ auto TextArea::register_standard_commands()
         canvas.reveal( editor_pane ).throw_on_error();
         canvas.reveal( preview_pane ).throw_on_error();
         kmap.option_store().apply( "network.viewport_scale" );
-        canvas.redraw();
-        canvas.focus( editor_pane );
+        canvas.redraw().throw_on_error();
+        canvas.focus( editor_pane ).throw_on_error();
 
         // Remove existing listeners before adding new.
         {
@@ -184,7 +190,7 @@ auto TextArea::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
 }
 
@@ -207,6 +213,28 @@ SCENARIO( "edit.body", "[cmd][text_area][edit.body]" ) // TODO: Move to text_are
             REQUIRE_RES( cli->parse_raw( ":edit.body" ) );
         }
     }
+}
+
+auto TextArea::register_panes()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+
+    KTRY( pclerk_.register_pane( Pane{ .id = text_area_uuid
+                                     , .heading = "text_area"
+                                     , .division = Division{ Orientation::horizontal, 0.660f, false, "div" } } ) );
+    KTRY( pclerk_.register_pane( Pane{ .id = editor_uuid
+                                     , .heading = "editor"
+                                     , .division = Division{ Orientation::horizontal, 0.000f, true, "textarea" } } ) );
+    KTRY( pclerk_.register_pane( Pane{ .id = preview_uuid
+                                     , .heading = "preview"
+                                     , .division = Division{ Orientation::horizontal, 0.000f, false, "div" } } ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto TextArea::register_standard_options()
@@ -614,7 +642,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::TextArea
-,   std::set({ "canvas"s, "command_store"s, "event_store"s, "visnetwork"s }) // TODO: rather than depend on visnetwork, fire events that visnetwork listens for, if initialized.
+,   std::set({ "canvas.workspace"s, "command_store"s, "event_store"s, "visnetwork"s }) // TODO: rather than depend on visnetwork, fire events that visnetwork listens for, if initialized.
 ,   "text_area related functionality"
 );
 

@@ -15,16 +15,20 @@
 #include "kmap.hpp"
 #include "kmap.hpp"
 #include "lineage.hpp"
-#include "path/node_view2.hpp"
 #include "path/act/abs_path.hpp"
+#include "path/node_view2.hpp"
 #include "path/sm.hpp"
-#include "utility.hpp"
+#include "test/util.hpp"
 #include "util/result.hpp"
+#include "utility.hpp"
+#include <com/tag/tag.hpp>
+#include <path/parser/tokenizer.hpp>
 
 #include <boost/sml.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/action/remove_if.hpp>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/action/transform.hpp>
@@ -679,6 +683,7 @@ auto operator<( CompletionNode const& lhs
 auto tokenize_path( std::string const& raw )
     -> StringVec
 {
+    // I think I can temporarily go from string to ast to tokens 
     auto rv = StringVec{};
     auto const rgx = std::regex{ R"([\.\,\/\']|[^\.\,\/\']+)" }; // .,/' or one or more of none of these: heading.
 
@@ -843,7 +848,7 @@ auto complete_path( Kmap const& kmap
 
     KMAP_ENSURE( nw->is_lineal( root, selected ), error_code::network::invalid_lineage );
 
-    auto const tokens = tokenize_path( raw );
+    auto const tokens = ast::path::to_string_vec( KTRY( parser::path::tokenize_heading_path( raw ) ) );
 
     if( !tokens.empty() )
     {
@@ -1149,6 +1154,48 @@ auto decide_path( Kmap const& kmap
                               , tokens ) );
 
     return rv;
+}
+
+SCENARIO( "decide_path", "[network][path]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network", "tag_store" );
+
+    auto& km = Singleton::instance();
+    auto nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto tstore = REQUIRE_TRY( km.fetch_component< com::TagStore >() );
+
+    GIVEN( "/" )
+    {
+        auto const rn = nw->root_node();
+
+               REQUIRE_RFAIL( decide_path( km, rn, rn, "" ) );
+        REQUIRE( REQUIRE_TRY( decide_path( km, rn, rn, "/" ) ) == UuidVec{ rn } );
+        REQUIRE( REQUIRE_TRY( decide_path( km, rn, rn, "." ) ) == UuidVec{ rn } );
+               REQUIRE_RFAIL( decide_path( km, rn, rn, "," ) );
+               REQUIRE_RFAIL( decide_path( km, rn, rn, "'" ) );
+               REQUIRE_RFAIL( decide_path( km, rn, rn, "#" ) );
+
+        GIVEN( "/#test" )
+        {
+            auto const t = REQUIRE_TRY( tstore->create_tag( "test" ) );
+
+            REQUIRE_TRY( tstore->tag_node( rn, t ) );
+        }
+
+        GIVEN( "/1" )
+        {
+            auto const n1 = REQUIRE_TRY( nw->create_child( rn, "1" ) );
+
+            GIVEN( "/1#test" )
+            {
+                auto const t = REQUIRE_TRY( tstore->create_tag( "test" ) );
+
+                REQUIRE_TRY( tstore->tag_node( n1, t ) );
+
+
+            }
+        }
+    }
 }
 
 // TODO: This seems to be a misnomer, or, at least, a misleading name. The "descendants" refers to "root_id" given,
@@ -1710,6 +1757,7 @@ auto create_descendants( Kmap& kmap
         }
         else
         {
+            rv = KMAP_MAKE_ERROR_MSG( error_code::network::child_already_exists, heading );
             // TODO: Should something be returned here?
             //       The description of this function says it only returns newly created IDs.
             //       In this case, the success case, no new node is created.

@@ -24,13 +24,25 @@
 
 namespace kmap::js {
 
+auto append_child_element( std::string const& parent_doc_id
+                         , std::string const& child_doc_id )
+    -> Result< void >;
 auto beautify( std::string const& code )
     -> std::string;
+auto create_child_element( std::string const& parent_id
+                         , std::string const& child_id
+                         , std::string const& elem_type )
+    -> Result< void >;
 auto create_html_canvas( std::string const& id )
     -> Result< void >;
 auto erase_child_element( std::string const& doc_id )
     -> Result< void >;
+auto fetch_parent_element_id( std::string const& doc_id )
+    -> Result< std::string >;
 auto lint( std::string const& code )
+    -> Result< void >;
+auto move_element( std::string const& src_doc_id
+                 , std::string const& dst_doc_id )
     -> Result< void >;
 auto publish_function( std::string_view const name
                      , std::vector< std::string > const& params
@@ -38,6 +50,9 @@ auto publish_function( std::string_view const name
     -> Result< void >;
 auto set_global_kmap( Kmap& kmap )
     -> void;
+auto set_tab_index( std::string const& elem_id
+                  , unsigned const& index )
+    -> Result< void >;
 
 template< typename Return
         , typename... Args >
@@ -71,10 +86,13 @@ auto call( std::string const& name
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "name", name );
+
     auto rv = KMAP_MAKE_RESULT( Return ); 
     auto global = val::global();
 
-    rv = call< Return >( global, name, std::forward< Args >( args )... );
+    rv = KTRY( call< Return >( global, name, std::forward< Args >( args )... ) );
 
     return rv;
 }
@@ -86,6 +104,7 @@ auto eval( std::string const& expr )
     using emscripten::val;
 
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "expr", expr );
 
     auto rv = KMAP_MAKE_RESULT( Return ); 
     auto constexpr script =
@@ -148,13 +167,15 @@ auto fetch_computed_property_value( std::string const& elem_id
                                   , std::string const& property )
     -> Result< Return >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "elem_id", elem_id );
+        KM_RESULT_PUSH( "property", property );
 
     auto rv = KMAP_MAKE_RESULT( Return ); 
 
-    rv = eval< Return >( fmt::format( "return window.getComputedStyle( document.getElementById( '{}' ), null ).getPropertyValue( '{}' );"
-                                    , elem_id
-                                    , property ) );
+    rv = KTRY( eval< Return >( fmt::format( "return window.getComputedStyle( document.getElementById( '{}' ), null ).getPropertyValue( '{}' );"
+                                          , elem_id
+                                          , property ) ) );
 
     return rv;
 }
@@ -163,9 +184,12 @@ template< typename Return >
 auto fetch_element_by_id( std::string const& id )
     -> Result< Return >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
     auto rv = KMAP_MAKE_RESULT( Return ); 
 
-    rv = eval< Return >( io::format( "return document.getElementById( '{}' );", id ) );
+    rv = KTRY( eval< Return >( io::format( "return document.getElementById( '{}' );", id ) ) );
 
     return rv;
 }
@@ -176,6 +200,9 @@ auto element_exists( std::string const& doc_id )
     -> bool;
 auto fetch_style_member( std::string const& elem_id )
     -> Result< emscripten::val >;
+auto is_child_element( std::string const& parent_id
+                     , std::string const& child_id )
+    -> bool;
 auto is_global_kmap_valid()
     -> bool;
 

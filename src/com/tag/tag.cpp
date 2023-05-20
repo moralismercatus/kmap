@@ -84,10 +84,10 @@ auto TagStore::register_standard_commands()
 
         auto const description = "tag heading path";
         
-        cclerk_.register_argument( com::Argument{ .path = "tag_path"
-                                                , .description = description
-                                                , .guard = guard_code
-                                                , .completion = completion_code } );
+        KTRYE( cclerk_.register_argument( com::Argument{ .path = "tag_path"
+                                                       , .description = description
+                                                       , .guard = guard_code
+                                                       , .completion = completion_code } ) );
     }
 
     using Guard = com::Command::Guard;
@@ -99,7 +99,7 @@ auto TagStore::register_standard_commands()
         R"%%%(
             return kmap.success( 'unconditional' );
         )%%%";
-                auto const action_code =
+        auto const action_code =
         R"%%%(
             const tagn = kmap.tag_store().create_tag( args.get( 0 ) );
 
@@ -120,11 +120,11 @@ auto TagStore::register_standard_commands()
                                                                 , "tag title"
                                                                 , "unconditional" } };
 
-        cclerk_.register_command( com::Command{ .path = "create.tag"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "unconditional", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "create.tag"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .action = action_code } ) );
     }
     // erase.tag
     {
@@ -145,11 +145,11 @@ auto TagStore::register_standard_commands()
                                                                 , "tag path"
                                                                 , "tag_path" } };
 
-        cclerk_.register_command( com::Command{ .path = "erase.tag"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_tagged_node", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "erase.tag"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_tagged_node", guard_code }
+                                                     , .action = action_code } ) );
     }
     // tag.node
     {
@@ -170,11 +170,11 @@ auto TagStore::register_standard_commands()
                                                                 , "path to target tag"
                                                                 , "tag_path" } };
 
-        cclerk_.register_command( com::Command{ .path = "tag.node"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "unconditional", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "tag.node"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .action = action_code } ) );
     }
 }
 

@@ -95,7 +95,7 @@ struct LogTask : public Component
 
         // Note: Under domain of "log", as no change is actually made to task, all changes made to log.
         eclerk_.register_outlet( Leaf{ .heading = "log.add_task_when_task_activated"
-                                     , .requisites = { "subject.task_store", "verb.activated", "object.task" }
+                                     , .requisites = { "subject.task_store", "verb.open.activated", "object.task" }
                                      , .description = "adds task to log task list when a task is opened"
                                      , .action = R"%%%(kmap.log_task().push_task_to_log();)%%%" } );
         eclerk_.register_outlet( Leaf{ .heading = "log.add_active_tasks_on_daily_log_creation"
@@ -119,8 +119,10 @@ struct LogTask : public Component
         auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
         auto const nw = KTRY( kmap.fetch_component< com::Network >() );
         auto const payload = KTRY( estore->fetch_payload() );
-        auto const task = KTRY( uuid_from_string( std::string{ payload.at( "task_id" ).as_string() } ) ); BC_ASSERT( nw->exists( task ) );
+        auto const task = KTRY( uuid_from_string( std::string{ payload.at( "task_id" ).as_string() } ) );
         auto const dl = KTRY( com::fetch_or_create_daily_log( kmap ) );
+
+        KMAP_ENSURE( nw->exists( task ), error_code::network::invalid_node );
 
         KTRY( view::make( dl )
             | view::child( "task" )
@@ -194,6 +196,35 @@ SCENARIO( "push active tasks to new daily log", "[cmd][log][task]" )
                 {
                     REQUIRE_RES( cli->parse_raw( ":create.task Pass Test" ) );
 
+                    WHEN( "activate.task" )
+                    {
+                        REQUIRE_RES( cli->parse_raw( ":activate.task" ) );
+
+                        THEN( "task pushed to daily log" )
+                        {
+                            auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
+                            auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
+                            auto const task = REQUIRE_TRY( view::make( troot )
+                                                        | view::child( "pass_test" )
+                                                        | view::fetch_node( kmap ) );
+                            auto const dlt = REQUIRE_TRY( view::make( dl )
+                                                        | view::child( "task" )
+                                                        | view::alias
+                                                        | view::fetch_node( kmap ) );
+
+                            REQUIRE( task == nw->resolve( dlt ) );
+                        }
+                    }
+                }
+            }
+            WHEN( "create.task" )
+            {
+                REQUIRE_RES( cli->parse_raw( ":create.task Pass Test" ) );
+
+                WHEN( "activate.task" )
+                {
+                    REQUIRE_RES( cli->parse_raw( ":activate.task" ) );
+
                     THEN( "task pushed to daily log" )
                     {
                         auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
@@ -209,51 +240,39 @@ SCENARIO( "push active tasks to new daily log", "[cmd][log][task]" )
                         REQUIRE( task == nw->resolve( dlt ) );
                     }
                 }
-            }
-            WHEN( "create.task" )
-            {
-                REQUIRE_RES( cli->parse_raw( ":create.task Pass Test" ) );
-
-                THEN( "task pushed to daily log" )
-                {
-                    auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
-                    auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
-                    auto const task = REQUIRE_TRY( view::make( troot )
-                                                 | view::child( "pass_test" )
-                                                 | view::fetch_node( kmap ) );
-                    auto const dlt = REQUIRE_TRY( view::make( dl )
-                                                | view::child( "task" )
-                                                | view::alias
-                                                | view::fetch_node( kmap ) );
-
-                    REQUIRE( task == nw->resolve( dlt ) );
-                }
 
                 WHEN( "create.subtask" )
                 {
                     REQUIRE_RES( cli->parse_raw( ":create.subtask Subtask" ) );
 
-                    THEN( "subtask pushed to daily log" )
+                    WHEN( "activate.task" )
                     {
-                        auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
-                        auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
-                        auto const subtask = REQUIRE_TRY( view::make( troot )
-                                                        | view::child( "subtask" )
-                                                        | view::fetch_node( kmap ) );
-                        auto const dlt = REQUIRE_TRY( view::make( dl )
-                                                    | view::child( "task" )
-                                                    | view::alias( view::Alias::Src{ subtask } )
-                                                    | view::fetch_node( kmap ) );
+                        REQUIRE_RES( cli->parse_raw( ":activate.task" ) );
 
-                        REQUIRE( subtask == nw->resolve( dlt ) );
+                        THEN( "subtask pushed to daily log" )
+                        {
+                            auto const dl = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
+                            auto const troot = REQUIRE_TRY( fetch_task_root( kmap ) );
+                            auto const subtask = REQUIRE_TRY( view::make( troot )
+                                                            | view::child( "subtask" )
+                                                            | view::fetch_node( kmap ) );
+                            auto const dlt = REQUIRE_TRY( view::make( dl )
+                                                        | view::child( "task" )
+                                                        | view::alias( view::Alias::Src{ subtask } )
+                                                        | view::fetch_node( kmap ) );
+
+                            REQUIRE( subtask == nw->resolve( dlt ) );
+                        }
                     }
                 }
             }
         }
     }
-    GIVEN( "one open task" )
+    GIVEN( "one active task" )
     {
         REQUIRE_RES( cli->parse_raw( ":create.task Pass Test" ) );
+        REQUIRE_RES( cli->parse_raw( ":activate.task" ) );
+
         {
             auto const ln = REQUIRE_TRY( com::fetch_daily_log( kmap ) );
             REQUIRE_RES( nw->erase_node( ln ) );

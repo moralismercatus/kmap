@@ -26,10 +26,10 @@
 
 namespace kmap::com {
 
-OptionStore::OptionStore( Kmap& kmap
+OptionStore::OptionStore( Kmap& km
                         , std::set< std::string > const& requisites
                         , std::string const& description )
-    : Component{ kmap, requisites, description }
+    : Component{ km, requisites, description }
 {
 }
 

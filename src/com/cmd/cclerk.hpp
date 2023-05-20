@@ -45,9 +45,9 @@ public:
         -> Result< void >;
 
     auto register_argument( Argument const& arg ) 
-        -> void;
+        -> Result< void >;
     auto register_command( Command const& cmd ) 
-        -> void;
+        -> Result< void >;
 
 protected:
     auto install_argument( Argument const& arg )

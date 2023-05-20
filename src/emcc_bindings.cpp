@@ -349,15 +349,6 @@ auto fetch_children( Uuid const& parent )
     return nw->fetch_children( parent ) | to< UuidVec >();
 }
 
-auto is_alias( Uuid const& node )
-    -> bool 
-{
-    auto const& km = Singleton::instance();
-    auto const nw = KTRYE( km.fetch_component< com::Network >() );
-
-    return nw->alias_store().is_alias( node );
-}
-
 auto is_alias_pair( Uuid const& src
                   , Uuid const& dst )
     -> bool 
@@ -478,6 +469,26 @@ auto map_headings( UuidVec const& nodes )
     }
 
     return rv;
+}
+
+auto map_key_mnemonic_to_heading( std::string const& mnemonic )
+    -> std::string
+{
+    auto const m = std::map< std::string, std::string >
+    {
+        { ":", "colon" }
+    ,   { "@", "atsym" }
+    ,   { "/", "fslash" }
+    };
+
+    if( m.contains( mnemonic ) )
+    {
+        return m.at( mnemonic );
+    }
+    else
+    {
+        return mnemonic;
+    }
 }
 
 auto move_node( Uuid const& src
@@ -848,7 +859,6 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "fetch_node", &kmap::binding::fetch_node ); // This fetches a single node and errors if ambiguous.
     function( "fetch_or_create_node", &kmap::binding::fetch_or_create_node );
     function( "fetch_parent", &kmap::binding::fetch_parent );
-    function( "is_alias", &kmap::binding::is_alias );
     function( "is_alias_pair", &kmap::binding::is_alias_pair );
     function( "is_ancestor", &kmap::binding::is_ancestor );
     function( "is_lineal", &kmap::binding::is_lineal );
@@ -858,6 +868,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "is_valid_heading_path", &kmap::binding::is_valid_heading_path );
     function( "load", &kmap::binding::load );
     function( "map_headings", &kmap::binding::map_headings );
+    function( "map_key_mnemonic_to_heading", &kmap::binding::map_key_mnemonic_to_heading );
     function( "move_body", &kmap::binding::move_body );
     function( "move_node", &kmap::binding::move_node );
     function( "on_leaving_editor", &kmap::binding::on_leaving_editor );

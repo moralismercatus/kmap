@@ -311,15 +311,29 @@ auto CommandClerk::install_registered()
 }
 
 auto CommandClerk::register_argument( Argument const& arg ) 
-    -> void
+    -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", arg.path );
+
+    KMAP_ENSURE( !registered_arguments.contains( arg.path ), error_code::common::uncategorized );
+
     registered_arguments.emplace( arg.path, arg );
+
+    return outcome::success();
 }
 
 auto CommandClerk::register_command( Command const& cmd ) 
-    -> void
+    -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", cmd.path );
+
+    KMAP_ENSURE( !registered_commands.contains( cmd.path ), error_code::common::uncategorized );
+
     registered_commands.emplace( cmd.path, cmd );
+
+    return outcome::success();
 }
 
 } // namespace kmap::com

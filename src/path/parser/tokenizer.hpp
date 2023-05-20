@@ -94,6 +94,8 @@ struct HeadingPath : x3::position_tagged
 
 auto to_string( ast::path::HeadingPath const& hp )
     -> std::string; 
+auto to_string_vec( ast::path::HeadingPath const& hp )
+    -> std::vector< std::string >; 
 auto flatten( ast::path::HeadingPath const& hp )
     -> std::vector< ast::path::HeadingPath >;
 

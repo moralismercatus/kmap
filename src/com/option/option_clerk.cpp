@@ -82,8 +82,8 @@ auto OptionClerk::check_registered()
                             | rvs::values )
     {
         if( auto const optn = voroot 
-                           | view::direct_desc( option.heading )
-                           | view::fetch_node( kmap_ )
+                            | view::direct_desc( option.heading )
+                            | view::fetch_node( kmap_ )
           ; optn )
         {
             auto const matches = util::match_body_code( kmap_, view::make( optn.value() ) | view::child( "action" ), option.action )

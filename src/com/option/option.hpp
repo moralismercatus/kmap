@@ -7,8 +7,8 @@
 #ifndef KMAP_OPTION_OPTION_HPP
 #define KMAP_OPTION_OPTION_HPP
 
-#include "common.hpp"
-#include "component.hpp"
+#include <common.hpp>
+#include <component.hpp>
 
 #include <string_view>
 
@@ -33,7 +33,7 @@ public:
     static constexpr auto id = "option_store";
     constexpr auto name() const -> std::string_view override { return id; }
 
-    OptionStore( Kmap& kmap
+    OptionStore( Kmap& km
                , std::set< std::string > const& requisites
                , std::string const& description );
     virtual ~OptionStore() = default;
@@ -42,6 +42,9 @@ public:
         -> Result< void > override;
     auto load()
         -> Result< void > override;
+
+    auto register_standard_commands()
+        -> void;
 
     auto apply( Uuid const& option )
         -> Result< void >;

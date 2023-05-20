@@ -54,14 +54,14 @@ SCENARIO( "objects fire in ascension", "[event]" )
     {
         REQUIRE( succ( estore->install_subject( "network" ) ) );
         REQUIRE( succ( estore->install_verb( "depressed" ) ) );
-        REQUIRE( succ( estore->install_object( "keyboard.key.ctrl" ) ) );
+        REQUIRE( succ( estore->install_object( "keyboard.key.control" ) ) );
 
         GIVEN( "outlets for each object" )
         {
-            REQUIRE( succ( estore->install_outlet( com::Leaf{ .heading="ctrl"
-                                                            , .requisites={ "subject.network", "verb.depressed", "object.keyboard.key.ctrl" }
+            REQUIRE( succ( estore->install_outlet( com::Leaf{ .heading="control"
+                                                            , .requisites={ "subject.network", "verb.depressed", "object.keyboard.key.control" }
                                                             , .description={ "testing: objects firing in ascension" }
-                                                            , .action={ R"%%%(kmap.create_child( kmap.root_node(), "ctrl" );)%%%" } } ) ) );
+                                                            , .action={ R"%%%(kmap.create_child( kmap.root_node(), "control" );)%%%" } } ) ) );
             REQUIRE( succ( estore->install_outlet( com::Leaf{ .heading = "key"
                                                             , .requisites={ "subject.network", "verb.depressed", "object.keyboard.key" }
                                                             , .description={ "testing: objects firing in ascension" }
@@ -73,31 +73,31 @@ SCENARIO( "objects fire in ascension", "[event]" )
 
             WHEN( "fire nested event" )
             {
-                REQUIRE( succ( estore->fire_event( { "subject.network", "verb.depressed", "object.keyboard.key.ctrl" } ) ) );
+                REQUIRE( succ( estore->fire_event( { "subject.network", "verb.depressed", "object.keyboard.key.control" } ) ) );
 
                 THEN( "result nodes created for each outlet" )
                 {
-                    REQUIRE( nw->exists( "/ctrl" ) );
+                    REQUIRE( nw->exists( "/control" ) );
                     REQUIRE( nw->exists( "/key" ) );
                     REQUIRE( nw->exists( "/keyboard" ) );
                 }
                 THEN( "result nodes are in ascending order" )
                 {
-                    auto const ctrl     = REQUIRE_TRY( anchor::abs_root | view2::child( "ctrl" ) | act2::fetch_node( kmap ) );
+                    auto const control     = REQUIRE_TRY( anchor::abs_root | view2::child( "control" ) | act2::fetch_node( kmap ) );
                     auto const key      = REQUIRE_TRY( anchor::abs_root | view2::child( "key" ) | act2::fetch_node( kmap ) );
                     auto const keyboard = REQUIRE_TRY( anchor::abs_root | view2::child( "keyboard" ) | act2::fetch_node( kmap ) );
-                    auto const ctrl_pos = REQUIRE_TRY( nw->fetch_ordering_position( ctrl ) );
+                    auto const control_pos = REQUIRE_TRY( nw->fetch_ordering_position( control ) );
                     auto const key_pos  = REQUIRE_TRY( nw->fetch_ordering_position( key ) );
                     auto const keyboard_pos = REQUIRE_TRY( nw->fetch_ordering_position( keyboard ) );
-                    REQUIRE( ctrl_pos < key_pos );
+                    REQUIRE( control_pos < key_pos );
                     REQUIRE( key_pos < keyboard_pos );
                 }
             }
 
-            REQUIRE( nw->exists( "/meta.event.outlet.ctrl" ) );
+            REQUIRE( nw->exists( "/meta.event.outlet.control" ) );
             REQUIRE( nw->exists( "/meta.event.outlet.key" ) );
             REQUIRE( nw->exists( "/meta.event.outlet.keyboard" ) );
-            REQUIRE( succ( estore->uninstall_outlet( "ctrl" ) ) );
+            REQUIRE( succ( estore->uninstall_outlet( "control" ) ) );
             REQUIRE( nw->exists( "/meta.event.outlet.key" ) );
             REQUIRE( nw->exists( "/meta.event.outlet.keyboard" ) );
             REQUIRE( succ( estore->uninstall_outlet( "key" ) ) );

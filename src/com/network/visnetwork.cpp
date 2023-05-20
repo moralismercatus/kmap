@@ -53,15 +53,17 @@ auto operator<<( std::ostream& os
     return os;
 }
 
-VisualNetwork::VisualNetwork( Kmap& kmap
+VisualNetwork::VisualNetwork( Kmap& km
                             , std::set< std::string > const& requisites
                             , std::string const& description )
-    : Component{ kmap, requisites, description }
-    , oclerk_{ kmap }
-    , eclerk_{ kmap }
+    : Component{ km, requisites, description }
+    , oclerk_{ km }
+    , eclerk_{ km }
+    , pclerk_{ km }
 {
     KTRYE( register_standard_options() );
     KTRYE( register_standard_events() );
+    KTRYE( register_panes() );
 }
 
 VisualNetwork::~VisualNetwork()
@@ -78,6 +80,9 @@ auto VisualNetwork::initialize()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
+
+    KTRY( pclerk_.install_registered() );
+
     auto const canvas = KTRY( fetch_component< Canvas >() );
     auto const container = canvas->network_pane();
     
@@ -105,6 +110,8 @@ auto VisualNetwork::load()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const canvas = KTRY( fetch_component< Canvas >() );
     auto const container = canvas->network_pane();
+
+    KTRY( pclerk_.check_registered() ); // Must check before re-creating visjs.
 
     js_nw_ = std::make_shared< val >( val::global().call< val >( "new_network", container ) ); // TODO: There's some way to invoke a ctor directly without a wrapper, but can't figure it out.
 
@@ -654,7 +661,7 @@ auto VisualNetwork::focus()
     js_nw_->call< val >( "focus_network" );
 }
 
-// TODO: This should be gotten from options.
+// TODO: This should be gotten from options. Rather, settable by options, but stored in the appropriate state elsewhere.
 auto VisualNetwork::get_appropriate_node_font_face( Uuid const& id ) const
     -> std::string
 {
@@ -710,7 +717,7 @@ auto VisualNetwork::register_standard_options()
         //       The trouble with this is that it doesn't represent valid path syntax. Also, not the biggest fan of regex syntax.
         //       _An_ option would be to use the HeadingPath class that uses variant< std::string, std::regex > as components of the path.
         //       Similarly, variant< std::string, node_view::Intermediary > could perform the function well, where Intermediary describes:
-        //       `view::direct_desc( "object.keyboard" ) | view::child( view::none_of( "shift", "alt", "ctrl" ) )`;
+        //       `view::direct_desc( "object.keyboard" ) | view::child( view::none_of( "shift", "alt", "control" ) )`;
         //       And reset_transitions() understands that the Intermediary needs to be placed at the RHS  e.g., `view::make( event_root ) | path`.
         //       Of course... I can't use view_node concepts from JS at this time. Bleh...
         auto const script = 
@@ -914,6 +921,22 @@ auto VisualNetwork::erase_node( Uuid const& id )
     return rv;
 }
 
+auto VisualNetwork::register_panes()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+
+    KTRY( pclerk_.register_pane( Pane{ .id = network_uuid
+                                     , .heading = "network"
+                                     , .division = Division{ Orientation::horizontal, 0.000f, false, "div" } } ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto VisualNetwork::register_standard_events()
     -> Result< void >
 {
@@ -923,15 +946,13 @@ auto VisualNetwork::register_standard_events()
 
     // Initial
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node_on_init"
-                                , .requisites = { "subject.kmap", "verb.initialized" }
+                                , .requisites = { "verb.initialized", "object.kmap" }
                                 , .description = "updates network with selected node"
-                                // TODO: This looks like a hack. visnetwork shouldn't be firing "network.selected", right?
-                                , .action = fmt::format( R"%%%(kmap.event_store().fire_event( to_VectorString( [ "subject.network", "verb.selected", "object.node" ] ) );)%%%", gen_uuid() ) } );
+                                , .action = fmt::format( R"%%%(kmap.visnetwork().select_node( kmap.network().selected_node() );)%%%", gen_uuid() ) } );
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node_on_load"
-                                , .requisites = { "subject.kmap", "verb.loaded" }
+                                , .requisites = { "verb.loaded", "object.kmap" }
                                 , .description = "updates network with selected node"
-                                // TODO: This looks like a hack. visnetwork shouldn't be firing "network.selected", right?
-                                , .action = fmt::format( R"%%%(kmap.event_store().fire_event( to_VectorString( [ "subject.network", "verb.selected", "object.node" ] ) );)%%%", gen_uuid() ) } );
+                                , .action = fmt::format( R"%%%(kmap.visnetwork().select_node( kmap.network().selected_node() );)%%%", gen_uuid() ) } );
     // Movement
     // TODO:
     // Well, trying to figure out here the best way to handle network changes reflection in vis.
@@ -945,8 +966,7 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.node_moved"
                                  , .requisites = { "subject.network", "verb.moved", "object.node" }
                                  , .description = "updates network with selected node"
-                                // TODO: This looks like a hack. visnetwork shouldn't be firing "network.selected", right?
-                                 , .action = R"%%%(kmap.event_store().fire_event( to_VectorString( [ "subject.network", "verb.selected", "object.node" ] ) );)%%%" } );
+                                 , .action = R"%%%(kmap.visnetwork().select_node( kmap.network().selected_node() );)%%%" } );
     // Keyboard
     eclerk_.register_outlet( Leaf{ .heading = "network.travel_left.h"
                                  , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.h" }
@@ -980,9 +1000,9 @@ auto VisualNetwork::register_standard_events()
                                  , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.arrowright" }
                                  , .description = "travel to parent node"
                                  , .action = R"%%%(kmap.travel_right();)%%%" } );
-    eclerk_.register_outlet( Branch{ .heading = "network.travel_bottom"
+    eclerk_.register_outlet( Branch{ .heading = "network.key.shift"
                                    , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.shift" }
-                                   , .transitions = { Leaf{ .heading = "g"
+                                   , .transitions = { Leaf{ .heading = "travel_bottom"
                                                           , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
                                                           , .description = "travel to bottom sibling."
                                                           , .action = R"%%%(kmap.travel_bottom();)%%%" }
@@ -990,9 +1010,9 @@ auto VisualNetwork::register_standard_events()
                                                           , .requisites = { "subject.network", "verb.raised", "object.keyboard.key.shift" }
                                                           , .description = "resets transition state."
                                                           , .action = R"%%%(/*Do nothing; Allow reset transition.*/)%%%" } } } );
-    eclerk_.register_outlet( Branch{ .heading = "network.travel_top"
+    eclerk_.register_outlet( Branch{ .heading = "network.key.g"
                                    , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
-                                   , .transitions = { Leaf{ .heading = "g"
+                                   , .transitions = { Leaf{ .heading = "travel_top"
                                                           , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.g" }
                                                           , .description = "travel to top sibling."
                                                           , .action = R"%%%(kmap.travel_top();)%%%" } } } );
@@ -1004,13 +1024,13 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.leave_editor.esc"
                                  , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.esc" }
                                  , .description = "leave editor mode."
-                                 , .action = R"%%%(kmap.leave_editor();)%%%" } );
-    eclerk_.register_outlet( Branch{ .heading = "network.leave_editor.ctrl"
-                                   , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.ctrl" }
+                                 , .action = R"%%%(kmap.on_leaving_editor();)%%%" } );
+    eclerk_.register_outlet( Branch{ .heading = "network.leave_editor.control"
+                                   , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.control" }
                                    , .transitions = { Leaf{ .heading = "c"
                                                           , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.c" }
                                                           , .description = "leave editor mode."
-                                                          , .action = R"%%%(kmap.leave_editor();)%%%" } } } );
+                                                          , .action = R"%%%(kmap.on_leaving_editor();)%%%" } } } );
     eclerk_.register_outlet( Leaf{ .heading = "network.update_viewport_scale_on_network_resize"
                                  , .requisites = { "subject.network", "verb.scaled", "object.viewport" }
                                  , .description = "updates network viewport scale option value"
@@ -1175,6 +1195,12 @@ namespace binding
             KTRYE( km.fetch_component< kmap::com::VisualNetwork >() )->center_viewport_node( node );
         }
 
+        auto focus()
+            -> void
+        {
+            KTRYE( km.fetch_component< kmap::com::VisualNetwork >() )->focus();
+        }
+
         auto format_node_label( Uuid const& node )
             -> std::string
         {
@@ -1217,6 +1243,7 @@ namespace binding
         function( "visnetwork", &kmap::com::binding::visnetwork );
         class_< kmap::com::binding::VisualNetwork >( "VisualNetwork" )
             .function( "center_viewport_node", &kmap::com::binding::VisualNetwork::center_viewport_node )
+            .function( "focus", &kmap::com::binding::VisualNetwork::focus )
             .function( "format_node_label", &kmap::com::binding::VisualNetwork::format_node_label )
             .function( "scale_viewport", &kmap::com::binding::VisualNetwork::scale_viewport )
             .function( "select_node", &kmap::com::binding::VisualNetwork::select_node )
@@ -1234,7 +1261,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::VisualNetwork
-,   std::set({ "canvas"s, "event_store"s, "option_store"s, "command_store"s })
+,   std::set({ "canvas.workspace"s, "event_store"s, "option_store"s, "command_store"s })
 ,   "main display for nodes"
 );
 

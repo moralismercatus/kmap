@@ -10,7 +10,9 @@
 #include "error/js_iface.hpp"
 #include "util/result.hpp"
 #include "utility.hpp"
+#include <test/util.hpp>
 
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
 
@@ -21,6 +23,30 @@
 using namespace ranges;
 
 namespace kmap::js {
+
+auto append_child_element( std::string const& parent_doc_id
+                         , std::string const& child_doc_id )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "parent_doc_id", parent_doc_id );
+        KM_RESULT_PUSH_STR( "child_doc_id", child_doc_id );
+
+    auto rv = result::make_result< void >();
+
+    KMAP_ENSURE( element_exists( parent_doc_id ), error_code::js::invalid_element );
+    KMAP_ENSURE( element_exists( child_doc_id ), error_code::js::invalid_element );
+
+    KTRY( js::eval_void( io::format( "let parent = document.getElementById( '{}' ); console.assert( parent );"
+                                     "let child = document.getElementById( '{}' ); console.assert( child );"
+                                     "let res = parent.appendChild( child ); console.assert( res );"
+                                   , parent_doc_id
+                                   , child_doc_id ) ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
 
 auto beautify( std::string const& code )
     -> std::string
@@ -45,6 +71,31 @@ auto create_html_canvas( std::string const& id )
                                      "let body_tag = document.getElementsByTagName( 'body' )[ 0 ];"
                                      "body_tag.appendChild( canvas );" 
                                    ,  id ) ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto create_child_element( std::string const& parent_id
+                         , std::string const& child_id
+                         , std::string const& elem_type )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "parnet_id", parent_id );
+        KM_RESULT_PUSH( "child_id", child_id );
+        KM_RESULT_PUSH( "elem_type", elem_type );
+
+    auto rv = result::make_result< void >();
+
+    KTRY( js::eval_void( io::format( "let child = document.createElement( '{}' );"
+                                     "child.id = '{}';"
+                                     "let parent = document.getElementById( '{}' );"
+                                     "parent.appendChild( child );" 
+                                   , elem_type
+                                   , child_id
+                                   , parent_id ) ) );
 
     rv = outcome::success();
 
@@ -82,6 +133,24 @@ auto erase_child_element( std::string const& doc_id )
     return rv;
 }
 
+auto fetch_parent_element_id( std::string const& doc_id )
+    -> Result< std::string >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "doc_id", doc_id );
+
+    auto rv = result::make_result< std::string >();
+
+    KMAP_ENSURE( element_exists( doc_id ), error_code::js::invalid_element );
+
+    rv = KTRY( js::eval< std::string >( io::format( "let elem = document.getElementById( '{}' ); console.assert( elem );"
+                                                    "let parent = elem.parentElement; console.assert( parent );"
+                                                    "return parent.id;"
+                                                  , doc_id ) ) );
+
+    return rv;
+}
+
 auto lint( std::string const& code )
     -> Result< void >
 {
@@ -102,6 +171,67 @@ auto lint( std::string const& code )
     }
 
     return rv;
+}
+
+auto move_element( std::string const& src_doc_id
+                 , std::string const& dst_doc_id )
+    -> Result< void >
+{    
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "src_doc_id", src_doc_id );
+        KM_RESULT_PUSH_STR( "dst_doc_id", dst_doc_id );
+
+    auto rv = result::make_result< void >();
+
+    KTRY( js::eval_void( io::format( "let child = document.getElementById( '{}' ); console.assert( child );"
+                                     "let old_parent = child.parentElement; console.assert( old_parent );"
+                                     "let new_parent = document.getElementById( '{}' ); console.assert( new_parent );"
+                                     "old_parent.removeChild( child );"
+                                     "new_parent.appendChild( child );"
+                                   , src_doc_id
+                                   , dst_doc_id ) ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+SCENARIO( "js::move_element", "[js_iface]" )
+{
+    using emscripten::val;
+
+    GIVEN( "html.body" )
+    {
+        REQUIRE_TRY( js::eval< val >( "return document.body;" ) );
+
+        auto const body_id = to_string( gen_uuid() );
+
+        REQUIRE_TRY( js::eval_void( fmt::format( "document.body.id='{}';", body_id ) ) );
+
+        GIVEN( "body.appendChild( 'e1' )" )
+        {
+            auto const e1_id = to_string( gen_uuid() );
+
+            REQUIRE_TRY( js::create_child_element( body_id, e1_id, "div" ) );
+
+            GIVEN( "body.appendChild( 'e2' )" )
+            {
+                auto const e2_id = to_string( gen_uuid() );
+
+                REQUIRE_TRY( js::create_child_element( body_id, e2_id, "div" ) );
+
+                WHEN( "move_element( e1, e2 )" )
+                {
+                    REQUIRE_TRY( js::move_element( e1_id, e2_id ) );
+
+                    THEN( "e1 child of e2" )
+                    {
+                        REQUIRE( js::is_child_element( e2_id, e1_id ) );
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Considerable overlap between eval_void and eval< T >, no? Shouldn't eval_void just call eval< T >?
@@ -203,6 +333,15 @@ auto publish_function( std::string_view const name
     return rv;
 }
 
+auto is_child_element( std::string const& parent_id
+                     , std::string const& child_id )
+    -> bool
+{
+    return KTRYE( eval< bool >( fmt::format( "return document.getElementById( '{}' ).parentElement.id == '{}';"
+                                           , child_id
+                                           , parent_id ) ) );
+}
+
 auto is_global_kmap_valid()
     -> bool 
 {
@@ -233,6 +372,25 @@ auto set_global_kmap( Kmap& kmap )
     {
         fmt::print( stderr, "Unable to set kmap module\n" );
     }
+}
+
+auto set_tab_index( std::string const& elem_id
+                  , unsigned const& index )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "elem_id", elem_id );
+
+    auto rv = result::make_result< void >();
+
+    KTRY( js::eval_void( io::format( "let elem = document.getElementById( '{}' ); console.assert( elem );"
+                                     "elem.tabIndex = {};"
+                                   , elem_id
+                                   , index ) ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 ScopedCode::ScopedCode( std::string const& ctor

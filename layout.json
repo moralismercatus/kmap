@@ -1,0 +1,78 @@
+{
+    "heading": "canvas"
+,   "id": "5b005126-74ac-4a5c-b7f6-a486b2941033"
+,   "orientation": "horizontal"
+,   "base": 0.0
+,   "hidden": false
+,   "type": "div"
+,   "subdivision":
+    [
+        {
+            "heading": "workspace"
+        ,   "id": "94eec887-46bb-40d8-b25d-c4e497033ccf"
+        ,   "orientation": "vertical"
+        ,   "base": 0.0250
+        ,   "hidden": false
+        ,   "type": "div"
+        ,   "subdivision":
+            [
+                {
+                    "heading": "jump_stack"
+                ,   "id": "bae612b0-c119-4cc7-b16e-c4d457538f78"
+                ,   "orientation": "vertical"
+                ,   "base": 0.0
+                ,   "hidden": false
+                ,   "type": "table"
+                ,   "subdivision": []
+                }
+            ,   {
+                    "heading": "network"
+                ,   "id": "5bd45126-74ac-4a5c-b7f6-a486b2941033"
+                ,   "orientation": "horizontal"
+                ,   "base": 0.1200
+                ,   "hidden": false
+                ,   "type": "div"
+                ,   "subdivision": []
+                }
+            ,   {
+                    "heading": "text_area"
+                ,   "id": "eed306a4-4ec3-42c5-8c89-4da529ab1b70"
+                ,   "orientation": "horizontal"
+                ,   "base": 0.6600
+                ,   "hidden": false
+                ,   "type": "div"
+                ,   "subdivision":
+                    [
+                        {
+                            "heading": "editor"
+                        ,   "id": "5fd45126-74ac-4a5c-b7f6-a486b2941033"
+                        ,   "orientation": "horizontal"
+                        ,   "base": 0.0
+                        ,   "hidden": true
+                        ,   "type": "textarea"
+                        ,   "subdivision": []
+                        }
+                    ,   {
+                            "heading": "preview"
+                        ,   "id": "5ed45126-74ac-4a5c-b7f6-a486b2941033"
+                        ,   "orientation": "horizontal"
+                        ,   "base": 0.0
+                        ,   "hidden": false
+                        ,   "type": "div"
+                        ,   "subdivision": []
+                        }
+                    ]
+                }
+            ]
+        }
+    ,   {
+            "heading": "cli"
+        ,   "id": "5dd45126-74ac-4a5c-b7f6-a486b2941033"
+        ,   "orientation": "horizontal"
+        ,   "base": 0.9750
+        ,   "hidden": false
+        ,   "type": "input"
+        ,   "subdivision": []
+        }
+    ]
+}

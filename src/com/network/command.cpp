@@ -88,7 +88,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // create.alias
     {
@@ -137,7 +137,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // create.child
     {
@@ -173,7 +173,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // create.sibling
     {
@@ -213,7 +213,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // erase.node
     {
@@ -245,7 +245,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // move.children
     {
@@ -278,7 +278,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // move.node
     {
@@ -311,7 +311,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // move.up
     {
@@ -346,7 +346,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // move.down
     {
@@ -381,7 +381,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // print.id
     {
@@ -414,13 +414,13 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // resolve.alias
     {
         auto const guard_code =
         R"%%%(
-        if( kmap.is_alias( kmap.selected_node() ) )
+        if( kmap.network().is_alias( kmap.selected_node() ) )
         {
             return kmap.success( 'success' );
         }
@@ -453,7 +453,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // travel.left
     {
@@ -484,7 +484,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // travel.right
     {
@@ -515,7 +515,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // travel.up
     {
@@ -546,7 +546,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
     // travel.down
     {
@@ -577,7 +577,7 @@ auto NetworkCommand::register_standard_commands()
                                     , .guard = guard
                                     , .action = action_code };
 
-        cclerk_.register_command( command );
+        KTRYE( cclerk_.register_command( command ) );
     }
 }
 

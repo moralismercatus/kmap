@@ -3,30 +3,39 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "canvas.hpp"
+#include <com/canvas/canvas.hpp>
 
-#include "com/database/root_node.hpp"
-#include "com/event/event.hpp"
-#include "com/network/network.hpp"
-#include "com/option/option.hpp"
-#include "component.hpp"
-#include "contract.hpp"
-#include "error/master.hpp"
-#include "error/network.hpp"
-#include "error/node_manip.hpp"
-#include "js_iface.hpp"
-#include "path.hpp"
-#include "path/act/abs_path.hpp"
-#include "path/act/order.hpp"
-#include "path/act/update_body.hpp"
-#include "path/node_view2.hpp"
-#include "util/macro.hpp"
-#include "util/result.hpp"
-#include "util/window.hpp"
+#include <com/canvas/common.hpp>
+#include <com/database/root_node.hpp>
+#include <com/event/event.hpp>
+#include <com/filesystem/filesystem.hpp>
+#include <com/network/network.hpp>
+#include <com/option/option.hpp>
+#include <component.hpp>
+#include <contract.hpp>
+#include <error/master.hpp>
+#include <error/network.hpp>
+#include <error/node_manip.hpp>
+#include <filesystem.hpp>
+#include <js_iface.hpp>
+#include <path.hpp>
+#include <path/act/abs_path.hpp>
+#include <path/act/order.hpp>
+#include <path/act/update_body.hpp>
+#include <path/node_view2.hpp>
+#include <test/util.hpp>
+#include <util/json.hpp>
+#include <util/macro.hpp>
+#include <util/result.hpp>
+#include <util/window.hpp>
 
+#include <boost/filesystem.hpp>
+#include <boost/json/parse.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <emscripten.h>
 #include <emscripten/val.h>
 #include <range/v3/action/sort.hpp>
+#include <range/v3/algorithm/contains.hpp>
 #include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop_last.hpp>
@@ -40,37 +49,23 @@
 #include <range/v3/view/stride.hpp>
 #include <range/v3/view/transform.hpp>
 
+#include <fstream>
 #include <string>
 #include <regex>
 
+namespace bjn = boost::json;
+namespace rvs = ranges::views;
+
+// TODO: drop using namespace in favor of rvs.
 using namespace ranges;
 
 namespace kmap::com {
 
-auto operator<<( std::ostream& lhs 
-               , Dimensions const& rhs )
-    -> std::ostream&
-{
-    lhs << io::format( "top:{}, bottom:{}, left:{}, right:{}", rhs.top, rhs.bottom, rhs.left, rhs.right );
-
-    return lhs;
-}
-
-auto to_string( Orientation const& orientation )
-    -> std::string
-{
-    switch( orientation )
-    {
-        case Orientation::horizontal: return "horizontal";
-        case Orientation::vertical: return "vertical";
-    }
-}
-
-Canvas::Canvas( Kmap& kmap
+Canvas::Canvas( Kmap& km
               , std::set< std::string > const& requisites
               , std::string const& description )
-    : Component{ kmap, requisites, description }
-    , eclerk_{ kmap }
+    : Component{ km, requisites, description }
+    , eclerk_{ km }
 {
     KTRYE( register_standard_events() );
 }
@@ -79,14 +74,14 @@ Canvas::~Canvas()
 {
     try
     {
-        for( auto const& elem_id : canvas_element_stack_
-                                 | ranges::views::reverse )
-        {
-            KTRYE( js::erase_child_element( to_string( elem_id ) ) );
-        }
-
+        KM_RESULT_PROLOG();
+        
         auto const& km = kmap_inst();
         auto const nw = KTRYE( fetch_component< com::Network >() );
+
+        // TODO: This *should* implicitly erase all HTML elements recursively, but should I do it explicitly?
+        //       Any benefit/need to do it explicitly?
+        KTRYW( js::erase_child_element( to_string( util_canvas_uuid ) ) );
 
         if( auto const croot = view2::canvas::canvas_root
                              | act2::fetch_node( km )
@@ -109,13 +104,10 @@ auto Canvas::initialize()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( initialize_root() );
+    KTRY( ensure_root_initialized() );
     KTRY( initialize_panes() );
-    KTRY( initialize_overlays() );
     KTRY( install_options() );
-    KTRY( hide( editor_pane() ) );
-
-    KTRY( update_overlays() );
+    KTRY( install_events() );
 
     KTRY( eclerk_.install_registered() );
 
@@ -131,16 +123,13 @@ auto Canvas::load()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( update_all_panes() );
-    KTRY( update_overlays() );
+    KTRY( ensure_root_initialized() );
+    KTRY( update_all_panes() ); // TODO: This shouldn't be here, right? It should be called on load_done event.
+    // KTRY( update_overlays() );
 
     KTRY( install_events() );
 
-    // TODO: Not sure this is the best way to achieve this. Basically, at this point, Network is already loaded, but Canvas still needs to render current selected node.
-    //       Perhaps a Network.canvas component needed?
-    auto const nw = KTRY( fetch_component< com::Network >() );
-
-    KTRY( nw->select_node( nw->root_node() ) );
+    KTRY( eclerk_.check_registered() );
 
     rv = outcome::success();
 
@@ -176,66 +165,120 @@ auto Canvas::install_events()
 R"%%%(
 window.onkeydown = function( e )
 {
-    try
+    if( e.type !== "keydown" )
     {
-        let key = e.keyCode ? e.keyCode : e.which;
-        let is_shift = !!e.shiftKey;
-        let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
-        let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
-
-        switch ( key )
-        {
-            case 186: // colon
-            {
-                if( is_shift
-                && cli != document.activeElement
-                && editor != document.activeElement )
-                {
-                    clear_cli_error();
-                    cli.value = "";
-                    kmap.cli().focus();
-                }
-                break;
-            }
-            case 50: // '2' for '@'
-            {
-                if( is_shift
-                && cli != document.activeElement
-                && editor != document.activeElement )
-                {
-                    clear_cli_error();
-                    cli.value = ":";
-                    kmap.cli().focus();
-                }
-                break;
-            }
-            case 191: // forward slash
-            {
-                if( cli != document.activeElement
-                && editor != document.activeElement )
-                {
-                    clear_cli_error();
-                    cli.value = ":";
-                    kmap.cli().focus();
-                }
-                break;
-            }
-            case 13: // enter
-            {
-                break;
-            }
-        }
+        const err_msg = "expected 'keydown': " + e.type;
+        console.error( err_msg );
+        throw err_msg;
     }
-    catch( err )
+    
+    const mnemonic = kmap.map_key_mnemonic_to_heading( e.key.toLowerCase() );
+    const valid_keys =
+        [ 
+          'atsym'
+        , 'colon'
+        , 'fslash'
+        , 'shift'
+        ];
+
+    if( valid_keys.includes( mnemonic ) )
     {
-        console.log( String( err ) );
+        console.log( 'firing: ' + mnemonic );
+        kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.depressed', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
+        e.preventDefault();
     }
 };
 )%%%";
         auto const dtor = "window.onkeydown = null;";
-        window_events_.emplace_back( js::ScopedCode{ ctor
-                                                   , dtor } );
+        window_events_.emplace_back( js::ScopedCode{ ctor, dtor } );
     }
+    // window.onkeyup
+    {
+        // TODO: This all needs to change to dispatching events, not direct cli calls...
+        auto const ctor =
+R"%%%(
+window.onkeyup = function( e )
+{
+    if( e.type !== "keyup" )
+    {
+        const err_msg = "expected 'keydown': " + e.type;
+        console.error( err_msg );
+        throw err_msg;
+    }
+    
+    const mnemonic = kmap.map_key_mnemonic_to_heading( e.key.toLowerCase() );
+    const valid_keys =
+        [ 
+          'atsym'
+        , 'colon'
+        , 'fslash'
+        , 'shift'
+        ];
+
+    if( valid_keys.includes( mnemonic ) )
+    {
+        kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
+        e.preventDefault();
+    }
+};
+)%%%";
+        auto const dtor = "window.onkeyup = null;";
+        window_events_.emplace_back( js::ScopedCode{ ctor, dtor } );
+    }
+    // try
+    // {
+    //     let key = e.keyCode ? e.keyCode : e.which;
+    //     let is_shift = !!e.shiftKey;
+    //     let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
+    //     let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
+
+    //     switch ( key )
+    //     {
+    //         case 186: // colon
+    //         {
+    //             if( is_shift
+    //             && cli != document.activeElement
+    //             && editor != document.activeElement )
+    //             {
+    //                 clear_cli_error();
+    //                 cli.value = "";
+    //                 kmap.cli().focus();
+    //             }
+    //             break;
+    //         }
+    //         case 50: // '2' for '@'
+    //         {
+    //             if( is_shift
+    //             && cli != document.activeElement
+    //             && editor != document.activeElement )
+    //             {
+    //                 clear_cli_error();
+    //                 cli.value = ":";
+    //                 kmap.cli().focus();
+    //             }
+    //             break;
+    //         }
+    //         case 191: // forward slash
+    //         {
+    //             if( cli != document.activeElement
+    //             && editor != document.activeElement )
+    //             {
+    //                 clear_cli_error();
+    //                 cli.value = ":";
+    //                 kmap.cli().focus();
+    //             }
+    //             break;
+    //         }
+    //         case 13: // enter
+    //         {
+    //             break;
+    //         }
+    //     }
+    // }
+    // catch( err )
+    // {
+    //     console.log( String( err ) );
+    // }
 
     rv = outcome::success();
 
@@ -250,6 +293,19 @@ auto Canvas::install_options()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const opt = KTRY( fetch_component< com::OptionStore >() );
 
+    // layout
+    {
+        auto const value = KTRY( load_initial_layout( kmap_root_dir / "layout.json" ) );
+        auto const action = 
+R"%%%(
+const canvas = kmap.canvas();
+canvas.apply_layout( JSON.stringify( option_value ) );
+)%%%";
+        KTRY( opt->install_option( Option{ .heading = "canvas.initial_layout"
+                                         , .descr = "Applies layout specified in value. In particular, for the initial pane layout."
+                                         , .value = value 
+                                         , .action = action } ) );
+    }
     // TODO: All these options belong in their respective components.
     // Network
     KTRY( opt->install_option( Option{ .heading = "canvas.network.background.color"
@@ -313,6 +369,234 @@ auto Canvas::install_options()
     return rv;
 }
 
+auto fetch_layout( FsPath const& path )
+    -> Result< bjn::object >
+{
+    namespace fs = boost::filesystem;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", path.string() );
+
+    auto rv = result::make_result< bjn::object >();
+
+    if( fs::exists( path ) )
+    {
+        if( auto ifs = std::ifstream{ path.string() }
+          ; ifs.good() )
+        {
+            auto ec = bjn::error_code{};
+            auto const layout = bjn::parse( ifs, ec );
+
+            if( !ec )
+            {
+                if( layout.is_object() )
+                {
+                    rv = layout.as_object();
+                }
+            }
+        }
+        else
+        {
+            // TODO: report failed to open file...
+        }
+    }
+
+    return rv;
+}
+
+auto Canvas::apply_layout( std::string const& layout )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+    auto ss = [ & ]
+    {
+        auto tss = std::stringstream{};
+        tss << layout;
+        return tss;
+    }();
+
+    auto ec = bjn::error_code{};
+    auto const parsed = bjn::parse( ss, ec );
+
+    KMAP_ENSURE( !ec, error_code::common::uncategorized );
+    KMAP_ENSURE( parsed.is_object(), error_code::common::uncategorized );
+
+    KTRY( apply_layout( parsed.as_object() ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+
+auto Canvas::apply_layout( bjn::object const& layout )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+    auto const lpane = KTRY( com::fetch_pane( layout ) );
+    auto const croot_id = util_canvas_uuid;
+
+    KMAP_ENSURE( lpane.id == croot_id, error_code::common::uncategorized );
+
+    for( auto const lsubdivs = com::fetch_subdivisions( layout )
+       ; auto const& lsubdiv : lsubdivs )
+    {
+        KTRY( apply_layout( lsubdiv, croot_id ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Canvas::apply_layout( bjn::object const& layout
+                         , Uuid const& parent_pane ) 
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+    auto& km = kmap_inst();
+    auto const nw = KTRY( fetch_component< com::Network >() );
+    auto const lpane = KTRY( com::fetch_pane( layout ) );
+    auto const update = [ & ]( std::string const& child, std::string const& body ) -> Result< void >
+    {
+        auto const cn = KTRY( anchor::node( lpane.id ) | view2::child( child ) | act2::fetch_or_create_node( km ) );
+
+        KTRY( anchor::node( cn ) | act2::update_body( km, body ) );
+
+        return outcome::success();
+    };
+
+    KMAP_ENSURE( is_pane( parent_pane ), error_code::common::uncategorized );
+
+    KTRY( nw->update_heading( lpane.id, lpane.heading ) );
+    KTRY( nw->update_title( lpane.id, format_title( lpane.heading ) ) );
+    KTRY( update( "orientation", to_string( lpane.division.orientation ) ) );
+    KTRY( update( "base", std::to_string( lpane.division.base ) ) );
+    KTRY( update( "hidden", fmt::format( "{}", lpane.division.hidden ) ) );
+    KTRY( update( "type", lpane.division.elem_type ) );
+
+    if( !( anchor::node( parent_pane )
+         | view2::child( "subdivision" )
+         | view2::child( lpane.id )
+         | act2::exists( km ) ) )
+    {
+        auto const psub = KTRY( anchor::node( parent_pane )
+                              | view2::child( "subdivision" )
+                              | act2::fetch_node( km ) );
+                        
+        KTRY( nw->move_node( lpane.id, psub ) );
+    }
+
+    for( auto const lsubdivs = com::fetch_subdivisions( layout )
+       ; auto const& lsubdiv : lsubdivs )
+    {
+        KTRY( apply_layout( lsubdiv, lpane.id ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Canvas::install_pane( Pane const& pane )
+    -> Result< Uuid >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", pane.id );
+        KM_RESULT_PUSH( "heading", pane.heading );
+
+    auto rv = result::make_result< Uuid >();
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( is_pane( pane.id ) );
+            }
+        })
+    ;
+
+    auto& km = kmap_inst();
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_or_create_node( km ) );
+
+    if( auto layout = fetch_layout( kmap_root_dir / "layout.json" )
+      ; layout )
+    {
+        if( auto const pp = com::fetch_parent_pane( km, layout.value(), canvas_root, pane.id )
+          ; pp )
+        {
+            if( auto const layout_pane = com::fetch_pane( layout.value(), pane.id ) // Returns Pane{} type
+              ; layout_pane )
+            {
+                auto const& lpv = layout_pane.value();
+
+                rv = KTRY( subdivide( pp.value(), lpv.id, lpv.heading, lpv.division ) );
+            }
+            else
+            {
+                rv = KTRY( subdivide( pp.value(), pane.id, pane.heading, pane.division ) );
+            }
+        }
+        else
+        {
+            rv = KTRY( subdivide( canvas_root, pane.id, pane.heading, pane.division ) );
+        }
+    }
+    else
+    {
+        rv = KTRY( subdivide( canvas_root, pane.id, pane.heading, pane.division ) );
+    }
+
+    return rv;
+}
+
+auto Canvas::install_overlay( Overlay const& overlay )
+    -> Result< Uuid >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", overlay.id );
+        KM_RESULT_PUSH( "heading", overlay.heading );
+
+    auto rv = result::make_result< Uuid >();
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( is_overlay( overlay.id ) );
+            }
+        })
+    ;
+
+    auto& km = kmap_inst();
+    auto const nw = KTRY( fetch_component< com::Network >() );
+    auto const overlay_root = KTRY( view2::canvas::overlay_root
+                                  | act2::fetch_or_create_node( km ) );
+    auto const overlayn = KTRY( nw->create_child( overlay_root, overlay.id, overlay.heading ) );
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_node( km ) );
+    auto const typen = KTRY( anchor::node( overlayn )
+                           | view2::child( "type" )
+                           | act2::create_node( km ) );
+
+    KTRY( nw->update_body( typen, overlay.elem_type ) );
+
+    KTRY( create_html_child_element( overlay.elem_type, canvas_root, overlayn ) );
+
+    rv = overlayn;
+
+    return rv;
+}
+
 auto Canvas::complete_path( std::string const& path )
     -> StringVec
 {
@@ -355,7 +639,8 @@ auto Canvas::is_overlay( Uuid const& node )
                                 | act2::fetch_node( km )
       ; overlay_root )
     {
-        rv = is_ancestor( *nw, overlay_root.value(), node );
+        rv = ( anchor::node( node ) | view2::child( "type" ) | act2::exists( km ) )
+          && is_ancestor( *nw, overlay_root.value(), node );
     }
 
     return rv;
@@ -436,8 +721,8 @@ auto Canvas::set_breadcrumb( UuidVec const& bc )
         io::print( "creating subdivision: {}\n", index );
         // Determine width. Accumulate widths to determine base of fill div.
         auto const subdiv = KTRY( subdivide( breadcrumb_table_pane()
-                                               , fmt::format( "{}", index ) // Simply use enumeration value as pane heading.
-                                               , Division{ Orientation::horizontal, accumulated_width, false, "div" } ) );
+                                           , fmt::format( "{}", index ) // Simply use enumeration value as pane heading.
+                                           , Division{ Orientation::horizontal, accumulated_width, false, "div" } ) );
         io::print( "created subdivision: {}, {}\n", index, to_string( subdiv ) );
         auto div = KTRY( js::fetch_element_by_id< val >( to_string( subdiv ) ) );
         auto style = KTRYE( js::fetch_style_member( to_string( subdiv ) ) ); 
@@ -483,6 +768,7 @@ auto Canvas::subdivide( Uuid const& parent_pane
     return rv;
 }
 
+[[deprecated( "prefer predictable IDs for panes" )]]
 auto Canvas::subdivide( Uuid const& parent_pane
                       , Heading const& heading
                       , Division const& subdiv )
@@ -584,7 +870,6 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
         KM_RESULT_PUSH_NODE( "root", root );
 
     auto rv = KMAP_MAKE_RESULT( void );
-    auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const subdivn = KTRY( pane_subdivision( root ) );
     
@@ -596,19 +881,15 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     // html element creation must happen before subdiv, as subdiv depends on parent element.
     if( !js::exists( root ) )
     {
-        auto const canvas_root = KTRY( view2::canvas::canvas_root
-                                     | act2::fetch_node( km ) );
-
-        if( root == canvas_root )
+        KTRY( create_html_element( root ) );
+    }
+    if( auto const parent_pane = fetch_parent_pane( root )
+      ; parent_pane )
+    {
+        if( auto const pe_id = js::fetch_parent_element_id( to_string( root ) )
+          ; pe_id && pe_id.value() != to_string( parent_pane.value() ) )
         {
-            KTRY( create_html_root_element( canvas_root ) );
-        }
-        else
-        {
-            auto const parent_pane = KTRY( fetch_parent_pane( root ) );
-            auto const typen = KTRY( anchor::node( root ) | view2::child( "type" ) | act2::fetch_node( km ) );
-            auto const elem_type = KTRY( nw->fetch_body( typen ) );
-            KTRY( create_html_child_element( elem_type, parent_pane, root ) );
+            KTRY( js::move_element( to_string( root ), to_string( parent_pane.value() ) ) );
         }
     }
 
@@ -790,10 +1071,29 @@ auto Canvas::register_standard_events()
 
     auto rv = result::make_result< void >();
 
-    eclerk_.register_outlet( Leaf{ .heading = "window.update_canvas_on_window_resize"
-                                 , .requisites = { "verb.scaled", "object.window" }
-                                 , .description = "updates canvas on window resize"
-                                 , .action = R"%%%(console.log( 'update_all_panes()' ); kmap.canvas().update_all_panes();)%%%" } );
+    {
+        auto const action = 
+R"%%%(
+console.log( 'update_all_panes()' );
+kmap.canvas().update_all_panes();
+)%%%";
+        eclerk_.register_outlet( Leaf{ .heading = "window.update_canvas_on_window_resize"
+                                     , .requisites = { "verb.scaled", "object.window" }
+                                     , .description = "updates canvas on window resize"
+                                     , .action = action } );
+    }
+    {
+        auto const action = 
+R"%%%(
+console.log( 'update_all_panes()' );
+kmap.option_store().apply( 'canvas.initial_layout' );
+kmap.canvas().update_all_panes();
+)%%%";
+        eclerk_.register_outlet( Leaf{ .heading = "window.update_panes_after_components_initialized"
+                                     , .requisites = { "subject.kmap", "verb.initialized" }
+                                     , .description = "Ensures panes are up to date after all components are initialized"
+                                     , .action = action } );
+    }
 
     rv = outcome::success();
 
@@ -878,7 +1178,37 @@ auto Canvas::create_html_canvas( Uuid const& id )
 fmt::print( "Canvas::create_html_canvas( {} );\n", to_string( id ) );
     KTRY( js::create_html_canvas( to_string( id ) ) );
 
-    canvas_element_stack_.emplace_back( id );
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Canvas::create_html_element( Uuid const& pane )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+    auto const& km = kmap_inst();
+
+    KMAP_ENSURE( !js::exists( pane ), error_code::common::uncategorized );
+
+    auto const canvas_root = KTRY( view2::canvas::canvas_root
+                                 | act2::fetch_node( km ) );
+
+    if( pane == canvas_root )
+    {
+        KTRY( create_html_root_element( canvas_root ) );
+    }
+    else
+    {
+        auto const nw = KTRY( fetch_component< com::Network >() );
+        auto const parent_pane = KTRY( fetch_parent_pane( pane ) );
+        auto const typen = KTRY( anchor::node( pane ) | view2::child( "type" ) | act2::fetch_node( km ) );
+        auto const elem_type = KTRY( nw->fetch_body( typen ) );
+
+        KTRY( create_html_child_element( elem_type, parent_pane, pane ) );
+    }
 
     rv = outcome::success();
 
@@ -897,17 +1227,8 @@ auto Canvas::create_html_child_element( std::string const& elem_type
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( js::eval_void( io::format( "let child_div = document.createElement( '{}' );"
-                                     "child_div.id = '{}';"
-                                     "child_div.tabIndex= {};"
-                                     "let parent_div = document.getElementById( '{}' );"
-                                     "parent_div.appendChild( child_div );" 
-                                   , elem_type
-                                   , to_string( child_id )
-                                   , next_tabindex_++
-                                   , to_string( parent_id ) ) ) );
-
-    canvas_element_stack_.emplace_back( child_id );
+    KTRY( js::create_child_element( to_string( parent_id ), to_string( child_id ), elem_type ) );
+    KTRY( js::set_tab_index( to_string( child_id ), next_tabindex_++ ) );
 
     rv = outcome::success();
 
@@ -922,25 +1243,25 @@ auto Canvas::initialize_panes()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
-    auto& km = kmap_inst();
 
-    KTRY( create_html_canvas( util_canvas_uuid ) );
+    //KTRY( reset_breadcrumb( canvas ) );
+    // KTRY( install_pane( Pane{ workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } } ) );
+    // KTRY( install_pane( Pane{ network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false, "div" } } ) );
+    // KTRY( install_pane( Pane{ text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false, "div" } } ) );
+    // KTRY( install_pane( Pane{ editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true, "textarea" } } ) );
+    // KTRY( install_pane( Pane{ preview_pane(), "preview", Division{ Orientation::horizontal, 0.000f, false, "div" } } ) );
+    // KTRY( install_pane( Pane{ cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false, "input" } } ) );
+    
+    // auto const workspace  = KTRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } ) );
+    //                         KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.120f, false, "div" } ) );
+    // auto const text_area  = KTRY( subdivide( workspace, text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false, "div" } ) );
+    //                         KTRY( subdivide( text_area, editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true, "textarea" } ) );
+    //                         KTRY( subdivide( text_area, preview_pane(), "preview", Division{ Orientation::horizontal, 0.000f, false, "div" } ) );
+    //                         KTRY( subdivide( canvas, cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false, "input" } ) );
 
-    auto const canvas = KTRY( view2::canvas::canvas_root
-                            | act2::fetch_or_create_node( km ) );
-                            //KTRY( reset_breadcrumb( canvas ) );
-    auto const workspace  = KTRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } ) );
-                            // KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false, "div" } ) );
-                            KTRY( subdivide( workspace, jump_stack_pane(), "jump_stack", Division{ Orientation::vertical, 0.000f, false, "table" } ) );
-                            KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.120f, false, "div" } ) );
-    auto const text_area  = KTRY( subdivide( workspace, text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false, "div" } ) );
-                            KTRY( subdivide( text_area, editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true, "textarea" } ) );
-                            KTRY( subdivide( text_area, preview_pane(), "preview", Division{ Orientation::horizontal, 1.000f, false, "div" } ) );
-                            KTRY( subdivide( canvas, cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false, "input" } ) );
-
-    KTRY( update_panes() );
+    // TODO: Temporary... Should only call once all nodes are initialized. install_panes automatically creates the html element, so no worry about that.
+    // KTRY( update_panes() );
     // KTRY( init_event_callbacks() );
-    KTRY( install_events() );
 
     rv = outcome::success();
 
@@ -1028,8 +1349,8 @@ auto Canvas::create_overlay( Uuid const& id
     -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_NODE( "id", id );
-        KM_RESULT_PUSH_STR( "heading", heading );
+        KM_RESULT_PUSH( "id", id );
+        KM_RESULT_PUSH( "heading", heading );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
@@ -1081,6 +1402,7 @@ auto Canvas::create_subdivision( Uuid const& parent
     auto const subdivn = KTRY( nw->create_child( parent, child, heading ) );
 
     KTRY( make_subdivision( subdivn, subdiv ) );
+    KTRY( create_html_element( subdivn ) );
 
     rv = subdivn;
 
@@ -1121,14 +1443,12 @@ auto Canvas::create_html_root_element( Uuid const& root_pane )
                                      "body_tag.appendChild( canvas_div );" 
                                     , to_string( root_pane ) ) ) );
 
-    canvas_element_stack_.emplace_back( root_pane );
-
     rv = outcome::success();
 
     return rv;
 }
 
-auto Canvas::initialize_root()
+auto Canvas::ensure_root_initialized()
     -> Result< Uuid >
 {
     using emscripten::val;
@@ -1137,14 +1457,29 @@ auto Canvas::initialize_root()
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
-    auto const canvas_root = KTRY( view2::canvas::canvas_root
-                                 | act2::fetch_or_create_node( km ) );
+    auto const nw = KTRY( fetch_component< com::Network >() );
+    auto const win_root = KTRY( view2::canvas::window_root
+                              | act2::fetch_or_create_node( km ) );
 
-    KTRY( make_subdivision( canvas_root, { Orientation::horizontal, 0.0f, false } ) );
+    if( auto const croot = view2::canvas::canvas_root
+                         | act2::fetch_node( km )
+      ; croot )
+    {
+        KMAP_LOG_LINE();
+        rv = croot.value();
+    }
+    else
+    {
+        KMAP_LOG_LINE();
+        auto const ncroot = KTRY( nw->create_child( win_root, util_canvas_uuid, "canvas" ) );
 
-    rv = canvas_root;
+        KTRY( make_subdivision( ncroot, { Orientation::horizontal, 0.0f, false } ) );
+        KTRY( create_html_root_element( util_canvas_uuid ) );
 
-    fmt::print( "finished: Canvas::initialize_root\n" );
+        rv = ncroot;
+    }
+
+    fmt::print( "finished: Canvas::ensure_root_initialized\n" );
 
     return rv;
 }
@@ -1379,7 +1714,7 @@ auto Canvas::dimensions( Uuid const& target )
                     }
                     else
                     {
-                        return target_it->first;
+                        return std::max( target_it->first, min_pane_size_multiplier );
                     }
                 }();
                 auto const second = [ & ]
@@ -1414,6 +1749,10 @@ auto Canvas::dimensions( Uuid const& target )
 
         switch( orientation )
         {
+            default:
+            {
+                KMAP_THROW_EXCEPTION_MSG( "expected horizontal or vertical orientation" );
+            }
             case Orientation::horizontal:
             { 
                 // TODO: Avoid the cast, percent value should never be over 1.0, so casting shouldn't be an issue.
@@ -1435,9 +1774,30 @@ auto Canvas::dimensions( Uuid const& target )
         }
     }
 
-    // io::print( "dimensions|{}: {}\n", nw->fetch_heading( target ).value(), rv.value() );
-
     return rv;
+}
+
+SCENARIO( "Canvas::dimensions", "[canvas]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "canvas" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const& canvas = REQUIRE_TRY( km.fetch_component< com::Canvas >() );
+
+    GIVEN( "default root pane" )
+    {
+        REQUIRE_RFAIL( canvas->dimensions( gen_uuid() ) ); // non-existent pane fails
+
+        THEN( "standard root dimensions" )
+        {
+        }
+
+        // GIVEN( "root pane" )
+        // {
+        //     REQUIRE_TRY( canvas->ensure_root_initialized() );
+        //     // REQUIRE_TRY( canvasinstall_pane( Pane{ workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } } ) );
+        // }
+    }
 }
 
 auto Canvas::fetch_parent_pane( Uuid const& node )
@@ -1629,6 +1989,14 @@ struct Canvas
     {
     }
 
+    auto apply_layout( std::string const& json_contents ) const
+        -> void
+    {
+        auto const canvas = KTRYE( km.fetch_component< kmap::com::Canvas >() );
+
+        KTRYE( canvas->apply_layout( json_contents ) );
+    }
+
     auto complete_path( std::string const& path ) const
         -> StringVec
     {
@@ -1756,6 +2124,7 @@ EMSCRIPTEN_BINDINGS( kmap_canvas )
 {
     function( "canvas", &kmap::com::binding::canvas );
     class_< kmap::com::binding::Canvas >( "Canvas" )
+        .function( "apply_layout", &kmap::com::binding::Canvas::apply_layout )
         .function( "breadcrumb_pane", &kmap::com::binding::Canvas::breadcrumb_pane )
         .function( "breadcrumb_table_pane", &kmap::com::binding::Canvas::breadcrumb_table_pane )
         .function( "canvas_pane", &kmap::com::binding::Canvas::canvas_pane )
@@ -1806,24 +2175,3 @@ REGISTER_COMPONENT
 }
 
 } // namespace kmap::com
-
-namespace kmap
-{
-    template<>
-    auto from_string( std::string const& s )
-        -> Result< com::Orientation >
-    {
-        auto rv = KMAP_MAKE_RESULT_EC( com::Orientation, error_code::common::conversion_failed );
-
-        if( s == "horizontal" )
-        {
-            rv = com::Orientation::horizontal;
-        }
-        else if( s == "vertical" )
-        {
-            rv = com::Orientation::vertical;
-        }
-
-        return rv;
-    }
-}

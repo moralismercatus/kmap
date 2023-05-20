@@ -602,7 +602,7 @@ function network_onkeydown( e )
         , 'arrowright'
         , 'arrowup'
         , 'c'
-        , 'ctrl'
+        , 'control'
         , 'e'
         , 'esc'
         , 'g'
@@ -615,9 +615,9 @@ function network_onkeydown( e )
         , 'p'
         , 'shift'
         , 'v'
-        ]
+        ];
 
-    if( valid_keys.includes( mnemonic) )
+    if( valid_keys.includes( mnemonic ) )
     {
         kmap.event_store().fire_event( to_VectorString( [ 'subject.network', 'verb.depressed', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
         e.preventDefault();
@@ -641,7 +641,7 @@ function network_onkeyup( e )
         , 'arrowright'
         , 'arrowup'
         , 'c'
-        , 'ctrl'
+        , 'control'
         , 'e'
         , 'esc'
         , 'g'
@@ -654,9 +654,9 @@ function network_onkeyup( e )
         , 'p'
         , 'shift'
         , 'v'
-        ]
+        ];
 
-    if( valid_keys.includes( mnemonic) )
+    if( valid_keys.includes( mnemonic ) )
     {
         kmap.event_store().fire_event( to_VectorString( [ 'subject.network', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
         e.preventDefault();

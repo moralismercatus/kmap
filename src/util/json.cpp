@@ -3,6 +3,8 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
+#include <util/json.hpp>
+
 #include <js_iface.hpp>
 
 #include <boost/json.hpp>
@@ -10,6 +12,80 @@
 #include <emscripten/bind.h>
 
 #include <string>
+
+namespace bjn = boost::json;
+
+namespace kmap {
+
+auto fetch_array( bjn::object const& obj
+                , std::string const& key )
+    -> Result< bjn::array >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "key", key );
+
+    auto const at = KTRY( fetch_value( obj, key ) );
+
+    KMAP_ENSURE( at.is_array(), error_code::common::uncategorized );
+
+    return at.as_array();
+}
+
+auto fetch_bool( bjn::object const& obj
+               , std::string const& key )
+    -> Result< bool >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "key", key );
+
+    auto const at = KTRY( fetch_value( obj, key ) );
+
+    KMAP_ENSURE( at.is_bool(), error_code::common::uncategorized );
+
+    return at.as_bool();
+}
+
+auto fetch_float( bjn::object const& obj
+                , std::string const& key )
+    -> Result< double >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "key", key );
+
+    auto const at = KTRY( fetch_value( obj, key ) );
+
+    KMAP_ENSURE( at.is_number(), error_code::common::uncategorized );
+
+    return at.to_number< double >(); // Use to_number to avoid exact conversion failure case for when v is e.g., 0.0, and is converted to integer type automatically.
+}
+
+auto fetch_string( bjn::object const& obj
+                 , std::string const& key )
+    -> Result< std::string >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "key", key );
+
+    auto const at = KTRY( fetch_value( obj, key ) );
+
+    KMAP_ENSURE( at.is_string(), error_code::common::uncategorized );
+
+    return std::string{ at.as_string() };
+}
+
+auto fetch_value( bjn::object const& obj
+                , std::string const& key )
+    -> Result< bjn::value >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "key", key );
+
+    KMAP_ENSURE( obj.contains( key ), error_code::common::uncategorized );
+
+    return obj.at( key );
+}
+
+} // namespace kmap
 
 SCENARIO( "json::object", "[json]" )
 {

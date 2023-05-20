@@ -109,9 +109,6 @@
         } \
         BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
     })
-#define KTRY( ... ) KMAP_TRY( __VA_ARGS__ )
-#define KTRYE( ... ) KMAP_TRYE( __VA_ARGS__ )
-#define KTRYB( ... ) KMAP_TRYB( __VA_ARGS__ )
 #define KMAP_ENSURE_EXCEPT( pred ) \
     { \
         if( !( pred ) ) \
@@ -127,6 +124,22 @@
         } \
     }
 #define KENSURE_B( pred ) KMAP_ENSURE_BOOL( ( pred ) )
+// Unexpected behavior, but possible, if manual erasure is done outside of normal Kmap functionality.
+#define KMAP_TRY_WARN( ... ) \
+        KMAP_KTRY_LOG(); \
+    auto&& res = ( __VA_ARGS__ ); \
+    if( !BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
+    { \
+        res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM_MSG( kmap::result::to_string( km_result_local_state.log ) ) ); \
+        fmt::print( stdout, "\n" ); \
+        fmt::print( stderr, "[kmap][warn][begin]\n{}\n[kmap][warn][end]\n", to_string( res.error() ) ); \
+        fmt::print( stdout, "\n" ); \
+    }
+
+#define KTRY( ... ) KMAP_TRY( __VA_ARGS__ )
+#define KTRYB( ... ) KMAP_TRYB( __VA_ARGS__ )
+#define KTRYE( ... ) KMAP_TRYE( __VA_ARGS__ )
+#define KTRYW( ... ) KMAP_TRY_WARN( __VA_ARGS__ )
 
 #include <boost/outcome.hpp>
 #include <boost/system/error_code.hpp>
@@ -172,12 +185,18 @@ auto log_exception( std::string const& msg
 #if KMAP_LOG_EXCEPTION
     if( kmap::log::flag::log_exception )
     {
-        fmt::print( stderr, "exception:\n\tmessage: {}\n\tfunction: {}\n\tfile: {}\nline: {}\n", msg, fn, file, line );
+        fmt::print( stdout, "\n" );
+        std::cout.flush();
+        fmt::print( stderr, "[kmap][exception][begin]\nmessage: {}\nfunction: {}\nfile: {}\nline: {}\n[kmap][exception][end]\n", msg, fn, file, line );
+        std::cerr.flush();
+        fmt::print( stdout, "\n" );
+        std::cout.flush();
     }
 #endif
 }
 
-}
+} // namespace kmap
+
 namespace kmap::error_code {
 
 // TODO: Replace StackElement with std::source_location

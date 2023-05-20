@@ -3,20 +3,22 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/event/event_clerk.hpp"
+#include <com/event/event_clerk.hpp>
 
-#include "cmd/parser.hpp"
-#include "com/event/event.hpp"
-#include "contract.hpp"
-#include "error/master.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path.hpp"
-#include "path/act/fetch_body.hpp"
-#include "path/node_view.hpp"
-#include "path/node_view2.hpp"
-#include "util/clerk/clerk.hpp"
+#include <cmd/parser.hpp>
+#include <com/event/event.hpp>
+#include <contract.hpp>
+#include <error/master.hpp>
+#include <js_iface.hpp>
+#include <kmap.hpp>
+#include <path.hpp>
+#include <path/act/fetch_body.hpp>
+#include <path/node_view.hpp>
+#include <path/node_view2.hpp>
+#include <test/util.hpp>
+#include <util/clerk/clerk.hpp>
 
+#include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/all_of.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop.hpp>
@@ -525,8 +527,21 @@ auto EventClerk::install_registered()
 auto EventClerk::register_outlet( com::Transition const& t ) 
     -> void
 {
-    std::visit( [ & ]( auto const& v ){ registered_outlets.emplace( v.heading, t ); }
+    std::visit( [ & ]( auto const& v )
+                { 
+                    KMAP_ENSURE_EXCEPT( !registered_outlets.contains( v.heading ) );
+
+                    auto const tt = append_com_reqs( v );
+
+                    registered_outlets.emplace( v.heading, tt );
+                }
               , t );
+}
+
+SCENARIO( "EventClerk::register_outlet", "[event][clerk]" )
+{
+    // TODO: Ensure duplicate insertions are caught;
+    //       Ensure preset component requisites are inserted automatically.
 }
 
 auto gather_requisites( Transition const& t )
@@ -562,10 +577,9 @@ auto match_requisites( Kmap const& km
 {
     auto rv = false;
     auto const rreq_srcs = view::make( eroot )
-                        | view::child( "requisite" )
-                        | view::direct_desc( view::all_of( alias_paths ) )
-                        | view::to_node_set( km )
-                        | ranges::to< std::vector >();
+                         | view::direct_desc( view::all_of( alias_paths ) )
+                         | view::to_node_set( km )
+                         | ranges::to< std::vector >();
     auto const oreq_srcs = view::make( lnode )
                          | view::child( "requisite" )
                          | view::alias
@@ -573,7 +587,8 @@ auto match_requisites( Kmap const& km
                          | view::to_node_set( km )
                          | ranges::to< std::vector >();
 
-    rv = ranges::distance( rvs::set_intersection( rreq_srcs, oreq_srcs ) ) == rreq_srcs.size();
+    rv = ( ranges::distance( rvs::set_intersection( rreq_srcs, oreq_srcs ) ) == rreq_srcs.size() )
+      && ( rreq_srcs.size() == alias_paths.size() );
 
     return rv;
 }

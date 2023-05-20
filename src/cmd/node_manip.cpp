@@ -529,7 +529,7 @@ namespace delete_alias_def {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.is_alias( nw->selected_node() ) )
+if( kmap.network().is_alias( nw->selected_node() ) )
 {
     return kmap.success( 'success' );
 }

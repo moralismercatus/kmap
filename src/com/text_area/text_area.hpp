@@ -8,8 +8,9 @@
 #define KMAP_TEXT_AREA_HPP
 
 #include "com/cmd/cclerk.hpp"
-#include "com/option/option_clerk.hpp"
+#include "com/canvas/pane_clerk.hpp"
 #include "com/event/event_clerk.hpp"
+#include "com/option/option_clerk.hpp"
 #include "common.hpp"
 #include "component.hpp"
 #include "js_iface.hpp"
@@ -30,12 +31,13 @@ class TextArea : public Component
     com::EventClerk eclerk_;
     std::vector< js::ScopedCode > scoped_events_ = {};
     com::CommandClerk cclerk_;
+    com::PaneClerk pclerk_;
 
 public:
     static constexpr auto id = "text_area";
     constexpr auto name() const -> std::string_view override { return id; }
 
-    TextArea( Kmap& kmap
+    TextArea( Kmap& km
             , std::set< std::string > const& requisites
             , std::string const& description );
     virtual ~TextArea() = default;
@@ -49,6 +51,8 @@ public:
         -> Result< void >;
     auto clear()
         -> void;
+    auto register_panes()
+        -> Result< void >;
     auto register_standard_commands()
         -> void;
     auto register_standard_options()

@@ -16,6 +16,7 @@ enum class filesystem
 {
     success = 0
 ,   file_not_found
+,   file_open_failed
 ,   file_read_failure
 ,   file_rename_failure
 };
@@ -49,6 +50,7 @@ public:
         {
         case filesystem::success: return "success";
         case filesystem::file_not_found: return "file not found";
+        case filesystem::file_open_failed: return "file open failed";
         case filesystem::file_read_failure: return "error occurred while attempting to read from file";
         case filesystem::file_rename_failure: return "error occurred while attempting to rename file";
         }

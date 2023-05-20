@@ -8,7 +8,7 @@
 #ifndef KMAP_CLI_PARSER_HPP
 #define KMAP_CLI_PARSER_HPP
 
-#include "../common.hpp"
+#include <common.hpp>
 
 #include <boost/spirit/home/x3/support/ast/position_tagged.hpp>
 #include <boost/spirit/home/x3/support/ast/variant.hpp>
@@ -82,7 +82,7 @@ struct CommandBar : x3::position_tagged
 namespace kmap::parser::cli {
 
 auto parse_command_bar( std::string_view const raw )
-    -> Optional< ast::cli::CommandBar >;
+    -> Result< ast::cli::CommandBar >;
 
 auto fetch_selection_string( ast::cli::CommandBar const& cbar )
     -> Optional< std::string >;

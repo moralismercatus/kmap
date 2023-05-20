@@ -91,6 +91,17 @@ auto register_arguments()
     }
 }
 
+Cli::Cli( Kmap& km
+        , std::set< std::string > const& requisites
+        , std::string const& description )
+    : Component( km, requisites, description )
+    , eclerk_{ km, { Cli::id } }
+    , pclerk_{ km }
+{
+    KTRYE( register_panes() );
+    register_standard_outlets();
+}
+
 auto Cli::initialize()
     -> Result< void >
 {
@@ -98,6 +109,8 @@ auto Cli::initialize()
 
     auto rv = result::make_result< void >();
 
+    KTRY( pclerk_.install_registered() );
+    KTRY( eclerk_.install_registered() );
     KTRY( install_events() );
 
     rv = outcome::success();
@@ -112,11 +125,91 @@ auto Cli::load()
 
     auto rv = result::make_result< void >();
 
+    KTRY( pclerk_.check_registered() );
+    KTRY( eclerk_.check_registered() );
     KTRY( install_events() );
 
     rv = outcome::success();
 
     return rv;
+}
+
+auto Cli::register_panes()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+
+    KTRY( pclerk_.register_pane( Pane{ .id = cli_uuid
+                                     , .heading = "cli"
+                                     , .division = Division{ Orientation::horizontal, 0.975f, false, "input" } } ) );
+    KTRY( pclerk_.register_overlay( Overlay{ .id = completion_overlay_uuid 
+                                           , .heading = "cli_completion"
+                                           , .hidden = true
+                                           , .elem_type = "div" } ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Cli::register_standard_outlets()
+    -> void
+{
+    // branch
+    {
+        eclerk_.register_outlet( Branch{ .heading = "cli.key.shift.depressed"
+                                       , .requisites = { "subject.window", "verb.depressed", "object.keyboard.key.shift" } } );
+    }
+    // enter_command
+    {
+        auto const action =
+R"%%%(
+const cli = kmap.cli();
+
+cli.clear_input();
+cli.focus();
+cli.write( ':' );
+cli.enable_write();
+)%%%";
+        eclerk_.register_outlet( Leaf{ .heading = "cli.key.shift.depressed.enter_command"
+                                     , .requisites = { "subject.window", "verb.depressed", "object.keyboard.key.colon" }
+                                     , .description = "opens CLI for command entry"
+                                     , .action = action } );
+    }
+    // enter_heading
+    {
+        auto const action =
+R"%%%(
+const cli = kmap.cli();
+
+cli.clear_input();
+cli.focus();
+cli.write( ':@' );
+cli.enable_write();
+)%%%";
+        eclerk_.register_outlet( Leaf{ .heading = "cli.key.shift.depressed.enter_heading"
+                                     , .requisites = { "subject.window", "verb.depressed", "object.keyboard.key.atsym" }
+                                     , .description = "opens CLI for heading entry"
+                                     , .action = action } );
+    }
+    // enter_search
+    {
+        auto const action =
+R"%%%(
+const cli = kmap.cli();
+
+cli.clear_input();
+cli.focus();
+cli.write( ':/' );
+cli.enable_write();
+)%%%";
+        eclerk_.register_outlet( Leaf{ .heading = "cli.enter_search"
+                                     , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.fslash" }
+                                     , .description = "opens CLI for search"
+                                     , .action = action } );
+    }
 }
 
 auto Cli::install_events()
@@ -137,12 +230,12 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).v
     let text = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
 
     const res = kmap.cli().on_key_down( key
-                                        , is_ctrl
-                                        , is_shift
-                                        , text.value );
+                                      , is_ctrl
+                                      , is_shift
+                                      , text.value );
 
     if( key == 9/*tab*/
-    || key == 13/*enter*/ )
+     || key == 13/*enter*/ )
     {{
         e.preventDefault();
     }}
@@ -177,21 +270,21 @@ auto Cli::parse_raw( std::string const& input )
     {
         // TODO: more complex CLI options probably warrant a "self propelled" state machine, but with just one opt sel and cmd, probably not worth it now.
         //       Actually, the driving events could be the "chain" of commands.c.
-        auto const sel = parser::cli::fetch_selection_string( *cbar );
-        auto const cmd = parser::cli::fetch_command_string( *cbar );
+        auto const sel = parser::cli::fetch_selection_string( cbar.value() );
+        auto const cmd = parser::cli::fetch_command_string( cbar.value() );
 
         if( sel && !cmd )
         {
-            rv = cmd::select_node( km, *sel );
+            rv = KTRY( cmd::select_node( km, sel.value() ) );
         }
         else if( sel && cmd )
         {
             auto const selected = nw->selected_node();
 
-            if( rv = cmd::select_node( km, *sel )
+            if( rv = cmd::select_node( km, sel.value() )
               ; rv )
             {
-                rv = execute( cmd->first, cmd->second );
+                rv = KTRY( execute( cmd->first, cmd->second ) );
             }
 
             // Return to original.
@@ -202,12 +295,12 @@ auto Cli::parse_raw( std::string const& input )
         }
         else if( cmd )
         {
-            rv = execute( cmd->first, cmd->second );
+            rv = KTRY( execute( cmd->first, cmd->second ) );
         }
     }
     else
     {
-        rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "Syntax error" );
+        rv = KMAP_PROPAGATE_FAILURE( cbar );
     }
 
     if( rv )
@@ -215,7 +308,7 @@ auto Cli::parse_raw( std::string const& input )
         // Note: no longer need to notify of success, as this should be done automatically.
         // Only failure to find command or execute body should be reported.
         // A failure to execute the command is already handled.
-        notify_success( rv.value() );
+        KTRY( notify_success( rv.value() ) );
     }
     else
     {
@@ -228,7 +321,7 @@ auto Cli::parse_raw( std::string const& input )
 
         io::print( "{}\n", to_string( rv.error() ) );
 
-        notify_failure( rv.error().stack.front().message );
+        KTRY( notify_failure( rv.error().stack.front().message ) );
     }
 
     if( is_focused() )
@@ -431,7 +524,7 @@ auto Cli::complete( std::string const& input )
 {
     using boost::to_lower_copy;
 
-    hide_popup(); // Clear previous popup.
+    KTRYE( hide_popup() ); // Clear previous popup.
 
     auto& km = kmap_inst();
     auto const nw = KTRYE( fetch_component< com::Network >() );
@@ -441,33 +534,31 @@ auto Cli::complete( std::string const& input )
     {
         // TODO: more complex CLI options probably warrant a "self propelled" state machine, but with just one opt sel and cmd, probably not worth it now.
         //       Actually, the driving events could be the "chain" of commands.c.
-        auto const sel = parser::cli::fetch_selection_string( *cbar );
-        auto const cmd = parser::cli::fetch_command_string( *cbar );
+        auto const sel = parser::cli::fetch_selection_string( cbar.value() );
+        auto const cmd = parser::cli::fetch_command_string( cbar.value() );
 
         if( sel && !cmd )
         {
             auto const completed_set = complete_selection( km
                                                          , km.root_node_id()
                                                          , nw->selected_node()
-                                                         , *sel );
+                                                         , sel.value() );
             if( completed_set )
             {
                 auto const completed = completed_set.value() | views::transform( &CompletionNode::path ) | to< StringSet >(); 
 
                 if( completed.size() == 1 )
                 {
-                    auto const out = fmt::format( ":@{}"
-                                                , *completed.begin() );
+                    auto const out = fmt::format( ":@{}", *completed.begin() );
                     write( out );
                 }
                 else
                 {
                     auto const completed_vec = completed | to< StringVec >();
-                    auto const out = fmt::format( ":@{}"
-                                                , longest_common_prefix( completed_vec ) );
+                    auto const out = fmt::format( ":@{}", longest_common_prefix( completed_vec ) );
 
                     // TODO: Before showing popup, eliminate common headings to shorten the hints to just the important parts.
-                    show_popup( completed_vec );
+                    KTRYE( show_popup( completed_vec ) );
                     write( out );
                 }
             }
@@ -477,7 +568,7 @@ auto Cli::complete( std::string const& input )
             auto const ccmd = complete_command( cmd->first
                                               , cmd->second | views::split( ' ' ) | to< StringVec >() );
             auto const out = fmt::format( ":@{} :{}"
-                                        , *sel
+                                        , sel.value()
                                         , ccmd );
 
             write( out );
@@ -486,8 +577,7 @@ auto Cli::complete( std::string const& input )
         {
             auto const ccmd = complete_command( cmd->first
                                               , cmd->second | views::split( ' ' ) | to< StringVec >() );
-            auto const out = fmt::format( ":{}"
-                                        , ccmd );
+            auto const out = fmt::format( ":{}", ccmd );
 
             write( out );
         }
@@ -601,7 +691,7 @@ auto Cli::complete_command( std::string const& scmd
                 {
                     if( possible_completions.value().size() == 1 )
                     {
-                        hide_popup();
+                        KTRYE( hide_popup() );
 
                         rv = fmt::format( "{} {}"
                                         , scmd
@@ -609,7 +699,7 @@ auto Cli::complete_command( std::string const& scmd
                     }
                     else
                     {
-                        show_popup( possible_completions.value() );
+                        KTRYE( show_popup( possible_completions.value() ) );
 
                         rv = fmt::format( "{} {}"
                                         , scmd
@@ -618,7 +708,7 @@ auto Cli::complete_command( std::string const& scmd
                 }
                 else
                 {
-                    show_popup( possible_completions.error().ec.message() );
+                    KTRYE( show_popup( possible_completions.error().ec.message() ) );
                 }
             }
         }
@@ -633,13 +723,13 @@ auto Cli::complete_command( std::string const& scmd
         }
         if( completions.size() == 1 )
         {
-            hide_popup();
+            KTRYE( hide_popup() );
 
             rv = completions[ 0 ];
         }
         else
         {
-            show_popup( completions );
+            KTRYE( show_popup( completions ) );
 
             rv = longest_common_prefix( completions ); 
         }
@@ -733,25 +823,24 @@ auto Cli::is_focused()
 }
 
 auto Cli::clear_input()
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
 
+    auto rv = result::make_result< void >();
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( js::exists( canvas->cli_pane() ) );
-        })
-    ;
-
-    auto elem = KTRYE( js::fetch_style_member( to_string( canvas->cli_pane() ) ) ); // TODO: KTRY?
+    auto elem = KTRY( js::fetch_style_member( to_string( canvas->cli_pane() ) ) );
 
     elem.set( "value", "" );
+    elem.set( "backgroundColor", "white" );
 
-    hide_popup();
+    KTRY( hide_popup() );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Cli::valid_commands()
@@ -822,10 +911,14 @@ auto Cli::set_color( Color const& c )
 }
 
 auto Cli::show_popup( std::string const& text )
-    -> void
+    -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "text", text );
+
     using emscripten::val;
 
+    auto rv = result::make_result< void >();
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
     auto const cli_dims = canvas->dimensions( canvas->cli_pane() ).value();
@@ -904,31 +997,51 @@ auto Cli::show_popup( std::string const& text )
 
     elem.set( "innerHTML", text );
     elem.set( "hidden", false );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Cli::show_popup( StringVec const& lines )
-    -> void
+    -> Result< void >
 {
-    auto formatted = lines
-                   | views::intersperse( std::string{ "<br>" } )
-                   | to_vector;
+    KM_RESULT_PROLOG();
 
-    show_popup( formatted
-              | views::join
-              | to< std::string >() );
+    auto rv = result::make_result< void >();
+    auto const formatted = lines
+                         | views::intersperse( std::string{ "<br>" } )
+                         | to_vector;
+
+    KTRY( show_popup( formatted
+                    | views::join
+                    | to< std::string >() ) );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Cli::hide_popup()
-    -> void
+    -> Result< void >
 {
     using emscripten::val;
+    KM_RESULT_PROLOG();
 
+    auto rv = result::make_result< void >();
     auto& km = kmap_inst();
-    auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
+    auto const canvas = KTRY( km.fetch_component< com::Canvas >() );
+    auto constexpr code =
+R"%%%(
+const elem = document.getElementById( '{}' );
+elem.hidden = true;
+)%%%";
 
-    auto elem = KMAP_TRYE( js::fetch_element_by_id< val >( to_string( canvas->completion_overlay() ) ) ); 
+    KTRY( js::eval_void( fmt::format( code, to_string( canvas->completion_overlay() ) ) ) );
 
-    elem.set( "hidden", true );
+    rv = outcome::success();
+
+    return rv;
 }
 
 /// Assumes any completion/abortion of input will unfocus CLI.
@@ -968,16 +1081,14 @@ auto Cli::execute_command( Uuid const& id
     auto const cid = sid
                    | views::remove( '-' )
                    | to< std::string >();
-    auto const fn = fmt::format( "cmd_{}"
-                               , cid );
+    auto const fn = fmt::format( "cmd_{}", cid );
     
     // TODO: The registration "append_script call" should happen at the callback of writes to body (or leaving body editor).
     //       This function should merely translate the id to a cmd_* function and call it.
 
     auto append_script = val::global( "append_script" );
 
-    append_script( fn
-                 , code );
+    append_script( fn, code );
 
     fmt::print( "Command {} updated\n", fn );
 
@@ -985,35 +1096,52 @@ auto Cli::execute_command( Uuid const& id
 }
 
 auto Cli::notify_success( std::string const& message )
-    -> void
+    -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "message", message );
+
+    auto rv = result::make_result< void >();
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
         })
     ;
 
-    clear_input();
-    write( fmt::format( "[success] {}"
-                      , message ) );
+    KTRY( clear_input() );
+    write( fmt::format( "[success] {}", message ) );
     disable_write();
     set_color( Color::green );
     // update_pane();
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Cli::notify_failure( std::string const& message )
-    -> void
+    -> Result< void >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "message", message );
+
+    auto rv = result::make_result< void >();
+
     BC_CONTRACT()
         BC_PRE([ & ]
         {
         })
     ;
 
-    clear_input();
+    KTRY( clear_input() );
     write( fmt::format( "[failure] {}", message ) );
     disable_write();
     set_color( Color::red );
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto Cli::on_key_down( int const key
@@ -1038,14 +1166,15 @@ auto Cli::on_key_down( int const key
         }
         case 13/*enter*/:
         {
-            KMAP_TRY( parse_raw( read() ) );
+            // KTRY( parse_raw( read() ) );
+            KTRY( parse_raw( text ) );
             break;
         }
         case 27/*escape*/:
         {
             if( is_ctrl && 67 == key ) // ctrl+c
             {
-                clear_input();
+                KTRY( clear_input() );
                 nw->focus();
             }
             break;
@@ -1054,7 +1183,7 @@ auto Cli::on_key_down( int const key
         {
             if( is_ctrl )
             {
-                clear_input();
+                KTRY( clear_input() );
                 nw->focus();
             }
             break;
@@ -1090,6 +1219,20 @@ struct Cli
 {
     kmap::Kmap& km;
 
+    auto clear_input()
+        -> kmap::binding::Result< void >
+    {
+        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
+
+        return cli->clear_input();
+    }
+    auto enable_write()
+        -> void
+    {
+        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
+
+        cli->enable_write();
+    }
     auto focus()
         -> void
     {
@@ -1117,14 +1260,14 @@ struct Cli
     {
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
-        cli->notify_success( message );
+        KTRYE( cli->notify_success( message ) );
     }
     auto notify_failure( std::string const& message )
         -> void
     {
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
-        cli->notify_failure( message );
+        KTRYE( cli->notify_failure( message ) );
     }
     auto parse_cli( std::string const& input )
         -> void
@@ -1132,6 +1275,13 @@ struct Cli
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         cli->parse_cli( input );
+    }
+    auto write( std::string const& input )
+        -> void
+    {
+        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
+
+        cli->write( input );
     }
 };
 
@@ -1145,11 +1295,14 @@ EMSCRIPTEN_BINDINGS( kmap_cli )
 {
     function( "cli", &kmap::com::binding::cli );
     class_< kmap::com::binding::Cli >( "Cli" )
+        .function( "clear_input", &kmap::com::binding::Cli::clear_input )
+        .function( "enable_write", &kmap::com::binding::Cli::enable_write )
         .function( "focus", &kmap::com::binding::Cli::focus )
         .function( "notify_failure", &kmap::com::binding::Cli::notify_failure )
         .function( "notify_success", &kmap::com::binding::Cli::notify_success )
         .function( "on_key_down", &kmap::com::binding::Cli::on_key_down )
-        .function( "parse_cli", &kmap::com::binding::Cli::parse_cli );
+        .function( "parse_cli", &kmap::com::binding::Cli::parse_cli )
+        .function( "write", &kmap::com::binding::Cli::write );
         ;
 }
 

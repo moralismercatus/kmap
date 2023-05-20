@@ -659,10 +659,10 @@ auto TaskStore::register_standard_commands()
 
         auto const description = "task heading";
         
-        cclerk_.register_argument( com::Argument{ .path = "task_heading"
-                                                , .description = description
-                                                , .guard = guard_code
-                                                , .completion = completion_code } );
+        KTRYE( cclerk_.register_argument( com::Argument{ .path = "task_heading"
+                                                       , .description = description
+                                                       , .guard = guard_code
+                                                       , .completion = completion_code } ) );
     }
     // add.subtask
     {
@@ -702,11 +702,11 @@ auto TaskStore::register_standard_commands()
                                                                 , "task heading"
                                                                 , "task_heading" } };
 
-        cclerk_.register_command( com::Command{ .path = "add.subtask"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "unconditional", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "add.subtask"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .action = action_code } ) );
     }
     // activate.task
     {
@@ -746,11 +746,11 @@ auto TaskStore::register_standard_commands()
         auto const description = "opens task and marks as inactive";
         auto const arguments = std::vector< Argument >{};
 
-        cclerk_.register_command( com::Command{ .path = "activate.task"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "activate.task"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", guard_code }
+                                                     , .action = action_code } ) );
     }
     // deactivate.task
     {
@@ -784,11 +784,11 @@ auto TaskStore::register_standard_commands()
         auto const description = "opens task and marks as inactive";
         auto const arguments = std::vector< Argument >{};
 
-        cclerk_.register_command( com::Command{ .path = "deactivate.task"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "deactivate.task"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", guard_code }
+                                                     , .action = action_code } ) );
     }
     // close.task
     {
@@ -822,11 +822,11 @@ auto TaskStore::register_standard_commands()
         auto const description = "closes task meeting requirements";
         auto const arguments = std::vector< Argument >{};
 
-        cclerk_.register_command( com::Command{ .path = "close.task"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "close.task"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", guard_code }
+                                                     , .action = action_code } ) );
     }
     // create.task
     {
@@ -855,11 +855,11 @@ auto TaskStore::register_standard_commands()
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        cclerk_.register_command( com::Command{ .path = "create.task"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "unconditional", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "create.task"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .action = action_code } ) );
     }
     // create.task.inactive
     {
@@ -888,11 +888,11 @@ auto TaskStore::register_standard_commands()
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        cclerk_.register_command( com::Command{ .path = "create.task.inactive"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "unconditional", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "create.task.inactive"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .action = action_code } ) );
     }
     // create.subtask
     {
@@ -928,11 +928,11 @@ auto TaskStore::register_standard_commands()
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        cclerk_.register_command( com::Command{ .path = "create.subtask"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", is_task_guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "create.subtask"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", is_task_guard_code }
+                                                     , .action = action_code } ) );
     }
     // create.subtask.inactive
     {
@@ -968,11 +968,11 @@ auto TaskStore::register_standard_commands()
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        cclerk_.register_command( com::Command{ .path = "create.subtask.inactive"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", is_task_guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "create.subtask.inactive"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", is_task_guard_code }
+                                                     , .action = action_code } ) );
     }
     // cascade.tags
     {
@@ -1006,11 +1006,11 @@ auto TaskStore::register_standard_commands()
         auto const arguments = std::vector< Argument >{};
         auto const guard = Guard{ "is_task", is_task_guard_code };
 
-        cclerk_.register_command( com::Command{ .path = "cascade.tags"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", is_task_guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "cascade.tags"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", is_task_guard_code }
+                                                     , .action = action_code } ) );
     }
     // open.task
     {
@@ -1044,11 +1044,11 @@ auto TaskStore::register_standard_commands()
         auto const description = "opens closed task and marks it as active";
         auto const arguments = std::vector< Argument >{};
 
-        cclerk_.register_command( com::Command{ .path = "open.task"
-                                              , .description = description
-                                              , .arguments = arguments 
-                                              , .guard = Guard{ "is_task", guard_code }
-                                              , .action = action_code } );
+        KTRYE( cclerk_.register_command( com::Command{ .path = "open.task"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = Guard{ "is_task", guard_code }
+                                                     , .action = action_code } ) );
     }
 }
 

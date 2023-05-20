@@ -130,6 +130,9 @@ add_executable( emcc.index.html
                 cmd/text_area.cpp
                 com/autosave/autosave.cpp com/autosave/autosave.hpp
                 com/canvas/canvas.cpp com/canvas/canvas.hpp
+                com/canvas/common.cpp com/canvas/common.hpp
+                com/canvas/pane_clerk.cpp com/canvas/pane_clerk.hpp
+                com/canvas/workspace.cpp com/canvas/workspace.hpp
                 com/chrono/timer.cpp com/chrono/timer.hpp
                 com/cli/cli.cpp com/cli/cli.hpp
                 com/cmd/cclerk.cpp com/cmd/cclerk.hpp
@@ -151,6 +154,7 @@ add_executable( emcc.index.html
                 com/network/command.cpp com/network/command.hpp
                 com/network/network.cpp com/network/network.hpp
                 com/network/visnetwork.cpp com/network/visnetwork.hpp
+                com/option/command.cpp
                 com/option/option.cpp
                 com/option/option_clerk.cpp
                 com/tag/tag.cpp com/tag/tag.hpp
@@ -217,6 +221,7 @@ add_executable( emcc.index.html
                 test/autosave.cpp
                 test/canvas/canvas.cpp
                 test/cli/cli.cpp
+                test/misc/misc.cpp
                 # test/cli/parse_raw/conclusion.cpp
                 # test/cli/parse_raw/create_child.cpp
                 # test/cli/parse_raw/node_manip.cpp
@@ -248,7 +253,7 @@ add_executable( emcc.index.html
                 test/util.cpp
                 test/util/util.cpp
                 util/clerk/clerk.cpp util/clerk/clerk.hpp
-                util/json.cpp
+                util/json.cpp util/json.hpp
                 util/profile.cpp util/profile.hpp
                 util/result.cpp util/result.hpp
                 util/script/script.cpp util/script/script.hpp

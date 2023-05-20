@@ -1,0 +1,144 @@
+/******************************************************************************
+ * Author(s): Christopher J. Havlicek
+ *
+ * See LICENSE and CONTACTS.
+ ******************************************************************************/
+#include <com/cmd/cclerk.hpp>
+#include <com/option/option.hpp>
+#include <common.hpp>
+#include <component.hpp>
+
+namespace kmap::com {
+
+class OptionStoreCommand : public Component
+{
+    CommandClerk cclerk_;
+
+public:
+    static constexpr auto id = "option_store.command";
+    constexpr auto name() const -> std::string_view override { return id; }
+
+    OptionStoreCommand( Kmap& km
+                      , std::set< std::string > const& requisites
+                      , std::string const& description )
+        : Component{ km, requisites, description }
+        , cclerk_{ km }
+    {
+        KTRYE( register_standard_commands() );
+    }
+    virtual ~OptionStoreCommand() = default;
+
+    auto initialize()
+        -> Result< void > override
+    {
+        KM_RESULT_PROLOG();
+
+        auto rv = KMAP_MAKE_RESULT( void );
+
+        KTRY( cclerk_.install_registered() );
+
+        rv = outcome::success();
+
+        return rv;
+    }
+    auto load()
+        -> Result< void > override
+    {
+        KM_RESULT_PROLOG();
+
+        auto rv = KMAP_MAKE_RESULT( void );
+
+        KTRY( cclerk_.check_registered() );
+
+        rv = outcome::success();
+
+        return rv;
+    }
+
+    auto register_standard_commands()
+        -> Result< void >
+    {
+        auto rv = result::make_result< void >();
+
+        // arg.tag_path
+        {
+            auto const guard_code =
+            R"%%%(
+                return kmap.is_valid_heading_path( arg );
+            )%%%";
+            auto const completion_code =
+            R"%%%(
+                const root = kmap.fetch_node( "/meta.setting.option" );
+
+                if( root.has_error() )
+                {
+                    return new kmap.VectorString();
+                }
+                else
+                {
+                    return kmap.complete_heading_path_from( root.value(), root.value(), arg );
+                }
+            )%%%";
+
+            auto const description = "option heading path";
+            
+            KTRYE( cclerk_.register_argument( com::Argument{ .path = "option_path"
+                                                           , .description = description
+                                                           , .guard = guard_code
+                                                           , .completion = completion_code } ) );
+        }
+        // TODO: Ought not apply.option use selected_node, to be generally consistent...?
+        // apply.option
+        {
+            auto const guard_code =
+            R"%%%(
+                return kmap.success( 'success' );
+            )%%%";
+            auto const action_code =
+            R"%%%(
+                const ostore = kmap.option_store();
+                ostore.apply( args.get( 0 ) ).throw_on_error();
+
+                return kmap.success( 'applied:' + args.get( 0 ) );
+            )%%%";
+
+            using Guard = com::Command::Guard;
+            using Argument = com::Command::Argument;
+
+            auto const description = "executes action for provided option";
+            auto const arguments = std::vector< Argument >{ Argument{ "option_path"
+                                                                    , "path to target option"
+                                                                    , "option_path" }  };
+            auto const guard = Guard{ "unconditional", guard_code };
+            auto const command = Command{ .path = "apply.option"
+                                        , .description = description
+                                        , .arguments = arguments
+                                        , .guard = guard
+                                        , .action = action_code };
+
+            KTRYE( cclerk_.register_command( command ) );
+        }
+
+        rv = outcome::success();
+
+        return rv;
+    }
+};
+
+namespace {
+namespace option_store_command_def {
+
+using namespace std::string_literals;
+
+REGISTER_COMPONENT
+(
+    kmap::com::OptionStoreCommand
+,   std::set({ "option_store"s, "command_store"s })
+,   "standard commands for option_store"
+);
+
+} // namespace option_store_command_def 
+}
+} // namespace kmap::com
+
+

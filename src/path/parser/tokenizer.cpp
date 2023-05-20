@@ -16,6 +16,8 @@
 #include <boost/spirit/home/x3/support/utility/annotate_on_success.hpp>
 #include <boost/spirit/home/x3/support/utility/error_reporting.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
 #include <range/v3/view/zip.hpp>
 
 #include <any>
@@ -191,6 +193,20 @@ auto to_string( ast::path::HeadingPath const& hp )
 {
     auto rv = std::string{};
 
+    auto const v = to_string_vec( hp );
+
+    rv = v
+       | rvs::join
+       | ranges::to< std::string >();
+
+    return rv;
+}
+
+auto to_string_vec( ast::path::HeadingPath const& hp )
+    -> std::vector< std::string >
+{
+    auto rv = std::vector< std::string >{};
+
     for( auto const flattened = flatten( hp )
        ; auto const& elem : flattened )
     {
@@ -200,10 +216,12 @@ auto to_string( ast::path::HeadingPath const& hp )
 
             if constexpr( std::is_same_v< T, Tag > )
             {
-                rv += '#';
+                rv.emplace_back( '#' + std::string{ arg.value } );
             }
-
-            rv += arg.value;
+            else
+            {
+                rv.emplace_back( std::string{ arg.value } );
+            }
         }
         , elem );
     }

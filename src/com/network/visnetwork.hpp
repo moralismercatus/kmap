@@ -7,6 +7,7 @@
 #ifndef KMAP_VISUAL_NETWORK_HPP
 #define KMAP_VISUAL_NETWORK_HPP
 
+#include "com/canvas/pane_clerk.hpp"
 #include "com/event/event_clerk.hpp"
 #include "com/option/option_clerk.hpp"
 #include "common.hpp"
@@ -49,13 +50,14 @@ class VisualNetwork : public Component
 {
     OptionClerk oclerk_;
     EventClerk eclerk_;
+    PaneClerk pclerk_;
     std::shared_ptr< emscripten::val > js_nw_; // TODO: Use unique_ptr. Again, some reason destructor and fwd decl don't seem to work with unique_ptr.
 
 public:
     static constexpr auto id = "visnetwork";
     constexpr auto name() const -> std::string_view override { return id; }
 
-    VisualNetwork( Kmap& kmap
+    VisualNetwork( Kmap& km
                  , std::set< std::string > const& requisites
                  , std::string const& description );
     VisualNetwork( VisualNetwork const& ) = delete;
@@ -117,6 +119,8 @@ public:
     auto position( Uuid const& id ) const
         -> Position2D;
     auto erase_node( Uuid const& id )
+        -> Result< void >;
+    auto register_panes()
         -> Result< void >;
     auto register_standard_events()
         -> Result< void >;

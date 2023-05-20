@@ -359,7 +359,7 @@ namespace {
 
 auto const guard_code =
 R"%%%(```javascript
-if( kmap.is_alias( kmap.selected_node() ) )
+if( kmap.network().is_alias( kmap.selected_node() ) )
 {
     return kmap.success( 'success' );
 }

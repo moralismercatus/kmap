@@ -31,7 +31,7 @@
         { \
             if( rt.has_error() ) \
             { \
-                KMAP_THROW_EXCEPTION_MSG( "TODO: error message payload..." ); \
+                KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( rt.error() ) ); \
             } \
         } \
         KMAP_EMSCRIPTEN_BINDINGS( KMAP_UNIQUE_NAME( kmap_bind_ ) ) \

@@ -1558,7 +1558,7 @@ auto Network::fetch_children_ordered( Uuid const& parent ) const
         auto const map_resolve = [ & ]( auto const& s )
         {  
             auto const order_node = KTRYE( uuid_from_string( s ) );
-            fmt::print( "r_to_a_map.at( '{}' )\n", s ); 
+            // fmt::print( "r_to_a_map.at( '{}' )\n", s ); 
             if( !r_to_a_map.contains( order_node ) )
             {
                 KMAP_THROW_EXCEPTION_MSG( fmt::format( "mismatch between children and order nodes, for node: {}\n", s ) );
@@ -2448,7 +2448,8 @@ auto Network::select_node( Uuid const& id )
                                  , { { "from_node", to_string( prev_selected ) }
                                    , { "to_node", to_string( id ) } } ) );
     }
-      
+    
+    // TODO:
     // Q: I notice that the event system (above estore->fire_event) introduces an unpredictability into the flow.
     //    Fire this thing mid flow, then a listener can do _whatever_ it wants (no restrictions), and hopefully the rest of the function (or greater flow)
     //    can complete without being broken/compromised.
@@ -3415,6 +3416,15 @@ struct Network
 
         return nw->fetch_title( node );
     }
+    auto is_alias( Uuid const& node )
+        -> bool 
+    {
+        KM_RESULT_PROLOG();
+
+        auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+
+        return nw->is_alias( node );
+    }
     auto move_node( Uuid const& src
                   , Uuid const& dst )
         -> kmap::binding::Result< void >
@@ -3466,6 +3476,7 @@ EMSCRIPTEN_BINDINGS( kmap_network )
         .function( "fetch_parent", &kmap::com::binding::Network::fetch_parent )
         .function( "fetch_title", &kmap::com::binding::Network::fetch_title )
         // .function( "move_children", &kmap::com::binding::Network::move_children )
+        .function( "is_alias", &kmap::com::binding::Network::is_alias )
         .function( "move_node", &kmap::com::binding::Network::move_node )
         .function( "select_node", &kmap::com::binding::Network::select_node )
         .function( "selected_node", &kmap::com::binding::Network::selected_node )
