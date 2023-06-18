@@ -102,7 +102,7 @@ add_link_options( -sALLOW_MEMORY_GROWTH=1
 endif()
 
 add_executable( emcc.index.html
-                arg.cpp arg.hpp
+                # arg.cpp arg.hpp
                 attribute.cpp attribute.hpp
                 backend/basic_network.cpp backend/basic_network.hpp
                 cli/parser.cpp cli/parser.hpp
@@ -115,7 +115,7 @@ add_executable( emcc.index.html
                 # cmd/contact.cpp
                 # cmd/definition.cpp
                 # cmd/dotlang.cpp
-                cmd/echo.cpp
+                # cmd/echo.cpp
                 # cmd/next_fork.cpp
                 cmd/node_manip.cpp
                 cmd/parser.cpp
@@ -131,6 +131,7 @@ add_executable( emcc.index.html
                 com/autosave/autosave.cpp com/autosave/autosave.hpp
                 com/canvas/canvas.cpp com/canvas/canvas.hpp
                 com/canvas/common.cpp com/canvas/common.hpp
+                com/canvas/layout.cpp com/canvas/layout.hpp
                 com/canvas/pane_clerk.cpp com/canvas/pane_clerk.hpp
                 com/canvas/workspace.cpp com/canvas/workspace.hpp
                 com/chrono/timer.cpp com/chrono/timer.hpp
@@ -152,6 +153,7 @@ add_executable( emcc.index.html
                 com/log/log_task.cpp
                 com/network/alias.cpp com/network/alias.hpp
                 com/network/command.cpp com/network/command.hpp
+                com/network/option.cpp com/network/option.hpp
                 com/network/network.cpp com/network/network.hpp
                 com/network/visnetwork.cpp com/network/visnetwork.hpp
                 com/option/command.cpp
@@ -166,7 +168,7 @@ add_executable( emcc.index.html
                 emcc_bindings.cpp
                 error/master.cpp error/master.hpp
                 filesystem.cpp filesystem.hpp
-                js_iface.cpp
+                js_iface.cpp js_iface.hpp
                 kmap.cpp kmap.hpp
                 kmap/binding/js/result.cpp kmap/binding/js/result.hpp
                 lineage.cpp

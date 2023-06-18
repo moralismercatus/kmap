@@ -32,6 +32,8 @@ auto operator|( Tether const& lhs
               , ToFetchSet const& rhs )
     -> FetchSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = FetchSet{};
     auto const db = KTRYE( rhs.ctx.km.fetch_component< com::Database >() );
     auto& qcache = db->query_cache();

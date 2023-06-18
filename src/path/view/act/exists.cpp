@@ -25,6 +25,8 @@ auto operator|( Tether const& lhs
               , Exists const& rhs )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( rhs.km.fetch_component< com::Network >() );
     auto const nodes = lhs | to_node_set( rhs.km );
 

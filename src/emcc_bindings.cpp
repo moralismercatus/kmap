@@ -100,6 +100,9 @@ auto complete_heading_path_from( Uuid const& root
 auto complete_heading_path( std::string const& input )
     -> StringVec
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "input", input );
+
     auto rv = StringVec{};
     auto& km = Singleton::instance();
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
@@ -120,7 +123,7 @@ auto complete_heading_path( std::string const& input )
 }
 
 auto count_ancestors( Uuid const& node )
-    -> binding::Result< uint32_t >
+    -> Result< uint32_t >
 {
     KM_RESULT_PROLOG();
 
@@ -130,7 +133,7 @@ auto count_ancestors( Uuid const& node )
 }
 
 auto count_descendants( Uuid const& node )
-    -> binding::Result< uint32_t >
+    -> Result< uint32_t >
 {
     KM_RESULT_PROLOG();
 
@@ -140,7 +143,7 @@ auto count_descendants( Uuid const& node )
 }
 
 auto fetch_body( Uuid const& node )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -152,7 +155,7 @@ auto fetch_body( Uuid const& node )
 
 auto fetch_child( Uuid const& parent
                 , std::string const& heading )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -164,7 +167,7 @@ auto fetch_child( Uuid const& parent
 
 auto fetch_descendant( Uuid const& root
                      , std::string const& path )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -173,13 +176,13 @@ auto fetch_descendant( Uuid const& root
 
     return fetch_descendant( km
                            , root
-                           , nw->selected_node()
+                           , nw->adjust_selected( root )
                            , path );
 }
 
 // TODO: An alternative is to expose HeadingPath as a type to JS, and place e.g., HeadingPath::to_unique_node() a callable member. May overcomplicate the impl... It's more seamless to work in strings in JS.
 auto fetch_node( std::string const& input )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -194,7 +197,7 @@ auto fetch_node( std::string const& input )
 
 auto fetch_or_create_node( Uuid const& root
                          , std::string const& path )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -209,7 +212,7 @@ auto fetch_or_create_node( Uuid const& root
 
 auto fetch_heading( Uuid const& node )
                 
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -221,7 +224,7 @@ auto fetch_heading( Uuid const& node )
 
 auto fetch_parent( Uuid const& child )
                 
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -234,7 +237,7 @@ auto fetch_parent( Uuid const& child )
 // TODO: Move to alias.cpp
 auto create_alias( Uuid const& src 
                  , Uuid const& dst )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -247,7 +250,7 @@ auto create_alias( Uuid const& src
 // TODO: Move to com//network.cpp
 auto create_child( Uuid const& parent
                  , std::string const& title )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -261,7 +264,7 @@ auto create_child( Uuid const& parent
 
 auto create_descendant( Uuid const& parent
                       , std::string const& heading )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -275,7 +278,7 @@ auto create_descendant( Uuid const& parent
 
 auto create_direct_descendant( Uuid const& parent
                              , std::string const& heading )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -288,7 +291,7 @@ auto create_direct_descendant( Uuid const& parent
 }
 
 auto delete_children( Uuid const& parent )
-    -> binding::Result< std::string > // TODO: Why is this returning std::string? Think it should be void.
+    -> Result< std::string > // TODO: Why is this returning std::string? Think it should be void.
 {
     KM_RESULT_PROLOG();
 
@@ -308,7 +311,7 @@ auto delete_children( Uuid const& parent )
 }
 
 auto delete_node( Uuid const& node )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -319,7 +322,7 @@ auto delete_node( Uuid const& node )
 }
 
 auto fetch_above( Uuid const& node )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -330,7 +333,7 @@ auto fetch_above( Uuid const& node )
 }
 
 auto fetch_below( Uuid const& node )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -343,6 +346,8 @@ auto fetch_below( Uuid const& node )
 auto fetch_children( Uuid const& parent )
     -> UuidVec // embind natively supports std::vector, but not std::set, so prefer vector when feasible.
 {
+    KM_RESULT_PROLOG();
+
     auto const& km = Singleton::instance();
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
@@ -353,6 +358,8 @@ auto is_alias_pair( Uuid const& src
                   , Uuid const& dst )
     -> bool 
 {
+    KM_RESULT_PROLOG();
+
     auto const& km = Singleton::instance();
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
@@ -374,6 +381,8 @@ auto is_lineal( Uuid const& root
               , Uuid const& node )
     -> bool 
 {
+    KM_RESULT_PROLOG();
+
     auto const& km = Singleton::instance();
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
@@ -391,6 +400,8 @@ auto is_signal_exception( intptr_t const exception_ptr )
 auto handle_signal_exception( intptr_t const exception_ptr )
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto* e = reinterpret_cast< std::exception* >( exception_ptr );
 
     if( auto const sle = dynamic_cast< SignalLoadException* >( e )
@@ -408,7 +419,7 @@ auto handle_signal_exception( intptr_t const exception_ptr )
 
 // TODO: This is incorrect. A heading is not identical to a heading path.
 auto is_valid_heading( std::string const& heading )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -424,7 +435,7 @@ auto is_valid_heading( std::string const& heading )
 }
 
 auto is_valid_heading_path( std::string const& path )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -441,7 +452,7 @@ auto is_valid_heading_path( std::string const& path )
 }
 
 auto load( std::string const& fs_path )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     auto& kmap = Singleton::instance();
 
@@ -459,6 +470,8 @@ auto load( std::string const& fs_path )
 auto map_headings( UuidVec const& nodes )
     -> StringVec // TODO: Should this be a Result<>? It's possible a mapping could fail....
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
     auto rv = StringVec{};
@@ -493,7 +506,7 @@ auto map_key_mnemonic_to_heading( std::string const& mnemonic )
 
 auto move_node( Uuid const& src
               , Uuid const& dst )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -505,7 +518,7 @@ auto move_node( Uuid const& src
 
 auto move_body( Uuid const& src
               , Uuid const& dst )
-    -> binding::Result< void >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
 
@@ -516,7 +529,7 @@ auto move_body( Uuid const& src
 }
 
 auto on_leaving_editor()
-    -> binding::Result< void >
+    -> Result< void >
 {
     auto& kmap = Singleton::instance();
     
@@ -538,71 +551,10 @@ auto std_exception_to_string( intptr_t const exception_ptr )
 auto print_std_exception( intptr_t const exception_ptr )
     -> void
 {
-    fmt::print( "std::exception from exception_ptr:\n" );
-    fmt::print( "{}\n", std_exception_to_string( exception_ptr ) );
-}
-
-auto travel_down()
-    -> binding::Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto& km = Singleton::instance();
-    auto const nw = KTRY( km.fetch_component< com::Network >() );
-    
-    return nw->travel_down();
-}
-
-auto travel_left()
-    -> binding::Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto& km = Singleton::instance();
-    auto const nw = KTRY( km.fetch_component< com::Network >() );
-    
-    return nw->travel_left();
-}
-
-auto travel_right()
-    -> binding::Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto& km = Singleton::instance();
-    auto const nw = KTRY( km.fetch_component< com::Network >() );
-    
-    return nw->travel_right();
-}
-
-auto travel_top()
-    -> void
-{
-    auto& km = Singleton::instance();
-    auto const nw = KTRYE( km.fetch_component< com::Network >() );
-    
-    nw->travel_top();
-}
-
-auto travel_up()
-    -> binding::Result< Uuid >
-{
-    KMAP_PROFILE_SCOPE();
-    KM_RESULT_PROLOG();
-
-    auto& km = Singleton::instance();
-    auto const nw = KTRY( km.fetch_component< com::Network >() );
-    
-    return nw->travel_up();
-}
-
-auto travel_bottom()
-    -> void
-{
-    auto& km = Singleton::instance();
-    auto const nw = KTRYE( km.fetch_component< com::Network >() );
-    
-    nw->travel_bottom();
+    fmt::print( stderr, "\n" );
+    fmt::print( stderr, "std::exception from exception_ptr:\n" );
+    fmt::print( stderr, "{}\n", std_exception_to_string( exception_ptr ) );
+    fmt::print( stderr, "\n" );
 }
 
 auto throw_load_signal( std::string const& db_path )
@@ -613,7 +565,7 @@ auto throw_load_signal( std::string const& db_path )
 
 auto update_body( Uuid const& node
                 , std::string const& content )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -628,7 +580,7 @@ auto update_body( Uuid const& node
 
 auto update_heading( Uuid const& node
                    , std::string const& content )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -643,7 +595,7 @@ auto update_heading( Uuid const& node
 
 auto update_title( Uuid const& node
                  , std::string const& content )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -657,20 +609,22 @@ auto update_title( Uuid const& node
 }
 
 auto uuid_from_string( std::string const& id )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     return kmap::uuid_from_string( id );
 }
 
 auto uuid_to_string( Uuid const& id )
-    -> binding::Result< std::string >
+    -> std::string
 {
-    return kmap::Result< std::string >{ to_string( id ) }; // TODO: This should either wrap the exception and propagate to Result, or change to_string to return a Result.
+    return to_string( id ); // TODO: This should either wrap the exception and propagate to Result, or change to_string to return a Result.
 }
 
 auto view_body()
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const tv = KTRYE( kmap.fetch_component< com::TextArea >() );
     
@@ -680,6 +634,8 @@ auto view_body()
 auto resolve_alias( Uuid const& node )
     -> Uuid // TODO: should return Result< Uuid >?
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -695,7 +651,7 @@ auto root_node()
 }
 
 auto run_unit_tests( std::string const& arg )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     // Automatically append standard options.
     auto const cmd_args = StringVec{ "kmap"
@@ -718,7 +674,7 @@ auto run_unit_tests( std::string const& arg )
 }
 
 auto select_node( Uuid const& node )
-    -> binding::Result< Uuid >
+    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
 
@@ -731,6 +687,8 @@ auto select_node( Uuid const& node )
 auto selected_node()
     -> Uuid
 {
+    KM_RESULT_PROLOG();
+
     auto& km = Singleton::instance();
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
@@ -740,6 +698,9 @@ auto selected_node()
 auto execute_sql( std::string const& stmt )
     -> void
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "stmt", stmt );
+
 #if KMAP_DEBUG
     auto& kmap = Singleton::instance();
     auto const db = KTRYE( kmap.fetch_component< com::Database >() );
@@ -756,37 +717,30 @@ auto execute_sql( std::string const& stmt )
 }
 
 auto make_failure( std::string const& msg )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     auto res = Result< std::string >{ KMAP_MAKE_ERROR_MSG( error_code::cli::failure, msg ) };
-    auto bound_result = binding::Result< std::string >{ res };
+    auto bound_result = Result< std::string >{ res };
 
     return bound_result;
 }
 
+auto make_failure2( std::string const& msg )
+    -> kmap::Result< void >
+{
+    // auto res = Result< std::string >{ KMAP_MAKE_ERROR_MSG( error_code::cli::failure, msg ) };
+    return error_code::Payload{ .ec = error_code::common::uncategorized
+                              , .stack = { KMAP_MAKE_RESULT_STACK_ELEM_MSG( msg ) } };
+}
+
 auto make_success( std::string const& msg )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     return kmap::Result< std::string >( msg );
 }
 
-auto make_eval_failure( std::string const& msg )
-    -> binding::Result< void >
-{
-    auto res = Result< void >{ KMAP_MAKE_ERROR_MSG( error_code::js::js_exception, msg ) };
-    auto bound_result = binding::Result< void >{ res };
-
-    return bound_result;
-}
-
-auto make_eval_success()
-    -> binding::Result< void >
-{
-    return binding::Result< void >{ kmap::Result< void >{ outcome::success() } };
-}
-
 auto sort_children( Uuid const& parent )
-    -> binding::Result< std::string > // TODO: return Result< void >? And let caller create a string success?
+    -> Result< std::string > // TODO: return Result< void >? And let caller create a string success?
 {
     KM_RESULT_PROLOG();
 
@@ -810,7 +764,7 @@ auto sort_children( Uuid const& parent )
 
 auto swap_nodes( Uuid const& lhs
                , Uuid const& rhs )
-    -> binding::Result< std::string >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
@@ -845,10 +799,9 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "create_direct_descendant", &kmap::binding::create_direct_descendant );
     function( "delete_children", &kmap::binding::delete_children );
     function( "delete_node", &kmap::binding::delete_node );
-    function( "eval_failure", &kmap::binding::make_eval_failure );
-    function( "eval_success", &kmap::binding::make_eval_success );
     function( "execute_sql", &kmap::binding::execute_sql );
     function( "failure", &kmap::binding::make_failure );
+    function( "failure2", &kmap::binding::make_failure2 );
     function( "fetch_above", &kmap::binding::fetch_above );
     function( "fetch_below", &kmap::binding::fetch_below );
     function( "fetch_body", &kmap::binding::fetch_body );
@@ -884,12 +837,6 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "success", &kmap::binding::make_success );
     function( "swap_nodes", &kmap::binding::swap_nodes );
     function( "throw_load_signal", &kmap::binding::throw_load_signal );
-    function( "travel_bottom", &kmap::binding::travel_bottom );
-    function( "travel_down", &kmap::binding::travel_down );
-    function( "travel_left", &kmap::binding::travel_left );
-    function( "travel_right", &kmap::binding::travel_right );
-    function( "travel_top", &kmap::binding::travel_top );
-    function( "travel_up", &kmap::binding::travel_up );
     function( "update_body", &kmap::binding::update_body );
     function( "update_heading", &kmap::binding::update_heading );
     function( "update_title", &kmap::binding::update_title );
@@ -911,31 +858,5 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     class_< std::set< uint64_t > >( "std::set<uint64_t>" )
         ;
     class_< std::set< Uuid > >( "std::set<Uuid>" )
-        ;
-
-    KMAP_BIND_RESULT( Uuid );
-    KMAP_BIND_RESULT( double );
-    KMAP_BIND_RESULT( float );
-    KMAP_BIND_RESULT( std::set<Uuid> );
-    KMAP_BIND_RESULT( std::set<uint16_t> );
-    KMAP_BIND_RESULT( std::set<uint32_t> );
-    KMAP_BIND_RESULT( std::set<uint64_t> );
-    KMAP_BIND_RESULT( std::set<uint8_t> );
-    KMAP_BIND_RESULT( std::string );
-    KMAP_BIND_RESULT( std::vector<Uuid> );
-    KMAP_BIND_RESULT( std::vector<uint16_t> );
-    KMAP_BIND_RESULT( std::vector<uint32_t> );
-    KMAP_BIND_RESULT( std::vector<uint64_t> );
-    KMAP_BIND_RESULT( std::vector<uint8_t> );
-    KMAP_BIND_RESULT( uint16_t );
-    KMAP_BIND_RESULT( uint32_t );
-    KMAP_BIND_RESULT( uint64_t );
-    KMAP_BIND_RESULT( uint8_t );
-    class_< kmap::binding::Result< void > >( "Result<void>" )
-        .function( "error_message", &kmap::binding::Result< void >::error_message )
-        .function( "has_error", &kmap::binding::Result< void >::has_error )
-        .function( "has_value", &kmap::binding::Result< void >::has_value )
-        .function( "throw_on_error", &kmap::binding::Result< void >::throw_on_error )
-        .function( "throw_on_error", &kmap::binding::Result< void >::throw_on_error )
         ;
 }

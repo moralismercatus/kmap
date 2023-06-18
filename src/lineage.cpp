@@ -109,6 +109,8 @@ auto to_heading_path( Kmap const& kmap
                     , LinealRange const& lr )
     -> std::string
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const ts = lr
                   | views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
@@ -131,6 +133,8 @@ Lineal::Lineal( Kmap const& kmap
 auto Lineal::root() const
     -> Uuid const&
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap_.get().fetch_component< com::Network >() );
 
     if( !( nw->is_lineal( root_, leaf_ ) ) )
@@ -144,6 +148,8 @@ auto Lineal::root() const
 auto Lineal::leaf() const
     -> Uuid const&
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap_.get().fetch_component< com::Network >() );
 
     if( !( nw->is_lineal( root_, leaf_ ) ) )

@@ -648,6 +648,8 @@ auto to_string_elaborated( Kmap const& km
                          , Uuid const node )
     -> std::string
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
     auto const sid = to_string( node );
     auto const heading = nw->fetch_heading( node ) | act::value_or( std::string{ "n/a" } );
@@ -1402,6 +1404,8 @@ auto fetch_siblings( Kmap const& kmap
                    , Uuid const& id )
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -1431,6 +1435,8 @@ auto fetch_siblings_ordered( Kmap const& km
                            , Uuid const& id )
     -> UuidVec
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidVec{};
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
@@ -1477,6 +1483,8 @@ auto to_heading_path( Kmap const& kmap
                     , UuidVec const& lineage )
     -> StringVec
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     return lineage
@@ -1488,6 +1496,8 @@ auto to_heading_path_flat( Kmap const& kmap
                          , UuidVec const& lineage )
     -> Heading
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     auto rv = lineage 
@@ -1515,6 +1525,8 @@ auto is_ordered( Kmap const& kmap
                , Uuid const& latter )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     if( nw->is_sibling( former, latter ) )

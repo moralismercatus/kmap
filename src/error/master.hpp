@@ -93,7 +93,7 @@
         else \
         { \
             KMAP_KTRYE_LOG(); \
-            res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
+            res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM_MSG( kmap::result::to_string( km_result_local_state.log ) ) ); \
             KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) ); \
         } \
         BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
@@ -208,6 +208,7 @@ struct StackElement
     std::string message = {};
 };
 
+// TODO: Belongs in result.hpp, namespace kmap::result
 struct Payload
 {
     boost::system::error_code ec = {}; // TODO: Any good reason to choose boost over std error_code?
@@ -257,35 +258,14 @@ auto make_error_code( Payload const& sp )
      return sp.ec;
 }
 
-inline
 auto to_string( Payload const& sp )
-    -> std::string
-{
-    std::stringstream ss;
-
-    ss << fmt::format( "category: {}\n"
-                       "item: {}\n"
-                       "result stack:\n"
-                     , sp.ec.category().name()
-                     , sp.ec.message() );
-
-    for( auto const& e : sp.stack )
-    {
-        ss << fmt::format( "\tmessage: {}\n{}|{}|{}\n"
-                         , e.message
-                         , e.line
-                         , e.function
-                         , e.file );
-    }
-
-    return ss.str();
-}
+    -> std::string;
 
 inline 
 auto outcome_throw_as_system_error_with_payload( Payload payload )
     -> void
 {
-#if KMAP_DEBUG
+#if KMAP_DEBUG || 1
     if( kmap::log::flag::log_exception )
     {
         fmt::print( stderr, "{}\n", to_string( payload ) );

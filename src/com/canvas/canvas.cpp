@@ -18,6 +18,7 @@
 #include <error/node_manip.hpp>
 #include <filesystem.hpp>
 #include <js_iface.hpp>
+#include <kmap/binding/js/result.hpp>
 #include <path.hpp>
 #include <path/act/abs_path.hpp>
 #include <path/act/order.hpp>
@@ -67,6 +68,8 @@ Canvas::Canvas( Kmap& km
     : Component{ km, requisites, description }
     , eclerk_{ km }
 {
+    KM_RESULT_PROLOG();
+
     KTRYE( register_standard_events() );
 }
 
@@ -105,8 +108,6 @@ auto Canvas::initialize()
     auto rv = KMAP_MAKE_RESULT( void );
 
     KTRY( ensure_root_initialized() );
-    KTRY( initialize_panes() );
-    KTRY( install_options() );
     KTRY( install_events() );
 
     KTRY( eclerk_.install_registered() );
@@ -184,7 +185,7 @@ window.onkeydown = function( e )
     if( valid_keys.includes( mnemonic ) )
     {
         console.log( 'firing: ' + mnemonic );
-        kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.depressed', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
+        ktry( kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.depressed', 'object.keyboard.key.' + mnemonic ] ) ) );
         e.preventDefault();
     }
 };
@@ -217,7 +218,7 @@ window.onkeyup = function( e )
 
     if( valid_keys.includes( mnemonic ) )
     {
-        kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
+        ktry( kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ) );
         e.preventDefault();
     }
 };
@@ -229,8 +230,8 @@ window.onkeyup = function( e )
     // {
     //     let key = e.keyCode ? e.keyCode : e.which;
     //     let is_shift = !!e.shiftKey;
-    //     let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
-    //     let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
+    //     let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) );
+    //     let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) );
 
     //     switch ( key )
     //     {
@@ -285,90 +286,6 @@ window.onkeyup = function( e )
     return rv;
 }
 
-auto Canvas::install_options()
-    -> Result< void >
-{
-    KM_RESULT_PROLOG();
-
-    auto rv = KMAP_MAKE_RESULT( void );
-    auto const opt = KTRY( fetch_component< com::OptionStore >() );
-
-    // layout
-    {
-        auto const value = KTRY( load_initial_layout( kmap_root_dir / "layout.json" ) );
-        auto const action = 
-R"%%%(
-const canvas = kmap.canvas();
-canvas.apply_layout( JSON.stringify( option_value ) );
-)%%%";
-        KTRY( opt->install_option( Option{ .heading = "canvas.initial_layout"
-                                         , .descr = "Applies layout specified in value. In particular, for the initial pane layout."
-                                         , .value = value 
-                                         , .action = action } ) );
-    }
-    // TODO: All these options belong in their respective components.
-    // Network
-    KTRY( opt->install_option( Option{ .heading = "canvas.network.background.color"
-                                     , .descr = "Sets the background color for the nextwork pane."
-                                     , .value = "\"#222222\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
-    // CLI
-    KTRY( opt->install_option( Option{ .heading = "canvas.cli.background.color"
-                                     , .descr = "Sets the background color for the cli pane."
-                                     , .value = "\"#222222\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.cli.text.color"
-                                     , .descr ="Sets the text color for the cli pane."
-                                     , .value = "\"white\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.color = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.cli.text.size"
-                                     , .descr = "Text size."
-                                     , .value = "\"large\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value_or_throw() ).style.fontSize = option_value;" } ) );
-    // Completion Box
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.background.color"
-                                     , .descr = "Sets the background color for the completion box."
-                                     , .value = "\"#333333\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.text.color"
-                                     , .descr = "Sets the text color for the completion box popup."
-                                     , .value = "\"white\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.color = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.padding"
-                                     , .descr = "Sets the padding between edge of box and internal text."
-                                     , .value = "\"0px\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.padding = option_value;" } ) );
-    KTRY( opt->install_option( Option { .heading = "canvas.completion_box.border.radius"
-                                      , .descr = "Sets the rounding radius for the corners of the box."
-                                      , .value = "\"5px\""
-                                      , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderRadius = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.border.style"
-                                     , .descr = "Border style"
-                                     , .value = "\"outset\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderStyle = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.border.width"
-                                     , .descr = "Width of border."
-                                     , .value = "\"thin\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.borderWidth = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.scrollbar"
-                                     , .descr = "Specify scroll behavior."
-                                     , .value = "\"auto\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.overflow = option_value;" } ) );
-    // I think all canvas items are absolute... I think this gets encoded when they are created. Probably doesn't belong here.
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.position_type"
-                                     , .descr = "Sets the rounding radius for the corners of the box."
-                                     , .value = "\"absolute\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.position = option_value;" } ) );
-    KTRY( opt->install_option( Option{ .heading = "canvas.completion_box.placement_order"
-                                     , .descr = "Specifies order in which box will be placed vis-a-vis other canvas elements."
-                                     , .value = "\"9999\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ).value_or_throw() ).style.zIndex = option_value;" } ) );
-
-    rv = outcome::success();
-
-    return rv;
-}
-
 auto fetch_layout( FsPath const& path )
     -> Result< bjn::object >
 {
@@ -408,6 +325,7 @@ auto Canvas::apply_layout( std::string const& layout )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "layout", layout );
 
     auto rv = result::make_result< void >();
     auto ss = [ & ]
@@ -527,33 +445,7 @@ auto Canvas::install_pane( Pane const& pane )
     auto const canvas_root = KTRY( view2::canvas::canvas_root
                                  | act2::fetch_or_create_node( km ) );
 
-    if( auto layout = fetch_layout( kmap_root_dir / "layout.json" )
-      ; layout )
-    {
-        if( auto const pp = com::fetch_parent_pane( km, layout.value(), canvas_root, pane.id )
-          ; pp )
-        {
-            if( auto const layout_pane = com::fetch_pane( layout.value(), pane.id ) // Returns Pane{} type
-              ; layout_pane )
-            {
-                auto const& lpv = layout_pane.value();
-
-                rv = KTRY( subdivide( pp.value(), lpv.id, lpv.heading, lpv.division ) );
-            }
-            else
-            {
-                rv = KTRY( subdivide( pp.value(), pane.id, pane.heading, pane.division ) );
-            }
-        }
-        else
-        {
-            rv = KTRY( subdivide( canvas_root, pane.id, pane.heading, pane.division ) );
-        }
-    }
-    else
-    {
-        rv = KTRY( subdivide( canvas_root, pane.id, pane.heading, pane.division ) );
-    }
+    rv = KTRY( subdivide( canvas_root, pane.id, pane.heading, pane.division ) );
 
     return rv;
 }
@@ -631,6 +523,9 @@ auto Canvas::complete_path( std::string const& path )
 auto Canvas::is_overlay( Uuid const& node )
     -> bool
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rv = false;
     auto const& km = kmap_inst();
     auto const nw = KTRYE( fetch_component< com::Network >() );
@@ -650,6 +545,9 @@ auto Canvas::is_pane( Uuid const& node ) const
     -> bool
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
 
     auto rv = false;
     auto const& km = kmap_inst();
@@ -1086,8 +984,10 @@ kmap.canvas().update_all_panes();
         auto const action = 
 R"%%%(
 console.log( 'update_all_panes()' );
-kmap.option_store().apply( 'canvas.initial_layout' );
-kmap.canvas().update_all_panes();
+const opt_root = ktry( kmap.fetch_node( '/meta.setting.option' ) );
+const optn = ktry( kmap.fetch_descendant( opt_root, 'canvas.initial_layout' ) );
+ktry( kmap.option_store().apply( optn ) );
+ktry( kmap.canvas().update_all_panes() ); 
 )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "window.update_panes_after_components_initialized"
                                      , .requisites = { "subject.kmap", "verb.initialized" }
@@ -1229,39 +1129,6 @@ auto Canvas::create_html_child_element( std::string const& elem_type
 
     KTRY( js::create_child_element( to_string( parent_id ), to_string( child_id ), elem_type ) );
     KTRY( js::set_tab_index( to_string( child_id ), next_tabindex_++ ) );
-
-    rv = outcome::success();
-
-    return rv;
-}
-
-auto Canvas::initialize_panes()
-    -> Result< void >
-{
-    using emscripten::val;
-
-    KM_RESULT_PROLOG();
-
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    //KTRY( reset_breadcrumb( canvas ) );
-    // KTRY( install_pane( Pane{ workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } } ) );
-    // KTRY( install_pane( Pane{ network_pane(), "network", Division{ Orientation::horizontal, 0.000f, false, "div" } } ) );
-    // KTRY( install_pane( Pane{ text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false, "div" } } ) );
-    // KTRY( install_pane( Pane{ editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true, "textarea" } } ) );
-    // KTRY( install_pane( Pane{ preview_pane(), "preview", Division{ Orientation::horizontal, 0.000f, false, "div" } } ) );
-    // KTRY( install_pane( Pane{ cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false, "input" } } ) );
-    
-    // auto const workspace  = KTRY( subdivide( canvas, workspace_pane(), "workspace", Division{ Orientation::vertical, 0.025f, false, "div" } ) );
-    //                         KTRY( subdivide( workspace, network_pane(), "network", Division{ Orientation::horizontal, 0.120f, false, "div" } ) );
-    // auto const text_area  = KTRY( subdivide( workspace, text_area_pane(), "text_area", Division{ Orientation::horizontal, 0.660f, false, "div" } ) );
-    //                         KTRY( subdivide( text_area, editor_pane(), "editor", Division{ Orientation::horizontal, 0.000f, true, "textarea" } ) );
-    //                         KTRY( subdivide( text_area, preview_pane(), "preview", Division{ Orientation::horizontal, 0.000f, false, "div" } ) );
-    //                         KTRY( subdivide( canvas, cli_pane(), "cli", Division{ Orientation::horizontal, 0.975f, false, "input" } ) );
-
-    // TODO: Temporary... Should only call once all nodes are initialized. install_panes automatically creates the html element, so no worry about that.
-    // KTRY( update_panes() );
-    // KTRY( init_event_callbacks() );
 
     rv = outcome::success();
 
@@ -1990,79 +1857,105 @@ struct Canvas
     }
 
     auto apply_layout( std::string const& json_contents ) const
-        -> void
+        -> kmap::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto const canvas = KTRYE( km.fetch_component< kmap::com::Canvas >() );
 
-        KTRYE( canvas->apply_layout( json_contents ) );
+        KTRY( canvas->apply_layout( json_contents ) );
+
+        return outcome::success();
     }
 
     auto complete_path( std::string const& path ) const
         -> StringVec
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Canvas >() )->complete_path( path );
     }
 
     auto fetch_base( Uuid const& pane ) const
-        -> kmap::binding::Result< float >
+        -> kmap::Result< float >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->pane_base( pane );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->pane_base( pane );
     }
 
     auto fetch_orientation( Uuid const& pane ) const
-        -> kmap::binding::Result< kmap::com::Orientation >
+        -> kmap::Result< kmap::com::Orientation >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->pane_orientation( pane );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->pane_orientation( pane );
     }
 
     auto fetch_pane( std::string const& path ) const
-        -> kmap::binding::Result< Uuid >
+        -> kmap::Result< Uuid >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->fetch_pane( path );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->fetch_pane( path );
     }
     
     auto focus( Uuid const& pane )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->focus( pane );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->focus( pane );
     }
 
     auto hide( Uuid const& pane )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->hide( pane );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->hide( pane );
     }
 
     auto orient( Uuid const& pane
                , kmap::com::Orientation const orientation )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->orient( pane, orientation );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->orient( pane, orientation );
     }
 
     auto rebase( Uuid const& pane
                , float const base )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->rebase( pane, base );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->rebase( pane, base );
     }
 
     auto redraw()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->redraw();
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->redraw();
     }
 
     auto reorient( Uuid const& pane )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->reorient( pane );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->reorient( pane );
     }
 
     auto reveal( Uuid const& pane )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->reveal( pane );
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->reveal( pane );
     }
 
     auto subdivide( Uuid const& pane
@@ -2070,20 +1963,22 @@ struct Canvas
                   , std::string const& orientation
                   , float const base
                   , std::string const& elem_type )
-        -> kmap::binding::Result< Uuid >
+        -> kmap::Result< Uuid >
     {
         KM_RESULT_PROLOG();
 
         auto const parsed_orient = KTRY( from_string< Orientation >( orientation ) );
 
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->subdivide( pane, heading, Division{ parsed_orient, base, false, elem_type } );
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->subdivide( pane, heading, Division{ parsed_orient, base, false, elem_type } );
     }
 
     auto toggle_pane( Uuid const& pane )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        auto canvas = KTRYE( km.fetch_component< kmap::com::Canvas >() );
-        auto const hidden = KTRYE( canvas->pane_hidden( pane ) );
+        KM_RESULT_PROLOG();
+
+        auto canvas = KTRY( km.fetch_component< kmap::com::Canvas >() );
+        auto const hidden = KTRY( canvas->pane_hidden( pane ) );
 
         if( hidden )
         {
@@ -2096,22 +1991,24 @@ struct Canvas
     }
 
     auto update_all_panes()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->update_all_panes();
+        KM_RESULT_PROLOG();
+
+        return KTRY( km.fetch_component< kmap::com::Canvas >() )->update_all_panes();
     }
 
-    auto breadcrumb_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->breadcrumb_pane(); } 
-    auto breadcrumb_table_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->breadcrumb_table_pane(); } 
-    auto canvas_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->canvas_pane(); } 
-    auto cli_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->cli_pane(); } 
-    auto completion_overlay() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->completion_overlay(); }
-    auto editor_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->editor_pane(); } 
-    auto jump_stack_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->jump_stack_pane(); }
-    auto network_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->network_pane(); }
-    auto preview_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->preview_pane(); }
-    auto text_area_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->text_area_pane(); }
-    auto workspace_pane() const -> Uuid { return KTRYE( km.fetch_component< kmap::com::Canvas >() )->workspace_pane(); }
+    auto breadcrumb_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->breadcrumb_pane(); } 
+    auto breadcrumb_table_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->breadcrumb_table_pane(); } 
+    auto canvas_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->canvas_pane(); } 
+    auto cli_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->cli_pane(); } 
+    auto completion_overlay() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->completion_overlay(); }
+    auto editor_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->editor_pane(); } 
+    auto jump_stack_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->jump_stack_pane(); }
+    auto network_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->network_pane(); }
+    auto preview_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->preview_pane(); }
+    auto text_area_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->text_area_pane(); }
+    auto workspace_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->workspace_pane(); }
 };
 
 auto canvas()
@@ -2150,12 +2047,13 @@ EMSCRIPTEN_BINDINGS( kmap_canvas )
         .function( "update_all_panes", &kmap::com::binding::Canvas::update_all_panes )
         .function( "workspace_pane", &kmap::com::binding::Canvas::workspace_pane )
         ;
-    KMAP_BIND_RESULT( kmap::com::Orientation );
     enum_< kmap::com::Orientation >( "Orientation" )
         .value( "horizontal", kmap::com::Orientation::horizontal )
         .value( "vertical", kmap::com::Orientation::vertical )
         ;
 }
+    
+KMAP_BIND_RESULT( kmap::com::Orientation );
 
 } // namespace binding
 

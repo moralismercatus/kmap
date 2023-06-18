@@ -19,7 +19,7 @@ namespace kmap::util {
 
 auto load_script( Kmap& kmap 
                 , std::istream& is )
-    -> Result< std::string >;
+    -> Result< void >;
 auto to_js_body_code( std::string const& raw_code )
     -> std::string;
 auto to_kscript_body_code( std::string const& raw_code )

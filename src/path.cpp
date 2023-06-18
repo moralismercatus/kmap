@@ -116,6 +116,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         /* Guards */
         auto exists = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
             return db->contains< com::db::HeadingTable >( ev );
@@ -123,6 +125,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto is_root = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
             return KTRYE( nw->fetch_heading( root_id_ ) ) == ev; // TODO: Does this fail when another node is named "root"?
@@ -135,6 +139,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto is_child = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto fn = [ & ]( auto const& e )
             {
                 if( e.empty() )
@@ -156,6 +162,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto has_parent = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto fn = [ & ]( auto const& e )
             {
                 BC_ASSERT( !e.empty() );
@@ -220,6 +228,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_any_leads = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto filter = views::filter( [ & ]( auto const& e )
             {
@@ -238,6 +248,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_headings = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             // BC_CONTRACT()
             //     BC_PRE([ & ]
             //     {
@@ -273,6 +285,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
         // I can include additional actions (push_direction) to the state.
         auto const push_parents = [ & ]( auto const& ev )
         { 
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
             for( auto&& path : paths() )
@@ -299,6 +313,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto const push_selected_parent = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
             io::print( "pushing parent of selected: {}\n", nw->fetch_heading( selected_node_ ).value() );
@@ -312,6 +328,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_all_children = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto new_paths = UuidPaths{};
 
@@ -332,6 +350,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto push_parent_children = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto new_paths = UuidPaths{};
 
@@ -390,6 +410,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto complete_root = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             // BC_CONTRACT()
             //     BC_POST([ & ]
             //     {
@@ -410,6 +432,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto complete_any = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             // BC_CONTRACT()
             //     BC_POST([ & ]
             //     {
@@ -459,6 +483,8 @@ struct [[ deprecated( "Use PathDeciderSm instead" ) ]] HeadingPathSm
 
         auto complete_path = [ & ]( auto const& ev )
         {
+            KM_RESULT_PROLOG();
+
             // BC_CONTRACT()
             //     BC_PRE([ & ]
             //     {
@@ -1038,6 +1064,8 @@ auto complete_child_heading( Kmap const& kmap
                            , Heading const& heading )
     -> IdHeadingSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = IdHeadingSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const children = nw->fetch_children( parent );
@@ -1245,6 +1273,8 @@ auto has_geometry( Kmap const& kmap
                  , std::regex const& geometry )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     for( auto const& child : nw->fetch_children( parent ) )
@@ -1415,6 +1445,8 @@ auto is_leaf( Kmap const& km
             , Uuid const& node )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
     return nw->fetch_children( node ).empty();
@@ -1456,6 +1488,8 @@ auto is_lineal( com::Network const& nw
               , Heading const& descendant )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     for( auto const& c : nw.fetch_children( ancestor ) )
     {
         if( KTRYE( nw.fetch_heading( c ) ) == descendant )
@@ -1479,6 +1513,8 @@ auto is_ascending( Kmap const& kmap
                  , UuidVec const& lineage )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto rv = true;
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 

@@ -46,13 +46,14 @@ auto is_general_command( Kmap const& kmap
                        , Uuid const& id )
     -> bool
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
     auto rv = bool{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = anchor::node( kmap.root_node_id() )
-                            | view2::direct_desc( "meta.setting.command" )
-                            | act2::fetch_node( kmap )
-      ; cmd_root )
+    if( view2::cmd::command_root
+      | act2::exists( kmap ) )
     {
         rv = view::make( id )
            | view::desc( view::PredFn{ [ &kmap, &nw, &id ]( auto const& node )
@@ -70,11 +71,13 @@ auto is_particular_command( Kmap const& kmap
                           , Uuid const& id )
     -> bool
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
     auto rv = bool{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = anchor::node( kmap.root_node_id() )
-                            | view2::direct_desc( "meta.setting.command" )
+    if( auto const cmd_root = view2::cmd::command_root
                             | act2::fetch_node( kmap )
       ; cmd_root )
     {
@@ -92,11 +95,12 @@ auto is_argument( Kmap const& km
                 , Uuid const& id )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto rv = bool{};
     auto const nw = KTRYE( km.fetch_component< com::Network >() );
 
-    if( auto const cmd_root = anchor::abs_root
-                            | view2::direct_desc( "meta.setting.argument" )
+    if( auto const cmd_root = view2::cmd::argument_root
                             | act2::fetch_node( km )
       ; cmd_root )
     {
@@ -125,29 +129,33 @@ auto to_command_name( Uuid const& id )
 
 auto execute_kscript( Kmap& kmap 
                     , std::string const& code )
-    -> Result< std::string >
+    -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "code", code );
+
+    auto rv = result::make_result< void >();
     auto ss = std::stringstream{ code };
 
-    rv = util::load_script( kmap, ss );
+    KTRY( util::load_script( kmap, ss ) );
+
+    rv = outcome::success();
 
     return rv;
 }
 
 auto execute_javascript( Uuid const& node
-                       , std::string_view const fn_body
+                       , std::string_view const body
                        , StringVec const& args )
-    -> Result< std::string >
+    -> Result< void >
 {
     using emscripten::val;
 
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "node", node );
+        KM_RESULT_PUSH( "body", std::string{ body } );
 
-    auto rv = KMAP_MAKE_RESULT( std::string );
-    auto const fn_name = fmt::format( "fn_{}"
-                                    , format_heading( to_string( node ) ) );
+    auto rv = result::make_result< void >();
     auto const stringed = args
                         | views::transform( []( auto const& arg ){ return io::format( "'{}'", boost::replace_all_copy( arg, "'", "\\'" ) ); } )
                         | to< StringVec >();
@@ -157,31 +165,11 @@ auto execute_javascript( Uuid const& node
 
     io::print( "execute_javascript.args: {}\n", csep );
 
-    KTRY( js::publish_function( fn_name, { "args" }, fn_body ) );
+    auto const pp_body = KTRY( js::preprocess( std::string{ body } ) );
 
-    rv = KTRY( js::eval< binding::Result< std::string > >( io::format( "return {}( to_VectorString( [{}] ) );"
-                                                                         , fn_name
-                                                                         , csep ) ) );
-
-    return rv;
-}
-
-auto execute_javascript( Uuid const& node
-                       , std::string_view const fn_body
-                       , std::string const& arg )
-    -> Result< std::string >
-{
-    using emscripten::val;
-
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_NODE( "node", node );
-
-    auto rv = KMAP_MAKE_RESULT( std::string );
-    auto const fn_name = fmt::format( "fn_{}"
-                                    , format_heading( to_string( node ) ) );
-    KMAP_TRY( js::publish_function( fn_name, { "arg" }, fn_body ) );
-    io::print( "executing: {}\n", io::format( "{}( '{}' );", fn_name, arg )  );
-    rv = KMAP_TRY( js::eval< binding::Result< std::string > >( io::format( "return {}( '{}' );", fn_name, arg ) ) );
+    KTRY( js::eval_void( fmt::format( "const args = to_VectorString( [{}] );\n{}", csep, pp_body ) ) );
+    
+    rv = outcome::success();
 
     return rv;
 }
@@ -189,12 +177,12 @@ auto execute_javascript( Uuid const& node
 auto execute_body( Kmap& kmap
                  , Uuid const& node
                  , StringVec const& args )
-    -> Result< std::string >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "node", node );
 
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    auto rv = result::make_result< void >();
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
 
     BC_CONTRACT()
@@ -207,24 +195,28 @@ auto execute_body( Kmap& kmap
     auto const body = KTRY( nw->fetch_body( node ) );
     auto const code = KTRY( parser::parse_body_code( body ) );
 
-    boost::apply_visitor( [ & ]( auto const& e )
-                        {
-                            using T = std::decay_t< decltype( e ) >;
+    KTRY( boost::apply_visitor( [ & ]( auto const& e ) -> Result< void >
+                              {
+                                  using T = std::decay_t< decltype( e ) >;
 
-                            if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
-                            {
-                                rv = execute_kscript( kmap, e.code );
-                            }
-                            else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                            {
-                                rv = execute_javascript( node, e.code, args );
-                            }
-                            else
-                            {
-                                static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                            }
-                        }
-                        , code );
+                                  if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                                  {
+                                      KTRY( execute_kscript( kmap, e.code ) );
+                                  }
+                                  else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+                                  {
+                                      KTRY( execute_javascript( node, e.code, args ) );
+                                  }
+                                  else
+                                  {
+                                      static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                  }
+
+                                  return outcome::success();
+                              }
+                              , code ) );
+
+    rv = outcome::success();
     
     return rv;
 }
@@ -233,39 +225,45 @@ auto execute_body( Kmap& kmap
 auto evaluate_guard( Kmap const& kmap
                    , Uuid const& guard_node
                    , std::string const& arg )
-    -> Result< std::string >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "node", guard_node );
+        KM_RESULT_PUSH_NODE( "arg", arg );
 
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    auto rv = result::make_result< void >();
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
+    auto const body = KTRY( anchor::node( guard_node )
+                          | view2::child( "action" )
+                          | act2::fetch_body( kmap ) );
+    auto const code = KTRY( cmd::parser::parse_body_code( body ) );
 
-    auto const body = KMAP_TRY( nw->fetch_body( guard_node ) );
-    auto const code = KMAP_TRY( cmd::parser::parse_body_code( body ) );
+    KTRY( boost::apply_visitor( [ & ]( auto const& e ) -> Result< void >
+                              {
+                                  using T = std::decay_t< decltype( e ) >;
 
-    boost::apply_visitor( [ & ]( auto const& e )
-                        {
-                            using T = std::decay_t< decltype( e ) >;
+                                  if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                                  {
+                                      rv = KMAP_MAKE_ERROR_MSG( error_code::command::kscript_unsupported, "kscript is not supported in a guard node" );
+                                  }
+                                  else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+                                  {
+                                      auto const escaped_arg = boost::replace_all_copy( arg, "'", "\\'" );
 
-                            if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
-                            {
-                                rv = "kscript is not supported in a guard node";
-                            }
-                            else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                            {
-                                auto const escaped_arg = boost::replace_all_copy( arg, "'", "\\'" );
+                                      KTRY( execute_javascript( guard_node
+                                                              , e.code
+                                                              , { escaped_arg } ) );
+                                  }
+                                  else
+                                  {
+                                      static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                  }
 
-                                rv = execute_javascript( guard_node
-                                                       , e.code
-                                                       , escaped_arg );
-                            }
-                            else
-                            {
-                                static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                            }
-                        }
-                        , code );
+                                  return outcome::success();
+                              }
+                        , code ) );
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -327,48 +325,32 @@ auto evaluate_completer( Kmap& kmap
 }
 
 auto has_unconditional_arg( Kmap const& kmap
-                          , Uuid const& cmd
-                          , Uuid const& args_root )
+                          , Uuid const& cmd )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto rv = false;
 
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( is_particular_command( kmap, cmd ) );
-        })
-    ;
+    KMAP_ENSURE_EXCEPT( anchor::node( cmd ) | view2::cmd::command | act2::exists( kmap ) );
 
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
-    auto const unconditional = KTRYE( anchor::node( args_root )
-                                    | view2::child( "unconditional" )
-                                    | act2::fetch_node( kmap ) );
-    auto const arg_node = KTRYE( anchor::node( cmd )
-                               | view2::child( "argument" )
-                               | act2::fetch_node( kmap ) );
-    auto const children = nw->fetch_children( arg_node );
-
-    for( auto const& arg_descr : children )
-    {
-        if( auto const descr_children = nw->fetch_children( arg_descr )
-          ; descr_children.size() == 1 )
-        {
-            auto const arg = *descr_children.begin();
-
-            rv = nw->resolve( arg ) == unconditional;
-
-            if( rv )
-            {
-                break;
-            }
-        }
-    }
+    auto const uncond_src = KTRYE( view2::cmd::argument_root
+                                 | view2::child( "unconditional" )
+                                 | act2::fetch_node( kmap ) );
+    auto const arg_nodes = anchor::node( cmd )
+                         | view2::child( "argument" )
+                         | view2::child // "description" node (parent)
+                         | view2::child // actual arg alias
+                         | view2::resolve
+                         | act2::to_node_set( kmap );
+    
+    rv = arg_nodes.contains( uncond_src );
 
     return rv;
 }
 
-auto fetch_args( Kmap& kmap
+auto parse_args( Kmap& kmap
                , Uuid const& cmd_id
                , std::string const& arg )
     -> Result< StringVec >
@@ -376,16 +358,10 @@ auto fetch_args( Kmap& kmap
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "cmd", cmd_id );
 
+    KMAP_ENSURE( anchor::node( cmd_id ) | view2::cmd::command | act2::exists( kmap ), error_code::command::not_general_command );
+    KMAP_ENSURE( view2::cmd::argument_root | act2::exists( kmap ), error_code::common::uncategorized );
+
     auto rv = KMAP_MAKE_RESULT( StringVec );
-
-    BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( is_particular_command( kmap, cmd_id ) );
-            // TODO: once node deletion/movement is restricted for arguments, safe to assert their root's existence and depend on it existing.
-        })
-    ;
-
     auto const nw = KTRY( kmap.fetch_component< com::Network >() );
     auto const arg_node = KTRY( anchor::node( cmd_id )
                               | view2::child( "argument" )
@@ -394,105 +370,65 @@ auto fetch_args( Kmap& kmap
                          | view2::child
                          | act2::to_node_set( kmap )
                          | act::order( kmap );
+    auto const split_args = arg | views::split( ' ' ); // Note the lazy split. Important for large strings that are actually unconditional, for performance.
 
-    if( auto const args_root = anchor::node( kmap.root_node_id() )
-                             | view2::direct_desc( "meta.setting.argument" )
-                             | act2::fetch_node( kmap )
-      ; args_root )
+    if( arg_nodes.size() == 0 )
     {
-        auto const split_args = arg
-                              | views::split( ' ' ); // Note the lazy split. Important for large strings that are actually unconditional, for performance.
+        rv = StringVec{};
+    }
+    else if( has_unconditional_arg( kmap, cmd_id )  )
+    {
+        rv = StringVec{ arg };
+    }
+    else if( distance( split_args ) == arg_nodes.size() )
+    {
+        auto validated_args = StringVec{}; // TODO: Is this even of use?
 
-        if( has_unconditional_arg( kmap
-                                 , cmd_id
-                                 , args_root.value() ) 
-         || distance( split_args ) == arg_nodes.size() )
+        for( auto const [ index, sarg ] : split_args | views::enumerate )
         {
-            if( arg_nodes.size() == 0 )
+            BC_ASSERT( index < arg_nodes.size() );
+
+            auto const arg_descr = arg_nodes[ index ]; // A descriptor node preceds the aliased argument.
+            auto const arg_descr_children = nw->fetch_children( arg_descr );
+
+            if( arg_descr_children.size() == 1 )
             {
-                rv = StringVec{};
+                if( auto const arg_node = *arg_descr_children.begin()
+                  ; is_argument( kmap, nw->resolve( arg_node ) ) )
+                {
+                    auto const guardn = KTRY( anchor::node( arg_node )
+                                            | view2::child( "guard" )
+                                            | act2::fetch_node( kmap ) );
+
+                    // KTRY( evaluate_guard( kmap, validity_check, sarg | to< std::string >() ) );
+                    KTRY( cmd::execute_body( kmap, guardn, split_args | ranges::to< StringVec >() ) );
+
+                    // TODO: push arg into rv vector.
+                    validated_args.emplace_back( sarg | to< std::string >() );
+
+                    rv = validated_args;
+                }
+                else
+                {
+                    rv = KMAP_MAKE_ERROR( error_code::command::nonarg_node_found );
+                }
             }
             else
             {
-                auto const unconditional = KTRY( anchor::node( args_root.value() )
-                                               | view2::child( "unconditional" )
-                                               | act2::fetch_node( kmap ) );
-                auto validated_args = StringVec{}; // TODO: Is this even of use?
+                rv = KMAP_MAKE_ERROR( error_code::command::invalid_arg ); // TODO: this should be more descriptive.
 
-                for( auto const [ index, sarg ] : split_args | views::enumerate )
-                {
-                    BC_ASSERT( index < arg_nodes.size() );
-
-                    auto const arg_descr = arg_nodes[ index ]; // A descriptor node preceds the aliased argument.
-                    auto const arg_descr_children = nw->fetch_children( arg_descr );
-
-                    if( arg_descr_children.size() == 1 )
-                    {
-                        if( auto const arg_node = *arg_descr_children.begin()
-                          ; is_argument( kmap, nw->resolve( arg_node ) ) )
-                        {
-                            if( nw->resolve( arg_node ) == unconditional )
-                            {
-                                io::print( "arg is unconditinoal\n" );
-                                validated_args.emplace_back( split_args
-                                                           | views::drop( index )
-                                                           | views::join( ' ' )
-                                                           | to< std::string >() );
-
-                                rv = validated_args;
-
-                                break;
-                            }
-                            else
-                            {
-                                auto const validity_check = KTRY( anchor::node( arg_node )
-                                                                | view2::child( "guard" )
-                                                                | act2::fetch_node( kmap ) );
-
-                                if( auto const arg_res = evaluate_guard( kmap, validity_check, sarg | to< std::string >() )
-                                  ; !arg_res )
-                                {
-                                    rv = KMAP_MAKE_ERROR_MSG( error_code::command::invalid_arg,  to_string( arg_res.error() ) );
-
-                                    break;
-                                }
-                                else
-                                {
-                                    // TODO: push arg into rv vector.
-                                    validated_args.emplace_back( sarg | to< std::string >() );
-
-                                    rv = validated_args;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            rv = KMAP_MAKE_ERROR( error_code::command::nonarg_node_found );
-                        }
-                    }
-                    else
-                    {
-                        rv = KMAP_MAKE_ERROR( error_code::command::invalid_arg ); // TODO: this should be more descriptive.
-
-                        break;
-                    }
-
-                }
+                break;
             }
-        }
-        else
-        {
-            rv = KMAP_MAKE_ERROR_MSG( error_code::command::incorrect_arg_number
-                                    , fmt::format( "expected between [{},{}] arguments, got {}"
-                                                 , arg_nodes.size() // TODO: Need to determine optional args.
-                                                 , arg_nodes.size()
-                                                 , distance( split_args ) ) );
+
         }
     }
     else
     {
-        rv = KMAP_MAKE_ERROR( error_code::node::not_found );
-        // TODO: rv.error().payload ="no setting.argument nodes found";
+        rv = KMAP_MAKE_ERROR_MSG( error_code::command::incorrect_arg_number
+                                , fmt::format( "expected between [{},{}] arguments, got {}"
+                                             , arg_nodes.size() // TODO: Need to determine optional args.
+                                             , arg_nodes.size()
+                                             , distance( split_args ) ) );
     }
 
     return rv;
@@ -532,14 +468,15 @@ auto fetch_params_ordered( Kmap& kmap
 }
 
 auto execute_command( Kmap& kmap
-                    , Uuid const& cmd_id
+                    , Uuid const& node
                     , std::string const& arg )
-    -> Result< std::string >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_NODE( "cmd", cmd_id );
+        KM_RESULT_PUSH( "node", node );
+        KM_RESULT_PUSH( "arg", arg );
 
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    auto rv = result::make_result< void >();
 
     BC_CONTRACT()
         BC_PRE([ & ]
@@ -548,159 +485,26 @@ auto execute_command( Kmap& kmap
         })
     ;
 
-    if( is_particular_command( kmap, cmd_id ) ) 
-    {
-        auto const args = KMAP_TRY( fetch_args( kmap, cmd_id, arg ) );
-        auto const action = KTRY( anchor::node( cmd_id )
-                                | view2::child( "action" )
-                                | act2::fetch_node( kmap ) );
+    KMAP_ENSURE( anchor::node( node ) | view2::cmd::command | act2::exists( kmap ), error_code::command::not_general_command );
 
-         rv = KMAP_TRY( execute_body( kmap, action, args ) );
-    }
-    else
-    {
-        rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "not a command node" );
-    }
+    auto const args = KTRY( parse_args( kmap, node, arg ) );
+    auto const action = KTRY( anchor::node( node )
+                            | view2::child( "action" )
+                            | act2::fetch_node( kmap ) );
+
+    KTRY( execute_body( kmap, action, args ) );
+
+    rv = outcome::success();
 
     return rv;
 }
-
-auto execute_command( Kmap& kmap )
-    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
-{
-    return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
-    {
-        BC_CONTRACT()
-            BC_PRE([ & ]
-            {
-                BC_ASSERT( args.size() == 0 || args.size() == 1 );
-            })
-        ;
-
-        auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
-        auto const target = [ & ]
-        {
-            if( args.empty() )
-            {
-                return Result< Uuid >{ nw->selected_node() };
-            }
-            else
-            {
-                auto const heading = args[ 0 ];
-
-                return anchor::node( kmap.root_node_id() )
-                     | view2::desc( heading )
-                     | act2::fetch_node( kmap );
-            }
-        }();
-
-        if( target )
-        {
-            return execute_command( kmap
-                                  , target.value()
-                                  , "" );
-        }
-        else
-        {
-            return KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, fmt::format( "target not found" ) );
-        }
-    };
-}
-
-#if 0
-namespace create_command_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( "success" );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-let rv = null;
-const path = args.get( 0 );
-const cmd = kmap.create_command( path );
-
-if( cmd.has_value() )
-{
-    kmap.select_node( cmd.value() );
-
-    rv = kmap.success( "command created" );
-}
-else
-{
-    rv = kmap.failure( cmd.error_mesage() );
-}
-
-return rv;
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "creates command template at selected categatory, or root category";
-auto const arguments = std::vector< Argument >{ Argument{ "command_path"
-                                                        , "path to command"
-                                                        , "command_heading_path" } };
-auto const guard = com::Command::Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    create.command
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace create_command_def
-#endif // 0
-
-#if 0
-namespace command_heading_path_def {
-namespace {
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.is_valid_heading_path( arg );
-```)%%%";
-auto const completion_code =
-R"%%%(```javascript
-let rv = new kmap.VectorString();
-const root = kmap.fetch_node( '.root.meta.setting.command' );
-
-if( root.has_value() )
-{
-    rv = kmap.complete_heading_path_from( root.value(), arg );
-}
-
-return rv;
-```)%%%";
-
-auto const description = "bookmark heading";
-auto const guard = guard_code;
-auto const completion = completion_code;
-
-REGISTER_ARGUMENT
-(
-    command_heading_path
-,   description 
-,   guard
-,   completion
-);
-
-} // namespace anon
-} // namespace command_heading_path_def
-#endif // 0
 
 namespace command::binding {
 
 using namespace emscripten;
 
 auto create_command( std::string const& path )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto rv = KMAP_MAKE_RESULT( Uuid );
     // auto& kmap = Singleton::instance();
@@ -717,15 +521,14 @@ auto create_command( std::string const& path )
 }
 
 auto fetch_nearest_command( Uuid const& node )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "node", node );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& kmap = Singleton::instance();
-    auto const cmd_root = KTRY( anchor::node( kmap.root_node_id() )
-                              | view2::direct_desc( "meta.setting.command" )
+    auto const cmd_root = KTRY( view2::cmd::command_root
                               | act2::fetch_node( kmap ) );
 
     auto parent = Optional< Uuid >( node );

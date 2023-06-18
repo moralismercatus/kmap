@@ -1277,7 +1277,7 @@ using namespace emscripten;
 
 // TODO: This should actually not auto-deduce "appropriate" project, but leave it to the caller to do this, no? Keep consistent as an "interface wrapper".
 auto close_project( Uuid const& at )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
     auto const project = KMAP_TRY( cmd::fetch_project_root( kmap, at ) );
@@ -1290,7 +1290,7 @@ auto close_project( Uuid const& at )
 // TODO: This should actually not auto-deduce "appropriate" parent, but leave it to the caller to do this, no? Keep consistent as an "interface wrapper".
 auto create_project( Uuid const& at
                    , std::string const& title )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
     auto const heading = format_heading( title );
@@ -1308,7 +1308,7 @@ auto create_project( Uuid const& at
 }
 
 auto fetch_project_root( Uuid const& node )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
 
@@ -1316,7 +1316,7 @@ auto fetch_project_root( Uuid const& node )
 }
 
 auto fetch_project_status_root( Uuid const& node )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
 
@@ -1324,7 +1324,7 @@ auto fetch_project_status_root( Uuid const& node )
 }
 
 auto fetch_project_status_alias( Uuid const& node )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
 
@@ -1349,7 +1349,7 @@ auto is_project( Uuid const& node )
 
 // TODO: This should actually not auto-deduce "appropriate" project, but leave it to the caller to do this, no? Keep consistent as an "interface wrapper".
 auto open_project( Uuid const& at )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     auto& kmap = Singleton::instance();
     auto const project = KMAP_TRY( cmd::fetch_project_root( kmap, at ) );

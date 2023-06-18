@@ -13,8 +13,9 @@
 #include "component.hpp"
 #include "js_iface.hpp"
 #include "utility.hpp"
-#include <com/event/event_clerk.hpp>
 #include <com/canvas/pane_clerk.hpp>
+#include <com/event/event_clerk.hpp>
+#include <com/option/option_clerk.hpp>
 
 #include <map>
 #include <string>
@@ -50,6 +51,7 @@ class Cli : public Component
                                , CliCommand >;
 
     CommandMap valid_cmds_ = {};
+    OptionClerk oclerk_;
     EventClerk eclerk_;
     PaneClerk pclerk_;
     std::vector< js::ScopedCode > scoped_events_ = {};
@@ -70,6 +72,8 @@ public:
 
     auto register_panes()
         -> Result< void >;
+    auto register_standard_options()
+        -> Result< void >;
     auto register_standard_outlets()
         -> void;
 
@@ -77,7 +81,7 @@ public:
         -> Result< void >;
     auto complete( std::string const& input )
         -> void;
-    auto complete_arg( Argument const& arg
+    auto complete_arg( kmap::Argument const& arg
                      , std::string const& input )
         -> StringVec;
     [[ nodiscard ]]
@@ -96,17 +100,17 @@ public:
         -> bool;
     auto execute( std::string const& cmd
                 , std::string const& arg )
-        -> Result< std::string >;
+        -> Result< void >;
     [[ nodiscard ]]
     auto execute_command( Uuid const& id // TODO: I'm not entirely sure 'execute_command' belongs here. It's actually not specific to CLI (it could be used elsewhere, i.e., not originating from the CLI). Putting it here for now, as I'm not sure where else to put it.
                         , std::string const& code )
         -> bool;
     auto fetch_command( std::string const& cmd ) const
-        -> Optional< CliCommand >;
+        -> Result< CliCommand >;
     auto fetch_general_command( Heading const& path ) const
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
     auto fetch_general_command_guard_resolved( Heading const& path ) const
-        -> Optional< Uuid >;
+        -> Result< Uuid >;
     auto focus()
         -> void;
     [[ nodiscard ]]
@@ -129,7 +133,7 @@ public:
     auto parse_cli( std::string const& input )
         -> void; // Return simple void to simplify EMCC binding.
     auto parse_raw( std::string const& input )
-        -> Result< std::string >;
+        -> Result< void >;
     [[ nodiscard ]]
     auto read()
         -> std::string;
@@ -152,8 +156,12 @@ public:
         -> std::vector< CliCommand >;
     auto write( std::string const& out )
         -> void;
+
+protected:
+    auto parse_raw_internal( std::string const& input )
+        -> Result< void >;
 };
 
-} // namespace kmap
+} // namespace kmap::com
 
 #endif // KMAP_CLI_HPP

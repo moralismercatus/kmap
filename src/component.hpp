@@ -34,6 +34,8 @@ namespace kmap
     { \
         auto KMAP_CONCAT( register_component_, __LINE__ )() \
         { \
+            KM_RESULT_PROLOG(); \
+                KM_RESULT_PUSH( "id", type::id ); \
             auto& kmap = kmap::Singleton::instance(); \
             struct KMAP_CONCAT( component_ctor, __LINE__ ) : public kmap::ComponentConstructor \
             { \

@@ -48,6 +48,8 @@ auto operator|( RT const& range, Order const& op )
 
     using OrderedChildren = std::map< Uuid, std::vector< Uuid > >;
 
+    KM_RESULT_PROLOG();
+
     auto ordered_children_map = OrderedChildren{};
     auto const nw = KTRYE( op.kmap.fetch_component< com::Network >() );
     auto const left_lineage = [ & ]( auto const& node ) -> std::vector< Uuid >

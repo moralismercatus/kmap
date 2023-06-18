@@ -231,61 +231,6 @@ BOOST_AUTO_TEST_CASE( close_project
 }
 
 BOOST_AUTO_TEST_SUITE_END( /* categorized */ )
-
-#if 0
-BOOST_AUTO_TEST_CASE( misc // TODO: Break into constituent parts.
-                    , 
-                    * utf::depends_on( "cli/parse_raw/project/uncategorized" ) 
-                    * utf::depends_on( "cli/parse_raw/project/categorized" ) 
-                    * utf::fixture< ClearMapFixture >() )
-{
-    auto& kmap = Singleton::instance();
-    auto& cli = kmap.cli();
-
-    // create p_1
-    BOOST_TEST( cli->parse_raw( ":create.project p_1" )  );
-    BOOST_TEST( cli->parse_raw( ":create.project p_1" )  );
-    BOOST_TEST( cli->parse_raw( ":create.project P 1" )  );
-    BOOST_TEST( nw->fetch_heading( nw->selected_node() ).value() == "p_1" );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.inactive.p_1" );
-    // create p_2 as a task of p_1
-    BOOST_TEST( cli->parse_raw( ":create.task P 2" )  );
-    BOOST_TEST( cli->parse_raw( ":create.task P 2" )  );
-    BOOST_TEST( cli->parse_raw( ":create.task p_2" )  );
-    BOOST_TEST( cli->parse_raw( ":create.project p_2" )  );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.inactive.p_1.tasks.open.p_2" );
-    // attempt to close p_1 with p_2 open
-    BOOST_TEST( cli->parse_raw( ":close.project" )  );
-    // create p_3
-    BOOST_TEST( cli->parse_raw( ":create.project p_3" )  );
-    BOOST_TEST( cli->parse_raw( ":create.project p_3" )  );
-    BOOST_TEST( cli->parse_raw( ":create.project P 3" )  );
-    BOOST_TEST( nw->fetch_heading( nw->selected_node() ).value() == "p_3" );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.inactive.p_3" );
-    // add p_3 as a task of p_1
-    BOOST_TEST( cli->parse_raw( ":select.node .root.projects.open.inactive.p_1" )  );
-    BOOST_TEST( cli->parse_raw( ":add.task p_3" )  );
-    // close p_2
-    BOOST_TEST( cli->parse_raw( ":select.node .root.projects.open.inactive.p_1.tasks.open.p_2" )  );
-    BOOST_TEST( cli->parse_raw( ":resolve.alias" )  );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.inactive.p_2" );
-    BOOST_TEST( cli->parse_raw( ":close.project" )  );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.closed.p_2" );
-    BOOST_TEST( nw->exists( "/projects.closed.p_2" ) );
-    BOOST_TEST( nw->exists( "/projects.open.inactive.p_1.tasks.closed.p_2" ) );
-    // open p_2
-    BOOST_TEST( cli->parse_raw( ":open-project" )  );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.inactive.p_2" );
-    BOOST_TEST( nw->exists( "/projects.open.inactive.p_1.tasks.open.p_2" ) );
-    // activate p_2
-    BOOST_TEST( cli->parse_raw( ":activate-project" )  );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.active.p_2" );
-    // deactivate p_2
-    BOOST_TEST( cli->parse_raw( ":deactivate-project" )  );
-    BOOST_TEST( kmap.absolute_path_flat( nw->selected_node() ) == "/projects.open.inactive.p_2" );
-}
-#endif // 0
-
 BOOST_AUTO_TEST_SUITE_END( /* project */)
 BOOST_AUTO_TEST_SUITE_END( /* parse_raw */ )
 BOOST_AUTO_TEST_SUITE_END( /* cli */ )

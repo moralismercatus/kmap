@@ -243,6 +243,8 @@ auto match( Kmap const& kmap
           , SelectionVariant const& rhs )
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -445,6 +447,8 @@ auto AbsRoot::operator()( Kmap const& km
                         , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const rn = KTRYE( km.fetch_component< com::RootNode >() );
 
@@ -463,6 +467,8 @@ auto Alias::operator()( Kmap const& kmap
                       , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const children = nw->fetch_children( node );
@@ -637,6 +643,8 @@ auto Ancestor::operator()( Kmap const& kmap
                          , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const check_pred = [ & ]( auto const& n )
@@ -684,6 +692,8 @@ auto Attr::operator()( Kmap const& kmap
                      , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -721,6 +731,8 @@ auto Child::operator()( Kmap const& kmap
                       , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const process_children = [ & ]( auto const& parent
@@ -843,6 +855,8 @@ auto Desc::operator()( Kmap const& kmap
                      , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
 
     BC_CONTRACT()
@@ -1078,6 +1092,8 @@ auto DirectDesc::operator()( Kmap const& kmap
                            , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -1276,6 +1292,8 @@ auto Leaf::operator()( Kmap const& kmap
                      , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -1345,6 +1363,8 @@ auto RLineage::operator()( Kmap const& kmap
                          , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const is_ancestor = view::make( leaf )
@@ -1444,6 +1464,8 @@ auto Parent::operator()( Kmap const& kmap
                        , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = UuidSet{};
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -1473,6 +1495,8 @@ auto Resolve::operator()( Kmap const& kmap
                         , Uuid const& node ) const
     -> UuidSet
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     return { nw->resolve( node ) };
@@ -2002,6 +2026,8 @@ auto operator|( Intermediary const& i
               , Exists const& op )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const ns = i | to_node_set( op.kmap );
     auto const nw = KTRYE( op.kmap.fetch_component< com::Network >() );
 
@@ -2090,11 +2116,13 @@ auto operator|( Intermediary const& i
               , ToHeadingSet const& ths_op )
     -> std::set< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto const ns = i | to_node_set( ths_op.kmap );
     auto const nw = KTRYE( ths_op.kmap.fetch_component< com::Network >() );
 
     return ns
-         | rvs::transform( [ &nw ]( auto const& n ){ return KTRYE( nw->fetch_heading( n ) ); } )
+         | rvs::transform( [ & ]( auto const& n ){ return KTRYE( nw->fetch_heading( n ) ); } )
          | ranges::to< std::set >;
 }
 

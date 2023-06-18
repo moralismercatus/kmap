@@ -29,6 +29,8 @@ ComponentFixture::ComponentFixture( std::set< std::string > const& components
 {
     try
     {
+        KM_RESULT_PROLOG(); 
+
         auto& kmap = Singleton::instance();
 
         // Register all components, first.
@@ -69,6 +71,8 @@ ComponentFixture::~ComponentFixture()
 
     try
     {
+        KM_RESULT_PROLOG();
+
         KTRYE( kmap.clear() );
     }
     catch( std::exception const& e )
@@ -89,6 +93,8 @@ SaveToDiskFixture::SaveToDiskFixture( com::Database& d
 {
     try
     {
+        KM_RESULT_PROLOG();
+
         KTRYE( db.init_db_on_disk( file_path ) );
         KMAP_ENSURE_EXCEPT( db.has_file_on_disk() );
     }

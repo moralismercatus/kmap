@@ -4,11 +4,11 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #pragma once
-#ifndef KMAP_CANVAS_WORKSPACE_HPP
-#define KMAP_CANVAS_WORKSPACE_HPP
+#ifndef KMAP_CANVAS_LAYOUT_HPP
+#define KMAP_CANVAS_LAYOUT_HPP
 
 #include <com/canvas/common.hpp>
-#include <com/canvas/pane_clerk.hpp>
+#include <com/option/option_clerk.hpp>
 #include <common.hpp>
 #include <component.hpp>
 
@@ -25,28 +25,28 @@ namespace kmap::com {
  * description, and not the HTML itself. It is for "update" to apply these representations to the HTML.
  * 
  */
-class Workspace : public Component
+class Layout : public Component
 {
-    PaneClerk pclerk_;
+    OptionClerk oclerk_;
 
 public:
-    static constexpr auto id = "canvas.workspace";
+    static constexpr auto id = "canvas.layout";
     constexpr auto name() const -> std::string_view override { return id; }
 
-    Workspace( Kmap& km
+    Layout( Kmap& km
           , std::set< std::string > const& requisites
           , std::string const& description );
-    virtual ~Workspace() = default;
+    virtual ~Layout() = default;
 
     auto initialize()
         -> Result< void > override;
     auto load()
         -> Result< void > override;
 
-    auto register_panes()
+    auto register_options()
         -> Result< void >;
 };
 
 } // kmap::com
 
-#endif // KMAP_CANVAS_WORKSPACE_HPP
+#endif // KMAP_CANVAS_LAYOUT_HPP

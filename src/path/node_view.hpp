@@ -12,6 +12,7 @@
 #include "lineage.hpp"
 #include "util/concepts.hpp"
 #include "utility.hpp" // KMAP_LOG_LINE
+#include <util/result.hpp>
 
 #include <functional>
 #include <optional>
@@ -567,6 +568,8 @@ template< concepts::Range RT >
 auto operator|( Result< RT > const& result, ToSingle const& tso )
     -> Result< typename RT::value_type >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( typename RT::value_type );
 
     if( result )
@@ -595,6 +598,8 @@ template< concepts::Range RT >
 auto operator|( Result< RT > const& result, ToAbsPath const& op )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( UuidVec );
 
     if( result )

@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/cmd/command.hpp"
+#include <com/cmd/command.hpp>
 
 #include "com/network/network.hpp"
 #include "error/js_iface.hpp"
@@ -28,6 +28,7 @@ auto CommandStore::initialize()
     auto rv = result::make_result< void >();
 
     KTRY( install_standard_arguments() );
+    KTRY( install_standard_guards() );
 
     rv = outcome::success();
 
@@ -46,36 +47,6 @@ auto CommandStore::load()
     return rv;
 }
 
-auto CommandStore::argument_root()
-    -> Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto rv = result::make_result< Uuid >();
-    auto& km = kmap_inst();
-
-    rv = KTRY( view::abs_root
-             | view::direct_desc( "meta.setting.argument" )
-             | view::fetch_or_create_node( km ) );
-
-    return rv;
-}
-
-auto CommandStore::command_root()
-    -> Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-
-    auto rv = result::make_result< Uuid >();
-    auto& km = kmap_inst();
-
-    rv = KTRY( view::abs_root
-             | view::direct_desc( "meta.setting.command" )
-             | view::fetch_or_create_node( km ) );
-
-    return rv;
-}
-
 auto CommandStore::install_argument( Argument const& arg )
     -> Result< Uuid >
 {
@@ -88,9 +59,8 @@ auto CommandStore::install_argument( Argument const& arg )
     KMAP_ENSURE( js::lint( arg.guard ), error_code::js::lint_failed );
     KMAP_ENSURE( js::lint( arg.completion ), error_code::js::lint_failed );
     
-    auto const arg_root = KTRY( view::abs_root
-                              | view::direct_desc( "meta.setting.argument" )
-                              | view::fetch_or_create_node( km ) );
+    auto const arg_root = KTRY( view2::cmd::argument_root
+                              | act2::fetch_or_create_node( km ) );
     auto const vargn = view::make( arg_root ) 
                      | view::direct_desc( arg.path );
     auto const guard_code = util::to_js_body_code( js::beautify( arg.guard ) );
@@ -117,7 +87,6 @@ auto CommandStore::install_argument( Argument const& arg )
     return rv;
 }
 
-
 auto CommandStore::install_command( Command const& cmd )
     -> Result< Uuid >
 {
@@ -126,37 +95,47 @@ auto CommandStore::install_command( Command const& cmd )
 
     auto rv = result::make_result< Uuid >();
 
-    KMAP_ENSURE( js::lint( cmd.guard.code ), error_code::js::lint_failed );
     KMAP_ENSURE( js::lint( cmd.action ), error_code::js::lint_failed );
 
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
-    auto const cmd_root = KTRY( command_root() );
-    auto const vguard = view::make( cmd_root )
-                      | view::direct_desc( cmd.path )
-                      | view::child( cmd.guard.heading );
+    auto const cmd_root = KTRY( view2::cmd::command_root
+                              | act2::fetch_or_create_node( km ) );
+    auto const vcmd = view::make( cmd_root )
+                    | view::direct_desc( cmd.path );
 
-    KTRY( vguard | view::create_node( km ) );
+    KTRY( vcmd | view::create_node( km ) );
 
-    auto const guardn = KTRY( vguard | view::fetch_node( km ) );
+    auto const cmdn = KTRY( vcmd | view::fetch_node( km ) );
 
-    KTRY( view::make( guardn )
+    KTRY( vcmd
         | view::child( view::all_of( "description"
                                    , "argument"
+                                   , "guard"
                                    , "action" ) )
         | view::create_node( km ) );
 
-    auto const descn = KTRY( vguard | view::child( "description" ) | view::fetch_node( km ) );
-    auto const guard_code = util::to_js_body_code( js::beautify( cmd.guard.code ) );
-    
-    KTRY( nw->update_body( guardn, guard_code ) );
-    KTRY( nw->update_body( descn, cmd.description ) );
+    // desc
+    {
+        auto const descn = KTRY( vcmd | view::child( "description" ) | view::fetch_node( km ) );
+        
+        KTRY( nw->update_body( descn, cmd.description ) );
+    }
 
+    // guard
+    {
+        auto const guardn = KTRY( vcmd | view::child( "guard" ) | view::fetch_node( km ) );
+        auto const guard_src = KTRY( view2::cmd::guard_root
+                                   | view2::direct_desc( cmd.guard )
+                                   | act2::fetch_node( km ) );
+        KTRY( nw->create_alias( guard_src, guardn ) );
+    }
+
+    // arg
     for( auto const& arg : cmd.arguments )
     {
-        auto const argn = KTRY( vguard | view::child( "argument" ) | view::fetch_node( km ) );
-        auto const arg_src = KTRY( anchor::abs_root
-                                 | view2::direct_desc( "meta.setting.argument" )
+        auto const argn = KTRY( vcmd | view::child( "argument" ) | view::fetch_node( km ) );
+        auto const arg_src = KTRY( view2::cmd::argument_root
                                  | view2::direct_desc( arg.argument_alias)
                                  | act2::fetch_node( km ) );
         auto const arg_dst = KTRY( nw->create_child( argn, arg.heading ) );
@@ -166,14 +145,53 @@ auto CommandStore::install_command( Command const& cmd )
         KTRY( nw->create_alias( arg_src, arg_dst ) );
     }
 
-    auto const actn = KTRY( vguard
-                          | view::child( "action" )
-                          | view::fetch_node( km ) );
-    auto const action_code = util::to_js_body_code( js::beautify( cmd.action ) );
+    // action
+    {
+        auto const actn = KTRY( vcmd
+                            | view::child( "action" )
+                            | view::fetch_node( km ) );
+        auto const action_code = util::to_js_body_code( js::beautify( cmd.action ) );
 
-    KTRY( nw->update_body( actn, action_code ) );
+        KTRY( nw->update_body( actn, action_code ) );
+    }
 
-    rv = guardn;
+    rv = cmdn;
+
+    return rv;
+}
+
+auto CommandStore::install_guard( Guard const& guard )
+    -> Result< Uuid >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "path", guard.path );
+
+    auto rv = result::make_result< Uuid >();
+    auto& km = kmap_inst();
+
+    KMAP_ENSURE( js::lint( guard.action ), error_code::js::lint_failed );
+    
+    auto const guard_root = KTRY( view2::cmd::guard_root
+                                | act2::fetch_or_create_node( km ) );
+    auto const vguardn = view::make( guard_root ) 
+                       | view::direct_desc( guard.path );
+    auto const guard_code = util::to_js_body_code( js::beautify( guard.action ) );
+    
+    if( vguardn | view::exists( km ) )
+    {
+        KTRY( vguardn | act::erase( km ) );
+    } 
+
+    {
+        KTRY( vguardn
+            | view::child( view::all_of( "description", "action" ) )
+            | view::create_node( km ) );
+        
+        KTRY( vguardn | view::child( "description" ) | act::update_body( km, guard.description ) );
+        KTRY( vguardn | view::child( "action" ) | act::update_body( km, guard_code ) );
+
+        rv = KTRY( vguardn | view::fetch_node( km ) );
+    }
 
     return rv;
 }
@@ -190,7 +208,7 @@ auto CommandStore::install_standard_arguments()
     {
         auto const guard_code =
         R"%%%(
-            return true;
+            /* Nothing to do. */
         )%%%";
         auto const completion_code =
         R"%%%(
@@ -212,7 +230,7 @@ auto CommandStore::install_standard_arguments()
     {
         auto const guard_code =
         R"%%%(
-            return kmap.success( "success" );
+            /* Nothing to do. */
         )%%%";
         auto const completion_code =
         R"%%%(
@@ -230,7 +248,7 @@ auto CommandStore::install_standard_arguments()
     {
         auto const guard_code =
         R"%%%(
-            return kmap.success( "success" );
+            /* Nothing to do. */
         )%%%";
         auto const completion_code =
         R"%%%(
@@ -250,13 +268,41 @@ auto CommandStore::install_standard_arguments()
     return rv;
 }
 
+auto CommandStore::install_standard_guards()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    // unconditional
+    {
+        auto const guard_code =
+        R"%%%(
+            /* Nothing to do. */
+        )%%%";
+
+        auto const description = "without environmental constraints";
+
+        KTRY( install_guard( Guard{ .path = "unconditional"
+                                  , .description = description
+                                  , .action = guard_code } ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto CommandStore::is_argument( Uuid const& node )
     -> bool
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto& km = kmap_inst();
-    auto const desc = view::make( node )
-                    | view::ancestor( KTRYE( argument_root() ) )
-                    | view::exists( km );
+    auto const desc = view2::cmd::argument_root
+                    | act2::exists( km );
     auto const structure = view::make( node )
                          | view::child( view::all_of( "description", "guard", "completion" ) )
                          | view::exists( km );
@@ -267,12 +313,30 @@ auto CommandStore::is_argument( Uuid const& node )
 auto CommandStore::is_command( Uuid const& node )
     -> bool
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto& km = kmap_inst();
-    auto const desc = view::make( node )
-                    | view::ancestor( KTRYE( command_root() ) )
-                    | view::exists( km );
+    auto const desc = view2::cmd::command_root
+                    | act2::exists( km );
     auto const structure = view::make( node )
                          | view::child( view::all_of( "description", "argument", "action" ) )
+                         | view::exists( km );
+
+    return desc && structure;
+}
+
+auto CommandStore::is_guard( Uuid const& node )
+    -> bool
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
+    auto& km = kmap_inst();
+    auto const desc = view2::cmd::guard_root
+                    | act2::exists( km );
+    auto const structure = view::make( node )
+                         | view::child( view::all_of( "description", "action" ) )
                          | view::exists( km );
 
     return desc && structure;
@@ -315,6 +379,30 @@ auto CommandStore::uninstall_command( Uuid const& cmdn )
 
     fmt::print( "uninstalling: {}\n", abspath );
     KTRY( nw->erase_node( cmdn ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto CommandStore::uninstall_guard( Uuid const& guardn )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "guardn", guardn );
+
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const& km = kmap_inst();
+    auto const nw = KTRY( fetch_component< com::Network >() );
+
+    KMAP_ENSURE( is_guard( guardn ), error_code::common::uncategorized );
+
+    // auto const abspath = KTRY( view::abs_root
+    auto const abspath = KTRY( view::make( km.root_node_id() )
+                             | view::desc( guardn )
+                             | act::abs_path_flat( km ) );
+
+    KTRY( nw->erase_node( guardn ) );
 
     rv = outcome::success();
 

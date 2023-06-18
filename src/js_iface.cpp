@@ -51,6 +51,9 @@ auto append_child_element( std::string const& parent_doc_id
 auto beautify( std::string const& code )
     -> std::string
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "code", code );
+
     // TODO: Strip leading whitespace. `beautify_javascript` will use first line indent as pattern for remaining line indent.
     return KTRYE( js::call< std::string >( "beautify_javascript", code ) );
 }
@@ -234,6 +237,82 @@ SCENARIO( "js::move_element", "[js_iface]" )
     }
 }
 
+auto eval_val( std::string const& expr )
+    -> Result< emscripten::val >
+{
+    using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "expr", expr );
+
+    auto rv = KMAP_MAKE_RESULT( val ); 
+    auto constexpr script =
+R"%%%(
+(
+    function()
+    {{
+        try
+        {{
+            {}
+        }}
+        catch( err )
+        {{
+            if( is_cpp_exception( err ) )
+            {{
+                if( kmap.is_signal_exception( err ) )
+                {{
+                    console.log( 'signal exception recieved' );
+                    throw err;
+                }}
+                else
+                {{
+                    console.error( '[kmap][error] std::exception encountered:' );
+                    // print std exception
+                    kmap.print_std_exception( err );
+                }}
+            }}
+            else // Javascript exception
+            {{
+                console.error( '\n[kmap][error] JS exception: ' + err + '\n' );
+            }}
+            return undefined;
+        }}
+    }}
+)();
+)%%%";
+    auto const eval_str = io::format( script, expr );
+
+    KMAP_ENSURE( lint( eval_str ), error_code::js::lint_failed );
+
+    auto const eval_res = val::global().call< val >( "eval", eval_str );
+
+    KMAP_ENSURE_MSG( !eval_res.isNull(), error_code::js::eval_failed, "Null returned (did you fail to return a result?) failed to evaluate javascript expression" );
+    KMAP_ENSURE_MSG( !eval_res.undefined(), error_code::js::eval_failed, "Undefined returned (did you fail to return a result?) failed to evaluate javascript expression" );
+
+    auto const payload_ref = val::global( "kmap" )[ "result$$Payload" ];
+    KMAP_ENSURE( payload_ref.as< bool >(), error_code::js::eval_failed )
+
+    if( eval_res.instanceof( payload_ref ) )
+    {
+        fmt::print( "instanceof payload ref!!\n" );
+        auto const payload = eval_res.as< error_code::Payload >();
+        rv = payload;
+    }
+    else
+    {
+        rv = eval_res; 
+    }
+
+    return rv;
+}
+
+SCENARIO( "eval_val comment handling", "[js][js_iface]" )
+{
+    REQUIRE_TRY( eval_val( "console.log( 'test' ); // Just a test" ) );
+    REQUIRE_TRY( eval_val( "// Just a test" ) );
+    REQUIRE_TRY( eval_val( "/* Just a test */" ) );
+}
+
 // Considerable overlap between eval_void and eval< T >, no? Shouldn't eval_void just call eval< T >?
 // I don't think so. It would be nice, but I don't know how to return "eval_result" with an eval< T > and check it in a convenient way,
 // to see if the returned result was an error, or a successful result of the given expression.
@@ -244,64 +323,40 @@ auto eval_void( std::string const& expr )
     using emscripten::val;
 
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "expr", expr );
 
     auto rv = result::make_result< void >(); 
+    auto const nexpr = fmt::format( "{}\nreturn {}", expr, "kmap.eval_success();" );
+    auto const eval_res = KTRY( eval_val( nexpr ) );
+    auto const eval_succ_ref = val::global( "kmap" )[ "EvalSuccess" ];
 
-    KMAP_ENSURE( lint( expr ), error_code::js::lint_failed );
+    KMAP_ENSURE( eval_succ_ref.as< bool >(), error_code::js::eval_failed )
+    KMAP_ENSURE( eval_res.instanceof( eval_succ_ref ), error_code::js::eval_failed )
 
-    auto constexpr script =
-R"%%%(
-(
-    function()
-    {{
-        try
-        {{
-            {}
-            return kmap.eval_success();
-        }}
-        catch( err )
-        {{
-            if( is_cpp_exception( err ) )
-            {{
-                if( kmap.is_signal_exception( err ) )
-                {{
-                    throw err;
-                }}
-                else
-                {{
-                    console.log( '[kmap][error] std::exception encountered:' );
-                    // print std exception
-                    kmap.print_std_exception( err );
-                    return kmap.eval_failure( kmap.std_exception_to_string( err ) );
-                }}
-            }}
-            else // Javascript exception
-            {{
-                console.log( '[kmap][error] JS exception: ' + err );
-                return kmap.eval_failure( String( err ) );
-            }}
-        }}
-        return undefined; // Should never reach.
-    }}
-)();
-)%%%";
-    // auto const eval_str = io::format( "( function(){{ try{{ {} return kmap.eval_success(); }} catch( err ){{ console.log( err ); return kmap.eval_failure( String( err ) ); }} }} )()"
-    //                                 , expr );
-    auto const eval_str = io::format( script, expr );
+    rv = outcome::success(); 
 
-    if( auto const res = val::global().call< val >( "eval", eval_str )
-      ; !res.isUndefined() && !res.isNull() )
-    {
-        if( auto const except = res.as< binding::Result< void > >()
-          ; except.has_error() )
-        {
-            rv = KMAP_PROPAGATE_FAILURE_MSG( except.result, fmt::format( "\n {}", expr ) );
-        }
-        else
-        {
-            rv = outcome::success();
-        }
-    }
+    return rv;
+}
+
+SCENARIO( "eval_void comment handling", "[js][js_iface]" )
+{
+    REQUIRE_TRY( eval_val( "console.log( 'test' ); // Just a test" ) );
+    REQUIRE_TRY( eval_val( "// Just a test" ) );
+    REQUIRE_TRY( eval_val( "/* Just a test */" ) );
+}
+
+auto preprocess( std::string const& code )
+    -> Result< std::string >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< std::string >();
+
+    // fmt::print( "pre: {}\n", code );
+
+    rv = KTRY( js::call< std::string >( "kmap_preprocess_js_script", code ) );
+
+    // fmt::print( "post: {}\n", rv.value() );
 
     return rv;
 }
@@ -323,10 +378,11 @@ auto publish_function( std::string_view const name
     auto const joined_params = params
                              | views::join( ',' )
                              | to< std::string >();
-    auto const fn_def = fmt::format( "global.{} = function( {} ) {{ {} }};"
+    auto const pp = KTRY( js::preprocess( std::string{ body } ) );
+    auto const fn_def = fmt::format( "global.{} = function( {} ) {{\n{}\n}};"
                                    , name
                                    , joined_params 
-                                   , body );
+                                   , pp );
 
     rv = eval_void( fn_def );
 
@@ -337,6 +393,8 @@ auto is_child_element( std::string const& parent_id
                      , std::string const& child_id )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     return KTRYE( eval< bool >( fmt::format( "return document.getElementById( '{}' ).parentElement.id == '{}';"
                                            , child_id
                                            , parent_id ) ) );
@@ -345,6 +403,8 @@ auto is_child_element( std::string const& parent_id
 auto is_global_kmap_valid()
     -> bool 
 {
+    KM_RESULT_PROLOG();
+
     return KTRYE( eval< bool >( "return ( global.kmap !== undefined ) && ( global.kmap !== null );" ) );
 }
 
@@ -361,6 +421,8 @@ auto set_global_kmap( Kmap& kmap )
     -> void
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
 
     KTRYE( js::eval_void( "global.kmap = Module;" ) );
 
@@ -398,10 +460,16 @@ ScopedCode::ScopedCode( std::string const& ctor
     : ctor_code{ ctor }
     , dtor_code{ dtor }
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "ctor", ctor );
+        KM_RESULT_PUSH( "dtor", dtor );
+
     if( !ctor_code.empty() )
     {
         // TOTOD: log... fmt::print( "scoped ctor, evaling: {}\n", ctor_code );
-        KTRYE( eval_void( ctor_code ) );
+        auto const pp = KTRYE( js::preprocess( ctor_code ) );
+
+        KTRYE( eval_void( pp ) );
     }
 }
 
@@ -415,12 +483,16 @@ ScopedCode::ScopedCode( ScopedCode&& other )
 
 ScopedCode::~ScopedCode()
 {
+    KM_RESULT_PROLOG();
+
     try
     {
         if( !dtor_code.empty() )
         {
             fmt::print( "scoped dtor, evaling: {}\n", dtor_code );
-            KTRYE( eval_void( dtor_code ) );
+            auto const pp = KTRYE( js::preprocess( dtor_code ) );
+
+            KTRYE( eval_void( pp ) );
         }
     }
     catch( std::exception const& e )
@@ -443,3 +515,23 @@ auto ScopedCode::operator=( ScopedCode&& other )
 }
 
 } // namespace kmap::js
+
+namespace kmap::js::binding {
+
+struct EvalSuccess{};
+
+auto make_eval_success()
+    -> EvalSuccess
+{
+    return {};
+}
+
+} // kmap::js::binding
+
+using namespace emscripten;
+
+EMSCRIPTEN_BINDINGS( kmap_js_binding )
+{
+    class_< kmap::js::binding::EvalSuccess >( "EvalSuccess" );
+    function( "eval_success", &kmap::js::binding::make_eval_success );
+}

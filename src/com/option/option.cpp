@@ -56,6 +56,8 @@ auto OptionStore::load()
 auto OptionStore::option_root()
     -> Uuid
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
 
     return KTRYE( view::abs_root
@@ -188,26 +190,29 @@ auto OptionStore::apply( Uuid const& option )
     auto const value_body = KTRY( nw->fetch_body( value_node ) );
     // TODO: Use similar technique to cmd action to expose "option_value" automatically via fn arg.
     // fmt::print( "option_store::apply: {}\n", km.absolute_path_flat( option ) );
-    boost::apply_visitor( [ & ]( auto const& e ) // Note: spirit::x3::variant uses boost::variant which is not compatible with std::visit.
-                            {
-                                using T = std::decay_t< decltype( e ) >;
+    KTRY( boost::apply_visitor( [ & ]( auto const& e ) -> Result< void > // Note: spirit::x3::variant uses boost::variant which is not compatible with std::visit.
+                                {
+                                    using T = std::decay_t< decltype( e ) >;
 
-                                if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
-                                {
-                                    KMAP_THROW_EXCEPTION_MSG( "kscript is not supported in a guard node" );
-                                }
-                                else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                                {
-                                    auto const opt_val = fmt::format( "let option_value = {};", value_body );
+                                    if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
+                                    {
+                                        KMAP_THROW_EXCEPTION_MSG( "kscript is not supported in a guard node" );
+                                    }
+                                    else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
+                                    {
+                                        auto const opt_val = fmt::format( "let option_value = {};", value_body );
+                                        auto const pp = KTRYE( js::preprocess( e.code ) );
 
-                                    KMAP_TRYE( js::eval_void( fmt::format( "{}\n{}", opt_val, e.code ) ) );
+                                        KTRY( js::eval_void( fmt::format( "{}\n{}", opt_val, pp ) ) );
+                                    }
+                                    else
+                                    {
+                                        static_assert( always_false< T >::value, "non-exhaustive visitor!" );
+                                    }
+
+                                    return outcome::success();
                                 }
-                                else
-                                {
-                                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                                }
-                            }
-                        , code );
+                            , code ) );
     
     rv = outcome::success();
 
@@ -270,19 +275,19 @@ struct OptionStore
     {
     }
 
-    auto apply( std::string const& path )
-        -> kmap::binding::Result< void >
+    auto apply( Uuid const& option )
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_STR( "path", path );
+            KM_RESULT_PUSH_STR( "option", option );
 
         auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
 
-        return ostore->apply( path );
+        return ostore->apply( option );
     }
 
     auto apply_all()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
 
@@ -293,7 +298,7 @@ struct OptionStore
 
     auto update_value( std::string const& path
                      , float const& value )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
             KM_RESULT_PUSH_STR( "path", path );
@@ -337,40 +342,6 @@ REGISTER_COMPONENT
 
 } // namespace option_store_def 
 }
-
-#if 0
-namespace apply_options_def {
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.option_store().apply_all();
-
-return kmap.success( 'all options applied' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "applies all options in /meta.option";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    apply.options
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace apply_options_def
-#endif // 0
 
 } // namespace kmap::com
 

@@ -229,6 +229,8 @@ public:
     auto apply_delta_to_cache()
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto& table = std::get< Table >( cache_tables_ );
         auto update_set = std::set< typename Table::unique_key_type >{};
         auto erase_set = std::set< typename Table::unique_key_type >{};

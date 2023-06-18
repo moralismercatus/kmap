@@ -28,8 +28,10 @@ public:
     Kmap& kmap;
     std::map< std::string, Argument > registered_arguments = {};
     std::map< std::string, Command > registered_commands = {};
+    std::map< std::string, Guard > registered_guards = {};
     std::map< std::string, Uuid > installed_arguments;
     std::map< std::string, Uuid > installed_commands;
+    std::map< std::string, Uuid > installed_guards;
 
     CommandClerk( Kmap& km );
     ~CommandClerk();
@@ -40,6 +42,8 @@ public:
         -> Result< void >;
     auto check_registered( Command const& cmd )
         -> Result< void >;
+    auto check_registered( Guard const& guard )
+        -> Result< void >;
 
     auto install_registered()
         -> Result< void >;
@@ -48,11 +52,15 @@ public:
         -> Result< void >;
     auto register_command( Command const& cmd ) 
         -> Result< void >;
+    auto register_guard( Guard const& guard ) 
+        -> Result< void >;
 
 protected:
     auto install_argument( Argument const& arg )
         -> Result< Uuid >;
     auto install_command( Command const& cmd )
+        -> Result< Uuid >;
+    auto install_guard( Guard const& guard )
         -> Result< Uuid >;
 };
 

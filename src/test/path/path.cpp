@@ -40,6 +40,8 @@ auto check_path( Kmap const& kmap
                , std::vector< Uuid > const& matches )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const ps = kmap::decide_path( kmap
                                      , kmap.root_node_id()
@@ -284,6 +286,8 @@ BOOST_AUTO_TEST_CASE( fetch_abs_root
                     ,
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -299,6 +303,8 @@ BOOST_AUTO_TEST_CASE( fetch_abs_descendant
                     * utf::depends_on( "path/fetch_abs_root" )
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -315,6 +321,8 @@ BOOST_AUTO_TEST_CASE( fetch_rel_root
                     ,
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -329,6 +337,8 @@ BOOST_AUTO_TEST_CASE( fetch_rel_single
                     ,
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -361,6 +371,8 @@ BOOST_AUTO_TEST_CASE( fetch_rel_mult_fwd
                     * utf::depends_on( "path/fetch_rel_single" )
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
@@ -388,6 +400,8 @@ BOOST_AUTO_TEST_CASE( root_parent
                     * utf::depends_on( "path/fetch_rel_mult_fwd" )
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
@@ -413,6 +427,8 @@ BOOST_AUTO_TEST_CASE( sel_parent
                     * utf::depends_on( "path/fetch_rel_mult_fwd" )
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
@@ -444,6 +460,8 @@ BOOST_AUTO_TEST_CASE( mult_bwd
                     * utf::depends_on( "path/fetch_rel_mult_fwd" )
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     
@@ -471,6 +489,8 @@ BOOST_AUTO_TEST_CASE( rel_mult_bwd
                     * utf::depends_on( "path/fetch_rel_mult_fwd" )
                     * utf::fixture< ClearMapFixture >() )
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     

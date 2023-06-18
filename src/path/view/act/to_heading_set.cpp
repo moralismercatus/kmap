@@ -28,6 +28,8 @@ auto operator|( Tether const& lhs
               , ToHeadingSet const& rhs )
     -> std::set< std::string > 
 {
+    KM_RESULT_PROLOG();
+
     auto rv = std::set< std::string >{};
     auto const ns = lhs | act::to_node_set( rhs.km );
 

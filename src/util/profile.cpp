@@ -90,6 +90,8 @@ void __cyg_profile_func_enter( void *this_fn
 auto stack_trace()
     -> std::vector< std::string >
 {
+    KM_RESULT_PROLOG();
+
     auto const st = KTRYE( kmap::js::eval< std::string >( "return stackTrace();" ) );
 
     fmt::print( "got stacktrace from eval!: {}\n", st );

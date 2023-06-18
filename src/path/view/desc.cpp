@@ -32,6 +32,8 @@ auto Desc::fetch( FetchContext const& ctx
                 , Uuid const& node ) const
     -> FetchSet
 {
+    KM_RESULT_PROLOG();
+
     if( pred_ )
     {
         auto dispatch = util::Dispatch

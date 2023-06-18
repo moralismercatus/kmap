@@ -164,6 +164,8 @@ auto main( int argc
 {
     try
     {
+        KM_RESULT_PROLOG();
+
         temp_init_fs();
 
         KMAP_TRYE( window::set_default_window_title() );

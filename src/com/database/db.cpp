@@ -435,7 +435,7 @@ SCENARIO( "Database::push_child", "[benchmark][db]" )
     {
         auto const id = gen_uuid();
         meter.measure( [ & ]{ return db->push_node( id ); } );
-        KTRYE( db->erase_all( id ) );
+        REQUIRE_TRY( db->erase_all( id ) );
     };
     BENCHMARK_ADVANCED( "push_node for 1000th node" )( auto meter )
     {
@@ -446,16 +446,16 @@ SCENARIO( "Database::push_child", "[benchmark][db]" )
         {
             auto const id = gen_uuid();
             ids.emplace_back( id );
-            KTRYE( db->push_node( id ) );
+            REQUIRE_TRY( db->push_node( id ) );
         }
         {
             auto const id = gen_uuid();
             meter.measure( [ & ]{ return db->push_node( id ); } );
-            KTRYE( db->erase_all( id ) );
+            REQUIRE_TRY( db->erase_all( id ) );
         }
         for( auto const& id : ids )
         {
-            KTRYE( db->erase_all( id ) );
+            REQUIRE_TRY( db->erase_all( id ) );
         }
     };
 }
@@ -1136,6 +1136,8 @@ auto Database::is_child( Uuid const& parent
                        , Uuid const& id ) const
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const& children = KTRYE( fetch_children( parent ) ); // TODO: Replace with KMAP_TRY().
 
     return children.find( id ) != children.end();
@@ -1157,6 +1159,8 @@ auto Database::has_parent( Uuid const& child ) const
 auto Database::erase_all( Uuid const& id )
     -> Result< void >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = result::make_result< void >();
 
     BC_CONTRACT()
@@ -1814,6 +1818,9 @@ auto Database::has_delta() const
 auto Database::execute_raw( std::string const& stmt )
     -> std::multimap< std::string, std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "stmt", stmt );
+
     KMAP_ENSURE_EXCEPT( has_file_on_disk() );
 
     KTRYE( flush_delta_to_disk() );
@@ -1911,7 +1918,7 @@ struct Database
     }
 
     auto init_db_on_disk( std::string const& path )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
             KM_RESULT_PUSH_STR( "path", path );
@@ -1922,7 +1929,7 @@ struct Database
     }
 
     auto flush_delta_to_disk()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
 
@@ -1939,7 +1946,7 @@ struct Database
     }
 
     auto flush_cache_to_disk()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
 
@@ -1958,6 +1965,8 @@ struct Database
     auto has_delta()
         -> bool
     {
+        KM_RESULT_PROLOG();
+
         auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
         return db->has_delta();
@@ -1966,6 +1975,8 @@ struct Database
     auto has_file_on_disk()
         -> bool
     {
+        KM_RESULT_PROLOG();
+
         auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
 
         return db->has_file_on_disk();

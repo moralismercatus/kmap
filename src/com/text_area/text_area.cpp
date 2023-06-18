@@ -35,6 +35,8 @@ TextArea::TextArea( Kmap& km
     , cclerk_{ km }
     , pclerk_{ km }
 {
+    KM_RESULT_PROLOG();
+
     register_standard_commands();
     register_standard_outlets();
     KTRYE( register_standard_options() );
@@ -109,14 +111,11 @@ auto TextArea::apply_static_options()
 auto TextArea::register_standard_commands()
     -> void
 {
+    KM_RESULT_PROLOG();
+
     {
-        auto const guard_code =
-        R"%%%(
-        return kmap.success( 'success' );
-        )%%%";
         auto const action_code =
         R"%%%(
-        let rv = kmap.failure( 'failed to open editor' );
         const selected = kmap.selected_node();
         const body_text_res = kmap.fetch_body( selected );
         let body_text = "";
@@ -130,25 +129,29 @@ auto TextArea::register_standard_commands()
         const canvas = kmap.canvas();
         const workspace_pane = canvas.workspace_pane();
         const editor_pane = canvas.editor_pane();
-        const editor_pane_str = kmap.uuid_to_string( canvas.editor_pane() ).value();
+        const editor_pane_str = kmap.uuid_to_string( canvas.editor_pane() );
         const preview_pane = canvas.preview_pane();
         const ta_pane = canvas.text_area_pane();
         const ep_elem = document.getElementById( editor_pane_str );
 
         ep_elem.value = body_text;
 
-        const old_ws_orient = canvas.fetch_orientation( workspace_pane ).value_or_throw();
-        const old_ta_base = canvas.fetch_base( ta_pane ).value_or_throw();
+        const old_ws_orient = canvas.fetch_orientation( workspace_pane );
+        const old_ta_base = canvas.fetch_base( ta_pane );
 
-        canvas.orient( workspace_pane, kmap.Orientation.vertical );
-        canvas.rebase( ta_pane, 0.33 ).throw_on_error();
-        canvas.rebase( preview_pane, 0.50 ).throw_on_error();
-        canvas.reveal( ta_pane ).throw_on_error();
-        canvas.reveal( editor_pane ).throw_on_error();
-        canvas.reveal( preview_pane ).throw_on_error();
-        kmap.option_store().apply( "network.viewport_scale" );
-        canvas.redraw().throw_on_error();
-        canvas.focus( editor_pane ).throw_on_error();
+        ktry( canvas.orient( workspace_pane, kmap.Orientation.vertical ) );
+        ktry( canvas.rebase( ta_pane, 0.33 ) );
+        ktry( canvas.rebase( preview_pane, 0.50 ) );
+        ktry( canvas.reveal( ta_pane ) );
+        ktry( canvas.reveal( editor_pane ) );
+        ktry( canvas.reveal( preview_pane ) );
+        {
+            const opt_root = ktry( kmap.fetch_node( '/meta.setting.option' ) );
+            const optn = ktry( kmap.fetch_descendant( opt_root, 'network.viewport_scale' ) );
+            ktry( kmap.option_store().apply( optn ) );
+        }
+        ktry( canvas.redraw() );
+        ktry( canvas.focus( editor_pane ) );
 
         // Remove existing listeners before adding new.
         {
@@ -161,33 +164,32 @@ auto TextArea::register_standard_commands()
 
         ep_elem.oninput = function( e )
         {
-            const md_text = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() );
+            const editor_panen = kmap.uuid_to_string( kmap.canvas().editor_pane() );
+            const md_text = document.getElementById( editor_panen );
             write_preview( convert_markdown_to_html( md_text.value ) );
         };
         ep_elem.addEventListener( 'focusout', function()
         {
-            canvas.orient( workspace_pane, old_ws_orient ).throw_on_error();
-            canvas.rebase( ta_pane, old_ta_base ).throw_on_error();
+            ktry( canvas.orient( workspace_pane, old_ws_orient ) );
+            ktry( canvas.rebase( ta_pane, old_ta_base ) );
             kmap.on_leaving_editor();
-            canvas.redraw();
-            kmap.option_store().apply( "network.viewport_scale" );
+            ktry( canvas.redraw() );
+            {
+                const opt_root = ktry( kmap.fetch_node( '/meta.setting.option' ) );
+                const optn = ktry( kmap.fetch_descendant( opt_root, 'network.viewport_scale' ) );
+                ktry( kmap.option_store().apply( optn ) );
+            }
         } );
-
-        rv = kmap.success( 'editor opened' );
-
-        return rv;
         )%%%";
 
-        using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
         auto const description = "opens body editor pane";
         auto const arguments = std::vector< Argument >{};
-        auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "edit.body"
                                     , .description = description
                                     , .arguments = arguments
-                                    , .guard = guard
+                                    , .guard = "unconditional"
                                     , .action = action_code };
 
         KTRYE( cclerk_.register_command( command ) );
@@ -248,50 +250,49 @@ auto TextArea::register_standard_options()
     KTRY( oclerk_.register_option( Option{ "canvas.preview.background.color"
                                         , "Sets the background color for the preview pane."
                                         , "\"#222222\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).style.backgroundColor = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.preview.text.color"
                                         , "Sets the text color for the preview pane."
                                         , "\"white\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.color = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).style.color = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.preview.text.size"
                                         , "Text size."
                                         , "\"x-large\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.fontSize = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).style.fontSize = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.preview.scrollbar"
                                         , "Specify scroll bar."
                                         , "\"auto\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.overflow = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).style.overflow = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.preview.whitespace_wrap"
                                         , "Specify scroll behavior."
                                         , "\"normal\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ).value_or_throw() ).style.whiteSpace = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).style.whiteSpace = option_value;" } ) );
     // Editor
     KTRY( oclerk_.register_option( Option{ "canvas.editor.background.color"
                                         , "Sets the background color for the editor pane."
                                         , "\"#222222\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.backgroundColor = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).style.backgroundColor = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.editor.text.color"
                                         , "Sets the text color for the editor pane."
                                         , "\"white\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.color = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).style.color = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.editor.text.size"
                                         , "Text size."
                                         , "\"x-large\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.fontSize = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).style.fontSize = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.editor.scrollbar"
                                         , "Specify scroll behavior."
                                         , "\"auto\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.overflow = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).style.overflow = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ "canvas.editor.whitespace_wrap"
                                         , "Specify scroll behavior."
                                         , "\"normal\""
-                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value_or_throw() ).style.whiteSpace = option_value;" } ) );
+                                        , "document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).style.whiteSpace = option_value;" } ) );
 
     rv = outcome::success();
 
     return rv;
 }
-
 
 auto TextArea::register_standard_outlets()
     -> void
@@ -315,7 +316,7 @@ auto TextArea::install_event_sources()
         //       Event should trigger event system fire, not direct call to canvas.
         //       It's mentioned that "on_leaving_editor" is provided elsewhere. Well, it shouldn't be. It should be here, under a separate source that also fires an event.
         auto const ctor =
-R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() ).onkeydown = function( e )
+R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).onkeydown = function( e )
 {
     let key = e.keyCode ? e.keyCode : e.which;
     let is_ctrl = !!e.ctrlKey;
@@ -331,7 +332,7 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() 
     }
 };)%%%";
         auto const dtor = 
-R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ).value() ).onkeydown = null;)%%%";
+R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).onkeydown = null;)%%%";
 
         scoped_events_.emplace_back( ctor, dtor );
     }
@@ -454,6 +455,8 @@ auto TextArea::show_editor()
 auto TextArea::rebase_pane( float const base )
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -463,6 +466,8 @@ auto TextArea::rebase_pane( float const base )
 auto TextArea::rebase_editor_pane( float const base )
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
     auto const pane = canvas->editor_pane();
@@ -473,6 +478,8 @@ auto TextArea::rebase_editor_pane( float const base )
 auto TextArea::rebase_preview_pane( float const base )
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
     auto const pane = canvas->preview_pane();
@@ -534,6 +541,8 @@ auto TextArea::resize_preview( std::string const& attr )
 auto TextArea::update_pane()
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -556,15 +565,19 @@ struct TextArea
     auto focus_editor()
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
 
        tv->focus_editor();
     }
 
     auto load_preview( Uuid const& node )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
+        KM_RESULT_PROLOG();
+
+        auto const tv = KTRY( km.fetch_component< com::TextArea >() );
 
         return tv->load_preview( node );
     }
@@ -572,6 +585,8 @@ struct TextArea
     auto rebase_pane( float percent )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
 
         tv->rebase_pane( percent );
@@ -580,6 +595,8 @@ struct TextArea
     auto rebase_preview_pane( float percent )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
 
         tv->rebase_preview_pane( percent );
@@ -588,23 +605,29 @@ struct TextArea
     auto set_editor_text( std::string const& text )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
 
         tv->set_editor_text( text );
     }
 
     auto show_editor()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
+        KM_RESULT_PROLOG();
+
+        auto const tv = KTRY( km.fetch_component< com::TextArea >() );
 
         return tv->show_editor();
     }
 
     auto show_preview( std::string const& body_text )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
+        KM_RESULT_PROLOG();
+
+        auto const tv = KTRY( km.fetch_component< com::TextArea >() );
 
         return tv->show_preview( body_text );
     }

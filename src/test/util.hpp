@@ -127,6 +127,8 @@ auto headings( com::Network const& nw
              , Range const& rng )
     -> std::vector< std::string >
 {
+    KM_RESULT_PROLOG();
+
     return rng
          | ranges::views::transform( [ & ]( auto const& e ){ return KTRYE( nw.fetch_heading( e ) ); } )
          | ranges::to< std::vector >();

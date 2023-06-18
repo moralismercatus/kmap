@@ -418,7 +418,6 @@ SCENARIO( "erase nested alias source", "[kmap_iface]" )
                                           | view::child( "alias_root" )
                                           | view::direct_desc( "1.2" )
                                           | view::fetch_node( kmap ) );
-            // KTRYE( print_tree( kmap, root ) );
 
             THEN( "alias dst erased, too" )
             {

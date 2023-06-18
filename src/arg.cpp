@@ -107,6 +107,9 @@ auto CommandArg::is_fmt_malformed( std::string const& raw ) const
 auto CommandArg::complete( std::string const& raw ) const 
     -> StringVec
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto const cli = KTRYE( kmap_.fetch_component< com::Cli >() );
     auto rm_pred = [ & ]( auto const& e )
     {
@@ -254,6 +257,9 @@ auto HeadingPathArg::is_fmt_malformed( std::string const& raw ) const
 auto HeadingPathArg::complete( std::string const& raw ) const
     -> StringVec
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto rv = StringVec{};
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
 
@@ -430,6 +436,9 @@ auto DailyLogArg::is_fmt_malformed( std::string const& raw ) const
 auto DailyLogArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+    
     auto const log_root = anchor::abs_root
                         | view2::direct_desc( "log.daily" )
                         | act2::fetch_node( kmap_ );
@@ -497,6 +506,10 @@ auto complete( Kmap const& kmap
              , std::string const& raw )
     -> StringVec
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "root_path", root_path );
+        KM_RESULT_PUSH( "raw", raw );
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const root = fetch_descendant( kmap
                                       , kmap.root_node_id()
@@ -530,6 +543,8 @@ auto complete( Kmap const& kmap
 auto TagPathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const tags_root = fetch_descendant( kmap_
                                            , kmap_.root_node_id()
@@ -562,6 +577,9 @@ auto TagPathArg::complete( std::string const& raw ) const
 auto DefinitionPathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const defs_root = anchor::abs_root
                          | view2::direct_desc( "definitions" )
@@ -608,6 +626,9 @@ auto ResourcePathArg::is_fmt_malformed( std::string const& raw ) const
 auto ResourcePathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const resources_root = anchor::abs_root
                               | view2::direct_desc( "resources" )
@@ -652,6 +673,9 @@ auto AliasDestArg::is_fmt_malformed( std::string const& raw ) const
 auto AliasDestArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto const selected = nw->selected_node();
     auto const aliases = nw->alias_store().fetch_aliases( com::AliasItem::rsrc_type{ nw->resolve( selected ) } );
@@ -680,6 +704,9 @@ auto ProjectArg::is_fmt_malformed( std::string const& raw ) const
 auto ProjectArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto complete = [ & ]
                     ( auto const& kmap
                     , auto const& rel_root
@@ -745,6 +772,9 @@ auto ConclusionArg::is_fmt_malformed( std::string const& raw ) const
 auto ConclusionArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
     auto complete = [ & ]
                     ( auto const& kmap
@@ -801,6 +831,9 @@ auto RecipeArg::is_fmt_malformed( std::string const& raw ) const
 auto RecipeArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto complete = [ & ]
                     ( auto const& kmap
                     , auto const& rel_root
@@ -857,6 +890,9 @@ auto CommandPathArg::is_fmt_malformed( std::string const& raw ) const
 auto CommandPathArg::complete( std::string const& raw ) const 
     -> StringVec 
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "raw", raw );
+
     auto rv = StringVec{};
     auto const cmd_abs_path = "/setting.command";
     auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
@@ -987,35 +1023,6 @@ REGISTER_ARGUMENT
 
 } // namespace anon
 } // namespace heading_path 
-#endif // 0
-
-#if 0
-namespace filesystem_path_def {
-namespace {
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( "success" );
-```)%%%";
-auto const completion_code =
-R"%%%(```javascript
-return kmap.complete_filesystem_path( arg );
-```)%%%";
-
-auto const description = "filesystem path";
-auto const guard = guard_code;
-auto const completion = completion_code;
-
-REGISTER_ARGUMENT
-(
-    filesystem_path 
-,   description 
-,   guard
-,   completion
-);
-
-} // namespace anon
-} // namespace filesystem_path_def
 #endif // 0
 
 #if 0

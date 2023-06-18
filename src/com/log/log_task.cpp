@@ -54,6 +54,8 @@ struct LogTask : public Component
         : Component{ kmap, requisites, description }
         , eclerk_{ kmap }
     {
+        KM_RESULT_PROLOG();
+
         KTRYE( register_standard_events() );
     }
     virtual ~LogTask() = default;
@@ -346,13 +348,17 @@ struct LT
     }
 
     auto push_task_to_log()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_task_to_log();
     }
     auto push_active_tasks_to_log()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_active_tasks_to_log();
     }
 };

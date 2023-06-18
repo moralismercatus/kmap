@@ -8,6 +8,13 @@
 #include <common.hpp>
 #include <component.hpp>
 
+// <test>
+#include <com/cli/cli.hpp>
+#include <test/util.hpp>
+// </test>
+
+#include <catch2/catch_test_macros.hpp>
+
 namespace kmap::com {
 
 class OptionStoreCommand : public Component
@@ -24,6 +31,8 @@ public:
         : Component{ km, requisites, description }
         , cclerk_{ km }
     {
+        KM_RESULT_PROLOG();
+
         KTRYE( register_standard_commands() );
     }
     virtual ~OptionStoreCommand() = default;
@@ -58,13 +67,18 @@ public:
     auto register_standard_commands()
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = result::make_result< void >();
 
-        // arg.tag_path
+        // arg.option_path
         {
             auto const guard_code =
             R"%%%(
-                return kmap.is_valid_heading_path( arg );
+            if( !kmap.is_valid_heading_path( args.get( 0 ) ) )
+            {
+                return kmap.failure( 'invalid heading path' );
+            }
             )%%%";
             auto const completion_code =
             R"%%%(
@@ -82,41 +96,36 @@ public:
 
             auto const description = "option heading path";
             
-            KTRYE( cclerk_.register_argument( com::Argument{ .path = "option_path"
-                                                           , .description = description
-                                                           , .guard = guard_code
-                                                           , .completion = completion_code } ) );
+            KTRY( cclerk_.register_argument( com::Argument{ .path = "option_path"
+                                                          , .description = description
+                                                          , .guard = guard_code
+                                                          , .completion = completion_code } ) );
         }
         // TODO: Ought not apply.option use selected_node, to be generally consistent...?
         // apply.option
         {
-            auto const guard_code =
-            R"%%%(
-                return kmap.success( 'success' );
-            )%%%";
             auto const action_code =
             R"%%%(
                 const ostore = kmap.option_store();
-                ostore.apply( args.get( 0 ) ).throw_on_error();
+                const opt_root = ktry( kmap.fetch_node( "meta.setting.option"  ) );
+                const target = ktry( kmap.fetch_descendant( opt_root, args.get( 0 ) ) );
 
-                return kmap.success( 'applied:' + args.get( 0 ) );
+                ktry( ostore.apply( target ) );
             )%%%";
 
-            using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
 
             auto const description = "executes action for provided option";
             auto const arguments = std::vector< Argument >{ Argument{ "option_path"
                                                                     , "path to target option"
                                                                     , "option_path" }  };
-            auto const guard = Guard{ "unconditional", guard_code };
             auto const command = Command{ .path = "apply.option"
                                         , .description = description
                                         , .arguments = arguments
-                                        , .guard = guard
+                                        , .guard = "unconditional"
                                         , .action = action_code };
 
-            KTRYE( cclerk_.register_command( command ) );
+            KTRY( cclerk_.register_command( command ) );
         }
 
         rv = outcome::success();
@@ -124,6 +133,40 @@ public:
         return rv;
     }
 };
+
+SCENARIO( ":apply.option accepts absolute and non-absolute path", "[option][cmd]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "option_store.command", "cli" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const ostore = REQUIRE_TRY( km.fetch_component< com::OptionStore >() );
+    auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+
+    GIVEN( "option.1.2" )
+    {
+        REQUIRE_TRY( ostore->install_option( Option{ .heading = "1.2"
+                                                   , .descr = "test_option_path"
+                                                   , .value = "true"
+                                                   , .action = "option_value.toString();" } ) );
+        
+        REQUIRE(( view2::option::option_root
+                | view2::direct_desc( "1.2" )
+                | act2::exists( km ) ));
+
+        THEN( ":apply.option 1 fails" )
+        {
+            REQUIRE_RFAIL( cli->parse_raw( ":apply.option 1" ) );
+        }
+        THEN( ":apply.option 1.2 succeeds" )
+        {
+            REQUIRE_TRY( cli->parse_raw( ":apply.option 1.2" ) );
+        }
+        // THEN( ":apply.option 2 succeeds" )
+        // {
+        //     REQUIRE_TRY( cli->parse_raw( ":apply.option 2" ) );
+        // }
+    }
+}
 
 namespace {
 namespace option_store_command_def {

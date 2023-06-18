@@ -32,6 +32,8 @@ JumpStack::JumpStack( Kmap& km
     , pclerk_{ km }
     , cclerk_{ km }
 {
+    KM_RESULT_PROLOG();
+
     KTRYE( register_event_outlets() );
     KTRYE( register_standard_options() );
     KTRYE( register_panes() );
@@ -87,10 +89,10 @@ auto JumpStack::register_event_outlets()
         auto const action =
 R"%%%(
 const estore = kmap.event_store();
-const payload = estore.fetch_payload(); payload.throw_on_error();
-const from = kmap.uuid_from_string( payload.value().at( 'from_node' ).as_string() ); from.throw_on_error();
-const to = kmap.uuid_from_string( payload.value().at( 'to_node' ).as_string() ); to.throw_on_error();
-kmap.jump_stack().push_transition( from.value(), to.value() ).throw_on_error();
+const payload = ktry( estore.fetch_payload() );
+const from = ktry( kmap.uuid_from_string( payload.at( 'from_node' ).as_string() ) );
+const to = ktry( kmap.uuid_from_string( payload.at( 'to_node' ).as_string() ) );
+ktry( kmap.jump_stack().push_transition( from, to ) );
 )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "jump_stack.node_selected"
                                      , .requisites = { "subject.network", "verb.selected", "object.node" }
@@ -106,7 +108,7 @@ kmap.jump_stack().push_transition( from.value(), to.value() ).throw_on_error();
     {
         auto const action =
 R"%%%(
-kmap.jump_stack().jump_out().throw_on_error();
+ktry( kmap.jump_stack().jump_out() );
 )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "jump_stack.key.control.jump_out"
                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.o" }
@@ -117,7 +119,7 @@ kmap.jump_stack().jump_out().throw_on_error();
     {
         auto const action =
 R"%%%(
-kmap.jump_stack().jump_in().throw_on_error();
+ktry( kmap.jump_stack().jump_in() );
 )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "jump_stack.key.control.jump_in"
                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.i" }
@@ -172,54 +174,38 @@ auto JumpStack::register_commands()
 
     // jump.out
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'unconditional' );
-        )%%%";
         auto const action_code =
         R"%%%(
-            kmap.jump_stack().jump_out().throw_on_error();
-
-            return kmap.success( 'success' );
+            ktry( kmap.jump_stack().jump_out() );
         )%%%";
 
-        using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
         auto const description = "selects to jump_stack active node";
         auto const arguments = std::vector< Argument >{};
-        auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "jump.out"
                                     , .description = description
                                     , .arguments = arguments
-                                    , .guard = guard
+                                    , .guard = "unconditional"
                                     , .action = action_code };
 
         KTRY( cclerk_.register_command( command ) );
     }
     // jump.in
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'unconditional' );
-        )%%%";
         auto const action_code =
         R"%%%(
-            kmap.jump_stack().jump_in().throw_on_error();
-
-            return kmap.success( 'success' );
+            ktry( kmap.jump_stack().jump_in() );
         )%%%";
 
-        using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
         auto const description = "jumps to top of jump stack";
         auto const arguments = std::vector< Argument >{};
-        auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "jump.in"
                                     , .description = description
                                     , .arguments = arguments
-                                    , .guard = guard
+                                    , .guard = "unconditional"
                                     , .action = action_code };
 
         KTRY( cclerk_.register_command( command ) );
@@ -241,8 +227,8 @@ auto JumpStack::build_pane_table()
     KTRY( js::eval_void( 
 R"%%%(
 const canvas = kmap.canvas();
-const js_pane_id = kmap.uuid_to_string( canvas.jump_stack_pane() ); js_pane_id.throw_on_error();
-const tbl = document.getElementById( js_pane_id.value() );
+const js_pane_id = kmap.uuid_to_string( canvas.jump_stack_pane() );
+const tbl = document.getElementById( js_pane_id );
 const tbl_body = document.createElement( "tbody" );
 
 tbl.style.backgroundColor = '#222222';
@@ -287,6 +273,9 @@ auto is_sibling_adjacent( Kmap const& km
                         , Uuid const& other )
     -> bool
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+        KM_RESULT_PUSH( "other", other );
     // Ensure nodes are siblings.
     {
         auto const nw = KTRYE( km.fetch_component< com::Network >() );
@@ -346,6 +335,8 @@ auto JumpStack::is_adjacent( Uuid const& n1
                            , Uuid const& n2 )
     -> bool 
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( fetch_component< com::Network >() );
 
     return n1 == n2 
@@ -700,8 +691,8 @@ auto JumpStack::update_pane()
     KTRY( js::eval_void( 
 R"%%%(
 const canvas = kmap.canvas();
-const js_pane_id = kmap.uuid_to_string( canvas.jump_stack_pane() ); js_pane_id.throw_on_error();
-const tbl = document.getElementById( js_pane_id.value() );
+const js_pane_id = kmap.uuid_to_string( canvas.jump_stack_pane() );
+const tbl = document.getElementById( js_pane_id );
 const tbody = tbl.firstChild;
 const jstack = kmap.jump_stack();
 const stack = jstack.stack();
@@ -778,12 +769,14 @@ namespace binding
         auto active_item_index() const
             -> kmap::com::JumpStack::Stack::size_type
         {
+            KM_RESULT_PROLOG();
+
             auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
 
             return jstack->active_item_index().value_or( 0 );
         }
         auto jump_in()
-            -> kmap::binding::Result< void >
+            -> kmap::Result< void >
         {
             KM_RESULT_PROLOG();
 
@@ -797,7 +790,7 @@ namespace binding
             return rv;
         }
         auto jump_out()
-            -> kmap::binding::Result< void >
+            -> kmap::Result< void >
         {
             KM_RESULT_PROLOG();
 
@@ -812,7 +805,7 @@ namespace binding
         }
         auto push_transition( Uuid const& from
                             , Uuid const& to )
-            -> kmap::binding::Result< void >
+            -> kmap::Result< void >
         {
             KM_RESULT_PROLOG();
                 KM_RESULT_PUSH_NODE( "from", from );
@@ -830,6 +823,8 @@ namespace binding
         auto set_threshold( unsigned const& max )
             -> void
         {
+            KM_RESULT_PROLOG();
+
             auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
 
             jstack->threshold( max );
@@ -837,6 +832,8 @@ namespace binding
         auto stack() const
             -> std::vector< Uuid >
         {
+            KM_RESULT_PROLOG();
+
             auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
 
             return jstack->stack() | ranges::to< std::vector >();

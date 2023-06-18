@@ -29,6 +29,8 @@ auto Attr::fetch( FetchContext const& ctx
                 , Uuid const& node ) const
     -> FetchSet
 {
+    KM_RESULT_PROLOG();
+
     auto rv = FetchSet{};
     auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
 

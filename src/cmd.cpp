@@ -786,15 +786,6 @@ auto make_core_commands( Kmap& kmap )
     //                    , "repairs state defects in file <_>" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
     //     , repair_state( kmap )
     //     }
-    // ,   { "resolve.alias" 
-    //     , "Selects the origin of an alias, if it exists"
-    //     , ArgumentList{}
-    //         | HeadingPathArg{ "alias node path"
-    //                         , "Selects the underlying origin node for alias given by <_>, if it exists" // TODO: replace "<_>" with user input.
-    //                         , kmap }
-    //             | Attr::optional
-    //     , resolve_alias( kmap )
-    //     }
     ,   { "search.bodies"
         , "searches node bodies for regex comparison"
         , ArgumentList{}

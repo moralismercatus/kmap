@@ -15,6 +15,8 @@ Workspace::Workspace( Kmap& km
     : Component{ km, requisites, description }
     , pclerk_{ km }
 {
+    KM_RESULT_PROLOG();
+
     KTRYE( register_panes() );
 }
 

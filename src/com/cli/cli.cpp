@@ -8,6 +8,7 @@
 #include "cli/parser.hpp"
 #include "cmd.hpp"
 #include "cmd/command.hpp"
+#include <com/cmd/command.hpp>
 #include "cmd/parser.hpp"
 #include "cmd/select_node.hpp"
 #include "com/canvas/canvas.hpp"
@@ -95,10 +96,14 @@ Cli::Cli( Kmap& km
         , std::set< std::string > const& requisites
         , std::string const& description )
     : Component( km, requisites, description )
+    , oclerk_{ km }
     , eclerk_{ km, { Cli::id } }
     , pclerk_{ km }
 {
+    KM_RESULT_PROLOG();
+
     KTRYE( register_panes() );
+    KTRYE( register_standard_options() );
     register_standard_outlets();
 }
 
@@ -110,6 +115,7 @@ auto Cli::initialize()
     auto rv = result::make_result< void >();
 
     KTRY( pclerk_.install_registered() );
+    KTRY( oclerk_.install_registered() );
     KTRY( eclerk_.install_registered() );
     KTRY( install_events() );
 
@@ -126,6 +132,7 @@ auto Cli::load()
     auto rv = result::make_result< void >();
 
     KTRY( pclerk_.check_registered() );
+    KTRY( oclerk_.check_registered() );
     KTRY( eclerk_.check_registered() );
     KTRY( install_events() );
 
@@ -149,6 +156,70 @@ auto Cli::register_panes()
                                            , .hidden = true
                                            , .elem_type = "div" } ) );
 
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto Cli::register_standard_options()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+
+    // CLI box
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.cli.background.color"
+                                         , .descr = "Sets the background color for the cli pane."
+                                         , .value = "\"#222222\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) ).style.backgroundColor = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.cli.text.color"
+                                         , .descr ="Sets the text color for the cli pane."
+                                         , .value = "\"white\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) ).style.color = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.cli.text.size"
+                                         , .descr = "Text size."
+                                         , .value = "\"large\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) ).style.fontSize = option_value;" } ) );
+    // Completion Box
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.background.color"
+                                        , .descr = "Sets the background color for the completion box."
+                                        , .value = "\"#333333\""
+                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.backgroundColor = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.text.color"
+                                        , .descr = "Sets the text color for the completion box popup."
+                                        , .value = "\"white\""
+                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.color = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.padding"
+                                        , .descr = "Sets the padding between edge of box and internal text."
+                                        , .value = "\"0px\""
+                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.padding = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option { .heading = "canvas.completion_box.border.radius"
+                                         , .descr = "Sets the rounding radius for the corners of the box."
+                                         , .value = "\"5px\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderRadius = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.border.style"
+                                        , .descr = "Border style"
+                                        , .value = "\"outset\""
+                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderStyle = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.border.width"
+                                        , .descr = "Width of border."
+                                        , .value = "\"thin\""
+                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderWidth = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.scrollbar"
+                                        , .descr = "Specify scroll behavior."
+                                        , .value = "\"auto\""
+                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.overflow = option_value;" } ) );
+    // I think all canvas items are absolute... I think this gets encoded when they are created. Probably doesn't belong here.
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.position_type"
+                                     , .descr = "Sets the rounding radius for the corners of the box."
+                                     , .value = "\"absolute\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.position = option_value;" } ) );
+    KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.placement_order"
+                                     , .descr = "Specifies order in which box will be placed vis-a-vis other canvas elements."
+                                     , .value = "\"9999\""
+                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.zIndex = option_value;" } ) );
+    
     rv = outcome::success();
 
     return rv;
@@ -222,12 +293,12 @@ auto Cli::install_events()
     // onkeydown
     {
         auto const ctor =
-R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() ).onkeydown = function( e )
+R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) ).onkeydown = function( e )
 {{
     let key = e.keyCode ? e.keyCode : e.which;
     let is_ctrl = !!e.ctrlKey;
     let is_shift = !!e.shiftKey;
-    let text = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() );
+    let text = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) );
 
     const res = kmap.cli().on_key_down( key
                                       , is_ctrl
@@ -241,11 +312,11 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).v
     }}
     if( res.has_error() )
     {{
-        console.log( 'CLI error: ' + res.error_message() );
+        console.error( 'CLI error: ' + res.error_message() );
     }}
 }};)%%%";
         auto const dtor = 
-R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).value() ).onkeydown = null;)%%%";
+R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) ).onkeydown = null;)%%%";
 
         scoped_events_.emplace_back( ctor, dtor );
     }
@@ -256,59 +327,19 @@ R"%%%(document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ).v
 }
 
 auto Cli::parse_raw( std::string const& input )
-    -> Result< std::string >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_STR( "input", input );
+        KM_RESULT_PUSH( "input", input );
 
-    auto rv = KMAP_MAKE_RESULT( std::string );
-    auto& km = kmap_inst();
-    auto const nw = KTRY( fetch_component< com::Network >() );
+    auto rv = result::make_result< void >();
+    auto const pres = parse_raw_internal( input );
 
-    if( auto const cbar = parser::cli::parse_command_bar( input )
-      ; cbar )
+    if( pres )
     {
-        // TODO: more complex CLI options probably warrant a "self propelled" state machine, but with just one opt sel and cmd, probably not worth it now.
-        //       Actually, the driving events could be the "chain" of commands.c.
-        auto const sel = parser::cli::fetch_selection_string( cbar.value() );
-        auto const cmd = parser::cli::fetch_command_string( cbar.value() );
+        KTRY( notify_success( input ) );
 
-        if( sel && !cmd )
-        {
-            rv = KTRY( cmd::select_node( km, sel.value() ) );
-        }
-        else if( sel && cmd )
-        {
-            auto const selected = nw->selected_node();
-
-            if( rv = cmd::select_node( km, sel.value() )
-              ; rv )
-            {
-                rv = KTRY( execute( cmd->first, cmd->second ) );
-            }
-
-            // Return to original.
-            if( nw->exists( selected ) ) // Corner case in which the command deletes the original node! TODO: Make test case for this.
-            {
-                KTRY( nw->select_node( selected ) );
-            }
-        }
-        else if( cmd )
-        {
-            rv = KTRY( execute( cmd->first, cmd->second ) );
-        }
-    }
-    else
-    {
-        rv = KMAP_PROPAGATE_FAILURE( cbar );
-    }
-
-    if( rv )
-    {
-        // Note: no longer need to notify of success, as this should be done automatically.
-        // Only failure to find command or execute body should be reported.
-        // A failure to execute the command is already handled.
-        KTRY( notify_success( rv.value() ) );
+        rv = outcome::success();
     }
     else
     {
@@ -316,12 +347,12 @@ auto Cli::parse_raw( std::string const& input )
             io::print( stderr, "parse_raw() command failed: {}\n", to_string( rv.error() ) );
         #endif // KMAP_DEBUG
 
-        BC_ASSERT( rv.has_error() );
-        BC_ASSERT( !rv.error().stack.empty() );
+        BC_ASSERT( pres.has_error() );
+        BC_ASSERT( !pres.error().stack.empty() );
 
-        io::print( "{}\n", to_string( rv.error() ) );
+        KTRY( notify_failure( pres.error().stack.front().message ) );
 
-        KTRY( notify_failure( rv.error().stack.front().message ) );
+        rv = KMAP_PROPAGATE_FAILURE( pres );
     }
 
     if( is_focused() )
@@ -334,104 +365,77 @@ auto Cli::parse_raw( std::string const& input )
     return rv;
 }
 
+auto Cli::parse_raw_internal( std::string const& input )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "input", input );
+
+    auto rv = result::make_result< void >();
+    auto& km = kmap_inst();
+    auto const nw = KTRY( fetch_component< com::Network >() );
+
+    auto const cbar = KTRY( parser::cli::parse_command_bar( input ) );
+    // TODO: more complex CLI options probably warrant a "self propelled" state machine, but with just one opt sel and cmd, probably not worth it now.
+    //       Actually, the driving events could be the "chain" of commands.c.
+    auto const sel = parser::cli::fetch_selection_string( cbar );
+    auto const cmd = parser::cli::fetch_command_string( cbar );
+
+    if( sel && !cmd )
+    {
+        KTRY( cmd::select_node( km, sel.value() ) );
+    }
+    else if( sel && cmd )
+    {
+        auto const selected = nw->selected_node();
+
+        KTRY( cmd::select_node( km, sel.value() ) );
+        KTRY( execute( cmd->first, cmd->second ) );
+
+        // Return to original.
+        if( nw->exists( selected ) ) // Corner case in which the command deletes the original node! TODO: Make test case for this.
+        {
+            KTRY( nw->select_node( selected ) );
+        }
+    }
+    else if( cmd )
+    {
+        KTRY( execute( cmd->first, cmd->second ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto Cli::execute( std::string const& cmd_str
                  , std::string const& arg )
-    -> Result< std::string >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_STR( "cmd", cmd_str );
         KM_RESULT_PUSH_STR( "arg", arg );
         
-    auto rv = KMAP_MAKE_RESULT( std::string );
+    auto rv = result::make_result< void >();
     auto& km = kmap_inst();
 
     // This block temporary until old-style cmds are transitioned to new.
-    if( auto const resolved_cmd = fetch_general_command_guard_resolved( cmd_str )
-      ; resolved_cmd )
-    {
-        rv = KMAP_TRY( cmd::execute_command( km, resolved_cmd.value(), arg ) );
+    auto const resolved_cmd = KTRY( fetch_general_command_guard_resolved( cmd_str ) );
 
-        return rv;
-    }
+    KTRY( cmd::execute_command( km, resolved_cmd, arg ) );
 
-    auto const cmd = fetch_command( cmd_str );
-    auto const args = arg | views::split( ' ' ) | to< StringVec >();
-
-    if( !cmd )
-    {
-        rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, "unrecognized command" );
-    }
-    else
-    {
-        auto const min_size = [ & ]
-        {
-            return count_if( cmd->args
-                           , []( auto const& e )
-            {
-                return !e->is_optional();
-            } );
-        }();
-        auto const max_size = [ & ]
-        {
-            if( cmd->args.size() == 1
-             && dynamic_cast< TitleArg* >( &( *cmd->args[ 0 ] ) ) != nullptr ) // TODO: Find a better way. Hack to allow TitleArg accept an arbitrary number of arguments.
-            {
-                return std::numeric_limits< decltype( cmd->args.size() ) >::max();
-            }
-            else
-            {
-                return cmd->args.size();
-            }
-        }();
-
-        if( args.size() < min_size
-         || args.size() > max_size )
-        {
-            rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
-                                    , fmt::format( "expected between [{},{}] arguments, got {}"
-                                                 , min_size
-                                                 , max_size
-                                                 , args.size() ) );
-        }
-        else
-        {
-            auto const malformed = [ & ]() -> Optional< uint32_t >
-            {
-                for( auto i : views::indices( min( args.size()
-                                                 , cmd->args.size() ) ) )
-                {
-                    if( auto const rv = cmd->args[ i ]
-                                           ->is_fmt_malformed( args[ i ] )
-                      ; rv )
-                    {
-                        return rv;
-                    }
-                }
-
-                return nullopt;
-            }();
-
-            if( malformed )
-            {
-                rv = KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized
-                                        , fmt::format( "malformation at position: {}"
-                                                     , *malformed ) );
-            }
-            else
-            {
-                rv = cmd->dispatch( args );
-            }
-        }
-    }
+    rv = outcome::success();
 
     return rv;
 }
 
 [[ deprecated( "used in old cmd style" ) ]]
 auto Cli::fetch_command( std::string const& cmd ) const
-    -> Optional< CliCommand >
+    -> Result< CliCommand >
 {
-    auto rv = Optional< CliCommand >{}; 
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< CliCommand >(); 
     auto const it = valid_cmds_.find( cmd );
 
     if( it != valid_cmds_.end() )
@@ -444,19 +448,17 @@ auto Cli::fetch_command( std::string const& cmd ) const
 
 // TODO: Probably belongs in command.cpp
 auto Cli::fetch_general_command( Heading const& path ) const
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
-    auto rv = Optional< Uuid >{};
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", path );
+
+    auto rv = result::make_result< Uuid >();
     auto const& km = kmap_inst();
 
-    if( auto const desc = anchor::abs_root
-                        | view2::direct_desc( "meta.setting.command" )
-                        | view2::direct_desc( path )
-                        | act2::fetch_node( km )
-      ; desc )
-    {
-        rv = desc.value();
-    }
+    rv = KTRY( view2::cmd::command_root
+             | view2::direct_desc( path )
+             | act2::fetch_node( km ) );
     
     return rv;
 }
@@ -470,25 +472,22 @@ auto Cli::resolve_contextual_guard( Uuid const& cmd ) const
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const& km = kmap_inst();
 
-    if( cmd::is_general_command( km, cmd ) )
-    {
-        for( auto const children = anchor::node( cmd )
-                                 | view2::child
-                                 | act2::to_node_set( km )
-                                 | act::order( km )
-           ; auto const guard : children )
-        {
-            if( cmd::evaluate_guard( km, guard, { "" } ) ) // Note: arg is omitted b/c this is the environmental guard, not argument guard.
-            {
-                rv = guard;
+    KMAP_ENSURE( anchor::node( cmd ) | view2::cmd::command | act2::exists( km ), error_code::command::not_general_command );
+    // KMAP_ENSURE( cmd::is_general_command( km, cmd ), error_code::command::not_general_command );
 
-                break;
-            }
-        }
-    }
-    else
+    for( auto const children = anchor::node( cmd )
+                             | view2::child( "guard" )
+                             | view2::child // TODO: `child( view2::cmd::guard )` - where view2::cmd::guard is a predicate that ensures that the node is a valid "guard" node/alias.
+                             | act2::to_node_set( km )
+                             | act::order( km )
+        ; auto const guard : children )
     {
-        rv = KMAP_MAKE_ERROR( error_code::command::not_general_command );
+        if( cmd::evaluate_guard( km, guard, { "" } ) ) // Note: arg is omitted b/c this is the environmental guard, not argument guard.
+        {
+            rv = cmd;
+
+            break;
+        }
     }
 
     return rv;
@@ -496,25 +495,18 @@ auto Cli::resolve_contextual_guard( Uuid const& cmd ) const
 
 // TODO: It'd be nice if this was easily composable: fetch_command | resolve_guard, rather than verbosely named.
 auto Cli::fetch_general_command_guard_resolved( Heading const& path ) const
-    -> Optional< Uuid >
+    -> Result< Uuid >
 {
-    auto rv = Optional< Uuid >{};
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", path );
+
+    auto rv = result::make_result< Uuid >();
     io::print( "fetching: {}\n", path );
 
-    if( auto const guarded = fetch_general_command( path )
-      ; guarded )
-    {
-        io::print( "found: {}\n", path );
-        if( auto const resolved = resolve_contextual_guard( guarded.value() ) )
-        {
-            io::print( "resolved: {}\n", path );
-            rv = resolved.value();
-        }
-        else
-        {
-            io::print( "ctx guard failed: \n", to_string( resolved.error() ) );
-        }
-    }
+    auto const guarded = KTRY( fetch_general_command( path ) );
+    io::print( "found: {}\n", path );
+
+    rv = KTRY( resolve_contextual_guard( guarded ) );
     
     return rv;
 }
@@ -523,6 +515,8 @@ auto Cli::complete( std::string const& input )
     -> void
 {
     using boost::to_lower_copy;
+
+    KM_RESULT_PROLOG();
 
     KTRYE( hide_popup() ); // Clear previous popup.
 
@@ -588,7 +582,7 @@ auto Cli::complete( std::string const& input )
 
 /// An empty result means no completion found.
 // TODO: This could be a free function.
-auto Cli::complete_arg( Argument const& arg
+auto Cli::complete_arg( kmap::Argument const& arg
                       , std::string const& input )
     -> StringVec
 {
@@ -609,6 +603,8 @@ auto Cli::complete_arg( Argument const& arg
 auto Cli::complete_command( std::string const& input ) const
     -> StringVec
 {
+    KM_RESULT_PROLOG();
+
     auto rv = StringVec{};
     auto const& km = kmap_inst();
 
@@ -619,8 +615,7 @@ auto Cli::complete_command( std::string const& input ) const
         })
     ;
 
-    auto const cmds_root = KTRYE( anchor::abs_root
-                                | view2::direct_desc( "meta.setting.command" )
+    auto const cmds_root = KTRYE( view2::cmd::command_root
                                 | act2::fetch_node( km ) );
     auto const ctx_filter = views::filter( [ & ]( auto const& e )
     {
@@ -665,6 +660,8 @@ auto Cli::complete_command( std::string const& scmd
                           , StringVec const& args )
     -> std::string
 {
+    KM_RESULT_PROLOG();
+
     auto rv = fmt::format( "{} {}"
                          , scmd
                          , flatten( args ) );
@@ -743,6 +740,8 @@ auto Cli::write( std::string const& out )
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG(); 
+
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -761,6 +760,8 @@ auto Cli::read()
 {
     using emscripten::val;
     using std::string;
+
+    KM_RESULT_PROLOG(); 
 
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
@@ -784,6 +785,8 @@ auto Cli::focus()
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG(); 
+
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -805,6 +808,8 @@ auto Cli::is_focused()
     -> bool
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG(); 
 
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
@@ -855,6 +860,8 @@ auto Cli::enable_write()
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -875,6 +882,8 @@ auto Cli::disable_write()
 {
     using emscripten::val;
 
+    KM_RESULT_PROLOG();
+
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -894,6 +903,8 @@ auto Cli::set_color( Color const& c )
     -> void
 {
     using emscripten::val;
+
+    KM_RESULT_PROLOG();
 
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
@@ -1198,6 +1209,8 @@ auto Cli::on_key_down( int const key
 auto Cli::parse_cli( std::string const& input )
     -> void // TODO: Quite sure this should be some kind of Result< >...
 {
+    KM_RESULT_PROLOG();
+
     KTRYE( parse_raw( input ) );
 }
 
@@ -1205,6 +1218,8 @@ auto Cli::parse_cli( std::string const& input )
 auto Cli::update_pane()
     -> void
 {
+    KM_RESULT_PROLOG();
+
     auto& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
@@ -1220,15 +1235,19 @@ struct Cli
     kmap::Kmap& km;
 
     auto clear_input()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
+        KM_RESULT_PROLOG(); 
+
+        auto const cli = KTRY( km.fetch_component< com::Cli >() );
 
         return cli->clear_input();
     }
     auto enable_write()
         -> void
     {
+        KM_RESULT_PROLOG(); 
+
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         cli->enable_write();
@@ -1236,6 +1255,8 @@ struct Cli
     auto focus()
         -> void
     {
+        KM_RESULT_PROLOG(); 
+
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         cli->focus();
@@ -1244,7 +1265,7 @@ struct Cli
                     , bool const is_ctrl
                     , bool const is_shift
                     , std::string const& text )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
 
@@ -1258,6 +1279,8 @@ struct Cli
     auto notify_success( std::string const& message )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         KTRYE( cli->notify_success( message ) );
@@ -1265,6 +1288,8 @@ struct Cli
     auto notify_failure( std::string const& message )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         KTRYE( cli->notify_failure( message ) );
@@ -1272,6 +1297,8 @@ struct Cli
     auto parse_cli( std::string const& input )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         cli->parse_cli( input );
@@ -1279,6 +1306,8 @@ struct Cli
     auto write( std::string const& input )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         auto const cli = KTRYE( km.fetch_component< com::Cli >() );
 
         cli->write( input );

@@ -52,28 +52,24 @@ class Kmap;
 
 namespace kmap::cmd {
 
-auto execute_command( Kmap& kmap )
-    -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
+// auto execute_command( Kmap& kmap )
+//     -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >;
 auto execute_command( Kmap& kmap
                     , Uuid const& cmd_id
                     , std::string const& arg )
-    -> Result< std::string >;
+    -> Result< void >;
 auto execute_kscript( Kmap& kmap 
                     , std::string const& code )
-    -> Result< std::string >;
+    -> Result< void >;
 auto execute_javascript( Uuid const& node
-                       , std::string_view const fn_body
+                       , std::string_view const body
                        , StringVec const& args )
-    -> Result< std::string >;
-auto execute_javascript( Uuid const& node
-                       , std::string_view const fn_body
-                       , StringVec const& arg )
-    -> Result< std::string >;
+    -> Result< void >;
 [[ nodiscard ]]
 auto evaluate_guard( Kmap const& kmap
                    , Uuid const& guard_node
                    , std::string const& arg )
-    -> Result< std::string >;
+    -> Result< void >;
 [[ nodiscard ]]
 auto evaluate_completer( Kmap& kmap
                        , Uuid const& completer_node
@@ -81,11 +77,10 @@ auto evaluate_completer( Kmap& kmap
     -> Result< StringVec >;
 [[ nodiscard ]]
 auto has_unconditional_arg( Kmap const& kmap
-                          , Uuid const& cmd
-                          , Uuid const& args_root )
+                          , Uuid const& cmd )
     -> bool;
 [[ nodiscard ]]
-auto fetch_args( Kmap& kmap
+auto parse_args( Kmap& kmap
                , Uuid const& cmd_id
                , std::string const& arg )
     -> Result< StringVec >;

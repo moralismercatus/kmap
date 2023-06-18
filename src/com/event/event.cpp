@@ -735,7 +735,9 @@ auto EventStore::execute_body( Uuid const& node )
                                               }
                                               else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                                               {
-                                                  KTRY( js::eval_void( e.code ) );
+                                                  auto const pp = KTRYE( js::preprocess( e.code ) );
+
+                                                  KTRY( js::eval_void( pp ) );
                                               }
                                               else
                                               {
@@ -1512,7 +1514,7 @@ struct EventStore
     }
 
     auto fire_event( std::vector< std::string > const& requisites )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
 
@@ -1537,7 +1539,7 @@ struct EventStore
         return rv;
     }
     auto reset_transitions( std::vector< std::string > const& requisites )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
 
@@ -1563,7 +1565,7 @@ EMSCRIPTEN_BINDINGS( kmap_event_store )
         ;
 }
 
-KMAP_BIND_RESULT2( com::EventStore::Payload );
+KMAP_BIND_RESULT( com::EventStore::Payload );
 
 } // namespace binding
 

@@ -35,6 +35,10 @@ auto create_child_element( std::string const& parent_id
     -> Result< void >;
 auto create_html_canvas( std::string const& id )
     -> Result< void >;
+auto eval_val( std::string const& expr )
+    -> Result< emscripten::val >;
+auto eval_void( std::string const& expr )
+    -> Result< void >;
 auto erase_child_element( std::string const& doc_id )
     -> Result< void >;
 auto fetch_parent_element_id( std::string const& doc_id )
@@ -44,6 +48,8 @@ auto lint( std::string const& code )
 auto move_element( std::string const& src_doc_id
                  , std::string const& dst_doc_id )
     -> Result< void >;
+auto preprocess( std::string const& code )
+    -> Result< std::string >;
 auto publish_function( std::string_view const name
                      , std::vector< std::string > const& params
                      , std::string_view const body )
@@ -97,70 +103,22 @@ auto call( std::string const& name
     return rv;
 }
 
-template< typename Return >
+template< typename RT >
 auto eval( std::string const& expr )
-    -> Result< Return >
+    -> Result< RT >
 {
     using emscripten::val;
 
     KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "expr", expr );
 
-    auto rv = KMAP_MAKE_RESULT( Return ); 
-    auto constexpr script =
-R"%%%(
-(
-    function()
-    {{
-        try
-        {{
-            {}
-        }}
-        catch( err )
-        {{
-            if( is_cpp_exception( err ) )
-            {{
-                if( kmap.is_signal_exception( err ) )
-                {{
-                    console.log( 'signal exception recieved' );
-                    throw err;
-                }}
-                else
-                {{
-                    console.log( '[kmap][error] std::exception encountered:' );
-                    // print std exception
-                    kmap.print_std_exception( err );
-                }}
-            }}
-            else // Javascript exception
-            {{
-                console.log( '[kmap][error] JS exception: ' + err );
-            }}
-            return undefined;
-        }}
-    }}
-)();
-)%%%";
-    auto const eval_str = io::format( script, expr );
+    auto rv = KMAP_MAKE_RESULT( RT ); 
+    auto eval_res = KTRY( eval_val( expr ) );
 
-    KMAP_ENSURE( lint( eval_str ), error_code::js::lint_failed );
-
-    auto const eval_res = val::global().call< val >( "eval", eval_str );
-
-    if( !eval_res.isUndefined() && !eval_res.isNull() )
-    {
-        rv = eval_res.template as< Return >();
-    }
-    else
-    {
-        rv = KMAP_MAKE_ERROR_MSG( error_code::js::eval_failed, io::format( "Null returned (did you fail to return a result?) failed to evaluate javascript expression: {}", expr ) );
-    }
+    // TODO: There's got to be a way to get the underlying bound type for `RT`, check instanceof, as in `eval_val`, and then call `as()`, to avoid the possible exception on type casting.
+    rv = eval_res.template as< RT >();
 
     return rv;
 }
-
-auto eval_void( std::string const& expr )
-    -> Result< void >;
 
 template< typename Return >
 auto fetch_computed_property_value( std::string const& elem_id

@@ -142,7 +142,7 @@ SCENARIO( "act::abs_path", "[node_view][abs_path]" )
         auto const flatten = [ & ]( auto const& uv ) -> std::string
         {
             return uv 
-                 | ranges::views::transform( [ & ]( auto const& e ){ return KTRYE( nw->fetch_heading( e ) ); } )
+                 | ranges::views::transform( [ & ]( auto const& e ){ return REQUIRE_TRY( nw->fetch_heading( e ) ); } )
                  | ranges::views::join( '.' )
                  | ranges::to< std::string >();
         };

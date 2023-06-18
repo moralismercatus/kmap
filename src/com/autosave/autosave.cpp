@@ -51,12 +51,12 @@ if( asave.has_event_outlet_unit( option_value ) )
 }
 else if( asave.has_event_outlet() )
 {
-    asave.uninstall_event_outlet().throw_on_error();
-    asave.install_event_outlet( option_value ).throw_on_error();
+    ktry( asave.uninstall_event_outlet() );
+    ktry( asave.install_event_outlet( option_value ) );
 }
 else
 {
-    asave.install_event_outlet( option_value ).throw_on_error();
+    ktry( asave.install_event_outlet( option_value ) );
 }
 )%%%";
         KTRY( ostore->install_option( Option{ .heading = "database.autosave.interval.unit"
@@ -93,6 +93,8 @@ auto Autosave::load()
 auto Autosave::has_event_outlet( std::set< std::string > const& requisites )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto rv = false;
     auto const estore = KTRYE( fetch_component< com::EventStore >() );
     auto const nw = KTRYE( fetch_component< com::Network >() );
@@ -155,7 +157,7 @@ kmap.autosave().interval();
 // ---Here, actually:
 //    There are a couple of questions I have about this:
 //    1. Why is it failing?
-//    2. Why is the failure being reported as a catastrophic error? throw_on_error() somehow not getting caught? Not even not getting caught, it's a fatal error; abort.
+//    2. Why is the failure being reported as a catastrophic error? throw on error() somehow not getting caught? Not even not getting caught, it's a fatal error; abort.
 //    (2) is the more important of the two. It's only a matter of time before the next mysterious failure and bug hunt ensues....
     KTRY( estore->install_outlet( leaf ) );
 
@@ -234,36 +236,48 @@ struct Autosave
     auto has_event_outlet()
         -> bool
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->has_event_outlet( { "subject.chrono.timer", "verb.intervaled" } );
     }
 
     auto has_event_outlet_unit( std::string const& unit )
         -> bool
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->has_event_outlet( { "subject.chrono.timer", "verb.intervaled", fmt::format( "object.chrono.{}", unit ) } );
     }
     
     auto interval()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->interval();
     }
 
     auto install_event_outlet( std::string const& unit )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->install_event_outlet( unit );
     }
 
     auto uninstall_event_outlet()
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->uninstall_event_outlet();
     }
 
     auto set_threshold( uint32_t const threshold )
         -> void
     {
+        KM_RESULT_PROLOG();
+
         return KTRYE( km.fetch_component< kmap::com::Autosave >() )->set_threshold( threshold );
     }
 };

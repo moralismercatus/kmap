@@ -62,11 +62,16 @@ auto TagStore::load()
 auto TagStore::register_standard_commands()
     -> void
 {
+    KM_RESULT_PROLOG();
+
     // arg.tag_path
     {
         auto const guard_code =
         R"%%%(
-            return kmap.is_valid_heading_path( arg );
+            if( !kmap.is_valid_heading_path( args.get( 0 ) ) )
+            {
+                return kmap.failure( 'invalid heading path' );
+            }
         )%%%";
         auto const completion_code =
         R"%%%(
@@ -90,29 +95,15 @@ auto TagStore::register_standard_commands()
                                                        , .completion = completion_code } ) );
     }
 
-    using Guard = com::Command::Guard;
     using Argument = com::Command::Argument;
 
     // create.tag
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'unconditional' );
-        )%%%";
         auto const action_code =
         R"%%%(
-            const tagn = kmap.tag_store().create_tag( args.get( 0 ) );
+            const tagn = ktry( kmap.tag_store().create_tag( args.get( 0 ) ) );
 
-            if( tagn.has_value() )
-            {
-                kmap.select_node( tagn.value() );
-
-                return kmap.success( 'success' );
-            }
-            else
-            {
-                return kmap.failure( tagn.error_message() );
-            }
+            ktry( kmap.select_node( tagn ) );
         )%%%";
         auto const description = "creates tag";
         // TODO: err.. need argument created, prior to calling install_command, but that's done in task_store, ATM.
@@ -123,22 +114,15 @@ auto TagStore::register_standard_commands()
         KTRYE( cclerk_.register_command( com::Command{ .path = "create.tag"
                                                      , .description = description
                                                      , .arguments = arguments 
-                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .guard = "unconditional"
                                                      , .action = action_code } ) );
     }
     // erase.tag
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'unconditional' );
-        )%%%";
         auto const action_code =
         R"%%%(
-            kmap.tag_store().erase_tag( kmap.selected_node(), args.get( 0 ) ).throw_on_error();
-
-            kmap.select_node( kmap.selected_node() );
-
-            return kmap.success( 'success' );
+            ktry( kmap.tag_store().erase_tag( kmap.selected_node(), args.get( 0 ) ) );
+            ktry( kmap.select_node( kmap.selected_node() ) );
         )%%%";
         auto const description = "erases node tag";
         auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
@@ -148,22 +132,15 @@ auto TagStore::register_standard_commands()
         KTRYE( cclerk_.register_command( com::Command{ .path = "erase.tag"
                                                      , .description = description
                                                      , .arguments = arguments 
-                                                     , .guard = Guard{ "is_tagged_node", guard_code }
+                                                     , .guard = "unconditional" // TODO: "is_tagged_node"
                                                      , .action = action_code } ) );
     }
     // tag.node
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'unconditional' );
-        )%%%";
         auto const action_code =
         R"%%%(
-            kmap.tag_store().tag_node( kmap.selected_node(), args.get( 0 ) ).throw_on_error();
-
-            kmap.select_node( kmap.selected_node() );
-
-            return kmap.success( 'success' );
+            ktry( kmap.tag_store().tag_node( kmap.selected_node(), args.get( 0 ) ) );
+            ktry( kmap.select_node( kmap.selected_node() ) );
         )%%%";
         auto const description = "appends tag to node";
         auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
@@ -173,7 +150,7 @@ auto TagStore::register_standard_commands()
         KTRYE( cclerk_.register_command( com::Command{ .path = "tag.node"
                                                      , .description = description
                                                      , .arguments = arguments 
-                                                     , .guard = Guard{ "unconditional", guard_code }
+                                                     , .guard = "unconditional"
                                                      , .action = action_code } ) );
     }
 }
@@ -420,7 +397,7 @@ struct TagStore
     }
 
     auto create_tag( std::string const& path )
-        -> kmap::binding::Result< Uuid >
+        -> kmap::Result< Uuid >
     {
         KM_RESULT_PROLOG();
             KM_RESULT_PUSH_STR( "path", path );
@@ -431,7 +408,7 @@ struct TagStore
     }
     auto erase_tag( Uuid const& node
                   , std::string const& tpath )
-        -> kmap::binding::Result< void >
+        -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
             KM_RESULT_PUSH_NODE( "node", node );
@@ -450,7 +427,7 @@ struct TagStore
     }
     auto tag_node( Uuid const& node
                  , std::string const& path )
-        -> kmap::binding::Result< Uuid >
+        -> kmap::Result< Uuid >
     {
         KM_RESULT_PROLOG();
             KM_RESULT_PUSH_NODE( "node", node );

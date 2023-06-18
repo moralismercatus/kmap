@@ -14,6 +14,8 @@ namespace kmap::view2::anchor {
 auto AbsRoot::fetch( FetchContext const& ctx ) const
     -> FetchSet
 {
+    KM_RESULT_PROLOG();
+
     auto const rn = KTRYE( ctx.km.fetch_component< com::RootNode >() );
 
     return FetchSet{ LinkNode{ .id = rn->root_node() } };

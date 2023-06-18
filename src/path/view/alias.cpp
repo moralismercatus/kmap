@@ -41,6 +41,9 @@ auto Alias::fetch( FetchContext const& ctx
                  , Uuid const& node ) const
     -> FetchSet
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     if( pred_ )
     {
         auto dispatch = util::Dispatch

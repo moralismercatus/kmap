@@ -28,22 +28,21 @@ namespace kmap::util {
 
 auto load_script( Kmap& kmap 
                 , std::istream& is )
-    -> Result< std::string >
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
 
-    auto rv = result::make_result< std::string >();
+    auto rv = result::make_result< void >();
     auto line = std::string{};
 
     while( std::getline( is, line ) )
     {
         auto const cli = KTRY( kmap.fetch_component< com::Cli >() );
-        if( rv = cli->parse_raw( line )
-          ; !rv )
-        {
-            break;
-        }
+
+        KTRY( cli->parse_raw( line ) );
     }
+
+    rv = outcome::success();
 
     return rv;
 }
@@ -141,7 +140,7 @@ namespace kmap::cmd::script::binding {
 using namespace emscripten;
 
 auto load_kscript( std::string const& fs_path )
-    -> kmap::binding::Result< std::string >
+    -> kmap::Result< std::string >
 {
     auto& kmap = Singleton::instance();
 

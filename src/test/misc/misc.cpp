@@ -10,6 +10,7 @@
 #include <com/event/event.hpp>
 #include <com/filesystem/filesystem.hpp>
 #include <component.hpp>
+#include <js_iface.hpp>
 #include <test/util.hpp>
 
 #include <boost/filesystem.hpp>
@@ -77,6 +78,71 @@ SCENARIO( "Erase canvas node within save/load", "[canvas][db][fs][save][load]" )
 
         if( exists( abs_disk_path ) ) { boost::filesystem::remove( abs_disk_path ); }
     }
+}
+
+SCENARIO( "Javascript preprocessed to transform ktry()", "[js_iface]" )
+{
+    {
+        auto const pre = "ktry( kmap.uuid_from_string( \"0x0\" ) );";
+        auto const post = "{\n  const ktry_postproc_temp_val = kmap.uuid_from_string( \"0x0\" );\n\n  if (ktry_postproc_temp_val.has_error()) {\n    return ktry_postproc_temp_val.error();\n  }\n};";
+        REQUIRE( post == REQUIRE_TRY( js::eval< std::string >( fmt::format( "return kmap_preprocess_js_script( '{}' );", pre ) ) ) );
+    }
+    {
+        auto const pre = "foo( ktry( kmap.uuid_from_string( \"0x0\" ) ) );";
+        auto const post = "{\n  const ktry_postproc_temp_val = kmap.uuid_from_string( \"0x0\" );\n\n  if (ktry_postproc_temp_val.has_error()) {\n    return ktry_postproc_temp_val.error();\n  }\n\n  foo(ktry_postproc_temp_val.value());\n};";
+        REQUIRE( post == REQUIRE_TRY( js::eval< std::string >( fmt::format( "return kmap_preprocess_js_script( '{}' );", pre ) ) ) );
+    }
+    {
+        auto const pre = "x = ktry( kmap.uuid_from_string( \"0x0\" ) );";
+        auto const post = "{\n  const ktry_postproc_temp_val_x = kmap.uuid_from_string( \"0x0\" );\n\n  if (ktry_postproc_temp_val_x.has_error()) {\n    return ktry_postproc_temp_val_x.error();\n  }\n\n  x = ktry_postproc_temp_val_x.value();\n};";
+        REQUIRE( post == REQUIRE_TRY( js::eval< std::string >( fmt::format( "return kmap_preprocess_js_script( '{}' );", pre ) ) ) );
+    }
+    {
+        auto const pre = "const x = ktry( kmap.uuid_from_string( \"0x0\" ) );";
+        auto const post = "const ktry_postproc_temp_val_x = kmap.uuid_from_string( \"0x0\" );\n\nif (ktry_postproc_temp_val_x.has_error()) {\n  return ktry_postproc_temp_val_x.error();\n}\n\nconst x = ktry_postproc_temp_val_x.value();";
+        REQUIRE( post == REQUIRE_TRY( js::eval< std::string >( fmt::format( "return kmap_preprocess_js_script( '{}' );", pre ) ) ) );
+    }
+}
+
+SCENARIO( "instanceof", "[js_iface]" )
+{
+    using namespace emscripten;
+
+    // OK: Found the ticket. val::global() does not accept subitems e.g., kmap.Uuid, kmap.success, etc. You can use index operator to access down levels.
+    {
+        auto const g = val::global( "kmap" );
+        REQUIRE( g.as< bool >() );
+    }
+    {
+        auto const g = val::global( "lint_javascript" );
+        REQUIRE( g.as< bool >() );
+    }
+    {
+        auto const g = val::global( "kmap" )[ "Uuid" ];
+        REQUIRE( g.as< bool >() );
+    }
+    // {
+    //     auto const g = val::global( "success" );
+    //     REQUIRE( g.as< bool >() );
+    // }
+    {
+        auto const g = val::global( "kmap" )[ "success" ];
+        REQUIRE( g.as< bool >() );
+    }
+    {
+        auto const g = val::global( "kmap" )[ "Uuid" ];
+        REQUIRE( g.as< bool >() );
+    }
+    {
+        auto const g = val::global( "kmap" )[ "result$$Payload" ];
+        REQUIRE( g.as< bool >() );
+    }
+
+    KMAP_COMPONENT_FIXTURE_SCOPED( "canvas" );
+
+    // auto const pp = REQUIRE_TRY( js::preprocess( "ktry( kmap.canvas().apply_layout('fail') ); return 'ok';" ) );
+    auto const pp = REQUIRE_TRY( js::preprocess( "ktry( kmap.failure2( 'test' ) );" ) );
+    REQUIRE_RFAIL( js::eval< std::string >( pp ) );
 }
 
 } // namespace kmap

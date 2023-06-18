@@ -112,8 +112,6 @@ public:
     //     -> Result< void >;
     auto install_events()
         -> Result< void >;
-    auto install_options()
-        -> Result< void >;
     auto install_pane( Pane const& pane )
         -> Result< Uuid >;
     auto install_overlay( Overlay const& overlay )
@@ -152,8 +150,6 @@ public:
     auto register_standard_events()
         -> Result< void >;
     auto reorient( Uuid const& pane )
-        -> Result< void >;
-    auto initialize_panes()
         -> Result< void >;
     auto initialize_overlays()
         -> Result< void >;

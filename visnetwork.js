@@ -524,8 +524,8 @@ function new_network( container_id )
     try
     {
         // TODO: Do better error checking than assertions.
-        const container_id_s = kmap.uuid_to_string( container_id ); console.assert( container_id_s.has_value() );
-        const elem_id = document.getElementById( container_id_s.value() ); console.assert( elem_id );
+        const container_id_s = kmap.uuid_to_string( container_id );
+        const elem_id = document.getElementById( container_id_s );
 
         return new Network( elem_id );
     }

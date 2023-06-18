@@ -50,6 +50,8 @@ template< typename... T >
 auto create_lineages( T&&... args )
     -> std::map< Heading, Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = std::map< Heading, Uuid >{};
     auto const paths = std::vector< std::string >{ std::forward< T >( args )... };
     auto& kmap = Singleton::instance();

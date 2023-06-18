@@ -38,6 +38,8 @@ auto Kmap::database_path() const
 auto Kmap::root_node_id() const
     -> Uuid const&
 {
+    KM_RESULT_PROLOG();
+
     auto const dbr = KTRYE( fetch_component< com::RootNode >() );
 
     return dbr->root_node();

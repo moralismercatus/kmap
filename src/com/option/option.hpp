@@ -9,6 +9,7 @@
 
 #include <common.hpp>
 #include <component.hpp>
+#include <path/node_view2.hpp>
 
 #include <string_view>
 
@@ -68,5 +69,10 @@ public:
 };
 
 } // namespace kmap::com
+
+namespace kmap::view2::option
+{
+    auto const option_root = anchor::abs_root | view2::direct_desc( "meta.setting.option" );
+} // namespace kmap::view2::option
 
 #endif // KMAP_OPTION_OPTION_HPP

@@ -9,6 +9,10 @@
 #include "filesystem.hpp"
 #include "kmap.hpp"
 
+#include <emscripten.h>
+#include <emscripten/bind.h>
+#include <range/v3/view/enumerate.hpp>
+
 #include <string>
 
 namespace kmap {
@@ -56,3 +60,39 @@ auto log_ktrye_line( std::string const& func
 }
 
 } // namespace kmap
+
+namespace kmap::error_code { // TODO: Should be kmap::result
+
+auto to_string( Payload const& sp )
+    -> std::string
+{
+    std::stringstream ss;
+
+    ss << fmt::format( "category: {}\n"
+                       "item: {}\n"
+                       "result stack:\n"
+                     , sp.ec.category().name()
+                     , sp.ec.message() );
+
+    for( auto const& [ index, e ] : sp.stack | ranges::views::enumerate )
+    {
+        ss << fmt::format( "-------stack_item[{}]-------\n", index );
+        ss << fmt::format( "\tmessage: {}\n{}|{}|{}\n"
+                         , e.message
+                         , e.line
+                         , e.function
+                         , e.file );
+    }
+
+    return ss.str();
+}
+
+} // kmap::error_code
+
+using namespace emscripten;
+
+EMSCRIPTEN_BINDINGS( kmap_result_module )
+{
+    class_< kmap::error_code::Payload >( "result::Payload" )
+        ;
+}

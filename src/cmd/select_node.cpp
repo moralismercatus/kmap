@@ -27,6 +27,8 @@ auto select_destination( Kmap& kmap )
 {
     return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
+        KM_RESULT_PROLOG();
+
         BC_CONTRACT()
             BC_PRE([ & ]
             {
@@ -102,6 +104,8 @@ auto select_node( Kmap& kmap )
 auto select_root( Kmap& kmap )
     -> std::function< Result< std::string >( com::CliCommand::Args const& args ) >
 {
+    KM_RESULT_PROLOG();
+
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 
     return [ & ]( com::CliCommand::Args const& args ) -> Result< std::string >
@@ -125,6 +129,8 @@ auto select_source( Kmap& kmap )
 {
     return [ &kmap ]( com::CliCommand::Args const& args ) -> Result< std::string >
     {
+        KM_RESULT_PROLOG();
+
         BC_CONTRACT()
             BC_PRE([ & ]
             {
@@ -150,210 +156,6 @@ auto select_source( Kmap& kmap )
 }
 
 #if 0
-namespace travel_up_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.travel_up();
-
-return kmap.success( 'traveled' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects node directly above selected, if it exists";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    travel.up
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace travel_up_def
-
-namespace travel_down_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.travel_down();
-
-return kmap.success( 'traveled' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects node directly above selected, if it exists";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    travel.down
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace travel_down_def
-
-namespace travel_left_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.travel_left();
-
-return kmap.success( 'traveled' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects node directly above selected, if it exists";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    travel.left
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace travel_left_def
-
-namespace travel_right_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.travel_right();
-
-return kmap.success( 'traveled' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects node directly above selected, if it exists";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    travel.right
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace travel_right_def
-
-namespace travel_top_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.travel_top();
-
-return kmap.success( 'traveled' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects node directly above selected, if it exists";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    travel.top
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace travel_top_def
-
-namespace travel_bottom_def {
-namespace { 
-
-auto const guard_code =
-R"%%%(```javascript
-return kmap.success( 'success' );
-```)%%%";
-auto const action_code =
-R"%%%(```javascript
-kmap.travel_bottom();
-
-return kmap.success( 'traveled' );
-```)%%%";
-
-using Guard = com::Command::Guard;
-using Argument = com::Command::Argument;
-
-auto const description = "selects node directly above selected, if it exists";
-auto const arguments = std::vector< Argument >{};
-auto const guard = Guard{ "unconditional", guard_code };
-auto const action = action_code;
-
-REGISTER_COMMAND
-(
-    travel.bottom
-,   description 
-,   arguments
-,   guard
-,   action
-);
-
-} // namespace anon
-} // namespace travel_bottom_def
-
 namespace resolve_def {
 namespace { 
 

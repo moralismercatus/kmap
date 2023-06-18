@@ -19,6 +19,7 @@
 namespace kmap::cmd {
 
 namespace {
+#if 0
 namespace create_contact_def {
 auto const guard_code =
 R"%%%(```javascript
@@ -48,6 +49,7 @@ auto const arguments = std::vector< Argument >{ Argument{ "name"
 auto const guard = Guard{ "unconditional"
                         , guard_code };
 auto const action = action_code;
+#endif // 0
 
 // REGISTER_COMMAND
 // (

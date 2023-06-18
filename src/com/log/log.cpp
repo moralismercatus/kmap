@@ -56,7 +56,9 @@ struct LogStore : public Component
         , eclerk_{ kmap }
         , cclerk_{ kmap }
     {
-        register_standard_commands();
+        KM_RESULT_PROLOG();
+
+        KTRYE( register_standard_commands() );
     }
     virtual ~LogStore() = default;
 
@@ -89,155 +91,97 @@ struct LogStore : public Component
     }
 
     auto register_standard_commands()
-        -> void
+        -> Result< void >
     {
-        // auto const cli = KTRY( fetch_component< com::Cli >() );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< void >();
 
         // create.daily.log
         {
-            auto const guard_code =
-            R"%%%(
-                return kmap.success( 'success' );
-            )%%%";
             auto const action_code =
             R"%%%(
-                let rv = null;
                 const path = kmap.present_daily_log_path();
                 const fln = kmap.fetch_descendant( kmap.root_node(), path ); // TODO: direct_desc?
 
                 if( fln.has_value() )
                 {
-                    kmap.select_node( fln.value() );
-
-                    rv = kmap.success( 'log already existent' );
+                    ktry( kmap.select_node( fln.value() ) );
                 }
                 else
                 {
-                    const cln = kmap.create_descendant( kmap.root_node(), path );
+                    const cln = ktry( kmap.create_descendant( kmap.root_node(), path ) );
 
-                    if( cln.has_value() )
-                    {
-                        kmap.select_node( cln.value() );
-
-                        kmap.event_store().fire_event( to_VectorString( [ 'subject.log', 'verb.created', 'object.daily' ] ) ).throw_on_error();
-
-                        rv = kmap.success( 'log created' );
-                    }
-                    else
-                    {
-                        rv = kmap.failure( cln.error_message() );
-                    }
+                    ktry( kmap.select_node( cln ) );
+                    ktry( kmap.event_store().fire_event( to_VectorString( [ 'subject.log', 'verb.created', 'object.daily' ] ) ) );
                 }
-
-                return rv;
             )%%%";
 
-            using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
 
             auto const description = "creates a log for today's date";
             auto const arguments = std::vector< Argument >{};
-            auto const guard = Guard{ "unconditional", guard_code };
             auto const action = action_code;
             auto const cmd = com::Command{ .path = "create.daily.log"
                                          , .description = description
                                          , .arguments = arguments
-                                         , .guard = guard
+                                         , .guard = "unconditional"
                                          , .action = action };
 
-            cclerk_.register_command( cmd );
+            KTRY( cclerk_.register_command( cmd ) );
         }
         // select.daily.log
         {
-            auto const guard_code =
-            R"%%%(
-                return kmap.success( 'success' );
-            )%%%";
             auto const action_code =
             R"%%%(
-                let rv = null;
                 const path = kmap.present_daily_log_path();
-                const ln = kmap.fetch_node( path );
+                const ln = ktry( kmap.fetch_node( path ) );
 
-                if( ln.has_value() )
-                {
-                    kmap.select_node( ln.value() );
-
-                    rv = kmap.success( 'today\'s log selected' );
-                }
-                else
-                {
-                    rv = kmap.failure( ln.error_message() );
-                }
-
-                return rv;
+                ktry( kmap.select_node( ln.value() ) );
             )%%%";
 
-            using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
 
             auto const description = "selects the log for today's date";
             auto const arguments = std::vector< Argument >{};
-            auto const guard = Guard{ "unconditional", guard_code };
             auto const action = action_code;
             auto const cmd = com::Command{ .path = "select.daily.log"
                                          , .description = description
                                          , .arguments = arguments
-                                         , .guard = guard
+                                         , .guard = "unconditional"
                                          , .action = action };
 
-            cclerk_.register_command( cmd );
+            KTRY( cclerk_.register_command( cmd ) );
         }
         // log.reference
         {
-            auto const guard_code =
-            R"%%%(
-                return kmap.success( 'success' );
-            )%%%";
             auto const action_code =
             R"%%%(
-                let rv = null;
                 const path = kmap.present_daily_log_path();
-                const ln = kmap.fetch_or_create_node( kmap.root_node(), path );
-
-                if( ln.has_value() )
-                {
-                    const sel = kmap.selected_node();
-                    const ref = kmap.create_reference( sel, ln.value() );
-
-                    if( ref.has_value() )
-                    {
-                        rv = kmap.success( 'reference logged' );
-                    }
-                    else
-                    {
-                        rv = kmap.failure( ref.error_message() );
-                    }
-                }
-                else
-                {
-                    rv = kmap.failure( ln.error_message() );
-                }
-
-                return rv;
+                const ln = ktry( kmap.fetch_or_create_node( kmap.root_node(), path ) );
+                const sel = kmap.selected_node();
+                const ref = ktry( kmap.create_reference( sel, ln ) );
             )%%%";
 
-            using Guard = com::Command::Guard;
             using Argument = com::Command::Argument;
 
             auto const description = "creates alias for the selected node as reference of the daily log";
             auto const arguments = std::vector< Argument >{};
-            auto const guard = Guard{ "unconditional", guard_code };
             auto const action = action_code;
             auto const cmd = com::Command{ .path = "log.reference"
                                          , .description = description
                                          , .arguments = arguments
-                                         , .guard = guard
+                                         , .guard = "unconditional"
                                          , .action = action };
 
-            cclerk_.register_command( cmd );
+            KTRY( cclerk_.register_command( cmd ) );
         }
+
+        rv = outcome::success();
+
+        return rv;
     }
+
 };
 
 auto present_date_string()

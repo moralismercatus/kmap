@@ -154,6 +154,8 @@ public:
         using namespace ranges;
         using kmap::sm::state::detail::Heading;
 
+        KM_RESULT_PROLOG();
+
         /* Guards */
         auto const child_heading_exists = [ & ]( auto const& ev )
         {
@@ -392,6 +394,8 @@ public:
         using namespace kmap::sm::state::detail;
         using namespace ranges;
 
+        KM_RESULT_PROLOG();
+
         /* Guards */
         auto const is_anonymous = [ & ]( auto const& ev ) -> bool
         {
@@ -403,6 +407,8 @@ public:
         };
         auto const heading_exists = [ & ]( auto const& ev ) -> bool
         {
+            KM_RESULT_PROLOG();
+
             BC_ASSERT( output_ );
 
             auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
@@ -443,6 +449,8 @@ public:
         };
         auto const start_selected_parent = [ & ]( auto const& ev ) -> void
         {
+            KM_RESULT_PROLOG();
+
             auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
             auto const parent = KTRYE( nw->fetch_parent( selected_node_ ) );
             output_->prospects.emplace_back( make_unique_path_decider( kmap_, root_, parent ) );

@@ -43,6 +43,8 @@ ResetInstanceFixture::ResetInstanceFixture()
 
 ResetInstanceFixture::~ResetInstanceFixture()
 {
+    KM_RESULT_PROLOG();
+
     try
     {
         auto const& kmap = Singleton::instance();
@@ -59,6 +61,8 @@ ResetInstanceFixture::~ResetInstanceFixture()
 
 ClearMapFixture::ClearMapFixture()
 {
+    KM_RESULT_PROLOG();
+
     auto& kmap = Singleton::instance();
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
 

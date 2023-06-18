@@ -31,6 +31,8 @@ auto is_attr( Kmap const& kmap
             , Uuid const& node )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
     return db->attr_exists( node );
@@ -52,6 +54,8 @@ auto is_in_order( Kmap const& kmap
                 , Uuid const& child )
     -> bool
 {
+    KM_RESULT_PROLOG();
+
     auto rv = false;
     auto const nw = KTRYE( kmap.fetch_component< com::Network >() );
     auto const rparent = nw->resolve( parent );

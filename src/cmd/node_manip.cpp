@@ -1239,7 +1239,7 @@ using namespace emscripten;
 
 auto create_reference( Uuid const& src
                      , Uuid const& dst )
-    -> kmap::binding::Result< Uuid >
+    -> kmap::Result< Uuid >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "src", src );

@@ -31,6 +31,8 @@ auto Resolve::fetch( FetchContext const& ctx
                    , Uuid const& node ) const
     -> FetchSet
 {
+    KM_RESULT_PROLOG();
+
     if( pred_ )
     {
         auto dispatch = util::Dispatch
@@ -56,11 +58,6 @@ auto Resolve::fetch( FetchContext const& ctx
         ,   [ & ]( Uuid const& pred )
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-
-                fmt::print( "resolve( node ):\n" );
-                KTRYE( print_tree( ctx.km, nw->resolve( node ) ) );
-                fmt::print( "resolve::pred:\n" );
-                KTRYE( print_tree( ctx.km, pred ) );
 
                 if( nw->resolve( node ) == pred )
                 {

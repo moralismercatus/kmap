@@ -80,128 +80,84 @@ auto DatabaseFilesystem::register_standard_commands()
 {
     // save.as
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'success' );
-        )%%%";
         auto const action_code =
         R"%%%(
-            let rv = null;
-
             const path = args.get( 0 );
 
             if( !kmap.fs_path_exists( path ) )
             {
-                kmap.database().init_db_on_disk( path ).throw_on_error();
-                kmap.database().flush_cache_to_disk().throw_on_error();
-
-                rv = kmap.success( 'saved as: ' + path );
+                ktry( kmap.database().init_db_on_disk( path ) );
+                ktry( kmap.database().flush_cache_to_disk() );
             }
             else
             {
-                rv = kmap.failure( 'file already exists found' );
+                return kmap.failure( 'file already exists found' );
             }
-
-            return rv;
         )%%%";
 
-        using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
         auto const description = "saves current state as new file on disk";
         auto const arguments = std::vector< Argument >{ Argument{ "new_file_path"
                                                                 , "path where state file will be saved. Appends \".kmap\" if no extension given."
                                                                 , "filesystem_path" } };
-        auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "save.as"
                                     , .description = description
                                     , .arguments = arguments
-                                    , .guard = guard
+                                    , .guard = "unconditional"
                                     , .action = action_code };
 
         cclerk_.register_command( command );
     }
     // save
     {
-        auto const guard_code =
-        R"%%%(
-            if( kmap.database().has_file_on_disk() )
-            {
-                return kmap.success( "file on disk found" );
-            }
-            else
-            {
-                return kmap.failure( "failed to find file on disk" );
-            }
-        )%%%";
         auto const action_code =
         R"%%%(
-            let rv = null;
-
-            kmap.database().flush_delta_to_disk().throw_on_error();
-
-            rv = kmap.success( 'state saved to disk' );
-
-            return rv;
+            ktry( kmap.database().flush_delta_to_disk() );
         )%%%";
 
-        using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
         auto const description = "saves current state to associated file on disk";
         auto const arguments = std::vector< Argument >{};
-        auto const guard = Guard{ "file_is_on_disk", guard_code };
         auto const command = Command{ .path = "save"
                                     , .description = description
                                     , .arguments = arguments
-                                    , .guard = guard
+                                    , .guard = "unconditional" // TODO: has_file_on_disk()
                                     , .action = action_code };
 
         cclerk_.register_command( command );
     }
     // load
     {
-        auto const guard_code =
-        R"%%%(
-            return kmap.success( 'success' );
-        )%%%";
         // TODO: Verify reasoning about execution order.
         //       The theory is as follows: setTimeout() will not be triggered, no matter the time, until after the CLI command execution flow finishes because
         //       of the single-threaded event stack used by javascript. Be it 0ms or 100s. It must wait until the flow finishes before dispatching the timer.
         //       In this way, we should be able to trigger Kmap::load outside of any component (which will be destroyed by Kmap::load), avoiding corruption.
         auto const action_code =
         R"%%%(
-            let rv = null;
-
             const path = args.get( 0 );
 
             if( kmap.fs_path_exists( path ) )
             {
-                // setTimeout( function(){ console.log( 'loading: ' + path ); kmap.load( path ).throw_on_error(); }, 1000 );
                 kmap.throw_load_signal( path );
-
-                rv = kmap.success( 'loading ' + path + '...' );
             }
             else
             {
-                rv = kmap.failure( "file not found: " + path );
+                return kmap.failure( "file not found: " + path );
             }
-
-            return rv;
         )%%%";
 
-        using Guard = com::Command::Guard;
         using Argument = com::Command::Argument;
 
         auto const description = "loads state from disk";
         auto const arguments = std::vector< Argument >{ Argument{ "map_file_path"
                                                                 , "path to map file"
                                                                 , "filesystem_path" } };
-        auto const guard = Guard{ "unconditional", guard_code };
         auto const command = Command{ .path = "load"
                                     , .description = description
                                     , .arguments = arguments
-                                    , .guard = guard
+                                    , .guard = "unconditional"
                                     , .action = action_code };
 
         cclerk_.register_command( command );
