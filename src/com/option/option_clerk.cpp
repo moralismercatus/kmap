@@ -75,34 +75,31 @@ auto OptionClerk::check_registered()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
-    auto const ostore = KTRY( kmap_.fetch_component< com::OptionStore >() );
-    auto const voroot = view::abs_root | view::direct_desc( "meta.setting.option" );
 
     for( auto const& option : registered_options_
                             | rvs::values )
     {
-        if( auto const optn = voroot 
-                            | view::direct_desc( option.heading )
-                            | view::fetch_node( kmap_ )
-          ; optn )
+        if( auto const optn = view2::option::option_root
+                            | view2::direct_desc( option.heading )
+          ; optn | act2::exists( kmap_ ) )
         {
-            auto const matches = util::match_body_code( kmap_, view::make( optn.value() ) | view::child( "action" ), option.action )
-                              && util::match_raw_body( kmap_, view::make( optn.value() ) | view::child( "description" ), option.descr )
-                              && util::match_raw_body( kmap_, view::make( optn.value() ) | view::child( "value" ), option.value )
+            auto const matches = util::match_body_code( kmap_, optn | view2::child( "action" ), option.action )
+                              && util::match_raw_body( kmap_, optn | view2::child( "description" ), option.descr )
+                              // Note: Option values shouldn't be checked, as users are expectred to alter them.
                                ;
 
             if( !matches )
             {
                 if( util::confirm_reinstall( "Option", option.heading ) )
                 {
-                    KTRY( view::make( optn.value() )
-                        | view::erase_node( kmap_ ) );
+                    KTRY( optn | act2::erase_node( kmap_ ) );
                     KTRY( install_option( option ) ); // Re-install outlet.
                 }
             }
             else
             {
-                installed_options_.insert( { option.heading, optn.value() } );
+                auto const optid = KTRY( optn | act2::fetch_node( kmap_ ) );
+                installed_options_.insert( { option.heading, optid } );
             }
         }
         else

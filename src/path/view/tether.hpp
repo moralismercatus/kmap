@@ -76,10 +76,10 @@ public:
     //       Likewise, a constructor for Tether that takes a TetherCT would provide the implicit conversion, no?
     //       Not sure... can potential introduce subtle bugs, wherein ctor is expected, but instead calls implicit conversion.
     // TODO: Controversial. 
-    // operator Tether() const
-    // {
-    //     return *this | to_tether;
-    // }
+    operator Tether() const
+    {
+        return *this | to_tether;
+    }
 
     template< typename... Args >
     auto operator()( Args&&... args ) const

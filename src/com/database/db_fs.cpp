@@ -73,7 +73,7 @@ auto DatabaseFilesystem::load()
     return rv;
 }
 
-// TODO: Should go under db.fs.cmd component, to alleviate dependence on command_store for db.fs (perhaps).
+// TODO: Should go under db.fs.cmd component, to alleviate dependence on command.store for db.fs (perhaps).
 //       And, to make standard practice out of isolating commands for a component, so it is not doing more than one job.
 auto DatabaseFilesystem::register_standard_commands()
     -> void
@@ -307,7 +307,7 @@ SCENARIO( "save and load results in identical state for all listed components", 
         {
             REQUIRE_RES( db()->init_db_on_disk( abs_disk_path ) );
             REQUIRE( exists( abs_disk_path ) );
-            REQUIRE( db()->has_delta() ); // At least has command_store delta, given current db.fs dependence.
+            REQUIRE( db()->has_delta() ); // At least has command.store delta, given current db.fs dependence.
 
             GIVEN( "flush_delta_to_disk" )
             {
@@ -534,7 +534,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::DatabaseFilesystem
-,   std::set({ "command_store"s, "database"s, "filesystem"s })
+,   std::set({ "command.store"s, "command.standard_items"s, "database"s, "filesystem"s })
 ,   "database's filesystem support"
 );
 

@@ -921,7 +921,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::TaskStore
-,   std::set({ "command_store"s, "event_store"s, "tag_store"s })
+,   std::set({ "command.store"s, "command.standard_items"s, "event_store"s, "tag_store"s })
 ,   "task related functionality"
 );
 

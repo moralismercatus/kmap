@@ -7,8 +7,8 @@
 #ifndef KMAP_UTIL_CLERK_HPP
 #define KMAP_UTIL_CLERK_HPP
 
-#include "common.hpp"
-#include "path/node_view.hpp"
+#include <common.hpp>
+#include <path/node_view2.hpp>
 
 #include <string>
 
@@ -22,11 +22,11 @@ auto confirm_reinstall( std::string const& item
                       , std::string const& path )
     -> Result< bool >;
 auto match_body_code( Kmap const& km
-                    , view::Intermediary const& vnode
+                    , view2::Tether const& tether
                     , std::string const& content )
     -> bool;
 auto match_raw_body( Kmap const& km
-                   , view::Intermediary const& vnode
+                   , view2::Tether const& tether
                    , std::string const& content )
     -> bool;
 

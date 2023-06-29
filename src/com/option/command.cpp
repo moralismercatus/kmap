@@ -176,7 +176,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::OptionStoreCommand
-,   std::set({ "option_store"s, "command_store"s })
+,   std::set({ "option_store"s, "command.store"s, "command.standard_items"s })
 ,   "standard commands for option_store"
 );
 

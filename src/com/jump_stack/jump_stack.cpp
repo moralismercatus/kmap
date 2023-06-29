@@ -752,7 +752,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::JumpStack
-,   std::set({ "root_node"s, "event_store"s, "canvas.workspace"s, "option_store"s, "command_store"s, "network"s })
+,   std::set({ "root_node"s, "event_store"s, "canvas.workspace"s, "option_store"s, "command.store"s, "command.standard_items"s, "network"s })
 ,   "maintains non-adjacent node selection history"
 );
 

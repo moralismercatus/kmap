@@ -5,7 +5,7 @@
  ******************************************************************************/
 #include "../master.hpp"
 #include "com/canvas/canvas.hpp"
-#include "com/network/visnetwork.hpp"
+#include "com/visnetwork/visnetwork.hpp"
 #include "js_iface.hpp"
 #include "test/util.hpp"
 

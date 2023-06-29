@@ -10,7 +10,7 @@
 #include "com/database/db.hpp"
 #include "com/database/root_node.hpp"
 #include "com/network/network.hpp"
-#include "com/network/visnetwork.hpp"
+#include "com/visnetwork/visnetwork.hpp"
 #include "emcc_bindings.hpp"
 #include "error/result.hpp"
 #include "io.hpp"
@@ -136,8 +136,8 @@ auto TextArea::register_standard_commands()
 
         ep_elem.value = body_text;
 
-        const old_ws_orient = canvas.fetch_orientation( workspace_pane );
-        const old_ta_base = canvas.fetch_base( ta_pane );
+        const old_ws_orient = ktry( canvas.fetch_orientation( workspace_pane ) );
+        const old_ta_base = ktry( canvas.fetch_base( ta_pane ) );
 
         ktry( canvas.orient( workspace_pane, kmap.Orientation.vertical ) );
         ktry( canvas.rebase( ta_pane, 0.33 ) );
@@ -171,6 +171,7 @@ auto TextArea::register_standard_commands()
         ep_elem.addEventListener( 'focusout', function()
         {
             ktry( canvas.orient( workspace_pane, old_ws_orient ) );
+            console.log( 'old_ta_base: ' + old_ta_base );
             ktry( canvas.rebase( ta_pane, old_ta_base ) );
             kmap.on_leaving_editor();
             ktry( canvas.redraw() );
@@ -665,7 +666,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::TextArea
-,   std::set({ "canvas.workspace"s, "command_store"s, "event_store"s, "visnetwork"s }) // TODO: rather than depend on visnetwork, fire events that visnetwork listens for, if initialized.
+,   std::set({ "canvas.workspace"s, "command.store"s, "command.standard_items"s, "event_store"s, "visnetwork"s }) // TODO: rather than depend on visnetwork, fire events that visnetwork listens for, if initialized.
 ,   "text_area related functionality"
 );
 

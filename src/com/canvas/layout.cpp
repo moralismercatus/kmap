@@ -77,7 +77,7 @@ canvas.update_all_panes();
 }
 
 namespace {
-namespace canvas_def {
+namespace layout_def {
 
 using namespace std::string_literals;
 
@@ -88,7 +88,7 @@ REGISTER_COMPONENT
 ,   "makes initial layout for panes available"
 );
 
-} // namespace canvas_def 
+} // namespace layout_def 
 }
 
 } // namespace kmap::com

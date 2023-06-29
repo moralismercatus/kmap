@@ -12,6 +12,8 @@
 #include "path/act/fetch_body.hpp"
 #include "util/result.hpp"
 #include <path/node_view2.hpp>
+#include <utility.hpp>
+#include <util/clerk/clerk.hpp>
 
 #include <boost/variant/apply_visitor.hpp>
 #include <range/v3/algorithm/all_of.hpp>
@@ -56,6 +58,11 @@ auto CommandClerk::check_registered()
 
     auto rv = result::make_result< void >();
 
+    for( auto const& guard : registered_guards
+                           | rvs::values )
+    {
+        KTRY( check_registered( guard ) );
+    }
     for( auto const& arg : registered_arguments
                          | rvs::values )
     {
@@ -66,68 +73,8 @@ auto CommandClerk::check_registered()
     {
         KTRY( check_registered( cmd ) );
     }
-    for( auto const& guard : registered_guards
-                           | rvs::values )
-    {
-        KTRY( check_registered( guard ) );
-    }
 
     rv = outcome::success();
-
-    return rv;
-}
-
-auto match_body_code( Kmap const& km
-                    , Uuid const& node
-                    , std::string const& content )
-    -> bool
-{
-    auto rv = false;
-
-    if( auto const body = anchor::node( node )
-                        | act2::fetch_body( km )
-      ; body )
-    {
-        auto const code = KTRYB( cmd::parser::parse_body_code( body.value() ) );
-
-        boost::apply_visitor( [ & ]( auto const& e )
-                            {
-                                using T = std::decay_t< decltype( e ) >;
-
-                                if constexpr( std::is_same_v< T, cmd::ast::Kscript > )
-                                {
-                                    // TODO: Beautify kscript? To make comparison consistent regardless of syntax....
-                                    //       Or, tokenize kscript and compare. May be better.
-                                    rv = ( content == e.code );
-                                }
-                                else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
-                                {
-                                    rv = ( js::beautify( content ) == js::beautify( e.code ) ); 
-                                }
-                                else
-                                {
-                                    static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                                }
-                            }
-                            , code );
-    }
-
-    return rv;
-}
-
-auto match_raw_body( Kmap const& km
-                   , Uuid const& node
-                   , std::string const& content )
-    -> bool
-{
-    auto rv = false;
-
-    if( auto const body = anchor::node( node )
-                        | act2::fetch_body( km )
-      ; body )
-    {
-        rv = ( body.value() == content );
-    }
 
     return rv;
 }
@@ -140,23 +87,21 @@ auto CommandClerk::check_registered( Argument const& arg )
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    if( auto const anode = view2::cmd::argument_root
+    if( auto const vnode = view2::cmd::argument_root
                          | view2::direct_desc( arg.path )
-                         | act2::fetch_node( kmap )
-      ; anode )
+      ; vnode | act2::exists( kmap ) )
     {
-        auto const vnode = view::make( anode.value() );
         auto const matches = [ & ]() -> bool
         {
-            return match_body_code( kmap, KTRYB( vnode | view::child( "completion" ) | view::fetch_node( kmap ) ), arg.completion )
-                && match_body_code( kmap, KTRYB( vnode | view::child( "guard" ) | view::fetch_node( kmap ) ), arg.guard )
-                && match_raw_body( kmap, KTRYB( vnode | view::child( "description" ) | view::fetch_node( kmap ) ), arg.description )
+            return util::match_body_code( kmap, vnode | view2::child( "completion" ), arg.completion )
+                && util::match_body_code( kmap, vnode | view2::child( "guard" ), arg.guard )
+                && util::match_raw_body( kmap, vnode | view2::child( "description" ), arg.description )
                 ;
         }();
 
         if( !matches )
         {
-            auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Argument '{}' out of date.\\nRe-install argument?\" );", arg.path ) ) );
+            auto const reinstall = KTRY( util::confirm_reinstall( "argument", arg.path ) );
 
             if( reinstall )
             {
@@ -169,7 +114,7 @@ auto CommandClerk::check_registered( Argument const& arg )
     }
     else
     {
-        auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Argument '{}' out of date.\\nRe-install argument?\" );", arg.path ) ) );
+        auto const reinstall = KTRY( util::confirm_reinstall( "argument", arg.path ) );
 
         if( reinstall )
         {
@@ -231,14 +176,14 @@ auto CommandClerk::check_registered( Command const& cmd )
                                           | act2::fetch_node( kmap ) );
             return ( guard_src == guard_dst_r )
                 && ranges::all_of( cmd.arguments, [ & ]( auto const& arg ){ return match_argument( kmap, argn, arg ); } )
-                && match_body_code( kmap, KTRYB( vcmd | view2::child( "action" ) | act2::fetch_node( kmap ) ), cmd.action )
-                && match_raw_body( kmap, KTRYB( vcmd | view2::child( "description" ) | act2::fetch_node( kmap ) ), cmd.description )
+                && util::match_body_code( kmap, vcmd | view2::child( "action" ), cmd.action )
+                && util::match_raw_body( kmap, vcmd | view2::child( "description" ), cmd.description )
                 ;
         }();
 
         if( !matches )
         {
-            auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Command '{}' out of date.\\nRe-install command?\" );", cmd.path ) ) );
+            auto const reinstall = KTRY( util::confirm_reinstall( "command", cmd.path ) );
 
             if( reinstall )
             {
@@ -250,7 +195,7 @@ auto CommandClerk::check_registered( Command const& cmd )
     }
     else
     {
-        auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Command '{}' out of date.\\nRe-install command?\" );", cmd.path ) ) );
+        auto const reinstall = KTRY( util::confirm_reinstall( "command", cmd.path ) );
 
         if( reinstall )
         {
@@ -271,22 +216,20 @@ auto CommandClerk::check_registered( Guard const& guard )
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    if( auto const anode = view2::cmd::guard_root
+    if( auto const vnode = view2::cmd::guard_root
                          | view2::direct_desc( guard.path )
-                         | act2::fetch_node( kmap )
-      ; anode )
+      ; vnode | act2::exists( kmap ) )
     {
-        auto const vnode = view::make( anode.value() );
         auto const matches = [ & ]() -> bool
         {
-            return match_body_code( kmap, KTRYB( vnode | view::child( "action" ) | view::fetch_node( kmap ) ), guard.action )
-                && match_raw_body( kmap, KTRYB( vnode | view::child( "description" ) | view::fetch_node( kmap ) ), guard.description )
+            return util::match_body_code( kmap, vnode | view2::child( "action" ), guard.action )
+                && util::match_raw_body( kmap, vnode | view2::child( "description" ), guard.description )
                 ;
         }();
 
         if( !matches )
         {
-            auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Guard '{}' out of date.\\nRe-install?\" );", guard.path ) ) );
+            auto const reinstall = KTRY( util::confirm_reinstall( "guard", guard.path ) );
 
             if( reinstall )
             {
@@ -299,7 +242,7 @@ auto CommandClerk::check_registered( Guard const& guard )
     }
     else
     {
-        auto const reinstall = KTRY( js::eval< bool >( fmt::format( "return confirm( \"Guard '{}' out of date.\\nRe-install?\" );", guard.path ) ) );
+        auto const reinstall = KTRY( util::confirm_reinstall( "guard", guard.path ) );
 
         if( reinstall )
         {

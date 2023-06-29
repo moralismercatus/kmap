@@ -138,6 +138,7 @@ add_executable( emcc.index.html
                 com/cli/cli.cpp com/cli/cli.hpp
                 com/cmd/cclerk.cpp com/cmd/cclerk.hpp
                 com/cmd/command.cpp com/cmd/command.hpp
+                com/cmd/standard_items.cpp
                 com/database/cache.cpp com/database/cache.hpp
                 com/database/db.cpp com/database/db.hpp
                 com/database/db_fs.cpp com/database/db_fs.hpp
@@ -153,15 +154,15 @@ add_executable( emcc.index.html
                 com/log/log_task.cpp
                 com/network/alias.cpp com/network/alias.hpp
                 com/network/command.cpp com/network/command.hpp
-                com/network/option.cpp com/network/option.hpp
                 com/network/network.cpp com/network/network.hpp
-                com/network/visnetwork.cpp com/network/visnetwork.hpp
                 com/option/command.cpp
                 com/option/option.cpp
                 com/option/option_clerk.cpp
                 com/tag/tag.cpp com/tag/tag.hpp
                 com/task/task.cpp com/task/task.hpp
                 com/text_area/text_area.cpp com/text_area/text_area.hpp
+                com/visnetwork/option.cpp com/visnetwork/option.hpp
+                com/visnetwork/visnetwork.cpp com/visnetwork/visnetwork.hpp
                 common.cpp common.hpp
                 component.cpp component.hpp
                 component_store.cpp component_store.hpp

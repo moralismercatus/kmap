@@ -8,7 +8,7 @@
 #include "attribute.hpp"
 #include "com/database/db.hpp"
 #include "com/database/root_node.hpp"
-#include "com/network/visnetwork.hpp"
+#include "com/visnetwork/visnetwork.hpp"
 #include "error/result.hpp"
 #include "error/result.hpp"
 #include "kmap.hpp"

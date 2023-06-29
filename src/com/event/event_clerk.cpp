@@ -119,26 +119,24 @@ auto EventClerk::check_registered( Leaf const& leaf )
         KM_RESULT_PUSH_STR( "leaf", leaf.heading );
     
     auto rv = KMAP_MAKE_RESULT( void );
-    auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
-    auto const eroot = KTRY( estore->event_root() );
 
-    if( auto const lnode = view::make( eroot )
-                         | view::child( "outlet" )
-                         | view::direct_desc( leaf.heading )
-                         | view::fetch_node( kmap )
-      ; lnode )
+    if( auto const lnode = view2::event::event_root
+                         | view2::child( "outlet" )
+                         | view2::direct_desc( leaf.heading )
+      ; lnode | act2::exists( kmap ) )
     {
-        auto const matches = util::match_body_code( kmap, view::make( lnode.value() ) | view::child( "action" ), leaf.action )
-                          && match_requisites( kmap, eroot, lnode.value(), leaf.requisites )
-                          && util::match_raw_body( kmap, view::make( lnode.value() ) | view::child( "description" ), leaf.description )
+        auto const eroot = KTRY( view2::event::event_root | act2::fetch_node( kmap ) );
+        auto const node = KTRY( lnode | act2::fetch_node( kmap ) );
+        auto const matches = util::match_body_code( kmap, lnode | view2::child( "action" ), leaf.action )
+                          && match_requisites( kmap, eroot, node, leaf.requisites )
+                          && util::match_raw_body( kmap, lnode | view2::child( "description" ), leaf.description )
                            ;
 
         if( !matches )
         {
             if( util::confirm_reinstall( "Outlet", leaf.heading ) )
             {
-                KTRY( view::make( lnode.value() )
-                    | view::erase_node( kmap ) );
+                KTRY( lnode | act2::erase_node( kmap ) );
                 KTRY( install_outlet( leaf ) ); // Re-install outlet.
             }
         }

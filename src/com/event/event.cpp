@@ -1577,7 +1577,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::EventStore
-,   std::set({ "command_store"s, "root_node"s })
+,   std::set({ "command.store"s, "root_node"s })
 ,   "event related functionality"
 );
 

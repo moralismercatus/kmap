@@ -16,6 +16,8 @@
 #include "path/act/order.hpp"
 #include "path/act/value_or.hpp"
 #include "path/node_view.hpp"
+#include <cmd/parser.hpp>
+#include <js_iface.hpp>
 
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/filesystem.hpp>

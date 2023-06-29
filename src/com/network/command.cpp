@@ -475,7 +475,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::NetworkCommand
-,   std::set({ "command_store"s, "network"s })
+,   std::set({ "command.store"s, "command.standard_items"s, "network"s })
 ,   "core commands for network"
 );
 

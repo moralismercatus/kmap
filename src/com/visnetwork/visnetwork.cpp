@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/network/visnetwork.hpp"
+#include "com/visnetwork/visnetwork.hpp"
 
 #include "com/canvas/canvas.hpp"
 #include "com/database/db.hpp"
@@ -1048,10 +1048,13 @@ auto VisualNetwork::register_standard_events()
     {
         auto const action =
         R"%%%(
-            const opt_root = ktry( kmap.fetch_node( '/meta.setting.option' ) );
-            const optn = ktry( kmap.fetch_descendant( opt_root, 'network.viewport_scale' ) );
-            ktry( kmap.option_store().apply( optn ) );
-            kmap.visnetwork().center_viewport_node( kmap.root_node() );
+            const fn = function() {
+                const opt_root = ktry( kmap.fetch_node( '/meta.setting.option' ) );
+                const optn = ktry( kmap.fetch_descendant( opt_root, 'network.viewport_scale' ) );
+                ktry( kmap.option_store().apply( optn ) );
+                kmap.visnetwork().center_viewport_node( kmap.network().selected_node() );
+            };
+            debounce( fn, 'debounce_timer_window_resize', 10 )();
         )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "network.refresh_on_window_resize"
                                      , .requisites = { "verb.scaled", "object.window" }
@@ -1296,7 +1299,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::VisualNetwork
-,   std::set({ "canvas.workspace"s, "event_store"s, "option_store"s, "command_store"s })
+,   std::set({ "canvas.workspace"s, "event_store"s, "option_store"s, "command.store"s, "visnetwork.option"s })
 ,   "main display for nodes"
 );
 

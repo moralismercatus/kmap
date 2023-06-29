@@ -55,7 +55,7 @@ struct Guard
 class CommandStore : public Component
 {
 public:
-    static constexpr auto id = "command_store";
+    static constexpr auto id = "command.store";
     constexpr auto name() const -> std::string_view override { return id; }
 
     using Component::Component;
@@ -72,10 +72,6 @@ public:
         -> Result< Uuid >;
     auto install_guard( Guard const& guard )
         -> Result< Uuid >;
-    auto install_standard_arguments()
-        -> Result< void >;
-    auto install_standard_guards()
-        -> Result< void >;
     auto is_argument( Uuid const& node )
         -> bool;
     auto is_command( Uuid const& node )

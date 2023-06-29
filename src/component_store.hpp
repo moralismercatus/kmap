@@ -100,14 +100,13 @@ public:
         auto rv = result::make_result< std::shared_ptr< T const > >();
         auto const id = T::id;
 
-        if( initialized_components_.contains( id ) )
-        {
-            if( auto const com = std::dynamic_pointer_cast< T >( initialized_components_.at( id ) )
-              ; com )
-            {
-                rv = com;
-            }
-        }
+        KMAP_ENSURE( initialized_components_.contains( id ), error_code::common::uncategorized );
+
+        auto const com = std::dynamic_pointer_cast< T >( initialized_components_.at( id ) );
+
+        KMAP_ENSURE( com != nullptr, error_code::common::conversion_failed );
+        
+        rv = com;
 
         return rv;
     }

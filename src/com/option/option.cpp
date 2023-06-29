@@ -336,7 +336,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::OptionStore
-,   std::set({ "component_store"s, "root_node"s })
+,   std::set({ "component_store"s, "root_node"s, "network"s })
 ,   "option related functionality"
 );
 

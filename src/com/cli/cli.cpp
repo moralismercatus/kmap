@@ -183,42 +183,42 @@ auto Cli::register_standard_options()
                                          , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) ).style.fontSize = option_value;" } ) );
     // Completion Box
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.background.color"
-                                        , .descr = "Sets the background color for the completion box."
-                                        , .value = "\"#333333\""
-                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.backgroundColor = option_value;" } ) );
+                                         , .descr = "Sets the background color for the completion box."
+                                         , .value = "\"#333333\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.backgroundColor = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.text.color"
-                                        , .descr = "Sets the text color for the completion box popup."
-                                        , .value = "\"white\""
-                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.color = option_value;" } ) );
+                                         , .descr = "Sets the text color for the completion box popup."
+                                         , .value = "\"white\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.color = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.padding"
-                                        , .descr = "Sets the padding between edge of box and internal text."
-                                        , .value = "\"0px\""
-                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.padding = option_value;" } ) );
+                                         , .descr = "Sets the padding between edge of box and internal text."
+                                         , .value = "\"0px\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.padding = option_value;" } ) );
     KTRY( oclerk_.register_option( Option { .heading = "canvas.completion_box.border.radius"
-                                         , .descr = "Sets the rounding radius for the corners of the box."
-                                         , .value = "\"5px\""
-                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderRadius = option_value;" } ) );
+                                          , .descr = "Sets the rounding radius for the corners of the box."
+                                          , .value = "\"5px\""
+                                          , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderRadius = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.border.style"
-                                        , .descr = "Border style"
-                                        , .value = "\"outset\""
-                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderStyle = option_value;" } ) );
+                                         , .descr = "Border style"
+                                         , .value = "\"outset\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderStyle = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.border.width"
-                                        , .descr = "Width of border."
-                                        , .value = "\"thin\""
-                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderWidth = option_value;" } ) );
+                                         , .descr = "Width of border."
+                                         , .value = "\"thin\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.borderWidth = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.scrollbar"
-                                        , .descr = "Specify scroll behavior."
-                                        , .value = "\"auto\""
-                                        , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.overflow = option_value;" } ) );
+                                         , .descr = "Specify scroll behavior."
+                                         , .value = "\"auto\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.overflow = option_value;" } ) );
     // I think all canvas items are absolute... I think this gets encoded when they are created. Probably doesn't belong here.
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.position_type"
-                                     , .descr = "Sets the rounding radius for the corners of the box."
-                                     , .value = "\"absolute\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.position = option_value;" } ) );
+                                         , .descr = "Sets the rounding radius for the corners of the box."
+                                         , .value = "\"absolute\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.position = option_value;" } ) );
     KTRY( oclerk_.register_option( Option{ .heading = "canvas.completion_box.placement_order"
-                                     , .descr = "Specifies order in which box will be placed vis-a-vis other canvas elements."
-                                     , .value = "\"9999\""
-                                     , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.zIndex = option_value;" } ) );
+                                         , .descr = "Specifies order in which box will be placed vis-a-vis other canvas elements."
+                                         , .value = "\"9999\""
+                                         , .action = "document.getElementById( kmap.uuid_to_string( kmap.canvas().completion_overlay() ) ).style.zIndex = option_value;" } ) );
     
     rv = outcome::success();
 

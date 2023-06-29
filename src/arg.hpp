@@ -7,7 +7,7 @@
 #ifndef KMAP_ARG_HPP
 #define KMAP_ARG_HPP
 
-#include "com/network/visnetwork.hpp"
+#include "com/visnetwork/visnetwork.hpp"
 #include "common.hpp"
 #include "path.hpp"
 #include "utility.hpp"

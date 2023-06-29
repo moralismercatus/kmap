@@ -2065,7 +2065,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::Canvas
-,   std::set({ "command_store"s, "event_store"s, "option_store"s, "network"s, "root_node"s })
+,   std::set({ "command.store"s, "event_store"s, "option_store"s, "network"s, "root_node"s })
 ,   "canvas related functionality"
 );
 

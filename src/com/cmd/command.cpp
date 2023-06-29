@@ -27,9 +27,6 @@ auto CommandStore::initialize()
 
     auto rv = result::make_result< void >();
 
-    KTRY( install_standard_arguments() );
-    KTRY( install_standard_guards() );
-
     rv = outcome::success();
 
     return rv;
@@ -92,6 +89,7 @@ auto CommandStore::install_command( Command const& cmd )
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_STR( "path", cmd.path );
+        KM_RESULT_PUSH_STR( "guard", cmd.guard );
 
     auto rv = result::make_result< Uuid >();
 
@@ -192,104 +190,6 @@ auto CommandStore::install_guard( Guard const& guard )
 
         rv = KTRY( vguardn | view::fetch_node( km ) );
     }
-
-    return rv;
-}
-
-// TODO: Should this be a separate component? E.g., "cmd.standard_arguments"?
-auto CommandStore::install_standard_arguments()
-    -> Result< void >
-{
-    KM_RESULT_PROLOG();
-
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    // arg.unconditional
-    {
-        auto const guard_code =
-        R"%%%(
-            /* Nothing to do. */
-        )%%%";
-        auto const completion_code =
-        R"%%%(
-            let rv = new kmap.VectorString();
-
-            rv.push_back( arg );
-
-            return rv;
-        )%%%";
-
-        auto const description = "any valid text";
-
-        KTRY( install_argument( Argument{ .path = "unconditional"
-                                        , .description = description
-                                        , .guard = guard_code
-                                        , .completion = completion_code } ) );
-    }
-    // arg.filesystem_path // TODO: I suspect that this belongs in a "filesystem" component.
-    {
-        auto const guard_code =
-        R"%%%(
-            /* Nothing to do. */
-        )%%%";
-        auto const completion_code =
-        R"%%%(
-            return kmap.complete_filesystem_path( arg );
-        )%%%";
-
-        auto const description = "filesystem path";
-
-        KTRY( install_argument( Argument{ .path = "filesystem_path"
-                                        , .description = description
-                                        , .guard = guard_code
-                                        , .completion = completion_code } ) );
-    }
-    // arg.heading_path
-    {
-        auto const guard_code =
-        R"%%%(
-            /* Nothing to do. */
-        )%%%";
-        auto const completion_code =
-        R"%%%(
-            return kmap.complete_heading_path( arg );
-        )%%%";
-
-        auto const description = "heading path";
-
-        KTRY( install_argument( Argument{ .path = "heading_path"
-                                        , .description = description
-                                        , .guard = guard_code
-                                        , .completion = completion_code } ) );
-    }
-
-    rv = outcome::success();
-
-    return rv;
-}
-
-auto CommandStore::install_standard_guards()
-    -> Result< void >
-{
-    KM_RESULT_PROLOG();
-
-    auto rv = KMAP_MAKE_RESULT( void );
-
-    // unconditional
-    {
-        auto const guard_code =
-        R"%%%(
-            /* Nothing to do. */
-        )%%%";
-
-        auto const description = "without environmental constraints";
-
-        KTRY( install_guard( Guard{ .path = "unconditional"
-                                  , .description = description
-                                  , .action = guard_code } ) );
-    }
-
-    rv = outcome::success();
 
     return rv;
 }

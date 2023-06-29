@@ -25,17 +25,17 @@ auto confirm_reinstall( std::string const& item
         KM_RESULT_PUSH_STR( "item", item );
         KM_RESULT_PUSH_STR( "path", path );
 
-    return KTRY( js::eval< bool >( fmt::format( "return confirm( \"{} '{}' out of date.\\nRe-install outlet?\" );", item, path ) ) );
+    return KTRY( js::eval< bool >( fmt::format( "return confirm( \"{0} '{1}' out of date.\\nRe-install {0}?\" );", item, path ) ) );
 }
 
 auto match_body_code( Kmap const& km
-                    , view::Intermediary const& vnode
+                    , view2::Tether const& tether
                     , std::string const& content )
     -> bool
 {
     auto rv = false;
 
-    if( auto const body = vnode | act::fetch_body( km )
+    if( auto const body = tether | act2::fetch_body( km )
       ; body )
     {
         auto const code = KTRYB( cmd::parser::parse_body_code( body.value() ) );
@@ -66,13 +66,13 @@ auto match_body_code( Kmap const& km
 }
 
 auto match_raw_body( Kmap const& km
-                   , view::Intermediary const& node
+                   , view2::Tether const& tether
                    , std::string const& content )
     -> bool
 {
     auto rv = false;
 
-    if( auto const body = node | act::fetch_body( km )
+    if( auto const body = tether | act2::fetch_body( km )
       ; body )
     {
         rv = ( body.value() == content );

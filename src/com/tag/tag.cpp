@@ -467,7 +467,7 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::TagStore
-,   std::set({ "command_store"s })
+,   std::set({ "command.store"s, "command.standard_items"s })
 ,   "tag related functionality"
 );
 

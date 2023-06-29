@@ -8,8 +8,10 @@
 #include <com/canvas/canvas.hpp>
 #include <error/master.hpp>
 #include <kmap.hpp>
+#include <path/node_view2.hpp>
 #include <util/clerk/clerk.hpp>
 #include <util/result.hpp>
+#include <utility.hpp>
 
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/reverse.hpp>
@@ -72,6 +74,7 @@ auto PaneClerk::check_registered()
     for( auto const& pane : registered_panes_
                           | ranges::views::values )
     {
+          
         if( !( view2::canvas::canvas_root
              | view2::desc( pane.id )
              | act2::exists( kmap_ ) ) )
@@ -89,12 +92,29 @@ auto PaneClerk::check_registered()
     for( auto const& overlay : registered_overlays_
                              | ranges::views::values )
     {
-        if( !( view2::canvas::canvas_root
-             | view2::desc( overlay.id )
-             | act2::exists( kmap_ ) ) )
+        auto const vnode = anchor::node( overlay.id );
+        auto const matches = [ & ]() -> bool
         {
-            KTRY( install_overlay( overlay ) );
+            return vnode | act2::exists( kmap_ )
+                && util::match_raw_body( kmap_, vnode | view2::child( "type" ), overlay.elem_type )
+                ;
+        }();
+
+        if( !matches )
+        {
+            auto const reinstall = KTRY( util::confirm_reinstall( "overlay", overlay.heading ) );
+
+            if( reinstall )
+            {
+                if( vnode | act2::exists( kmap_ ) )
+                {
+                    KTRY( vnode | act2::erase_node( kmap_ ) );
+                }
+
+                KTRY( install_overlay( overlay ) ); // Re-install.
+            }
         }
+
         if( !js::element_exists( to_string( overlay.id ) ) )
         {
             auto const canvas = KTRY( kmap_.fetch_component< com::Canvas >() );

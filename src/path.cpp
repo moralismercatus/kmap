@@ -6,7 +6,7 @@
 #include "path.hpp"
 
 #include "com/network/network.hpp"
-#include "com/network/visnetwork.hpp"
+#include "com/visnetwork/visnetwork.hpp"
 #include "common.hpp"
 #include "contract.hpp"
 #include "error/master.hpp"

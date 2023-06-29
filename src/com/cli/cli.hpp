@@ -8,7 +8,6 @@
 #define KMAP_CLI_HPP
 
 #include "arg.hpp"
-#include "com/network/visnetwork.hpp"
 #include "common.hpp"
 #include "component.hpp"
 #include "js_iface.hpp"

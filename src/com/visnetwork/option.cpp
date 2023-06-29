@@ -3,20 +3,20 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/network/option.hpp"
+#include <com/visnetwork/option.hpp>
 
-#include "contract.hpp"
-#include "kmap.hpp"
-#include "utility.hpp"
-#include "test/util.hpp"
-#include "com/cli/cli.hpp"
-#include "path/act/select_node.hpp"
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <utility.hpp>
+#include <test/util.hpp>
+#include <com/cli/cli.hpp>
+#include <path/act/select_node.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
 namespace kmap::com {
 
-NetworkOption::NetworkOption( Kmap& kmap
+VisnetworkOption::VisnetworkOption( Kmap& kmap
                             , std::set< std::string > const& requisites
                             , std::string const& description )
     : Component{ kmap, requisites, description }
@@ -27,7 +27,7 @@ NetworkOption::NetworkOption( Kmap& kmap
     KTRYE( register_standard_options() );
 }
 
-auto NetworkOption::initialize()
+auto VisnetworkOption::initialize()
     -> Result< void >
 {
     KM_RESULT_PROLOG();
@@ -41,7 +41,7 @@ auto NetworkOption::initialize()
     return rv;
 }
 
-auto NetworkOption::load()
+auto VisnetworkOption::load()
     -> Result< void >
 {
     KM_RESULT_PROLOG();
@@ -55,7 +55,7 @@ auto NetworkOption::load()
     return rv;
 }
 
-auto NetworkOption::register_standard_options()
+auto VisnetworkOption::register_standard_options()
     -> Result< void >
 {
     KM_RESULT_PROLOG();
@@ -79,8 +79,8 @@ using namespace std::string_literals;
 
 REGISTER_COMPONENT
 (
-    kmap::com::NetworkOption
-,   std::set({ "network"s, "option_store"s })
+    kmap::com::VisnetworkOption
+,   std::set({ "option_store"s })
 ,   "core options for network"
 );
 

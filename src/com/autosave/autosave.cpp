@@ -314,7 +314,7 @@ namespace
         REGISTER_COMPONENT
         (
             kmap::com::Autosave
-        ,   std::set({ "database"s, "command_store"s, "event_store"s, "option_store"s, "tag_store"s })
+        ,   std::set({ "database"s, "command.store"s, "event_store"s, "option_store"s, "tag_store"s })
         ,   "periodically pushes DB deltas to disk"
         );
     } // namespace autosave_def 
