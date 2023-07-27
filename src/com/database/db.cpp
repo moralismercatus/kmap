@@ -151,9 +151,9 @@ auto Database::load_internal( FsPath const& path )
     fmt::print( "Database :: load: {}\n", path_.string() );
 
 #if KMAP_LOGGING_DB
-    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READONLY, true ) );
+    con_ = std::make_unique< sql::connection >( this->open_connection( path_, SQLITE_OPEN_READONLY, true ) );
 #else
-    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READONLY, false ) );
+    con_ = std::make_unique< sql::connection >( this->open_connection( path_, SQLITE_OPEN_READONLY, false ) );
 #endif
 
     {
@@ -269,9 +269,9 @@ auto Database::load_internal( FsPath const& path )
 
     {
 #if KMAP_LOGGING_DB
-        con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, true ) );
+        con_ = std::make_unique< sql::connection >( this->open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, true ) );
 #else
-        con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, false ) );
+        con_ = std::make_unique< sql::connection >( this->open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, false ) );
 #endif
     }
 
@@ -304,9 +304,9 @@ auto Database::init_db_on_disk( FsPath const& path )
     }
 
 #if KMAP_LOGGING_DB
-    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, true ) );
+    con_ = std::make_unique< sql::connection >( this->open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, true ) );
 #else
-    con_ = std::make_unique< sql::connection >( db::open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, false ) );
+    con_ = std::make_unique< sql::connection >( this->open_connection( path_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, false ) );
 #endif
 
     // TODO: Is this necessary anymore, now that cascading is done outside of sqlite?
@@ -371,7 +371,7 @@ auto Database::create_tables()
 auto Database::has_file_on_disk()
     -> bool
 {
-    auto const p = path();
+    auto const p = KTRYB( path() );
 
 #if _DEBUG
     #warn False positive assertion in there is a bug in emscriptens ___syscall_newfstatat that is called by fs::exists. Recommend against \
@@ -636,9 +636,35 @@ auto Database::push_alias( Uuid const& src
 }
 
 auto Database::path() const
-    -> FsPath
+    -> Result< FsPath >
 {
-    return path_;
+    if( path_.empty() )
+    {
+        return KMAP_MAKE_ERROR( error_code::filesystem::file_not_found );
+    }
+    else
+    {
+        return path_;
+    }
+}
+
+auto Database::open_connection( FsPath const& db_path
+                              , int flags
+                              , bool debug )
+    -> sqlpp::sqlite3::connection
+{
+    // TODO: Here post-open, either set document tile, or fire event. For now, it would be enough to set title. Is event system always live by this time?
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        KM_RESULT_PROLOG();
+
+        auto const& estorev = estore.value();
+
+        KTRYE( estorev->fire_event( { "subject.database", "verb.opened", "object.database_connection" } ) );
+    }
+
+    return db::open_connection( db_path, flags, debug );
 }
 
 auto Database::fetch_alias_destinations( Uuid const& src ) const
@@ -1981,6 +2007,16 @@ struct Database
 
         return db->has_file_on_disk();
     }
+
+    auto path()
+        -> Result< std::string >
+    {
+        KM_RESULT_PROLOG();
+
+        auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
+
+        return KTRY( db->path() ).string();
+    }
 };
 
 auto database()
@@ -1998,6 +2034,7 @@ EMSCRIPTEN_BINDINGS( kmap_database )
         .function( "flush_cache_to_disk", &kmap::com::binding::Database::flush_cache_to_disk )
         .function( "has_delta", &kmap::com::binding::Database::has_delta )
         .function( "has_file_on_disk", &kmap::com::binding::Database::has_file_on_disk )
+        .function( "path", &kmap::com::binding::Database::path )
         ;
 }
 

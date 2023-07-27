@@ -8,6 +8,7 @@
 #include <com/database/table_decl.hpp>
 #include <util/result.hpp>
 
+#include <boost/filesystem.hpp>
 #include <sqlpp11/sqlpp11.h>
 #include <sqlpp11/sqlite3/connection.h>
 #include <sqlpp11/connection.h>
@@ -61,6 +62,11 @@ auto open_connection( FsPath const& db_path
                     , bool debug )
     -> sqlpp::sqlite3::connection
 {
+    if( boost::filesystem::exists( db_path.string() + ".lock" ) )
+    {
+        fmt::print( stderr, "[kmap][warn] locked database found: {}\n", db_path.string() + ".lock" );
+    }
+
     auto con = sqlpp::sqlite3::connection{ make_connection_config( db_path, flags, debug ) };
 
     // Sqlite3 disables extended error reporting by default. Enable it.

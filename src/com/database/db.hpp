@@ -109,8 +109,12 @@ public:
         -> std::multimap< std::string, std::string >; // Note: sqlite3 has no distinction of "const", so it can't be enforced even if I wanted to make a const version.
     auto load( FsPath const& path )
         -> Result< void >;
+    auto open_connection( FsPath const& db_path
+                        , int flags
+                        , bool debug )
+        -> sqlpp::sqlite3::connection;
     auto path() const
-        -> FsPath;
+        -> Result< FsPath >;
 
     // Convenience interface.
     template< typename Table >

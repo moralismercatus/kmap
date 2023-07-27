@@ -267,6 +267,10 @@ protected:
     auto is_child_internal( Uuid const& parent
                           , Heading const& id ) const
         -> bool;
+    auto load_alias_leaf( Uuid const& src
+                        , Uuid const& dst
+                        , AliasLoadSet& all_aliases )
+        -> Result< void >;
 };
 
 } // namespace kmap::com

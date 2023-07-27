@@ -12,6 +12,7 @@
 #include "path/act/fetch_heading.hpp"
 #include "path/node_view2.hpp"
 #include "utility.hpp"
+#include <attribute.hpp>
 
 #include <sstream>
 #include <string>
@@ -86,7 +87,38 @@ auto dump_about( Kmap const& km
     {
         if( km.fetch_component< com::Network >().has_value() ) // Note: abs_root, desc depends on this component.
         {
-            return result::value_or( ( anchor::abs_root | view2::desc( node ) | act2::abs_path_flat( km ) ), "N/A" );
+            if( auto const apr = anchor::abs_root | view2::desc( node ) | act2::abs_path_flat( km )
+              ; apr )
+            {
+                return apr.value();
+            }
+            else if( attr::is_in_attr_tree( km, node ) )
+            {
+                if( auto const attr_root = anchor::node( node ) | view2::root | act2::fetch_node( km )
+                  ; attr_root )
+                {
+                    if( auto const attr_owner = attr::fetch_attr_owner( km, attr_root.value() )
+                      ; attr_owner )
+                    {
+                        auto const owner_abspath = result::value_or( ( anchor::abs_root | view2::desc( attr_owner.value() ) | act2::abs_path_flat( km ) ), "N/A" );
+                        auto const attr_abspath = result::value_or( ( anchor::node( attr_root.value() ) | view2::desc( node ) | act2::abs_path_flat( km ) ), "N/A" );
+
+                        return fmt::format( "{}.$.{}", owner_abspath, attr_abspath );
+                    }
+                    else
+                    {
+                        return "N/A";
+                    }
+                }
+                else
+                {
+                    return "N/A";
+                }
+            }
+            else
+            {
+                return "N/A";
+            }
         }
         else
         {

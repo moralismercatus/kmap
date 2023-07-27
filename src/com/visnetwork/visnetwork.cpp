@@ -98,6 +98,7 @@ auto VisualNetwork::initialize()
     KTRY( oclerk_.install_registered() );
     KTRY( eclerk_.install_registered() );
     KTRY( apply_static_options() );
+    KTRY( install_events() );
 
     rv = outcome::success();
 
@@ -125,6 +126,7 @@ auto VisualNetwork::load()
     KTRY( oclerk_.check_registered() );
     KTRY( eclerk_.check_registered() );
     KTRY( apply_static_options() );
+    KTRY( install_events() );
 
     rv = outcome::success();
 
@@ -1160,6 +1162,99 @@ auto VisualNetwork::underlying_js_network()
     -> std::shared_ptr< emscripten::val >
 {
     return js_nw_;
+}
+
+auto VisualNetwork::install_events()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< void >();
+
+    // onkeydown
+    {
+        // TODO: This all needs to change to dispatching events, not direct cli calls...
+        auto const ctor =
+R"%%%(
+const vnw_div = document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ) );
+
+vnw_div.onkeydown = function( e )
+{
+    if( e.type !== "keydown" )
+    {
+        const err_msg = "expected 'keydown': " + e.type;
+        console.error( err_msg );
+        throw err_msg;
+    }
+    
+    const mnemonic = kmap.map_key_mnemonic_to_heading( e.key.toLowerCase() );
+    const valid_keys =
+        [ 
+          'atsym'
+        , 'colon'
+        , 'fslash'
+        , 'shift'
+        ];
+
+    if( valid_keys.includes( mnemonic ) )
+    {
+        ktry( kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.depressed', 'object.keyboard.key.' + mnemonic ] ) ) );
+        e.preventDefault();
+    }
+};
+)%%%";
+        auto const dtor = 
+R"%%%(
+const vnw_div = document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ) );
+
+vnw_div.onkeydown = null;
+)%%%";
+        js_event_handlers_.emplace_back( js::ScopedCode{ ctor, dtor } );
+    }
+    // onkeyup
+    {
+        // TODO: This all needs to change to dispatching events, not direct cli calls...
+        auto const ctor =
+R"%%%(
+const vnw_div = document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ) );
+
+vnw_div.onkeyup = function( e )
+{
+    if( e.type !== "keyup" )
+    {
+        const err_msg = "expected 'keydown': " + e.type;
+        console.error( err_msg );
+        throw err_msg;
+    }
+    
+    const mnemonic = kmap.map_key_mnemonic_to_heading( e.key.toLowerCase() );
+    const valid_keys =
+        [ 
+          'atsym'
+        , 'colon'
+        , 'fslash'
+        , 'shift'
+        ];
+
+    if( valid_keys.includes( mnemonic ) )
+    {
+        ktry( kmap.event_store().fire_event( to_VectorString( [ 'subject.window', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ) );
+        e.preventDefault();
+    }
+};
+)%%%";
+        auto const dtor = 
+R"%%%(
+const vnw_div = document.getElementById( kmap.uuid_to_string( kmap.canvas().network_pane() ) );
+
+vnw_div.onkeyup = null;
+)%%%";
+        js_event_handlers_.emplace_back( js::ScopedCode{ ctor, dtor } );
+    }
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 auto format_node_label( Kmap const& km

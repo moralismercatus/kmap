@@ -522,6 +522,7 @@ auto EventClerk::install_registered()
     return rv;
 }
 
+// TODO: Should return Result< void >, failing when duplicate pushed.
 auto EventClerk::register_outlet( com::Transition const& t ) 
     -> void
 {

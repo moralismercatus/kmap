@@ -137,7 +137,7 @@ struct LogStore : public Component
                 const path = kmap.present_daily_log_path();
                 const ln = ktry( kmap.fetch_node( path ) );
 
-                ktry( kmap.select_node( ln.value() ) );
+                ktry( kmap.select_node( ln ) );
             )%%%";
 
             using Argument = com::Command::Argument;

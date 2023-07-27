@@ -19,6 +19,9 @@ namespace kmap::attr {
 auto fetch_attr_node( Kmap const& kmap
                     , Uuid const& node )
     -> bool;
+auto fetch_attr_owner( Kmap const& km
+                     , Uuid const& node )
+    -> Result< Uuid >;
 auto is_attr( Kmap const& kmap
             , Uuid const& node )
     -> bool;

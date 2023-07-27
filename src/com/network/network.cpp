@@ -99,13 +99,24 @@ auto Network::load_aliases()
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto const db = KTRY( fetch_component< com::Database >() );
+    
+    auto const alias_tbl = db->fetch< db::AliasTable >();
+    auto all_aliases = alias_tbl
+                     | rvs::transform([]( auto const& e ){ return AliasLoadItem{ AliasItem{ .src_id = AliasItem::src_type{ e.left().value( ) }
+                                                                                          , .rsrc_id = AliasItem::rsrc_type{ e.left().value() }
+                                                                                          , .dst_id = AliasItem::dst_type{ e.right().value() } } }; } )
+                     | ranges::to< AliasLoadSet >();
 
-    for( auto const& entry : db->fetch< db::AliasTable >() )
+    auto& av = all_aliases.get< AliasLoadItem::loaded_type >();
+    auto eq = av.equal_range( AliasLoadItem::loaded_type{ false } );
+
+    while( eq.first != eq.second )
     {
-        auto const src = entry.left().value();
-        auto const dst = entry.right().value();
+        auto const next = *eq.first;
 
-        KTRY( create_alias_leaf( src, dst ) );
+        KTRY( load_alias_leaf( next.src().value(), next.dst().value(), all_aliases ) );
+
+        eq = av.equal_range( AliasLoadItem::loaded_type{ false } );
     }
 
     rv = outcome::success();
@@ -686,18 +697,18 @@ auto Network::erase_alias_root( Uuid const& id )
         KTRY( erase_alias_desc( child ) );
     }
 
-    {
-        auto const db = KTRY( fetch_component< com::Database >() );
-
-        KTRY( db->erase_alias( rsrc, dst ) );
-    }
-
     if( !attr::is_in_attr_tree( km, dst ) )
     {
         KTRY( attr::pop_order( km, dst, rsrc ) ); // TODO: Replace with event system.
     }
 
     KTRY( alias_store().erase_alias( AliasItem::alias_type{ id } ) ); // TODO: What happens if this fails? Need to undo db->erase_alias, for correctness.
+
+    {
+        auto const db = KTRY( fetch_component< com::Database >() );
+
+        KTRY( db->erase_alias( rsrc, dst ) );
+    }
 
     rv = outcome::success();
 
@@ -742,11 +753,25 @@ auto Network::erase_node_internal( Uuid const& id )
     else
     {
         // Delete children.
-        for( auto const children = view::make( id )
-                                 | view::child
-                                 | view::to_node_set( km )
-                                 | act::order( km )
-           ; auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
+        auto const children = [ & ]
+        {
+            // TODO: Unify when attributes are allowed to be ordered.
+            if( attr::is_in_attr_tree( km, id ) )
+            {
+                return view::make( id )
+                     | view::child
+                     | view::to_node_set( km )
+                     | ranges::to< UuidVec >();
+            }
+            else
+            {
+                return view::make( id )
+                     | view::child
+                     | view::to_node_set( km )
+                     | act::order( km );
+            }
+        }();
+        for( auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
         {
             if( is_top_alias( e ) )
             {
@@ -809,6 +834,8 @@ auto Network::erase_node_leaf( Uuid const& id )
                            | rvs::filter( [ & ]( auto const& n ){ return is_top_alias( n ); } )
                            | ranges::to< std::set< Uuid > >();
 
+    // TODO: Are not root and non-root alias children mutually exclusive?
+    //       What is an example where they could co-exist?
     for( auto const& dalias : desc_aliases )
     {
         KTRY( erase_alias_leaf( dalias ) );
@@ -818,12 +845,12 @@ auto Network::erase_node_leaf( Uuid const& id )
         KTRY( erase_alias_root( talias ) );
     }
 
-    // TODO: I think alias root needs to be accounted for here.
     if( !attr::is_in_attr_tree( km, id ) )
     {
         auto const parent = KTRY( fetch_parent( id ) );
 
         // TODO: Order should be done via event, I think? It's an add-on feature. Unless... event relies on order which complicates things.
+        //       Update: order to become fundamental (database) concept, so ignore this TODO.
         KTRY( attr::pop_order( km, parent, id ) );
 
         if( auto const at = fetch_attr_node( id )
@@ -1159,7 +1186,7 @@ SCENARIO( "Network::erase_node", "[network][alias]" )
     }
 }
 
-SCENARIO( "erase_node erases attributes", "[network][attribute]" )
+SCENARIO( "Network::erase_node erases attributes", "[network][attribute][alias]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "database", "network", "root_node" );
 
@@ -1192,6 +1219,34 @@ SCENARIO( "erase_node erases attributes", "[network][attribute]" )
                 {
                     REQUIRE( count( attr_tbl ) == attr_original_count );
                     REQUIRE( count( node_tbl ) == node_original_count );
+                }
+            }
+
+            GIVEN( "1 attribute that is an alias" )
+            {
+                auto const n2 = REQUIRE_TRY( nw->create_child( kmap.root_node_id(), "2" ) );
+
+                REQUIRE_TRY( view::make( n1 )
+                           | view::attr
+                           | view::child( "test_attr" )
+                           | view::alias( view::Alias::Src{ n2 } )
+                           | view::create_node( kmap ) );
+
+                THEN( "erase node" )
+                {
+                    REQUIRE_TRY( nw->erase_node( n1 ) );
+                }
+
+                GIVEN( "1 is itself aliased" )
+                {
+                    auto const n3 = REQUIRE_TRY( nw->create_child( kmap.root_node_id(), "3" ) );
+
+                    REQUIRE_TRY( nw->create_alias( n1, n3 ) );
+
+                    THEN( "erase node" )
+                    {
+                        REQUIRE_TRY( nw->erase_node( n1 ) );
+                    }
                 }
             }
         }
@@ -3300,6 +3355,78 @@ auto Network::is_alias( Uuid const& node ) const
     -> bool
 {
     return alias_store().is_alias( node );
+}
+
+auto Network::load_alias_leaf( Uuid const& src
+                             , Uuid const& dst
+                             , AliasLoadSet& all_aliases )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src", src );
+        KM_RESULT_PUSH( "dst", dst );
+
+    auto rv = result::make_result< void >();
+    auto const rsrc = resolve( src );
+    auto const alias_item = make_alias_item( src, rsrc, dst );
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( fetch_parent( alias_item.alias() ).has_value() );
+                BC_ASSERT( fetch_parent( alias_item.alias() ).value() == dst );
+            }
+        })
+    ;
+
+    KMAP_ENSURE( exists( rsrc ), error_code::network::invalid_node );
+    KMAP_ENSURE( exists( dst ), error_code::network::invalid_node );
+
+    auto const populate_src = [ & ]( auto const& ts ) -> Result< void >
+    {
+        // If "src has alias children", then "create alias children".
+        auto const& dv = all_aliases.get< AliasItem::dst_type >();
+
+        for( auto dst_er = dv.equal_range( AliasItem::dst_type{ ts } )
+           ; dst_er.first != dst_er.second
+           ; ++dst_er.first )
+        {
+            auto const& td = *dst_er.first;
+
+            if( !td.loaded() )
+            {
+                KTRY( load_alias_leaf( td.rsrc().value(), td.dst().value(), all_aliases ) );
+            }
+        }
+
+        return outcome::success();
+    };
+    auto const denote_as_loaded = [ &all_aliases ]( auto const& alias_id )
+    {
+        auto& av = all_aliases.get< AliasItem::alias_type >();
+        auto const it = av.find( alias_id );
+
+        if( it != av.end() ) // Root alias in this case.
+        {
+            av.modify( it, []( auto& item ){ item.loaded_flag = true; } );
+        }
+    };
+
+    KTRY( populate_src( rsrc ) );
+    denote_as_loaded( alias_item.alias() );
+    KTRY( astore_.push_alias( alias_item ) );
+
+    for( auto const rchildren = fetch_children( rsrc )
+       ; auto const rchild : rchildren )
+    {
+        KTRY( load_alias_leaf( rchild, alias_item.alias(), all_aliases ) );
+    }
+
+    rv = outcome::success();
+
+    return rv;
 }
 
 SCENARIO( "Network::is_alias", "[com][network][alias]" )

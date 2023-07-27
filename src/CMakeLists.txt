@@ -163,6 +163,8 @@ add_executable( emcc.index.html
                 com/text_area/text_area.cpp com/text_area/text_area.hpp
                 com/visnetwork/option.cpp com/visnetwork/option.hpp
                 com/visnetwork/visnetwork.cpp com/visnetwork/visnetwork.hpp
+                com/window/event.cpp
+                com/window/option.cpp
                 common.cpp common.hpp
                 component.cpp component.hpp
                 component_store.cpp component_store.hpp
@@ -218,6 +220,7 @@ add_executable( emcc.index.html
                 path/view/parent.cpp path/view/parent.hpp
                 path/view/resolve.cpp path/view/resolve.hpp
                 path/view/right_lineal.cpp path/view/right_lineal.hpp
+                path/view/root.cpp path/view/root.hpp
                 path/view/sibling.cpp path/view/sibling.hpp
                 path/view/tether.cpp path/view/tether.hpp
                 # stmt_prep.cpp

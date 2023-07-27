@@ -1114,8 +1114,11 @@ auto check_order( sql::connection& con
         auto const body_set = body
                             | rvs::split( '\n' )
                             | ranges::to< std::set< std::string > >();
-        auto const order_vec = order_set | ranges::to< std::vector< std::string > >();
-        auto const body_vec = body_set | ranges::to< std::vector< std::string > >();
+        auto order_vec = order_set | ranges::to< std::vector< std::string > >();
+        auto body_vec = body_set | ranges::to< std::vector< std::string > >();
+
+        ranges::sort( order_vec );
+        ranges::sort( body_vec );
 
         for( auto const& d : rvs::set_difference( order_vec, body_vec ) )
         {

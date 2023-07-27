@@ -355,7 +355,7 @@ auto AliasStore::fetch_dsts( AliasItem::rsrc_type const& rsrc ) const
         {
             for( auto const& e : rv )
             {
-                BC_ASSERT( is_alias( e ) );
+                BC_ASSERT( is_alias( make_alias_id( rsrc.value(), e ) ) );
             }
         })
     ;

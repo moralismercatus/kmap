@@ -33,7 +33,7 @@ class Network
                           , physics: { enabled: false
                                      , hierarchicalRepulsion: { nodeDistance: 1 } }
                           , interaction: { dragNodes: false }
-                          , edges: { smooth: { type: 'continuous'
+                          , edges: { smooth: { type: 'cubicBezier'
                                              , forceDirection: 'horizontal' } }
                           , nodes: { shape: 'box'
                                    , shapeProperties: { interpolation: false }

@@ -168,7 +168,6 @@ auto main( int argc
 
         temp_init_fs();
 
-        KMAP_TRYE( window::set_default_window_title() );
         // init_ems_nodefs();
         js::set_global_kmap( Singleton::instance() );
 

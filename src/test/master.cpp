@@ -50,7 +50,7 @@ ResetInstanceFixture::~ResetInstanceFixture()
         auto const& kmap = Singleton::instance();
         auto const db = KTRYE( kmap.fetch_component< com::Database >() );
 
-        fs::remove( db->path() );
+        fs::remove( KTRYE( db->path() ) );
     }
     catch( std::exception const& e )
     {

@@ -3,7 +3,7 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "path/view/ancestor.hpp"
+#include "path/view/root.hpp"
 
 #include "com/network/network.hpp"
 #include "path.hpp"
@@ -24,15 +24,15 @@ namespace rvs = ranges::views;
 
 namespace kmap::view2 {
 
-auto Ancestor::create( CreateContext const& ctx
-                     , Uuid const& root ) const
+auto Root::create( CreateContext const& ctx
+                 , Uuid const& root ) const
     -> Result< UuidSet >
 {
     KMAP_THROW_EXCEPTION_MSG( "this is not what you want" );
 }
 
-auto Ancestor::fetch( FetchContext const& ctx
-                    , Uuid const& node ) const
+auto Root::fetch( FetchContext const& ctx
+                , Uuid const& node ) const
     -> FetchSet
 {
     KM_RESULT_PROLOG();
@@ -44,23 +44,24 @@ auto Ancestor::fetch( FetchContext const& ctx
         {
             [ & ]( char const* pred )
             {
-                return view2::ancestor( std::string{ pred } ).fetch( ctx, node );
+                return view2::root( std::string{ pred } ).fetch( ctx, node );
             }
         ,   [ & ]( std::string const& pred )
             {
                 auto rs = FetchSet{};
-                auto const ancestors = view2::ancestor.fetch( ctx, node );
+                auto const roots = view2::root.fetch( ctx, node );
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
 
-                return ancestors
+                return roots
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
         ,   [ & ]( Uuid const& pred )
             {
+                auto const root = view2::root.fetch( ctx, node );
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
 
-                if( is_ancestor( *nw, pred, node ) )
+                if( root.contains( pred ) )
                 {
                     return FetchSet{ LinkNode{ .id = pred } };
                 }
@@ -71,9 +72,9 @@ auto Ancestor::fetch( FetchContext const& ctx
             }
         ,   [ & ]( LinkPtr const& pred )
             {
-                auto const ancestors = [ & ]
+                auto const roots = [ & ]
                 {
-                    auto t = view2::ancestor.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = view2::root.fetch( ctx, node ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
                 }();
@@ -84,15 +85,15 @@ auto Ancestor::fetch( FetchContext const& ctx
                     return t;
                 }();
 
-                return rvs::set_intersection( ancestors, ns )
+                return rvs::set_intersection( roots, ns )
                      | ranges::to< FetchSet >();
             }
         ,   [ & ]( Tether const& pred )
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const ancestors = [ & ]
+                auto const roots = [ & ]
                 {
-                    auto t = view2::ancestor.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = view2::root.fetch( ctx, node ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
                 }();
@@ -103,7 +104,7 @@ auto Ancestor::fetch( FetchContext const& ctx
                     return t;
                 }();
 
-                return rvs::set_intersection( ancestors, ns ) // Note: set_intersection requires two sorted ranges.
+                return rvs::set_intersection( roots, ns ) // Note: set_intersection requires two sorted ranges.
                      | ranges::to< FetchSet >();
             }
         };
@@ -115,20 +116,22 @@ auto Ancestor::fetch( FetchContext const& ctx
         auto rs = FetchSet{};
         auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
         auto it_node = nw->fetch_parent( node );
+        auto child = node;
 
         while( it_node )
         {
-            auto const cn = it_node.value();
-            rs.emplace( LinkNode{ .id = cn } );
+            child = it_node.value();
 
-            it_node = nw->fetch_parent( cn );
+            it_node = nw->fetch_parent( child );
         }
+
+        rs.emplace( LinkNode{ .id = child } );
 
         return rs;
     }
 }
 
-SCENARIO( "view::Ancestor::fetch", "[node_view][ancestor]" )
+SCENARIO( "view::Root::fetch", "[node_view][root][attribute]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
@@ -136,59 +139,82 @@ SCENARIO( "view::Ancestor::fetch", "[node_view][ancestor]" )
     auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     auto const root = nw->root_node();
 
-    GIVEN( "ancestor" )
+    GIVEN( "/1" )
     {
         auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
 
-        THEN( "view::ancestor" )
+        THEN( "view::root" )
         {
-            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::root | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
-        THEN( "view::ancestor( <heading> )" )
+        THEN( "view::root( <heading> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor( "root" ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::root( "root" ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
-        THEN( "view::ancestor( Uuid )" )
+        THEN( "view::root( Uuid )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor( root ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::root( root ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
         }
-        THEN( "view::ancestor( <Tether> )" )
+        THEN( "view::root( <Tether> )" )
         {
-            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::ancestor( anchor::node( n1 ) | view2::parent ) | act::fetch_node( km ) );
+            auto const fn = REQUIRE_TRY( anchor::node( n1 ) | view2::root( anchor::node( n1 ) | view2::parent ) | act::fetch_node( km ) );
             REQUIRE( root == fn );
+        }
+
+        GIVEN( "/1.$.a" )
+        {
+            auto const a = REQUIRE_TRY( anchor::node( n1 ) | view2::attr | view2::child( "a" ) | act2::create_node( km ) );
+            auto const attr_root = REQUIRE_TRY( anchor::node( n1 ) | view2::attr | act2::fetch_node( km ) );
+
+            THEN( "view::root" )
+            {
+                auto const fn = REQUIRE_TRY( anchor::node( a ) | view2::root | act::fetch_node( km ) );
+                REQUIRE( attr_root == fn );
+            }
+
+            GIVEN( "/1.$.a.b" )
+            {
+                auto const b = REQUIRE_TRY( anchor::node( a ) | view2::child( "b" ) | act2::create_node( km ) );
+
+                THEN( "view::root" )
+                {
+                    auto const fn = REQUIRE_TRY( anchor::node( b ) | view2::root | act::fetch_node( km ) );
+                    REQUIRE( attr_root == fn );
+                }
+            }
         }
     }
 }
 
-auto Ancestor::new_link() const
+auto Root::new_link() const
     -> std::unique_ptr< Link >
 {
-    return std::make_unique< Ancestor >();
+    return std::make_unique< Root >();
 }
 
-auto Ancestor::to_string() const
+auto Root::to_string() const
     -> std::string
 {
     if( pred_ )
     {
         auto const dispatch = util::Dispatch
         {
-            [ & ]( auto const& pred ){ return fmt::format( "ancestor( '{}' )", pred ); }
-        ,   [ & ]( LinkPtr const& pred ){ return fmt::format( "ancestor( '{}' )", *pred | act::to_string ); }
+            [ & ]( auto const& pred ){ return fmt::format( "root( '{}' )", pred ); }
+        ,   [ & ]( LinkPtr const& pred ){ return fmt::format( "root( '{}' )", *pred | act::to_string ); }
         };
 
         return std::visit( dispatch, pred_.value() );
     }
     else
     {
-        return "ancestor";
+        return "root";
     }
 }
 
-auto Ancestor::compare_less( Link const& other ) const
+auto Root::compare_less( Link const& other ) const
     -> bool
 { 
     auto const cmp = compare_links( *this, other );

@@ -46,7 +46,7 @@
 #define KMAP_PROPAGATE_FAILURE( ... ) \
     ({ \
         auto res = ( __VA_ARGS__ ); \
-        res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM() ); \
+        res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM_MSG( kmap::result::to_string( km_result_local_state.log ) ) ); \
         res.as_failure(); \
     })
 #define KMAP_ENSURE_MSG( pred, ec, msg ) \

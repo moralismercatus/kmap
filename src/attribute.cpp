@@ -27,6 +27,27 @@ using namespace ranges;
 
 namespace kmap::attr {
 
+auto fetch_attr_owner( Kmap const& km
+                     , Uuid const& node )
+    -> Result< Uuid >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< Uuid >();
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
+    auto const db = KTRY( km.fetch_component< com::Database >() );
+
+    KMAP_ENSURE( is_attr( km, node ), error_code::common::uncategorized );
+
+    auto const attr_root = KTRY( anchor::node( node )
+                               | view2::root
+                               | act2::fetch_node( km ) );
+
+    rv = KTRY( db->fetch_attr_owner( attr_root ) );
+
+    return rv;
+}
+
 auto is_attr( Kmap const& kmap
             , Uuid const& node )
     -> bool

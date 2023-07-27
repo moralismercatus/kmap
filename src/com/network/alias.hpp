@@ -41,7 +41,7 @@ struct AliasItem
     using rsrc_type   = StrongType< Uuid, class RSrcId >;
     using dst_type   = StrongType< Uuid, class DstId >;
 
-    src_type src_id{}; // TODO: Having difficulty understanding the use case for storing unresolves source here.
+    src_type src_id{}; // TODO: Having difficulty understanding the use case for storing unresolves source here. Likewise, distinction between source and resolved source?
     rsrc_type rsrc_id{};
     dst_type dst_id{};
 
@@ -49,6 +49,15 @@ struct AliasItem
     auto src() const { return src_id; }
     auto rsrc() const { return rsrc_id; }
     auto dst() const { return dst_id; }
+};
+
+struct AliasLoadItem : public AliasItem
+{
+    using loaded_type = bool;
+
+    loaded_type loaded_flag = false;
+
+    auto loaded() const{ return loaded_flag; }
 };
 
 [[ nodiscard ]]
@@ -78,6 +87,31 @@ using AliasSet = boost::multi_index_container< AliasItem
                                                                                                           , AliasItem::dst_type
                                                                                                           , &AliasItem::dst >
                                                                                       , boost::hash< AliasItem::dst_type > > > >;
+using AliasLoadSet = boost::multi_index_container< AliasLoadItem
+                                                 , bmi::indexed_by< bmi::hashed_unique< bmi::tag< AliasItem::alias_type >
+                                                                                      , bmi::const_mem_fun< AliasItem
+                                                                                                          , AliasItem::alias_type
+                                                                                                          , &AliasItem::alias >
+                                                                                      , boost::hash< AliasItem::alias_type > >
+                                                                  , bmi::hashed_non_unique< bmi::tag< AliasItem::src_type >
+                                                                                          , bmi::const_mem_fun< AliasItem
+                                                                                                              , AliasItem::src_type
+                                                                                                              , &AliasItem::src >
+                                                                                          , boost::hash< AliasItem::src_type > >
+                                                                  , bmi::hashed_non_unique< bmi::tag< AliasItem::rsrc_type >
+                                                                                          , bmi::const_mem_fun< AliasItem
+                                                                                                              , AliasItem::rsrc_type
+                                                                                                              , &AliasItem::rsrc >
+                                                                                          , boost::hash< AliasItem::rsrc_type > >
+                                                                  , bmi::hashed_non_unique< bmi::tag< AliasItem::dst_type >
+                                                                                          , bmi::const_mem_fun< AliasItem
+                                                                                                              , AliasItem::dst_type
+                                                                                                              , &AliasItem::dst >
+                                                                                          , boost::hash< AliasItem::dst_type > >
+                                                                  , bmi::ordered_non_unique< bmi::tag< AliasLoadItem::loaded_type >
+                                                                                           , bmi::const_mem_fun< AliasLoadItem
+                                                                                                               , AliasLoadItem::loaded_type
+                                                                                                               , &AliasLoadItem::loaded > > > >;
 
 class AliasStore
 {

@@ -21,6 +21,7 @@
 #include "test/master.hpp"
 #include "util/signal_exception.hpp"
 #include "utility.hpp"
+#include <version.hpp>
 
 #include <boost/filesystem.hpp>
 #include <emscripten.h>
@@ -58,6 +59,16 @@ auto vector_string_from_int_ptr( uintptr_t vec )
     -> std::vector< std::string >*
 {
     return reinterpret_cast< std::vector< std::string >* >( vec );
+}
+
+auto build_type()
+    -> std::string
+{
+    #if KMAP_DEBUG
+        return "Debug";
+    #else
+        return "Release";
+    #endif // KMAP_DEBUG
 }
 
 auto complete_child_heading( Uuid const& parent
@@ -631,6 +642,12 @@ auto view_body()
     tv->focus_preview();
 }
 
+auto version()
+    -> std::string
+{
+    return kmap::version_string;
+}
+
 auto resolve_alias( Uuid const& node )
     -> Uuid // TODO: should return Result< Uuid >?
 {
@@ -788,6 +805,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
 {
     // function( "edit_body", &kmap::binding::edit_body );
     // function( "fetch_nodes", &kmap::binding::fetch_nodes ); // This fetches one or more nodes.
+    function( "build_type", &kmap::binding::build_type );
     function( "complete_child_heading", &kmap::binding::complete_child_heading );
     function( "complete_heading_path", &kmap::binding::complete_heading_path );
     function( "complete_heading_path_from", &kmap::binding::complete_heading_path_from );
@@ -842,7 +860,7 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "update_title", &kmap::binding::update_title );
     function( "uuid_from_string", &kmap::binding::uuid_from_string );
     function( "uuid_to_string", &kmap::binding::uuid_to_string );
-
+    function( "version", &kmap::binding::version );
     function( "view_body", &kmap::binding::view_body );
 
     class_< Uuid >( "Uuid" )

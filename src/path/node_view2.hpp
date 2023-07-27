@@ -39,6 +39,7 @@
 #include "path/view/parent.hpp"
 #include "path/view/resolve.hpp"
 #include "path/view/right_lineal.hpp"
+#include "path/view/root.hpp"
 #include "path/view/sibling.hpp"
 
 #include <concepts>

@@ -483,8 +483,9 @@ auto DatabaseFilesystem::copy_state( FsPath const& dst )
 
     auto ec = error_code{};
     auto const db = KTRY( fetch_component< com::Database >() );
+    auto const path = KTRY( db->path() );
 
-    bfs::copy_file( db->path()
+    bfs::copy_file( path
                   , com::kmap_root_dir / dst
                   , ec );
 
@@ -511,8 +512,9 @@ auto DatabaseFilesystem::move_state( FsPath const& dst )
 
     auto ec = error_code{};
     auto const db = KTRY( fetch_component< com::Database >() );
+    auto const path = KTRY( db->path() );
 
-    bfs::rename( db->path()
+    bfs::rename( path
                , com::kmap_root_dir / dst
                , ec );
 

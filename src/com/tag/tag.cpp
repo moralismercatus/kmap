@@ -14,6 +14,7 @@
 #include "path/node_view.hpp"
 #include "test/util.hpp"
 #include "util/result.hpp"
+#include <com/cli/cli.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -348,7 +349,7 @@ auto TagStore::tag_node( Uuid const& target
     return rv;
 }
 
-SCENARIO( "tag_node", "[tag]" )
+SCENARIO( "TagStore::tag_node", "[tag]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "tag_store" );
 
@@ -381,6 +382,19 @@ SCENARIO( "tag_node", "[tag]" )
             }
         }
     }
+}
+
+SCENARIO( "tag task and erase via cli", "[tag][task][cli]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "tag_store", "task_store", "cli", "network.command" );
+
+    auto& km = Singleton::instance();
+    auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+
+    REQUIRE_TRY( cli->parse_raw( ":create.tag tag_1" ) );
+    REQUIRE_TRY( cli->parse_raw( ":create.task task_1" ) );
+    REQUIRE_TRY( cli->parse_raw( ":tag.node tag_1" ) );
+    REQUIRE_TRY( cli->parse_raw( ":erase.node" ) );
 }
 
 namespace binding {

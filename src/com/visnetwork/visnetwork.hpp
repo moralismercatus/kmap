@@ -13,6 +13,7 @@
 #include "common.hpp"
 #include "component.hpp"
 #include "utility.hpp"
+#include <js_iface.hpp>
 
 #include <ostream>
 #include <string>
@@ -52,6 +53,7 @@ class VisualNetwork : public Component
     EventClerk eclerk_;
     PaneClerk pclerk_;
     std::shared_ptr< emscripten::val > js_nw_; // TODO: Use unique_ptr. Again, some reason destructor and fwd decl don't seem to work with unique_ptr.
+    std::vector< js::ScopedCode > js_event_handlers_ = {};
 
 public:
     static constexpr auto id = "visnetwork";
@@ -187,6 +189,10 @@ public:
     // For testing purposes. Access to raw JS object.
     auto underlying_js_network()
         -> std::shared_ptr< emscripten::val >;
+
+protected:
+    auto install_events()
+        -> Result< void >;
 };
 
 [[nodiscard]]
