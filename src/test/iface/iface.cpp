@@ -14,10 +14,8 @@
 #include "path/node_view.hpp"
 #include "test/util.hpp"
 
-#include <boost/test/unit_test.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-namespace utf = boost::unit_test;
 using namespace kmap;
 using namespace kmap::test;
 
@@ -465,15 +463,3 @@ SCENARIO( "erase nested alias source", "[kmap_iface]" )
         }
     }
 }
-
-namespace kmap::test {
-
-BOOST_AUTO_TEST_SUITE( kmap_iface 
-                     , 
-                     * utf::depends_on( "database" )
-                     * utf::depends_on( "filesystem" )
-                    //  * utf::depends_on( "network" )
-                     * utf::depends_on( "path" ) )
-BOOST_AUTO_TEST_SUITE_END( /* kmap_iface */ )
-
-} // namespace kmap::test

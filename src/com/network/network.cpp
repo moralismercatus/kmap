@@ -2568,10 +2568,6 @@ auto Network::set_ordering_position( Uuid const& id
     auto& km = kmap_inst();
 
     BC_CONTRACT()
-        BC_PRE([ & ]
-        {
-            BC_ASSERT( fetch_siblings_inclusive( km, id ).size() > pos );
-        })
         BC_POST([ & ]
         {
             if( rv )

@@ -1,7 +1,9 @@
 .vscode
-tags
-emcc.index.html.symbols
-emcc.index.wasm
+dist
 emcc.index.html
+emcc.index.html.symbols
 emcc.index.js
+emcc.index.wasm
 node_modules
+package-lock.json
+tags

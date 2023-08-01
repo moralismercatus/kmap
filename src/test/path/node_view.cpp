@@ -12,7 +12,6 @@
 #include "js_iface.hpp"
 #include "test/util.hpp"
 
-#include <boost/test/unit_test.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/view/transform.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -421,97 +420,3 @@ SCENARIO( "node_view view::erase", "[path][node_view]" )
         }
     }
 }
-
-namespace utf = boost::unit_test;
-
-namespace kmap::test {
-
-BOOST_AUTO_TEST_SUITE( kmap_iface )
-BOOST_AUTO_TEST_SUITE( /*kmap_iface*/node_view
-                     , 
-                     * utf::depends_on( "kmap_iface/create_node" ) )
-
-auto to_headings( Kmap const& kmap
-                , auto const& rng )
-{
-    return rng
-         | ranges::views::transform( [ & ]( auto const& e ){ return nw->fetch_heading( e ).value(); } )
-         | ranges::to< std::set< std::string > >();
-};
-
-BOOST_AUTO_TEST_CASE( misc
-                    ,
-                    * utf::fixture< ClearMapFixture >() )
-{
-    using namespace std::string_literals;
-
-    auto& kmap = Singleton::instance();
-
-    auto nodes = create_lineages( "/test"
-                                , "/test.1.2"
-                                , "/test.3" );
-    auto const root = nodes[ "/test" ];
-
-    // Children of root
-    {
-        auto const intm = view::make( root )
-                        | view::child
-                        | view::to_node_set( kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "1", "3" } ));
-    }
-    // All but root
-    {
-        auto const intm = view::make( root )
-                        | view::desc
-                        | view::to_node_set (kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "1", "2", "3" } ));
-    }
-    // All children of root desc who have children
-    {
-        auto const intm = view::make( root )
-                        | view::desc
-                        | view::child
-                        | view::to_node_set( kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "2" } ));
-    }
-    // All Desc "1"
-    {
-        auto const intm = view::make( root )
-                        | view::desc( "1"s )
-                        | view::to_node_set( kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "1" } ));
-    }
-    // All Desc "1", "3"
-    {
-        auto const intm = view::make( root )
-                        | view::desc( view::any_of( "1", "3" ) )
-                        | view::to_node_set( kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "1", "3" } ));
-    }
-    // None Desc "1", "3"
-    {
-        auto const intm = view::make( root )
-                        | view::desc( view::none_of( "1", "3" ) )
-                        | view::to_node_set( kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "2" } ));
-    }
-    // Desc of "test" is "1.2"
-    {
-        auto const intm = view::make( root )
-                        | view::desc( "1.2" ) // So, when treating Heading <=> HeadingPath, does this still function as expected?
-                        | view::to_node_set( kmap );
-        
-        BOOST_TEST(( to_headings( kmap, intm ) == std::set< std::string >{ "2" } ));
-    }
-}
-
-BOOST_AUTO_TEST_SUITE_END( /* kmap_iface/node_view */ )
-BOOST_AUTO_TEST_SUITE_END( /* kmap_iface */ )
-
-} // namespace kmap::test

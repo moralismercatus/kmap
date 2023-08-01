@@ -12,7 +12,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-namespace utf = boost::unit_test;
 using namespace kmap;
 using namespace kmap::test;
 

@@ -9,7 +9,6 @@
 #include "test/util.hpp"
 
 #include <boost/filesystem.hpp>
-#include <boost/test/unit_test.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/iterator/operations.hpp>
 #include <sqlpp11/sqlite3/connection.h>
@@ -17,7 +16,6 @@
 #include <iterator>
 
 namespace fs = boost::filesystem;
-namespace utf = boost::unit_test;
 using namespace kmap;
 using namespace kmap::com::db;
 using namespace kmap::test;
@@ -120,7 +118,8 @@ SCENARIO( "DB basics manipulated", "[db]" )
 
 SCENARIO( "db interacts with disk", "[db][env]" )
 {
-    auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
+    auto& km = kmap::Singleton::instance();
+    auto db = com::Database{ km, {}, "" };
 
     KMAP_INIT_DISK_DB_FIXTURE_SCOPED( db );
 
@@ -538,68 +537,3 @@ SCENARIO( "db interacts with disk", "[db][env]" )
         }
     }
 }
-
-namespace kmap::test {
-
-BOOST_AUTO_TEST_SUITE( database )
-                    //  , 
-                    //  * utf::depends_on( "cache" ) ) // TODO: Actually, strictly speaking, only on a "save" or "write to disk" is FS required. But, of course, 
-                    //  * utf::depends_on( "filesystem" ) ) // TODO: Actually, strictly speaking, only on a "save" or "write to disk" is FS required. But, of course, 
-                    //  * utf::depends_on( "sqlpp11" ) )
-                      
-BOOST_AUTO_TEST_CASE( /*database*/insert )
-{
-    // auto const tmp_db_name = fs::path{ fmt::format( "{}.kmap", to_string( gen_uuid() ) ) };
-
-    // BOOST_REQUIRE( !fs::exists( tmp_db_name ) );
-
-    {
-        auto db = com::Database{ kmap::Singleton::instance(), {}, "" };
-
-        auto const pid = gen_uuid();
-        auto const ph = "echo";
-        auto const pb = "charlie";
-
-        BOOST_REQUIRE( db.push_node( pid ).has_value() );
-        BOOST_REQUIRE( db.push_heading( pid, ph ).has_value() );
-        BOOST_REQUIRE( db.push_body( pid, pb ).has_value() );
-
-        BOOST_REQUIRE( db.node_exists( pid ) );
-        BOOST_REQUIRE( db.fetch_heading( pid ).has_value() );
-        BOOST_REQUIRE( db.fetch_body( pid ).has_value() );
-
-        BOOST_TEST( db.fetch_heading( pid ).value() == ph );
-        BOOST_TEST( db.fetch_body( pid ).value() == pb );
-
-        auto const cid = gen_uuid();
-        auto const ch = "alpha";
-        auto const cb = "delta";
-
-        BOOST_REQUIRE( db.push_node( cid ).has_value() );
-        BOOST_REQUIRE( db.push_heading( cid, ch ).has_value() );
-        BOOST_REQUIRE( db.push_body( cid, cb ).has_value() );
-        BOOST_REQUIRE( db.push_child( pid, cid ).has_value() );
-
-        BOOST_REQUIRE( db.node_exists( cid ) );
-        BOOST_REQUIRE( db.fetch_heading( cid ).has_value() );
-        BOOST_REQUIRE( db.fetch_body( cid ).has_value() );
-        BOOST_REQUIRE( db.fetch_children( pid ).has_value() );
-        BOOST_REQUIRE( db.fetch_children( pid ).value().size() == 1 );
-        BOOST_REQUIRE( db.fetch_parent( cid ).has_value() );
-        BOOST_REQUIRE( db.fetch_child( pid, ch ).has_value() );
-
-        BOOST_TEST( db.fetch_heading( cid ).value() == ch );
-        BOOST_TEST( db.fetch_body( cid ).value() == cb );
-        BOOST_TEST( db.fetch_parent( cid ).value() == pid );
-        BOOST_TEST( db.fetch_children( pid ).value().contains( cid ) );
-        BOOST_REQUIRE( db.fetch_child( pid, ch ).value() == cid );
-    }
-}
-
-BOOST_AUTO_TEST_CASE( /*database*/update )
-{
-}
-
-BOOST_AUTO_TEST_SUITE_END( /* database */ )
-
-} // namespace kmap::test

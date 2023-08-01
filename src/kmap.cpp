@@ -27,6 +27,7 @@ namespace kmap {
 Kmap::Kmap()
 {
     io::print( "in kmap ctor\n" );
+    init_component_store();
 }
 
 auto Kmap::database_path() const
@@ -190,6 +191,8 @@ auto Kmap::clear()
     // TODO: Rather than maintaining a list of reset_*s, why not place all of these in Environment, in their dependent order, and thereby just reset env,
     //       and get the reset for free of all these?
     KTRY( clear_component_store() );
+
+    init_component_store(); // ctor provides fresh one, so always make sure we have one accessible.
 
     rv = outcome::success();
 

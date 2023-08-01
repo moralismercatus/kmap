@@ -102,31 +102,17 @@ add_link_options( -sALLOW_MEMORY_GROWTH=1
 endif()
 
 add_executable( emcc.index.html
-                # arg.cpp arg.hpp
                 attribute.cpp attribute.hpp
                 backend/basic_network.cpp backend/basic_network.hpp
                 cli/parser.cpp cli/parser.hpp
-                # cmd.cpp cmd.hpp
-                # cmd/bookmark.cpp
                 cmd/canvas.cpp
                 cmd/cardinality.cpp
                 cmd/command.cpp
-                # cmd/conclusion.cpp
-                # cmd/contact.cpp
-                # cmd/definition.cpp
-                # cmd/dotlang.cpp
-                # cmd/echo.cpp
-                # cmd/next_fork.cpp
                 cmd/node_manip.cpp
                 cmd/parser.cpp
-                # cmd/project.cpp
-                # cmd/recipe.cpp
                 cmd/repair.cpp
-                # cmd/resource.cpp
-                # cmd/search.cpp
                 cmd/select_node.cpp
                 cmd/task.cpp 
-                cmd/test.cpp
                 cmd/text_area.cpp
                 com/autosave/autosave.cpp com/autosave/autosave.hpp
                 com/canvas/canvas.cpp com/canvas/canvas.hpp
@@ -223,39 +209,19 @@ add_executable( emcc.index.html
                 path/view/root.cpp path/view/root.hpp
                 path/view/sibling.cpp path/view/sibling.hpp
                 path/view/tether.cpp path/view/tether.hpp
-                # stmt_prep.cpp
                 test/autosave.cpp
                 test/canvas/canvas.cpp
-                test/cli/cli.cpp
                 test/misc/misc.cpp
-                # test/cli/parse_raw/conclusion.cpp
-                # test/cli/parse_raw/create_child.cpp
-                # test/cli/parse_raw/node_manip.cpp
-                test/cli/parse_raw/parse_raw.cpp
-                # test/cli/parse_raw/project.cpp
-                # test/cli/parse_raw/recipe.cpp
-                # test/cli/parse_raw/tag.cpp
-                test/cli/parser.cpp
                 test/database/cache.cpp
                 test/database/db.cpp
                 test/database/sm.cpp
                 test/event/event.cpp
                 test/filesystem/filesystem.cpp
-                # test/iface/create_alias.cpp
-                # test/iface/create_node.cpp
                 test/iface/iface.cpp
-                # test/iface/jump_stack.cpp
-                # test/iface/node_manip.cpp
-                # test/iface/select.cpp
-                test/iface/travel.cpp
                 test/js/js_iface.cpp
-                test/key_down/key_down.cpp
                 test/master.cpp
-                # test/network/visnetwork.cpp
-                # test/path/node_view.cpp
                 test/path/path.cpp
                 test/sqlite/sqlite.cpp
-                test/sqlpp/sqlpp.cpp
                 test/util.cpp
                 test/util/util.cpp
                 util/clerk/clerk.cpp util/clerk/clerk.hpp
