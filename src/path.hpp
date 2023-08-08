@@ -77,6 +77,14 @@ auto disambiguate_paths( Kmap const& kmap
                        , std::map< Uuid, std::string > const& nodes )
     -> Result< std::map< Uuid, std::string > >;
 [[ nodiscard ]]
+auto disambiguate_path( Kmap const& km
+                      , Uuid const& node )
+    -> Result< std::map< Uuid, Uuid > >;
+[[ nodiscard ]]
+auto disambiguate_paths2( Kmap const& km
+                        , std::vector< std::vector< Uuid > > const& lineages )
+    -> Result< std::map< Uuid, Uuid > >;
+[[ nodiscard ]]
 auto decide_path( Kmap const& kmap 
                 , Uuid const& root
                 , Uuid const& selected

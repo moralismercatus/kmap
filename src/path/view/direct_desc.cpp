@@ -73,7 +73,7 @@ auto DirectDesc::fetch( FetchContext const& ctx
         {
             [ & ]( char const* pred )
             {
-                return view2::desc( std::string{ pred } ).fetch( ctx, node );
+                return view2::direct_desc( std::string{ pred } ).fetch( ctx, node );
             }
         ,   [ & ]( std::string const& pred )
             {
@@ -85,7 +85,7 @@ auto DirectDesc::fetch( FetchContext const& ctx
                 };
 
                 if( auto const dr = decide_path( ctx.km, node, node, make_direct( pred ) )
-                    ; dr )
+                  ; dr )
                 {
                     auto const& d = dr.value();
 

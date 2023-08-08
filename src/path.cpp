@@ -5,24 +5,25 @@
  ******************************************************************************/
 #include "path.hpp"
 
-#include "com/network/network.hpp"
-#include "com/visnetwork/visnetwork.hpp"
-#include "common.hpp"
-#include "contract.hpp"
-#include "error/master.hpp"
-#include "error/network.hpp"
-#include "io.hpp"
-#include "kmap.hpp"
-#include "kmap.hpp"
-#include "lineage.hpp"
-#include "path/act/abs_path.hpp"
-#include "path/node_view2.hpp"
-#include "path/sm.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
-#include "utility.hpp"
+#include <com/database/db.hpp>
+#include <com/network/network.hpp>
 #include <com/tag/tag.hpp>
+#include <com/visnetwork/visnetwork.hpp>
+#include <common.hpp>
+#include <contract.hpp>
+#include <error/master.hpp>
+#include <error/network.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <lineage.hpp>
+#include <path/act/abs_path.hpp>
+#include <path/act/order.hpp>
+#include <path/node_view2.hpp>
 #include <path/parser/tokenizer.hpp>
+#include <path/sm.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
+#include <utility.hpp>
 
 #include <boost/sml.hpp>
 #include <boost/uuid/random_generator.hpp>
@@ -61,6 +62,7 @@
 #endif // KMAP_LOGGING_PATH_ALL
 
 using namespace ranges;
+namespace rvs = ranges::views;
 
 namespace kmap {
 namespace {
@@ -1191,17 +1193,42 @@ SCENARIO( "decide_path", "[network][path]" )
     auto& km = Singleton::instance();
     auto nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     auto tstore = REQUIRE_TRY( km.fetch_component< com::TagStore >() );
+    auto const rn = nw->root_node();
+    auto const check = [ & ]( auto const& root
+                            , auto const& selected
+                            , auto const& ipath
+                            , std::vector< std::string > const& abs_opaths ) -> bool
+    {
+        auto decided_set = std::set< Uuid >{};
+        auto expected = std::set< Uuid >{};
+
+        if( auto const decided = decide_path( km, root, selected, ipath )
+          ; decided )
+        {
+            decided_set = decided.value() | ranges::to< std::set >();
+
+            for( auto const& opath : abs_opaths )
+            {
+                auto const n = REQUIRE_TRY( decide_path( km, rn, rn, opath ) );
+
+                REQUIRE( n.size() == 1 );
+
+                expected.emplace( n.at( 0 ) );
+            }
+        }
+
+        return decided_set == expected;
+    };
 
     GIVEN( "/" )
     {
-        auto const rn = nw->root_node();
 
-               REQUIRE_RFAIL( decide_path( km, rn, rn, "" ) );
-        REQUIRE( REQUIRE_TRY( decide_path( km, rn, rn, "/" ) ) == UuidVec{ rn } );
-        REQUIRE( REQUIRE_TRY( decide_path( km, rn, rn, "." ) ) == UuidVec{ rn } );
-               REQUIRE_RFAIL( decide_path( km, rn, rn, "," ) );
-               REQUIRE_RFAIL( decide_path( km, rn, rn, "'" ) );
-               REQUIRE_RFAIL( decide_path( km, rn, rn, "#" ) );
+        REQUIRE( check( rn, rn, "", {} ) );
+        REQUIRE( check( rn, rn, "/", { "/" } ) );
+        REQUIRE( check( rn, rn, ".", { "/" } ) );
+        REQUIRE( check( rn, rn, ",", {} ) );
+        REQUIRE( check( rn, rn, "'", {} ) );
+        REQUIRE( check( rn, rn, "#", {} ) );
 
         GIVEN( "/#test" )
         {
@@ -1214,13 +1241,41 @@ SCENARIO( "decide_path", "[network][path]" )
         {
             auto const n1 = REQUIRE_TRY( nw->create_child( rn, "1" ) );
 
+            REQUIRE( check( rn, rn, "", {} ) );
+            REQUIRE( check( rn, rn, "/", { "/" } ) );
+            REQUIRE( check( rn, rn, "/1", { "/1" } ) );
+            REQUIRE( check( rn, rn, ".", { "/" } ) );
+            REQUIRE( check( rn, rn, ".1", { "/1" } ) );
+            REQUIRE( check( rn, rn, ",", {} ) );
+            REQUIRE( check( rn, rn, "'", {} ) );
+            REQUIRE( check( rn, rn, "#", {} ) );
+            REQUIRE( check( rn, rn, "1", { "/1" } ) );
+
+            REQUIRE( check( rn, n1, "", {} ) );
+            REQUIRE( check( rn, n1, "/", { "/" } ) );
+            REQUIRE( check( rn, n1, "/1", { "/1" } ) );
+            REQUIRE( check( rn, n1, ".", { "/1" } ) );
+            REQUIRE( check( rn, n1, ".1", {} ) );
+            REQUIRE( check( rn, n1, ",", { "/" } ) );
+            REQUIRE( check( rn, n1, "'", {} ) );
+            REQUIRE( check( rn, n1, "#", {} ) );
+            REQUIRE( check( rn, n1, "1", { "/1" } ) );
+
+            REQUIRE( check( n1, n1, "", {} ) );
+            REQUIRE( check( n1, n1, "/", { "/1" } ) );
+            REQUIRE( check( n1, n1, "/1", {} ) );
+            REQUIRE( check( n1, n1, ".", { "/1" } ) );
+            REQUIRE( check( n1, n1, ".1", {} ) );
+            REQUIRE( check( n1, n1, ",", {} ) );
+            REQUIRE( check( n1, n1, "'", {} ) );
+            REQUIRE( check( n1, n1, "#", {} ) );
+            REQUIRE( check( n1, n1, "1", { "/1" } ) );
+
             GIVEN( "/1#test" )
             {
                 auto const t = REQUIRE_TRY( tstore->create_tag( "test" ) );
 
                 REQUIRE_TRY( tstore->tag_node( n1, t ) );
-
-
             }
         }
     }
@@ -1406,6 +1461,271 @@ auto disambiguate_paths( Kmap const& kmap
     return rv;
 }
 
+auto disambiguate_path( Kmap const& km
+                      , Uuid const& node )
+    -> Result< std::map< Uuid, Uuid > >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< std::map< Uuid, Uuid > >();
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            if( rv )
+            {
+                BC_ASSERT( rv.value().contains( node ) );
+            }
+        })
+    ;
+
+    auto const db = KTRY( km.fetch_component< com::Database >() );
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
+    auto const heading = KTRY( nw->fetch_heading( node ) );
+    auto const ambig_nodes = [ & ]
+    {
+        auto const nonaliases = db->fetch_nodes( heading );
+        auto combined = nonaliases;
+        for( auto const& e : nonaliases )
+        {
+            auto const dsts = nw->alias_store().fetch_aliases( com::AliasItem::rsrc_type{ e } );
+            
+            combined.insert( dsts.begin(), dsts.end() );
+        }
+        return combined;
+    }();
+    auto const lineages = ambig_nodes
+                        | rvs::transform( [ & ]( auto const& n ){ return anchor::node( n )
+                                                                       | view2::left_lineal
+                                                                       | act2::to_node_set( km )
+                                                                       | act::order( km ); } )
+                        | ranges::to< std::vector< std::vector< Uuid > > >();
+
+    rv = KTRY( disambiguate_paths2( km, lineages ) );
+    
+    return rv;
+}
+
+// I suspect it's possible to get conflicting disambig headings as a result of this, but considering it "good enough" for now.
+auto disambiguate_paths2( Kmap const& km
+                        , std::vector< std::vector< Uuid > > const& lineages )
+    -> Result< std::map< Uuid, Uuid > >
+{
+    KM_RESULT_PROLOG();
+
+    // TODO ENSURE( input all has same root node );
+
+    auto rv = result::make_result< std::map< Uuid, Uuid > >();
+    auto rmap = std::map< Uuid, Uuid >{};
+
+    if( lineages.size() == 0 )
+    {
+        rv = rmap;
+    }
+    else if( lineages.size() == 1 )
+    {
+        auto const& lin = lineages.at( 0 );
+
+        rmap.emplace( std::pair{ lin.back(), lin.front() } );
+    }
+    else
+    {
+        auto mlineages = lineages;
+
+        // Pop lineages of size 2. root.target only has "root" as a possible option for disambig.
+        {
+            for( auto it = mlineages.begin()
+               ; it != mlineages.end()
+               ; )
+            {
+                if( it->size() == 2 )
+                {
+                    rmap.emplace( std::pair{ it->back(), it->front() } );
+
+                    it = mlineages.erase( it );
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+        // Process remaining
+        {
+            // Pre-root-drop unique root
+            {
+                for( auto it = mlineages.begin()
+                   ; it != mlineages.end()
+                   ; )
+                {
+                    if( ranges::find_if( mlineages, [ & ]( auto const& e ){ return it->at( 0 ) ==  e.at( 0 ); } ) == mlineages.end() )
+                    {
+                        rmap.emplace( std::pair{ it->back(), it->front() } );
+
+                        it = mlineages.erase( it );
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+            }
+            {
+                // Drop roots
+                for( auto&& lin : mlineages )
+                {
+                    // lin.pop_front();
+                    lin.erase( lin.begin() );
+                }
+
+                auto root_groups = std::map< Uuid, std::vector< std::vector< Uuid > > >{};
+
+                for( auto const& lin : mlineages )
+                {
+                    auto const root = lin.front();
+
+                    if( auto it = root_groups.find( root )
+                      ; it != root_groups.end() )
+                    {
+                        it->second.emplace_back( lin );
+                    }
+                    else
+                    {
+                        root_groups.emplace( std::pair{ root, std::vector< std::vector< Uuid > >{ lin } } );
+                    }
+                }
+
+                for( auto const& group : root_groups )
+                {
+                    auto tmap = KTRY( disambiguate_paths2( km, group.second ) );
+
+                    rmap.insert( tmap.begin(), tmap.end() );
+                }
+            }
+        }
+    }
+
+    rv = rmap;
+
+    return rv;
+}
+
+SCENARIO( "disambiguate_path" , "[path]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "network" );
+
+    auto& km = kmap::Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const decide_unique_path = [ & ]( std::string const& path )
+    {
+        auto const rs = REQUIRE_TRY( decide_path( km, nw->root_node(), nw->selected_node(), path ) );
+
+        REQUIRE( rs.size() == 1 );
+
+        return rs.back();
+    };
+    auto const check = [ & ]( auto const& ipath, std::vector< std::string > const& opaths ) -> bool
+    {
+        auto const target = decide_unique_path( ipath );
+        auto expected = std::set< Uuid >{};
+        for( auto const& op : opaths )
+        {
+            auto const n =  decide_unique_path( op );
+            expected.emplace( n );
+        }
+        auto const dis = KTRYB( disambiguate_path( km, target ) );
+        auto const roots = dis
+                         | rvs::values
+                         | ranges::to< std::set >();
+        
+        for( auto const& e : roots )
+        {
+            if( e == nw->root_node() )
+            {
+                fmt::print( "root: /\n" );
+            }
+            else
+            {
+                auto const x = REQUIRE_TRY( anchor::abs_root | view2::desc( e ) | act2::abs_path_flat( km ) );
+
+                fmt::print( "root: {}\n", x );
+            }
+            
+        }
+
+        return roots == expected;
+    };
+
+    GIVEN( "/task" )
+    {
+        REQUIRE_TRY( anchor::abs_root
+                   | view2::direct_desc( "task" )
+                   | act2::create_node( km ) );
+        
+        REQUIRE( check( "/task", { "/" } ) );
+
+        GIVEN( "/misc.task" )
+        {
+            REQUIRE_TRY( anchor::abs_root
+                       | view2::direct_desc( "misc.task" )
+                       | act2::create_node( km ) );
+
+            REQUIRE( check( "/task", { "/", "/misc" } ) );
+            REQUIRE( check( "/misc", { "/" } ) );
+            REQUIRE( check( "/misc.task", { "/", "/misc" } ) );
+
+            GIVEN( "/misc.daily.task" )
+            {
+                REQUIRE_TRY( anchor::abs_root
+                           | view2::direct_desc( "misc.daily.task" )
+                           | act2::create_node( km ) );
+
+                REQUIRE( check( "/task", { "/", "/misc", "/misc.daily" } ) );
+                REQUIRE( check( "/misc", { "/" } ) );
+                REQUIRE( check( "/misc.task", { "/", "/misc", "/misc.daily" } ) );
+                REQUIRE( check( "/misc.daily", { "/" } ) );
+                REQUIRE( check( "/misc.daily.task", { "/", "/misc", "/misc.daily" } ) );
+
+                GIVEN( "/log.daily.task" )
+                {
+                    REQUIRE_TRY( anchor::abs_root
+                               | view2::direct_desc( "log.daily.task" )
+                               | act2::create_node( km ) );
+
+                    REQUIRE( check( "/task", { "/", "/misc", "/misc.daily", "/log" } ) );
+                    REQUIRE( check( "/misc", { "/" } ) );
+                    REQUIRE( check( "/misc.task", { "/", "/misc", "/misc.daily", "/log" } ) );
+                    REQUIRE( check( "/misc.daily", { "/misc", "/log" } ) );
+                    REQUIRE( check( "/misc.daily.task", { "/", "/misc", "/misc.daily", "/log" } ) );
+                    REQUIRE( check( "/log", { "/" } ) );
+                    REQUIRE( check( "/log.daily", { "/log", "/misc" } ) );
+                    REQUIRE( check( "/log.daily.task", { "/", "/misc", "/misc.daily", "/log" } ) );
+
+                    GIVEN( "/dst.task[alias: misc.task]" )
+                    {
+                        REQUIRE_TRY( anchor::abs_root | view2::child( "dst" ) | act2::create_node( km ) );
+                        auto const dst = REQUIRE_TRY( anchor::abs_root | view2::direct_desc( "dst" ) | act2::fetch_node( km ) );
+                        auto const task = REQUIRE_TRY( anchor::abs_root | view2::direct_desc( "task" ) | act2::fetch_node( km ) );
+
+                        REQUIRE_TRY( nw->create_alias( task, dst ) );
+
+                        // TODO: A node can either be an alias src or dst. Each of these I can get from the alias_store. So, for each input, I just need to expand
+                        //       to include either dsts or src. And include these in the total for "node".
+                        REQUIRE( check( "/task", { "/", "/misc", "/misc.daily", "/log", "/dst" } ) );
+                        REQUIRE( check( "/misc", { "/" } ) );
+                        REQUIRE( check( "/misc.task", { "/", "/misc", "/misc.daily", "/log", "/dst" } ) );
+                        REQUIRE( check( "/misc.daily", { "/misc", "/log" } ) );
+                        REQUIRE( check( "/misc.daily.task", { "/", "/misc", "/misc.daily", "/log", "/dst" } ) );
+                        REQUIRE( check( "/log", { "/" } ) );
+                        REQUIRE( check( "/log.daily", { "/log", "/misc" } ) );
+                        REQUIRE( check( "/log.daily.task", { "/", "/misc", "/misc.daily", "/log", "/dst" } ) );
+                    }
+                }
+            }
+        }
+    }
+}
+ 
 auto complete_selection( Kmap const& kmap
                        , Uuid const& root
                        , Uuid const& selected
@@ -1666,7 +1986,7 @@ auto fetch_nearest_ascending( Kmap const& kmap
 auto is_absolute( Heading const& heading )
     -> bool
 {
-    return !heading.empty() && heading[ 0 ] == '.';
+    return !heading.empty() && ( heading[ 0 ] == '.' || heading[ 0 ] == '/' );
 }
 
 /// Returns only the newly created nodes, in order.

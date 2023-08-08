@@ -3,17 +3,19 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "jump_stack.hpp"
+#include <com/jump_stack/jump_stack.hpp>
 
-#include "emcc_bindings.hpp"
-#include "kmap.hpp"
-#include "util/result.hpp"
 #include <com/canvas/canvas.hpp>
 #include <com/network/network.hpp>
+#include <com/visnetwork/visnetwork.hpp>
 #include <contract.hpp>
+#include <emcc_bindings.hpp>
 #include <js_iface.hpp>
+#include <kmap.hpp>
+#include <path.hpp>
 #include <path/act/order.hpp>
 #include <test/util.hpp>
+#include <util/result.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -687,8 +689,7 @@ auto JumpStack::update_pane()
     KM_RESULT_PROLOG();
 
     auto rv = result::make_result< void >();
-
-    KTRY( js::eval_void( 
+    auto const raw_code = 
 R"%%%(
 const canvas = kmap.canvas();
 const js_pane_id = kmap.uuid_to_string( canvas.jump_stack_pane() );
@@ -709,7 +710,7 @@ for( let i = 0
     if( i < stack.size() )
     {
         const node = stack.get( i );
-        const label = kmap.visnetwork().format_node_label( node );
+        const label = ktry( kmap.jump_stack().format_node_label( node ) );
 
         cell.innerHTML = label;
 
@@ -737,7 +738,10 @@ for( let i = 0
         cell.style.borderColor = 'white'; // TODO: Get color from js state which can be updated via options mechanism.
     }
 }
-)%%%" ) );
+)%%%";
+    auto const pped = KTRY( js::preprocess( raw_code ) );
+
+    KTRY( js::eval_void( pped ) );
 
     rv = outcome::success();
 
@@ -774,6 +778,30 @@ namespace binding
             auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
 
             return jstack->active_item_index().value_or( 0 );
+        }
+        // TODO: format_cell_label (not even sure 'format' is right term...)
+        auto format_node_label( Uuid const& node )
+            -> Result< std::string >
+        {
+            KM_RESULT_PROLOG();
+
+            auto rv = result::make_result< std::string >();
+            auto const nl = com::format_node_label( km_, node );
+            auto const disset = KTRY( disambiguate_path( km_, node ) );
+
+            if( disset.empty() )
+            {
+                rv = nl;
+            }
+            else
+            {
+                auto const disroot = disset.at( node );
+                auto const disroot_path = result::value_or( anchor::abs_root | view2::desc( disroot ) | act2::abs_path_flat( km_ ), "/" );
+
+                rv = fmt::format( "{}<br>@{}", nl, disroot_path );
+            }
+
+            return rv;
         }
         auto jump_in()
             -> kmap::Result< void >
@@ -851,6 +879,7 @@ namespace binding
         function( "jump_stack", &kmap::com::binding::jump_stack );
         class_< kmap::com::binding::JumpStack >( "JumpStack" )
             .function( "active_item_index", &kmap::com::binding::JumpStack::active_item_index )
+            .function( "format_node_label", &kmap::com::binding::JumpStack::format_node_label )
             .function( "jump_in", &kmap::com::binding::JumpStack::jump_in )
             .function( "jump_out", &kmap::com::binding::JumpStack::jump_out )
             .function( "push_transition", &kmap::com::binding::JumpStack::push_transition )
