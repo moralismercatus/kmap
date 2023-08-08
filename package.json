@@ -1,13 +1,14 @@
 {
   "name": "kmap",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Knowledge Map",
   "main": "main.js",
   "scripts": {
     "start": "ln -sf ../kmap-Debug/bin/emcc.* . && electron main.js",
     "debug": "ln -sf ../kmap-Debug/bin/emcc.* . && electron main.js",
     "release": "ln -sf ../kmap-Release/bin/emcc.* . && electron main.js",
-    "package": "electron-builder --windows --x64"
+    "package-win": "electron-builder --windows --x64",
+    "package-linux": "electron-builder --linux --x64"
   },
   "repository": {
     "type": "git",
@@ -44,6 +45,7 @@
     "component-emitter": "^1.3.0",
     "geteventlisteners": "^1.1.0",
     "js-beautify": "^1.14.7",
+    "jscodeshift": "^0.15.0",
     "jshint": "^2.13.6",
     "keycharm": "^0.2.0",
     "moment": "^2.29.4",

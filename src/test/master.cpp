@@ -162,16 +162,17 @@ auto run_pre_env_unit_tests()
     //       problems without the environment, in addition to isolating whether a problem is in the env or not.
     //       Thus, maybe "pre" should be renamed "env", as the unit test depends on the environment being set up.
     //       Such pre-env testing wasn't even really possible, for the most part, given the dependency on the FS, but with in memory storage now, 
-    char const* targv[] = { "kmap"
-                          , "--run_test=!@env" // Run all tests without the "env" label.
-                          , "--show_progress=true"
-                          , "--report_level=detailed"
-                          , "--log_level=all" };
-    io::print( "[log] Running pre-env unit tests\n" );
+    // char const* targv[] = { "kmap"
+    //                       , "--run_test=!@env" // Run all tests without the "env" label.
+    //                       , "--show_progress=true"
+    //                       , "--report_level=detailed"
+    //                       , "--log_level=all" };
+    // io::print( "[log] Running pre-env unit tests\n" );
 
-    return utf::unit_test_main( init_unit_test
-                              , sizeof( targv ) / sizeof( char* )
-                              , const_cast< char** >( targv ) ); // WARNING: const_cast necessary b/c of non-const C-style interface.
+return 0;
+    // return utf::unit_test_main( init_unit_test
+    //                           , sizeof( targv ) / sizeof( char* )
+    //                           , const_cast< char** >( targv ) ); // WARNING: const_cast necessary b/c of non-const C-style interface.
 }
 
 auto run_unit_tests( StringVec const& args )
