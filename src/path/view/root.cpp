@@ -33,7 +33,7 @@ auto Root::create( CreateContext const& ctx
 
 auto Root::fetch( FetchContext const& ctx
                 , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "node", node );
@@ -42,23 +42,23 @@ auto Root::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
                 return view2::root( std::string{ pred } ).fetch( ctx, node );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
                 auto rs = FetchSet{};
-                auto const roots = view2::root.fetch( ctx, node );
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const roots = KTRY( view2::root.fetch( ctx, node ) );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 return roots
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const root = view2::root.fetch( ctx, node );
+                auto const root = KTRY( view2::root.fetch( ctx, node ) );
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
 
                 if( root.contains( pred ) )
@@ -70,39 +70,39 @@ auto Root::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const roots = [ & ]
+                auto const roots = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = view2::root.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::root.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ] 
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = anchor::node( node ) | pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( anchor::node( node ) | pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 return rvs::set_intersection( roots, ns )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Tether const& pred )
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const roots = [ & ]
+                auto const roots = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = view2::root.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::root.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ]
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 return rvs::set_intersection( roots, ns ) // Note: set_intersection requires two sorted ranges.
                      | ranges::to< FetchSet >();

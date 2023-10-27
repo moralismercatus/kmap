@@ -29,7 +29,7 @@ auto Resolve::create( CreateContext const& ctx
 
 auto Resolve::fetch( FetchContext const& ctx
                    , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -37,16 +37,16 @@ auto Resolve::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::resolve( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::resolve( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
                 auto const rnode = nw->resolve( node );
 
-                if( pred == KTRYE( nw->fetch_heading( rnode ) ) )
+                if( pred == KTRY( nw->fetch_heading( rnode ) ) )
                 {
                     return FetchSet{ LinkNode{ .id = rnode } };
                 }
@@ -55,9 +55,9 @@ auto Resolve::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 if( nw->resolve( node ) == pred )
                 {
@@ -68,39 +68,39 @@ auto Resolve::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const resolutions = view2::resolve.fetch( ctx, node );
+                auto const resolutions = KTRY( view2::resolve.fetch( ctx, node ) );
 
                 return resolutions
                      | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Tether const& pred )
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const resolutions = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const resolutions = KTRY( [ & ]() -> Result< std::vector< LinkNode > > // Note: set_intersection requires two sorted ranges.
                 {
-                    auto t = view2::resolve.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::resolve.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ] // Note: set_intersection requires two sorted ranges.
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > > // Note: set_intersection requires two sorted ranges.
                 {
-                    auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 fmt::print( "[resolve] Tether: {}\n", pred | act::to_string );
 
                 for( auto const& e : resolutions )
                 {
-                    fmt::print( "[resolve][resolution] {}\n", KTRYE( anchor::abs_root | view2::desc( e.id ) | act::abs_path_flat( ctx.km ) ) );
+                    fmt::print( "[resolve][resolution] {}\n", KTRY( anchor::abs_root | view2::desc( e.id ) | act::abs_path_flat( ctx.km ) ) );
                 }
                 for( auto const& e : ns )
                 {
-                    fmt::print( "[resolve][n] {}\n", KTRYE( anchor::abs_root | view2::desc( e.id ) | act::abs_path_flat( ctx.km ) ) );
+                    fmt::print( "[resolve][n] {}\n", KTRY( anchor::abs_root | view2::desc( e.id ) | act::abs_path_flat( ctx.km ) ) );
                 }
                 for( auto const& e : rvs::set_intersection( resolutions, ns )
                                    | ranges::to< FetchSet >() )
@@ -117,7 +117,7 @@ auto Resolve::fetch( FetchContext const& ctx
     }
     else
     {
-        auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
         return FetchSet{ LinkNode{ .id = nw->resolve( node ) } };
     }

@@ -3,13 +3,15 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "path/view/act/to_fetch_set.hpp"
+#include <path/view/act/to_fetch_set.hpp>
 
-#include "com/database/db.hpp"
-#include "com/database/query_cache.hpp"
-#include "contract.hpp"
-#include "kmap.hpp"
-#include "path/view/anchor/anchor.hpp"
+#include <com/database/db.hpp>
+#include <com/database/query_cache.hpp>
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <path/view/anchor/anchor.hpp>
+#include <path/view/derivation_link.hpp>
+#include <path/view/transformation_link.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -30,12 +32,12 @@ auto to_fetch_set( FetchContext const& ctx )
 
 auto operator|( Tether const& lhs
               , ToFetchSet const& rhs )
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
     auto rv = FetchSet{};
-    auto const db = KTRYE( rhs.ctx.km.fetch_component< com::Database >() );
+    auto const db = KTRY( rhs.ctx.km.fetch_component< com::Database >() );
     auto& qcache = db->query_cache();
 
     if( auto const qr = qcache.fetch( lhs )
@@ -64,11 +66,21 @@ auto operator|( Tether const& lhs
         {
             auto next_fs = decltype( fs ){};
 
-            for( auto const& node : fs )
+            if( auto const tlink = result::dyn_cast< view2::TransformationLink const >( link.get() )
+              ; tlink )
             {
-                auto const tfs = link->fetch( rhs.ctx, node.id );
+                TransformationLink const& tlinkv = tlink.value();
 
-                next_fs.insert( tfs.begin(), tfs.end() );
+                next_fs = KTRY( tlinkv.fetch( rhs.ctx, fs ) );
+            }
+            else 
+            {
+                for( auto const& node : fs )
+                {
+                    auto const tfs = KTRY( fetch( link, rhs.ctx, node.id ) );
+
+                    next_fs.insert( tfs.begin(), tfs.end() );
+                }
             }
 
             fs = next_fs;

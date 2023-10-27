@@ -34,8 +34,6 @@ public:
     auto prev( LinkPtr&& nprev ) -> void { prev_ = std::move( nprev ); }
     auto prev( LinkPtr const& nprev ) -> void { prev_ = nprev->clone(); }
     virtual auto clone() const -> std::unique_ptr< Link > = 0;
-    virtual auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > = 0;
-    virtual auto fetch( FetchContext const& ctx, Uuid const& root ) const -> FetchSet = 0;
     virtual auto new_link() const -> std::unique_ptr< Link > = 0; // TODO: Should unique_ptr< Link > be replaced with Link&, as all Links, by convention, should have a const global variable that could be returned, right?
     virtual auto to_string() const -> std::string = 0;
     bool operator<( Link const& other ) const;

@@ -868,8 +868,8 @@ auto is_order_regular( Kmap const& km )
 
     auto const children = view2::task::task_root
                         | view2::task::task
-                        | act2::to_node_set( km )
-                        | act::order( km );
+                        | view2::order
+                        | act2::to_node_vec( km );
     auto const ots = KTRYE( order_tasks( km ) );
 
     return children == ots;
@@ -884,10 +884,10 @@ auto order_tasks( Kmap const& km )
 
     auto rv = result::make_result< UuidVec >();
     auto const task_root = KTRYE( fetch_task_root( km ) );
-    auto tasks = view::make( task_root )
-               | view::child
-               | view::to_node_set( km )
-               | act::order( km );
+    auto tasks = anchor::node( task_root )
+               | view2::child
+               | view2::order
+               | act2::to_node_vec( km );
     auto const map_status = [ & ]( auto const& n )
     {
              if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )   { return Status::active; }

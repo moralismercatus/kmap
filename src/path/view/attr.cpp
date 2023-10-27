@@ -27,12 +27,12 @@ auto Attr::create( CreateContext const& ctx
 
 auto Attr::fetch( FetchContext const& ctx
                 , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
     auto rv = FetchSet{};
-    auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+    auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
     if( auto const attr = nw->fetch_attr_node( node )
       ; attr )

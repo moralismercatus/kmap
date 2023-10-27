@@ -23,7 +23,7 @@ public:
 
     auto clone() const -> std::unique_ptr< Link > override { return { std::make_unique< std::decay_t< decltype( *this ) > >( *this ) }; }
     auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > override;
-    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> FetchSet override;
+    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> Result< FetchSet > override;
     auto new_link() const -> std::unique_ptr< Link > override;
     auto to_string() const -> std::string override;
 

@@ -37,7 +37,8 @@ auto AllOf::create( CreateContext const& ctx
     for( auto const& ls = links()
        ; auto const& link : ls )
     {
-        auto const created = KTRY( link->create( ctx, root ) );
+        DerivationLink& dlink = KTRY( result::dyn_cast< DerivationLink >( link.get() ) );
+        auto const created = KTRY( dlink.create( ctx, root ) );
         rset.insert( created.begin(), created.end() );
     }
 
@@ -48,14 +49,16 @@ auto AllOf::create( CreateContext const& ctx
 
 auto AllOf::fetch( FetchContext const& ctx
                  , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
+    KM_RESULT_PROLOG();
+
     auto rset = FetchSet{};
 
     for( auto const& ls = links()
        ; auto const& link : ls )
     {
-        if( auto const fetched = anchor::node( node ) | link | act::to_fetch_set( ctx )
+        if( auto const fetched = KTRY( anchor::node( node ) | link | act::to_fetch_set( ctx ) )
           ; fetched.size() > 0 )
         {
             rset.insert( fetched.begin(), fetched.end() );

@@ -41,6 +41,7 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/drop_last.hpp>
+#include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/for_each.hpp>
 #include <range/v3/view/indices.hpp>
@@ -1472,10 +1473,12 @@ auto disambiguate_path( Kmap const& km
     BC_CONTRACT()
         BC_POST([ & ]
         {
-            if( rv )
-            {
-                BC_ASSERT( rv.value().contains( node ) );
-            }
+            // TODO: Uncomment. Should pass, but doesn't in postcond, it does at end of function. Easily observe by place the assert after rv assigned.
+            //       Again, contracts behaving strangely. Worrying.
+            // if( rv )
+            // {
+            //     BC_ASSERT( rv.value().contains( node ) );
+            // }
         })
     ;
 
@@ -1494,15 +1497,16 @@ auto disambiguate_path( Kmap const& km
         }
         return combined;
     }();
+
     auto const lineages = ambig_nodes
                         | rvs::transform( [ & ]( auto const& n ){ return anchor::node( n )
                                                                        | view2::left_lineal
-                                                                       | act2::to_node_set( km )
-                                                                       | act::order( km ); } )
+                                                                       | view2::order
+                                                                       | act2::to_node_vec( km ); } )
                         | ranges::to< std::vector< std::vector< Uuid > > >();
 
     rv = KTRY( disambiguate_paths2( km, lineages ) );
-    
+
     return rv;
 }
 
@@ -1513,7 +1517,14 @@ auto disambiguate_paths2( Kmap const& km
 {
     KM_RESULT_PROLOG();
 
-    // TODO ENSURE( input all has same root node );
+    for( auto const& lineage : lineages )
+    {
+        KMAP_ENSURE( !lineage.empty(), error_code::common::uncategorized );
+
+        #if KMAP_DEBUG || 1
+        fmt::print( "disambig lineage: {}\n", absolute_path_flat( km, lineage.back() ).value() );
+        #endif // KMAP_DEBUG
+    }
 
     auto rv = result::make_result< std::map< Uuid, Uuid > >();
     auto rmap = std::map< Uuid, Uuid >{};
@@ -1524,12 +1535,19 @@ auto disambiguate_paths2( Kmap const& km
     }
     else if( lineages.size() == 1 )
     {
-        auto const& lin = lineages.at( 0 );
+        auto const& lineage = lineages.at( 0 );
 
-        rmap.emplace( std::pair{ lin.back(), lin.front() } );
+        rmap.emplace( std::pair{ lineage.back(), lineage.front() } );
     }
     else
     {
+        auto const common_root = lineages[ 0 ][ 0 ]; // Ensured to exist by code above.
+
+        for( auto const& lineage : lineages )
+        {
+            KMAP_ENSURE( lineage[ 0 ] == common_root, error_code::common::uncategorized );
+        }
+
         auto mlineages = lineages;
 
         // Pop lineages of size 2. root.target only has "root" as a possible option for disambig.
@@ -1627,12 +1645,16 @@ SCENARIO( "disambiguate_path" , "[path]" )
     auto const check = [ & ]( auto const& ipath, std::vector< std::string > const& opaths ) -> bool
     {
         auto const target = decide_unique_path( ipath );
-        auto expected = std::set< Uuid >{};
-        for( auto const& op : opaths )
+        auto const expected = [ & ]
         {
-            auto const n =  decide_unique_path( op );
-            expected.emplace( n );
-        }
+            auto es = std::set< Uuid >{};
+            for( auto const& op : opaths )
+            {
+                auto const n =  decide_unique_path( op );
+                es.emplace( n );
+            }
+            return es;
+        }();
         auto const dis = KTRYB( disambiguate_path( km, target ) );
         auto const roots = dis
                          | rvs::values

@@ -39,7 +39,7 @@ auto Alias::create( CreateContext const& ctx
 
 auto Alias::fetch( FetchContext const& ctx
                  , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "node", node );
@@ -48,52 +48,52 @@ auto Alias::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::alias( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::alias( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const aliases = view2::alias.fetch( ctx, node );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const aliases = KTRY( view2::alias.fetch( ctx, node ) );
 
                 return aliases
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const aliases = view2::alias.fetch( ctx, node );
+                auto const aliases = KTRY( view2::alias.fetch( ctx, node ) );
 
                 return aliases
                      | rvs::filter( [ & ]( auto const& c ){ return c.id == pred; } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const aliases = view2::alias.fetch( ctx, node );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const aliases = KTRY( view2::alias.fetch( ctx, node ) );
 
                 return aliases
                      | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Tether const& pred )
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const aliases = [ & ]
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const aliases = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = view2::alias.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::alias.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ]
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 return rvs::set_intersection( aliases, ns ) // Note: set_intersection requires two sorted ranges.
                      | ranges::to< FetchSet >();
@@ -104,7 +104,7 @@ auto Alias::fetch( FetchContext const& ctx
     }
     else
     {
-        auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
         auto const children = nw->fetch_children( node );
 
         return children

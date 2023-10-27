@@ -22,7 +22,7 @@ auto Parent::create( CreateContext const& ctx
 
 auto Parent::fetch( FetchContext const& ctx
                   , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -30,11 +30,11 @@ auto Parent::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
                 return view2::parent( std::string{ pred } ).fetch( ctx, node );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
                 auto fs = FetchSet{};
@@ -50,7 +50,7 @@ auto Parent::fetch( FetchContext const& ctx
 
                 return fs;
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
                 auto fs = FetchSet{};

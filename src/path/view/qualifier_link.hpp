@@ -9,7 +9,7 @@
 
 #include "common.hpp"
 #include "path/view/concepts.hpp"
-#include "path/view/link.hpp"
+#include "path/view/derivation_link.hpp"
 #include "util/concepts.hpp"
 
 #include "path/view/act/to_string.hpp"
@@ -23,7 +23,7 @@
 namespace kmap::view2 {
 
 template< typename Derived >
-class QualifierLink : public Link
+class QualifierLink : public DerivationLink
 {
     using Links = std::vector< LinkPtr >;
     using Tethers = std::vector< Tether >;
@@ -89,7 +89,7 @@ public:
     };
 
     virtual auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > = 0;
-    virtual auto fetch( FetchContext const& ctx, Uuid const& node ) const -> FetchSet = 0;
+    virtual auto fetch( FetchContext const& ctx, Uuid const& node ) const -> Result< FetchSet > = 0;
 };
 
 } // namespace kmap::view2

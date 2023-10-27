@@ -62,16 +62,16 @@ auto operator|( Tether const& lhs
 
         for( auto const& link : links )
         {
-            auto const nns = [ & ]
+            auto const nns = KTRY( [ & ]() -> Result< FetchSet >
             {
                 auto tnns = decltype( ns ){};
                 for( auto const& n : ns )
                 {
-                    auto const fr = link->fetch( fctx, n.id );
+                    auto const fr = KTRY( fetch( link, fctx, n.id ) );
                     tnns.insert( fr.begin(), fr.end() );
                 }
                 return tnns;
-            }();
+            }() );
 
             if( nns.empty() )
             {
@@ -79,7 +79,8 @@ auto operator|( Tether const& lhs
                 //       user desires only a single output.
                 KMAP_ENSURE( ns.size() == 1, error_code::common::uncategorized );
 
-                auto const cs = KTRY( link->create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
+                DerivationLink& dlink = KTRY( result::dyn_cast< DerivationLink >( link.get() ) );
+                auto const cs = KTRY( dlink.create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
 
                 ns = cs
                    | rvs::transform( [ & ]( auto const& e ){ return LinkNode{ .id = e }; } )

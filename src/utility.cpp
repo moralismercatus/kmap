@@ -352,16 +352,12 @@ auto uuid_from_string( std::string const& suuid )
 {
     using boost::uuids::string_generator;
 
-    try
-    {
-        return string_generator{}( suuid );
-    }
-    catch( std::exception const& e )
-    {
-        io::print( "exception: {}\n", e.what() );
-        // std::cerr << e.what() << '\n'; TODO: Add to EC payload?
-        return KMAP_MAKE_ERROR( error_code::node::invalid_uuid );
-    }
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "suuid", suuid );
+
+    KMAP_ENSURE( boost::regex_match( suuid, kmap::uuid_regex_pattern ), error_code::node::invalid_uuid );
+
+    return string_generator{}( suuid );
 }
 
 auto gen_temp_db_name()
@@ -1180,6 +1176,7 @@ auto print_tree( Kmap const& km
 
     auto const children = [ & ]
     {
+        // TODO: Attributes should be ordered as well, when order becomes a fundamental property.
         if( anchor::node( root )
           | view2::left_lineal( "$" )
           | act2::exists( km ) )
@@ -1193,8 +1190,8 @@ auto print_tree( Kmap const& km
         {
             return anchor::node( root )
                  | view2::child
-                 | act2::to_node_set( km )
-                 | act::order( km );
+                 | view2::order
+                 | act2::to_node_vec( km );
         }
     }();
 
@@ -1229,6 +1226,7 @@ auto print_tree( Kmap const& km
 
     auto const children = [ & ]
     {
+        // TODO: Attributes should be ordered too, when ordering becomes a fundamental property.
         if( anchor::node( root )
           | view2::left_lineal( "$" )
           | act2::exists( km ) )
@@ -1242,8 +1240,8 @@ auto print_tree( Kmap const& km
         {
             return anchor::node( root )
                  | view2::child
-                 | act2::to_node_set( km )
-                 | act::order( km );
+                 | view2::order
+                 | act2::to_node_vec( km );
         }
     }();
 
@@ -1449,8 +1447,8 @@ auto fetch_siblings_ordered( Kmap const& km
         {
             auto const children = anchor::node( parent.value() )
                                 | view2::child
-                                | act2::to_node_set( km )
-                                | act::order( km );
+                                | view2::order
+                                | act2::to_node_vec( km );
 
             return children
                  | views::remove( id )

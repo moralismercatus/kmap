@@ -10,6 +10,7 @@
 #include <common.hpp>
 
 #include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/random_access_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index_container.hpp>
 
@@ -29,12 +30,14 @@ struct LinkNode
 
     std::strong_ordering operator<=>( LinkNode const& ) const = default;
 };
+struct random_access_index {};
 
 using FetchSet = bmi::multi_index_container< LinkNode 
                                            , bmi::indexed_by< bmi::hashed_unique< bmi::tag< decltype( LinkNode::id ) >
                                                                                 , bmi::member< LinkNode
                                                                                              , decltype( LinkNode::id )
-                                                                                             , &LinkNode::id > > > >;
+                                                                                             , &LinkNode::id > >
+                                                            , bmi::random_access< bmi::tag< random_access_index > > > >;
 
 class Tether;
 

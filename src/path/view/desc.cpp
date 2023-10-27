@@ -30,7 +30,7 @@ auto Desc::create( CreateContext const& ctx
 
 auto Desc::fetch( FetchContext const& ctx
                 , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -38,13 +38,13 @@ auto Desc::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::desc( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::desc( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
                 auto const dns = decide_path( ctx.km, node, node, pred ) | view::act::value_or( UuidVec{} );
                 auto const tform = [ & ]( auto const& c )
                 {
@@ -54,9 +54,9 @@ auto Desc::fetch( FetchContext const& ctx
                      | rvs::transform( tform )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 if( is_ancestor( *nw, node, pred ) )
                 {
@@ -67,13 +67,13 @@ auto Desc::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const descs = desc.fetch( ctx, node );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const descs = KTRY( desc.fetch( ctx, node ) );
 
                 return descs 
-                     | rvs::filter( [ & ]( auto const& c ){return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
+                     | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
                      | ranges::to< FetchSet >();
             }
         };
@@ -82,8 +82,8 @@ auto Desc::fetch( FetchContext const& ctx
     }
     else
     {
-        auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-        auto const descs = KTRYE( fetch_descendants( ctx.km, node ) );
+        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+        auto const descs = KTRY( fetch_descendants( ctx.km, node ) );
 
         return descs
              | rvs::transform( []( auto const& c ){ return LinkNode{ .id = c }; } )

@@ -33,14 +33,16 @@ auto AnyOf::create( CreateContext const& ctx
 
 auto AnyOf::fetch( FetchContext const& ctx
                  , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
+    KM_RESULT_PROLOG();
+
     auto rset = FetchSet{};
 
     for( auto const& ls = links()
        ; auto const& link : ls )
     {
-        auto const fetched = anchor::node( node ) | link | act::to_fetch_set( ctx );
+        auto const fetched = KTRY( anchor::node( node ) | link | act::to_fetch_set( ctx ) );
 
         rset.insert( fetched.begin(), fetched.end() );
     }

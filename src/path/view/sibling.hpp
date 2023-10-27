@@ -9,7 +9,7 @@
 
 #include "common.hpp"
 #include "path/view/child.hpp"
-#include "path/view/link.hpp"
+#include "path/view/derivation_link.hpp"
 #include "path/view/parent.hpp"
 #include "path/view/tether.hpp"
 
@@ -19,7 +19,7 @@ namespace kmap::view2 {
 
 // Note: `auto const sibling_incl = view2::parent | view2::child` - doesn't work because if no parent, then no child/siblings.
 
-class SiblingIncl : public Link
+class SiblingIncl : public DerivationLink
 {
     using PredVariant = std::variant< char const*
                                     , std::string
@@ -42,7 +42,7 @@ public:
     auto operator()( LinkType const& pred ) const { auto nl = *this; nl.pred_ = LinkPtr{ std::make_unique< LinkType >( pred ) }; return nl; };
     auto clone() const -> std::unique_ptr< Link > override { return { std::make_unique< std::decay_t< decltype( *this ) > >( *this ) }; }
     auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > override;
-    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> FetchSet override;
+    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> Result< FetchSet > override;
     auto new_link() const -> std::unique_ptr< Link > override;
     auto to_string() const -> std::string override;
 

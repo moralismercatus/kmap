@@ -927,8 +927,8 @@ auto EventStore::fire_event_internal( std::set< std::string > const& requisites 
                                | view2::all_of( view2::alias, ( vreqs | act2::to_heading_set( km ) ) ) // TODO: Actually needs view::all_of( view::alias( view::resolve ), vreqs ), rather than just the heading matches.
                                | view2::parent
                                | view2::parent
-                               | act2::to_node_set( km )
-                               | act::order( km );
+                               | view2::order
+                               | act2::to_node_vec( km );
         auto final_matches = decltype( all_matches ){};
 
         // Ensure all req coms have been initialized.

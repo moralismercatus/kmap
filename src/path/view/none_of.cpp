@@ -36,34 +36,39 @@ auto NoneOf::create( CreateContext const& ctx
 
 auto NoneOf::fetch( FetchContext const& ctx
                   , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
     auto rset = FetchSet{};
 
     for( auto const& ls = links()
        ; auto const& pred_link : ls )
     {
         auto const unpred_link = pred_link->new_link();
-
-        if( auto unpred_fetched = unpred_link->fetch( ctx, node )
+        DerivationLink const& unpred_dlink = KTRY( result::dyn_cast< DerivationLink const >( unpred_link.get() ) );
+        if( auto unpred_fetched = KTRY( unpred_dlink.fetch( ctx, node ) )
                                 | ranges::to< std::vector >()
           ; unpred_fetched.size() > 0 )
         {
             ranges::sort( unpred_fetched );
 
-            if( auto pred_fetched = pred_link->fetch( ctx, node )
+            DerivationLink const& pred_dlink = KTRY( result::dyn_cast< DerivationLink const >( pred_link.get() ) );
+
+            if( auto pred_fetched = KTRY( pred_dlink.fetch( ctx, node ) )
                                   | ranges::to< std::vector >()
-              ; pred_fetched.size() > 0 )
+            ; pred_fetched.size() > 0 )
             {
                 ranges::sort( pred_fetched );
 
                 rset = rvs::set_intersection( unpred_fetched, pred_fetched )
-                     | ranges::to< FetchSet >();
+                    | ranges::to< FetchSet >();
             }
             else
             {
                 rset = unpred_fetched
-                     | ranges::to< FetchSet >();
+                    | ranges::to< FetchSet >();
             }
         }
     }

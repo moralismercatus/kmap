@@ -60,6 +60,12 @@
         } \
     }
 #define KMAP_ENSURE( pred, ec ) KMAP_ENSURE_MSG( ( pred ), ( ec ), "" )
+#define KMAP_WARN( pred, msg ) \
+    { \
+        if( !( pred ) ) { \
+            fmt::print( stderr, "[kmap][warn] {}", ( msg ) ); \
+        } \
+    }
 // Inspired by BOOST_OUTCOME_TRYX, with the addition of appending to the stack.
 #if KMAP_LOG_KTRY
     #define KMAP_KTRY_LOG() kmap::log_ktry_line( __FUNCTION__, __LINE__, __FILE__ )

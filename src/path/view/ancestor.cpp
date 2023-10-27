@@ -33,7 +33,7 @@ auto Ancestor::create( CreateContext const& ctx
 
 auto Ancestor::fetch( FetchContext const& ctx
                     , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "node", node );
@@ -42,23 +42,23 @@ auto Ancestor::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::ancestor( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::ancestor( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
                 auto rs = FetchSet{};
-                auto const ancestors = view2::ancestor.fetch( ctx, node );
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const ancestors = KTRY( view2::ancestor.fetch( ctx, node ) );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 return ancestors
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 if( is_ancestor( *nw, pred, node ) )
                 {
@@ -69,39 +69,39 @@ auto Ancestor::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const ancestors = [ & ]
+                auto const ancestors = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = view2::ancestor.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::ancestor.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ] 
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = anchor::node( node ) | pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( anchor::node( node ) | pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 return rvs::set_intersection( ancestors, ns )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Tether const& pred )
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const ancestors = [ & ]
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const ancestors = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = view2::ancestor.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::ancestor.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ]
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 return rvs::set_intersection( ancestors, ns ) // Note: set_intersection requires two sorted ranges.
                      | ranges::to< FetchSet >();
@@ -113,7 +113,7 @@ auto Ancestor::fetch( FetchContext const& ctx
     else
     {
         auto rs = FetchSet{};
-        auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
         auto it_node = nw->fetch_parent( node );
 
         while( it_node )

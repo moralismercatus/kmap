@@ -717,8 +717,8 @@ auto check_heading( sql::connection& con
 
             if( !is_valid_heading( heading ) )
             {
-                io::print( "[log][error] Abnormality detected: did not find exactly one heading for node: '{}'\n"
-                        , node );
+                io::print( "[log][error] Abnormality detected: invalid heading for node: '{}'\n"
+                         , node );
 
                 if( fix )
                 {
@@ -802,7 +802,7 @@ auto check_heading_conflict( sql::connection& con
         if( std::distance( rb, re ) != 1 )
         {
             io::print( "[log][error] Abnormality detected: conflicting heading found for: '{}'\n"
-                        , node );
+                     , node );
 
             if( fix )
             {
@@ -810,15 +810,16 @@ auto check_heading_conflict( sql::connection& con
                    ; it != re
                    ; ++it )
                 {
-                    io::print( "[log][repair] Repairing conflicting node heading for: {}\n"
-                             , it->first );
+                    io::print( "[log][repair] Repairing conflicting node heading for: {}, '{}'\n"
+                             , it->first
+                             , it->second );
 
                     auto const dist = std::distance( rb, it );
                     auto const new_heading = fmt::format( "{}_conflict_{}"
                                                         , node_heading
                                                         , dist );
 
-                    con( insert_or_replace_into( ht ).set( ht.uuid = it->first, ht.heading = new_heading ) );
+                    con( insert_or_replace_into( ht ).set( ht.uuid = it->second, ht.heading = new_heading ) );
                 }
             }
             else

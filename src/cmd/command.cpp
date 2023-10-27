@@ -368,8 +368,8 @@ auto parse_args( Kmap& kmap
                               | act2::fetch_node( kmap ) );
     auto const arg_nodes = anchor::node( arg_node )
                          | view2::child
-                         | act2::to_node_set( kmap )
-                         | act::order( kmap );
+                         | view2::order
+                         | act2::to_node_vec( kmap );
     auto const split_args = arg | views::split( ' ' ); // Note the lazy split. Important for large strings that are actually unconditional, for performance.
 
     if( arg_nodes.size() == 0 )
@@ -450,8 +450,8 @@ auto fetch_params_ordered( Kmap& kmap
     auto const children = anchor::node( cmd_id )
                         | view2::child( "argument" )
                         | view2::child
-                        | act2::to_node_set( kmap )
-                        | act::order( kmap );
+                        | view2::order
+                        | act2::to_node_vec( kmap );
 
     for( auto const& child : children )
     {

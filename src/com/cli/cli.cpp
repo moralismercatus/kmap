@@ -478,8 +478,8 @@ auto Cli::resolve_contextual_guard( Uuid const& cmd ) const
     for( auto const children = anchor::node( cmd )
                              | view2::child( "guard" )
                              | view2::child // TODO: `child( view2::cmd::guard )` - where view2::cmd::guard is a predicate that ensures that the node is a valid "guard" node/alias.
-                             | act2::to_node_set( km )
-                             | act::order( km )
+                             | view2::order
+                             | act2::to_node_vec( km )
         ; auto const guard : children )
     {
         if( cmd::evaluate_guard( km, guard, { "" } ) ) // Note: arg is omitted b/c this is the environmental guard, not argument guard.

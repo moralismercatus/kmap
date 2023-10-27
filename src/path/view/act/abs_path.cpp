@@ -63,14 +63,21 @@ auto operator|( Tether const& lhs
         auto const ns = lhs | act::to_node_set( rhs.km );
 
         KMAP_ENSURE( ns.size() == 1, error_code::common::uncategorized );
-        
-        {
-            auto const nw = KTRYE( rhs.km.fetch_component< com::Network >() );
-        }
 
-        rv = KTRY( view::make( av.begin()->id )
-                 | view::desc( *( ns.begin() ) )
-                 | view::act::abs_path_flat( ctx.km ) );
+        auto const root = av.begin()->id;
+        auto const leaf = *( ns.begin() );
+
+        if( root == leaf )
+        {
+            rv = KTRY( view::make( root )
+                     | view::act::abs_path_flat( ctx.km ) );
+        }
+        else
+        {
+            rv = KTRY( view::make( leaf )
+                     | view::ancestor( root )
+                     | view::act::abs_path_flat( ctx.km ) );
+        }
     }
 
     return rv;

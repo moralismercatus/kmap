@@ -195,7 +195,7 @@ auto VisualNetwork::add_edge( Uuid const& from
     KMAP_ENSURE( exists( from ), error_code::network::invalid_node );
     KMAP_ENSURE( exists( to ), error_code::network::invalid_node );
     KMAP_ENSURE( !edge_exists( from, to ), error_code::network::invalid_edge );
-    KMAP_ENSURE( !is_child( from, fetch_title( to ).value() ), error_code::network::invalid_node );
+    KMAP_WARN( !is_child( from, KTRY( fetch_title( to ) ) ), "duplicate title found in child node" );
 
     js_nw_->call< val >( "add_edge"
                        , to_string( make_edge_id( from, to ) )

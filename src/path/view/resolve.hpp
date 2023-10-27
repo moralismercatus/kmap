@@ -8,7 +8,7 @@
 #define KMAP_PATH_NODE_VIEW2_RESOLVE_HPP
 
 #include "common.hpp"
-#include "path/view/link.hpp"
+#include "path/view/derivation_link.hpp"
 #include "path/view/tether.hpp"
 
 #include <optional>
@@ -17,7 +17,7 @@
 
 namespace kmap::view2 {
 
-class Resolve : public Link
+class Resolve : public DerivationLink
 {
     using PredVariant = std::variant< char const*
                                     , std::string
@@ -40,7 +40,7 @@ public:
     auto operator()( TetherCT< AnchorType, TailLink > const& pred ) const { auto nl = *this; nl.pred_ = pred | to_tether; return nl; };
     auto clone() const -> std::unique_ptr< Link > override { return { std::make_unique< std::decay_t< decltype( *this ) > >( *this ) }; }
     auto create( CreateContext const& ctx, Uuid const& root ) const -> Result< UuidSet > override;
-    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> FetchSet override;
+    auto fetch( FetchContext const& ctx, Uuid const& node ) const -> Result< FetchSet > override;
     auto new_link() const -> std::unique_ptr< Link > override;
     auto to_string() const -> std::string override;
 

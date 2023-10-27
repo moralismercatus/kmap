@@ -23,7 +23,7 @@ auto to_fetch_set( FetchContext const& ctx )
 
 auto operator|( Tether const& lhs
               , ToFetchSet const& rhs )
-    -> FetchSet;
+    -> Result< FetchSet >;
 
 } // namespace kmap::view2::act
 

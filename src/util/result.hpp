@@ -72,6 +72,31 @@ auto to_string( LocalLog const& state )
 auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
     -> std::string;
 
+/**
+ * @brief 
+ * 
+ * @note Avoid auto-deduction to access underlying reference. That is, use `B& b = KTRY( result::dyn_cast< B >( a ) );` over `auto b = KTRY( result::dyn_cast< B >( a ) );`,
+ *       as the latter will result in `std::reference_wrapper< B >`, whereas the former will implicitly convert to `B&`.
+ * 
+ * @param from 
+ * @return kmap::Result< std::reference_wrapper< To > > 
+ */
+template< typename To 
+        , typename From >
+auto dyn_cast( From const& from )
+    -> kmap::Result< std::reference_wrapper< To > >
+{
+    if( auto const p = dynamic_cast< To* >( from )
+      ; p )
+    {
+        return std::reference_wrapper{ *p };
+    }
+    else
+    {
+        return KMAP_MAKE_ERROR_MSG( error_code::common::conversion_failed, "downcast failed" );
+    }
+}
+
 template< typename T >
 auto make_result( kmap::error_code::Payload const& payload )
     -> kmap::Result< T >

@@ -64,16 +64,16 @@ auto operator|( Tether const& lhs
         for( auto const& link : links
                               | rvs::drop_last( 1 ) )
         {
-            auto const nns = [ & ]
+            auto const nns = KTRY( [ & ]() -> Result< FetchSet >
             {
                 auto tnns = decltype( ns ){};
                 for( auto const& n : ns )
                 {
-                    auto const fr = link->fetch( fctx, n.id );
+                    auto const fr = KTRY( fetch( link, fctx, n.id ) );
                     tnns.insert( fr.begin(), fr.end() );
                 }
                 return tnns;
-            }();
+            }() );
 
             if( nns.empty() )
             {
@@ -81,11 +81,13 @@ auto operator|( Tether const& lhs
                 //       user desires only a single output.
                 KMAP_ENSURE( ns.size() == 1, error_code::common::uncategorized );
 
-                auto const cs = KTRY( link->create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
+                DerivationLink& dlink = KTRY( result::dyn_cast< DerivationLink >( link.get() ) );
+
+                auto const cs = KTRY( dlink.create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
 
                 ns = cs
-                   | rvs::transform( [ & ]( auto const& e ){ return LinkNode{ .id = e }; } )
-                   | ranges::to< FetchSet >();
+                | rvs::transform( [ & ]( auto const& e ){ return LinkNode{ .id = e }; } )
+                | ranges::to< FetchSet >();
             }
             else
             {
@@ -102,15 +104,19 @@ auto operator|( Tether const& lhs
         {
             if( !links.empty() )
             {
-                auto const ls = KTRY( links.back()->create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
+                if( auto const dlink = dynamic_cast< DerivationLink const* >( links.back().get() )
+                  ; dlink )
+                {
+                    auto const ls = KTRY( dlink->create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
 
-                if( ls.size() == 1 )
-                {
-                    rv = *ls.begin();
-                }
-                else
-                {
-                    rv = KMAP_MAKE_ERROR( error_code::network::invalid_node );
+                    if( ls.size() == 1 )
+                    {
+                        rv = *ls.begin();
+                    }
+                    else
+                    {
+                        rv = KMAP_MAKE_ERROR( error_code::network::invalid_node );
+                    }
                 }
             }
         }

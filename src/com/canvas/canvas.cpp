@@ -762,8 +762,8 @@ auto Canvas::rebase_internal( Uuid const& pane
         auto const parent = KTRY( nw->fetch_parent( pane ) );
         auto const children = anchor::node( parent )
                             | view2::child
-                            | act2::to_node_set( km )
-                            | act::order( km )
+                            | view2::order
+                            | act2::to_node_vec( km )
                             | actions::sort( [ & ]( auto const& lhs, auto const& rhs ){ return KTRYE( pane_base( lhs ) ) < KTRYE( pane_base( rhs ) ); } );
         KTRY( nw->reorder_children( parent, children ) );
     }
@@ -1488,8 +1488,8 @@ auto Canvas::dimensions( Uuid const& target )
         auto const orientation = KTRY( pane_orientation( parent_pane ) );
         auto const siblings = anchor::node( target )
                             | view2::sibling_incl
-                            | act2::to_node_set( km )
-                            | act::order( km );
+                            | view2::order
+                            | act2::to_node_vec( km );
         auto const percs = compute_percents( siblings );
         auto const pdims = KTRY( dimensions( parent_pane ) );
 

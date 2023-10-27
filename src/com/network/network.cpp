@@ -623,10 +623,10 @@ auto Network::erase_alias_desc( Uuid const& id )
     KMAP_ENSURE( is_alias( id ), error_code::node::invalid_alias );
     KMAP_ENSURE( !is_top_alias( id ), error_code::node::invalid_alias );
 
-    for( auto const children = view::make( id )
-                             | view::child
-                             | view::to_node_set( km )
-                             | act::order( km )
+    for( auto const children = anchor::node( id )
+                             | view2::child
+                             | view2::order
+                             | act2::to_node_vec( km )
        ; auto const& child : children | views::reverse )
     {
         KTRY( erase_alias_desc( child ) );
@@ -651,6 +651,12 @@ auto Network::erase_alias_leaf( Uuid const& id )
     KMAP_ENSURE( !is_top_alias( id ), error_code::node::invalid_alias );
 
     KTRY( alias_store().erase_alias( AliasItem::alias_type{ id } ) );
+
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        KTRY( estore.value()->fire_event( { "subject.network", "verb.erased", "object.node" },  { { "node_id", to_string( id ) } } ) );
+    }
 
     rv = outcome::success();
 
@@ -677,10 +683,10 @@ auto Network::erase_alias_root( Uuid const& id )
 
         for( auto const& alias : rsrc_aliases )
         {
-            for( auto const children = view::make( alias )
-                                     | view::child
-                                     | view::to_node_set( km )
-                                     | act::order( km )
+            for( auto const children = anchor::node( alias )
+                                     | view2::child
+                                     | view2::order
+                                     | act2::to_node_vec( km )
                ; auto const& child : children | views::reverse )
             {
                 KTRY( erase_alias_desc( child ) );
@@ -688,10 +694,10 @@ auto Network::erase_alias_root( Uuid const& id )
         }
     }
 
-    for( auto const children = view::make( id )
-                             | view::child
-                             | view::to_node_set( km )
-                             | act::order( km )
+    for( auto const children = anchor::node( id )
+                             | view2::child
+                             | view2::order
+                             | act2::to_node_vec( km )
        ; auto const& child : children | views::reverse )
     {
         KTRY( erase_alias_desc( child ) );
@@ -758,17 +764,16 @@ auto Network::erase_node_internal( Uuid const& id )
             // TODO: Unify when attributes are allowed to be ordered.
             if( attr::is_in_attr_tree( km, id ) )
             {
-                return view::make( id )
-                     | view::child
-                     | view::to_node_set( km )
-                     | ranges::to< UuidVec >();
+                return anchor::node( id )
+                     | view2::child
+                     | act2::to_node_vec( km );
             }
             else
             {
-                return view::make( id )
-                     | view::child
-                     | view::to_node_set( km )
-                     | act::order( km );
+                return anchor::node( id )
+                     | view2::child
+                     | view2::order
+                     | act2::to_node_vec( km );
             }
         }();
         for( auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
@@ -862,6 +867,12 @@ auto Network::erase_node_leaf( Uuid const& id )
 
     KTRY( db->erase_all( id ) );
 
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        KTRY( estore.value()->fire_event( { "subject.network", "verb.erased", "object.node" },  { { "node_id", to_string( id ) } } ) );
+    }
+
     rv = outcome::success();
 
     return rv;
@@ -902,6 +913,12 @@ auto Network::erase_attr( Uuid const& id )
     auto const parent = db->fetch_attr_owner( id );
 
     KTRY( db->erase_all( id ) );
+
+    if( auto const estore = fetch_component< com::EventStore >()
+      ; estore )
+    {
+        KTRY( estore.value()->fire_event( { "subject.network", "verb.erased", "object.node" },  { { "node_id", to_string( id ) } } ) );
+    }
 
     rv = parent;
 
@@ -1000,12 +1017,6 @@ auto Network::erase_node( Uuid const& id )
     }
 
     KTRY( erase_node_internal( id ) );
-
-    if( auto const estore = fetch_component< com::EventStore >()
-      ; estore )
-    {
-        KTRY( estore.value()->fire_event( { "network", "verb.erased", "node" },  { { "node_id", to_string( id ) } } ) );
-    }
 
     rv = next_selected;
 
@@ -1295,10 +1306,10 @@ auto Network::fetch_above( Uuid const& node ) const
 
     KMAP_ENSURE( exists( node ), error_code::network::invalid_node );
     
-    if( auto const children = view::make( node )
-                            | view::sibling_incl
-                            | view::to_node_set( km )
-                            | act::order( km )
+    if( auto const children = anchor::node( node )
+                            | view2::sibling_incl
+                            | view2::order
+                            | act2::to_node_vec( km )
       ; !children.empty() )
     {
         auto const it = find( children, node );
@@ -1377,10 +1388,10 @@ auto Network::fetch_below( Uuid const& node ) const
 
     auto const& km = kmap_inst();
     
-    if( auto const children = view::make( node )
-                            | view::sibling_incl
-                            | view::to_node_set( km )
-                            | act::order( km )
+    if( auto const children = anchor::node( node )
+                            | view2::sibling_incl
+                            | view2::order
+                            | act2::to_node_vec( km )
       ; !children.empty() )
     {
         auto const it = find( children, node );
@@ -2578,11 +2589,11 @@ auto Network::set_ordering_position( Uuid const& id
         })
     ;
 
-    if( auto siblings = ( view::make( id ) 
-                        | view::parent
-                        | view::child
-                        | view::to_node_set( km ) 
-                        | act::order( km ) )
+    if( auto siblings = ( anchor::node( id ) 
+                        | view2::parent
+                        | view2::child
+                        | view2::order
+                        | act2::to_node_vec( km ) )
       ; siblings.size() > pos )
     {
         auto const parent = KTRY( fetch_parent( id ) );
@@ -2894,10 +2905,10 @@ auto Network::travel_right()
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
     auto const selected = selected_node();
-    auto const children = view::make( selected )
-                        | view::child
-                        | view::to_node_set( km )
-                        | act::order( km );
+    auto const children = anchor::node( selected )
+                        | view2::child
+                        | view2::order
+                        | act2::to_node_vec( km );
 
     if( !children.empty() )
     {
@@ -2970,10 +2981,10 @@ auto Network::travel_bottom()
     if( auto const parent = fetch_parent( selected )
       ; parent )
     {
-        auto const children = view::make( parent.value() )
-                            | view::child
-                            | view::to_node_set( km )
-                            | act::order( km );
+        auto const children = anchor::node( parent.value() )
+                            | view2::child
+                            | view2::order
+                            | act2::to_node_vec( km );
 
         KTRYE( select_node( children.back() ) );
 
@@ -2995,10 +3006,10 @@ auto Network::travel_top()
     if( auto const parent = fetch_parent( selected )
       ; parent )
     {
-        auto const children = view::make( parent.value() )
-                            | view::child
-                            | view::to_node_set( km )
-                            | act::order( km );
+        auto const children = anchor::node( parent.value() )
+                            | view2::child
+                            | view2::order
+                            | act2::to_node_vec( km );
 
         KTRYE( select_node( children.front() ) );
 
@@ -3177,8 +3188,8 @@ auto Network::fetch_visible_nodes_from( Uuid const& id
 
     auto const lineage = anchor::node( id )
                        | view2::left_lineal
-                       | act2::to_node_set( km )
-                       | act::order( km );
+                       | view2::order
+                       | act2::to_node_vec( km );
     auto const limited_lineage = lineage
                                | ranges::views::take_last( horizontal_max )
                                | ranges::to< std::vector >();
@@ -3192,8 +3203,8 @@ auto Network::fetch_visible_nodes_from( Uuid const& id
     {
         auto const siblings_ordered = anchor::node( e )
                                     | view2::sibling_incl
-                                    | act2::to_node_set( km )
-                                    | act::order( km );
+                                    | view2::order
+                                    | act2::to_node_vec( km );
         auto const limited_siblings = select_median_range( siblings_ordered, e, vertical_max );
 
         if( e == id )
@@ -3206,8 +3217,8 @@ auto Network::fetch_visible_nodes_from( Uuid const& id
                 {
                     auto const children_ordered = anchor::node( e )
                                                 | view2::child
-                                                | act2::to_node_set( km )
-                                                | act::order( km );
+                                                | view2::order
+                                                | act2::to_node_vec( km );
                     auto const limited_children = select_median_range( children_ordered, vertical_max );
 
                     push( limited_children );

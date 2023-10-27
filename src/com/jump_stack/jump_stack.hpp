@@ -89,6 +89,16 @@ public:
         -> Result< void >;
 };
 
+// TODO: Belong in network.hpp instead? Not jump_stack-specific.
+auto is_parent( com::Network const& nw
+              , Uuid const& parent
+              , Uuid const& child )
+    -> bool;
+auto is_sibling_adjacent( Kmap const& km
+                        , Uuid const& node
+                        , Uuid const& other )
+    -> bool;
+
 } // namespace kmap::com
 
 #endif // KMAP_JUMP_STACK_HPP

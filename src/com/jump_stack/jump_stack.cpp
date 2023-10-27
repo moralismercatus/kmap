@@ -12,7 +12,7 @@
 #include <emcc_bindings.hpp>
 #include <js_iface.hpp>
 #include <kmap.hpp>
-#include <path.hpp>
+#include <path/disambiguate.hpp>
 #include <path/act/order.hpp>
 #include <test/util.hpp>
 #include <util/result.hpp>
@@ -262,48 +262,6 @@ tbl.appendChild( tbl_body );
     return rv;
 }
 
-auto is_parent( com::Network const& nw
-              , Uuid const& parent
-              , Uuid const& child )
-    -> bool
-{
-    return KTRYB( nw.fetch_parent( child ) ) == parent;
-}
-
-auto is_sibling_adjacent( Kmap const& km
-                        , Uuid const& node
-                        , Uuid const& other )
-    -> bool
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "node", node );
-        KM_RESULT_PUSH( "other", other );
-    // Ensure nodes are siblings.
-    {
-        auto const nw = KTRYE( km.fetch_component< com::Network >() );
-        auto const np = KTRYB( nw->fetch_parent( node ) );
-        auto const op = KTRYB( nw->fetch_parent( other ) );
-
-        KENSURE_B( np == op );
-    }
-    
-    auto const siblings = anchor::node( node )
-                        | view2::sibling_incl
-                        | act2::to_node_set( km )
-                        | act::order( km );
-    auto const it1 = ranges::find( siblings, node );
-    auto const it2 = ranges::find( siblings, other );
-
-    if( it1 < it2 )
-    {
-        return std::distance( it1, it2 ) == 1;
-    }
-    else
-    {
-        return std::distance( it2, it1 ) == 1; 
-    }
-}
-
 auto JumpStack::active_item_index() const
     -> std::optional< Stack::size_type >
 {
@@ -543,7 +501,8 @@ auto JumpStack::push_transition( Uuid const& from
 
     KMAP_ENSURE_BOOL( buffer_.empty() || ( buffer_.front() != from ) ); // duplicate push
 
-    if( buffer_.size() >= threshold() )
+    if( buffer_.size() >= threshold()
+     && threshold() > 0 )
     {
         buffer_.pop_back();
     }
@@ -561,7 +520,7 @@ auto JumpStack::push_transition( Uuid const& from
 
 SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "jump_stack" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "jump_stack", "network" );
 
     auto& km = Singleton::instance();
     auto const nw= REQUIRE_TRY( km.fetch_component< com::Network >() );
@@ -582,7 +541,7 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
         {   
             { 1, REQUIRE_TRY( anchor::abs_root | view2::child( "1" ) | act2::create_node( km ) ) }
         ,   { 2, REQUIRE_TRY( anchor::abs_root | view2::child( "2" ) | act2::create_node( km ) ) }
-        ,       { 4, REQUIRE_TRY( anchor::abs_root | view2::child( "2" ) | view2::child( "4" ) | act2::create_node( km ) ) }
+        ,   { 4, REQUIRE_TRY( anchor::abs_root | view2::child( "2" ) | view2::child( "4" ) | act2::create_node( km ) ) }
         ,   { 3, REQUIRE_TRY( anchor::abs_root | view2::child( "3" ) | act2::create_node( km ) ) }
         };
         auto const check = [ & ]( auto const& from, auto const& to, std::vector< unsigned > const& istack ) -> bool
@@ -590,9 +549,17 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
             REQUIRE_TRY( jstack->push_transition( num_to_node_map.at( from ), num_to_node_map.at( to ) ) );
 
             auto const tstack = istack
-                                | rvs::transform( [ & ]( auto const& e ){ return num_to_node_map.at( e ); } )
-                                | ranges::to< std::deque< Uuid > >();
+                              | rvs::transform( [ & ]( auto const& e ){ return num_to_node_map.at( e ); } )
+                              | ranges::to< std::deque< Uuid > >();
 
+            // for( auto const& jse : jstack->stack() )
+            // {
+            //     fmt::print( "jstack[i]: {}\n", REQUIRE_TRY( nw->fetch_heading( jse ) ) );
+            // }
+            // for( auto const& tse : tstack )
+            // {
+            //     fmt::print( "tstack[i]: {}\n", REQUIRE_TRY( nw->fetch_heading( tse ) ) );
+            // }
 
             return jstack->stack() == tstack;
         };
@@ -748,6 +715,48 @@ for( let i = 0
     return rv;
 }
 
+auto is_parent( com::Network const& nw
+              , Uuid const& parent
+              , Uuid const& child )
+    -> bool
+{
+    return KTRYB( nw.fetch_parent( child ) ) == parent;
+}
+
+auto is_sibling_adjacent( Kmap const& km
+                        , Uuid const& node
+                        , Uuid const& other )
+    -> bool
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+        KM_RESULT_PUSH( "other", other );
+    // Ensure nodes are siblings.
+    {
+        auto const nw = KTRYE( km.fetch_component< com::Network >() );
+        auto const np = KTRYB( nw->fetch_parent( node ) );
+        auto const op = KTRYB( nw->fetch_parent( other ) );
+
+        KENSURE_B( np == op );
+    }
+    
+    auto const siblings = anchor::node( node )
+                        | view2::sibling_incl
+                        | view2::order
+                        | act2::to_node_vec( km );
+    auto const it1 = ranges::find( siblings, node );
+    auto const it2 = ranges::find( siblings, other );
+
+    if( it1 < it2 )
+    {
+        return std::distance( it1, it2 ) == 1;
+    }
+    else
+    {
+        return std::distance( it2, it1 ) == 1; 
+    }
+}
+
 namespace {
 namespace jump_stack_def {
 
@@ -784,10 +793,11 @@ namespace binding
             -> Result< std::string >
         {
             KM_RESULT_PROLOG();
+                KM_RESULT_PUSH( "node", node );
 
             auto rv = result::make_result< std::string >();
             auto const nl = com::format_node_label( km_, node );
-            auto const disset = KTRY( disambiguate_path( km_, node ) );
+            auto const disset = KTRY( disambiguate_path3( km_, node ) );
 
             if( disset.empty() )
             {
@@ -795,10 +805,18 @@ namespace binding
             }
             else
             {
-                auto const disroot = disset.at( node );
-                auto const disroot_path = result::value_or( anchor::abs_root | view2::desc( disroot ) | act2::abs_path_flat( km_ ), "/" );
+                KMAP_ENSURE( disset.contains( node ), error_code::common::uncategorized );
 
-                rv = fmt::format( "{}<br>@{}", nl, disroot_path );
+                auto const disroot_path = disset.at( node );
+
+                if( disroot_path.empty() )
+                {
+                    rv = nl;
+                }
+                else
+                {
+                    rv = fmt::format( "{}<br>{}", nl, disroot_path );
+                }
             }
 
             return rv;

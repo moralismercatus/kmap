@@ -34,8 +34,8 @@ auto RightLineal::create( CreateContext const& ctx
 }
 
 auto RightLineal::fetch( FetchContext const& ctx
-                      , Uuid const& node ) const
-    -> FetchSet
+                       , Uuid const& node ) const
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -43,21 +43,21 @@ auto RightLineal::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
                 return view2::right_lineal( std::string{ pred } ).fetch( ctx, node );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
                 auto rs = FetchSet{};
-                auto const right_lineals = view2::right_lineal.fetch( ctx, node );
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const right_lineals = KTRY( view2::right_lineal.fetch( ctx, node ) );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 return right_lineals
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
                 auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
 
@@ -70,29 +70,29 @@ auto RightLineal::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const right_lineals = view2::right_lineal.fetch( ctx, node );
-                auto const ns = anchor::node( node ) | pred | act::to_fetch_set( ctx );
+                auto const right_lineals = KTRY( view2::right_lineal.fetch( ctx, node ) );
+                auto const ns = KTRY( anchor::node( node ) | pred | act::to_fetch_set( ctx ) );
 
                 return rvs::set_intersection( right_lineals, ns )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Tether const& pred )
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const right_lineals = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const right_lineals = KTRY( [ & ]() -> Result< std::vector< LinkNode > > // Note: set_intersection requires two sorted ranges.
                 {
-                    auto t = view2::right_lineal.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::right_lineal.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ] // Note: set_intersection requires two sorted ranges.
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > > // Note: set_intersection requires two sorted ranges.
                 {
-                    auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 // Note: set_intersection requires two sorted ranges.
                 return rvs::set_intersection( right_lineals, ns )
@@ -104,9 +104,9 @@ auto RightLineal::fetch( FetchContext const& ctx
     }
     else
     {
-        auto rs = anchor::node( node )
-                | view2::desc
-                | act::to_fetch_set( ctx );
+        auto rs = KTRY( anchor::node( node )
+                      | view2::desc
+                      | act::to_fetch_set( ctx ) );
 
         rs.emplace( LinkNode{ .id = node } );
 

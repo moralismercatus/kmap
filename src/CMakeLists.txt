@@ -79,6 +79,7 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
                         #  -fsanitize=undefined
                          -sASSERTIONS=2 
                          -sSTACK_OVERFLOW_CHECK=2 
+                        #  -sWASM=1
                          -sWASM=1
                         #  --profiling 
                         #  --profiling-funcs 
@@ -92,9 +93,9 @@ add_link_options( -sALLOW_MEMORY_GROWTH=1
                   -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
 
                   # -fsanitize=address
-                  -sSTACK_SIZE=100MB
                   # -fsanitize=undefined 
 
+                  -sSTACK_SIZE=100MB
                   -sASSERTIONS=2 
                   -sSTACK_OVERFLOW_CHECK=2 
                   -sINITIAL_MEMORY=400MB
@@ -115,6 +116,7 @@ add_executable( emcc.index.html
                 cmd/task.cpp 
                 cmd/text_area.cpp
                 com/autosave/autosave.cpp com/autosave/autosave.hpp
+                com/breadcrumb/breadcrumb.cpp com/breadcrumb/breadcrumb.hpp
                 com/canvas/canvas.cpp com/canvas/canvas.hpp
                 com/canvas/common.cpp com/canvas/common.hpp
                 com/canvas/layout.cpp com/canvas/layout.hpp
@@ -172,6 +174,7 @@ add_executable( emcc.index.html
                 path/act/take.cpp path/act/take.hpp
                 path/act/to_string.cpp path/act/to_string.hpp
                 path/act/update_body.cpp path/act/update_body.hpp
+                path/disambiguate.cpp path/disambiguate.hpp
                 path/node_view.cpp path/node_view.hpp
                 path/node_view2.cpp path/node_view2.hpp
                 path/parser/tokenizer.cpp path/parser/tokenizer.hpp
@@ -188,6 +191,7 @@ add_executable( emcc.index.html
                 path/view/act/to_fetch_set.cpp path/view/act/to_fetch_set.hpp
                 path/view/act/to_heading_set.cpp path/view/act/to_heading_set.hpp
                 path/view/act/to_node_set.cpp path/view/act/to_node_set.hpp
+                path/view/act/to_node_vec.cpp path/view/act/to_node_vec.hpp
                 path/view/act/to_string.cpp path/view/act/to_string.hpp
                 path/view/act/update_body.cpp path/view/act/update_body.hpp
                 path/view/alias.cpp path/view/alias.hpp
@@ -198,11 +202,13 @@ add_executable( emcc.index.html
                 path/view/any_of.cpp path/view/any_of.hpp
                 path/view/attr.cpp path/view/attr.hpp
                 path/view/child.cpp path/view/child.hpp
+                path/view/derivation_link.cpp path/view/derivation_link.hpp
                 path/view/desc.cpp path/view/desc.hpp
                 path/view/direct_desc.cpp path/view/direct_desc.hpp
                 path/view/left_lineal.cpp path/view/left_lineal.hpp
                 path/view/link.cpp path/view/link.hpp
                 path/view/none_of.cpp path/view/none_of.hpp
+                path/view/order.cpp path/view/order.hpp
                 path/view/parent.cpp path/view/parent.hpp
                 path/view/resolve.cpp path/view/resolve.hpp
                 path/view/right_lineal.cpp path/view/right_lineal.hpp

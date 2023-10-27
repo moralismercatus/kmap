@@ -63,7 +63,7 @@ auto DirectDesc::create( CreateContext const& ctx
 
 auto DirectDesc::fetch( FetchContext const& ctx
                       , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -71,14 +71,14 @@ auto DirectDesc::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::direct_desc( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::direct_desc( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
                 auto const make_direct = []( std::string const& s ){ return fmt::format( ".{}", s ); };
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
                 auto const tform = [ & ]( auto const& c )
                 {
                     return LinkNode{ .id = c }; 
@@ -98,9 +98,9 @@ auto DirectDesc::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
                 // TODO: More efficient to check if node == fetch_parent( pred ): return pred;
                 auto const children = nw->fetch_children( node );
                 auto const tform = [ & ]( auto const& c )
@@ -118,7 +118,7 @@ auto DirectDesc::fetch( FetchContext const& ctx
     }
     else
     {
-        auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
         auto const children = nw->fetch_children( node );
 
         return children

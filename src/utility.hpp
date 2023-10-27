@@ -16,6 +16,7 @@
 
 #include <boost/timer/timer.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/regex.hpp>
 #include <dry-comparisons.hpp>
 
 #include <string>
@@ -83,6 +84,8 @@ auto const color_level_map = std::vector< Color >
 ,   Color::indigo
 ,   Color::violet
 };
+
+auto const uuid_regex_pattern = boost::regex{ "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }; // Prefer boost::regex over std::regex, for performance. Long story... basically, standard made optimization std::regex ABI-breaking, so it remains unoptimized.
 
 template< typename T >
 auto from_string( std::string const& s )

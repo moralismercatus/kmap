@@ -35,7 +35,7 @@ auto LeftLineal::create( CreateContext const& ctx
 
 auto LeftLineal::fetch( FetchContext const& ctx
                       , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -43,23 +43,23 @@ auto LeftLineal::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::left_lineal( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::left_lineal( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
                 auto rs = FetchSet{};
-                auto const left_lineals = view2::left_lineal.fetch( ctx, node );
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const left_lineals = KTRY( view2::left_lineal.fetch( ctx, node ) );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 return left_lineals
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
 
                 if( is_lineal( *nw, pred, node ) )
                 {
@@ -70,39 +70,39 @@ auto LeftLineal::fetch( FetchContext const& ctx
                     return FetchSet{};
                 }
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const left_lineals = [ & ]
+                auto const left_lineals = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = view2::left_lineal.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::left_lineal.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ] 
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = anchor::node( node ) | pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( anchor::node( node ) | pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 return rvs::set_intersection( left_lineals, ns )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Tether const& pred )
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const left_lineals = [ & ] // Note: set_intersection requires two sorted ranges.
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const left_lineals = KTRY( [ & ]() -> Result< std::vector< LinkNode > > // Note: set_intersection requires two sorted ranges.
                 {
-                    auto t = view2::left_lineal.fetch( ctx, node ) | ranges::to< std::vector >();
+                    auto t = KTRY( view2::left_lineal.fetch( ctx, node ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
-                auto const ns = [ & ] // Note: set_intersection requires two sorted ranges.
+                }() );
+                auto const ns = KTRY( [ & ]() -> Result< std::vector< LinkNode > >
                 {
-                    auto t = pred | act::to_fetch_set( ctx ) | ranges::to< std::vector >();
+                    auto t = KTRY( pred | act::to_fetch_set( ctx ) ) | ranges::to< std::vector >();
                     ranges::sort( t );
                     return t;
-                }();
+                }() );
 
                 // Note: set_intersection requires two sorted ranges.
                 return rvs::set_intersection( left_lineals, ns )
@@ -114,9 +114,9 @@ auto LeftLineal::fetch( FetchContext const& ctx
     }
     else
     {
-        auto rs = anchor::node( node )
-                | view2::ancestor
-                | act::to_fetch_set( ctx );
+        auto rs = KTRY( anchor::node( node )
+                      | view2::ancestor
+                      | act::to_fetch_set( ctx ) );
 
         rs.emplace( LinkNode{ .id = node } );
 

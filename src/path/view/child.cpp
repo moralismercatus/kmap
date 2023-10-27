@@ -65,7 +65,7 @@ auto Child::create( CreateContext const& ctx
 
 auto Child::fetch( FetchContext const& ctx
                  , Uuid const& node ) const
-    -> FetchSet
+    -> Result< FetchSet >
 {
     KM_RESULT_PROLOG();
 
@@ -73,30 +73,30 @@ auto Child::fetch( FetchContext const& ctx
     {
         auto dispatch = util::Dispatch
         {
-            [ & ]( char const* pred )
+            [ & ]( char const* pred ) -> Result< FetchSet >
             {
-                return view2::child( std::string{ pred } ).fetch( ctx, node );
+                return KTRY( view2::child( std::string{ pred } ).fetch( ctx, node ) );
             }
-        ,   [ & ]( std::string const& pred )
+        ,   [ & ]( std::string const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
-                auto const children = view2::child.fetch( ctx, node );
+                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
+                auto const children = KTRY( view2::child.fetch( ctx, node ) );
 
                 return children
                      | rvs::filter( [ & ]( auto const& e ){ return pred == KTRYE( nw->fetch_heading( e.id ) ); } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( Uuid const& pred )
+        ,   [ & ]( Uuid const& pred ) -> Result< FetchSet >
             {
-                auto const children = view2::child.fetch( ctx, node );
+                auto const children = KTRY( view2::child.fetch( ctx, node ) );
 
                 return children
                      | rvs::filter( [ & ]( auto const& e ){ return pred == e.id; } )
                      | ranges::to< FetchSet >();
             }
-        ,   [ & ]( LinkPtr const& pred )
+        ,   [ & ]( LinkPtr const& pred ) -> Result< FetchSet >
             {
-                auto const children = view2::child.fetch( ctx, node );
+                auto const children = KTRY( view2::child.fetch( ctx, node ) );
 
                 return children 
                      | rvs::filter( [ & ]( auto const& c ){ return anchor::node( c.id ) | pred | act2::exists( ctx.km ); } )
@@ -108,7 +108,7 @@ auto Child::fetch( FetchContext const& ctx
     }
     else
     {
-        auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
         auto const children = nw->fetch_children( node );
 
         return children
