@@ -33,11 +33,11 @@ auto QueryCache::clear()
 }
 
 auto QueryCache::fetch( view2::Tether const& tether ) const
-    -> Result< UuidSet >
+    -> Result< view2::FetchSet >
 {
     KM_RESULT_PROLOG();
 
-    auto rv = result::make_result< UuidSet >();
+    auto rv = result::make_result< view2::FetchSet >();
 
     if( map_.contains( tether ) )
     {
@@ -49,7 +49,7 @@ auto QueryCache::fetch( view2::Tether const& tether ) const
 }
 
 auto QueryCache::push( view2::Tether const& tether
-                     , UuidSet const& result )
+                     , view2::FetchSet const& result )
     -> Result< void >
 {
     // fmt::print( "[QueryCache][push] {}\n", tether | act2::to_string );
@@ -84,7 +84,7 @@ SCENARIO( "QueryCache push and fetch", "[node_view][query_cache]" )
                           | view2::child
                           | view2::direct_desc( "echo.charlie" )
                           | view2::to_tether;
-            auto const rns = UuidSet{ gen_uuid(), gen_uuid(), gen_uuid() };
+            auto const rns = view2::FetchSet{ { .id = gen_uuid() }, { .id = gen_uuid() }, { .id = gen_uuid() } };
 
             REQUIRE( test::fail( cache.fetch( tv ) ) );
 
@@ -108,7 +108,7 @@ SCENARIO( "QueryCache push and fetch", "[node_view][query_cache]" )
     }
     GIVEN( "cache.push( abs_root | direct_desc( 'meta.event.object' ), nodes )" )
     {
-        auto const rns = UuidSet{ gen_uuid() };
+        auto const rns = view2::FetchSet{ { .id = gen_uuid() } };
 
         REQUIRE_RES( cache.push( anchor::abs_root | view2::direct_desc( "meta.event.object" ) | view2::to_tether, rns ) );
         REQUIRE( ranges::distance( cache ) == 1 );

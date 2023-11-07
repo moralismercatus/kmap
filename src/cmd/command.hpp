@@ -10,39 +10,6 @@
 #include "../error/node_manip.hpp"
 #include "util/macro.hpp"
 
-#include <emscripten.h>
-#include <emscripten/bind.h>
-
-#if 0
-#define REGISTER_COMMAND( path, desc, args, guard, action ) \
-    namespace binding \
-    { \
-        auto KMAP_CONCAT( register_cmd_, __LINE__ )() \
-        { \
-            auto& kmap = Singleton::instance(); \
-            return kmap.cli().register_command( { #path, desc, args, guard, action } ); \
-        } \
-        EMSCRIPTEN_BINDINGS( kmap_module_cmd ) \
-        { \
-            emscripten::function( format_heading( "register_cmd_"#path ).c_str(), &KMAP_CONCAT( register_cmd_, __LINE__ ) ); \
-        } \
-    }
-#endif // 0
-
-#define REGISTER_ARGUMENT( path, desc, guard, completion ) \
-    namespace binding \
-    { \
-        auto KMAP_CONCAT( register_arg_, __LINE__ )() \
-        { \
-            auto& kmap = Singleton::instance(); \
-            kmap.cli().register_argument( { #path, desc, guard, completion } ); \
-        } \
-        EMSCRIPTEN_BINDINGS( kmap_module_arg ) \
-        { \
-            emscripten::function( format_heading( "register_arg_"#path ).c_str(), &KMAP_CONCAT( register_arg_, __LINE__ ) ); \
-        } \
-    }
-
 #include "com/cli/cli.hpp"
 #include <functional>
 

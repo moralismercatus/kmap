@@ -13,7 +13,7 @@
 #include "common.hpp"
 #include "component.hpp"
 #include "utility.hpp"
-#include <js_iface.hpp>
+#include <js/scoped_code.hpp>
 
 #include <ostream>
 #include <string>

@@ -8,15 +8,17 @@
 #define KMAP_COMPONENT_HPP
 
 #include "common.hpp"
-#include "emcc_bindings.hpp"
 // #include "event/event_clerk.hpp"
 #include "kmap.hpp"
 #include "util/macro.hpp"
 
+#if !KMAP_NATIVE
 #include <emscripten/bind.h>
+#endif // !KMAP_NATIVE
 
 #include <any>
 #include <compare>
+#include <map>
 #include <memory>
 #include <set>
 #include <string_view>
@@ -26,9 +28,36 @@ namespace kmap
     class Kmap;
 }
 
+#if KMAP_NATIVE
+#include <memory>
+
+namespace kmap {
+    class NativeComponentRegistry
+    {
+        using ComponentCtorPtr = std::shared_ptr< ComponentConstructor >;
+        using Registry = std::map< std::string, ComponentCtorPtr >;
+
+        static std::unique_ptr< Registry > inst_;
+
+    public:
+        static auto instance()
+            -> Registry&
+        {
+            if( !inst_ )
+            {
+                inst_ = std::make_unique< Registry >();
+            }
+
+            return *inst_;
+        }
+    };
+}
+#endif // KMAP_NATIVE
+
 // TODO: I have a hesitance about supplying the requisites manually, in that it burdens the developer with keeping track.
 //       I wonder if there is a way to leverage the "clerk"-system, such that clerks, on creation, register their respective requisite. Bit of a tall order, but a thought.
 // Note: Using the simple register_component_<line> as a function name should be generalizable, so long as REGISTER_COMPONENT is called from an anonymous namespace.
+#if !KMAP_NATIVE
 #define REGISTER_COMPONENT( type, reqs, desc ) \
     namespace binding \
     { \
@@ -52,6 +81,28 @@ namespace kmap
             emscripten::function( fmt::format( "register_component_{}", kmap::format_heading( type::id ) ).c_str(), &KMAP_CONCAT( register_component_, __LINE__ ) ); \
         } \
     }
+#else // KMAP_NATIVE
+#define REGISTER_COMPONENT( type, reqs, desc ) \
+    namespace binding { \
+        namespace { \
+            void KMAP_CONCAT( register_component_, __LINE__ )() __attribute__((constructor)); \
+            void KMAP_CONCAT( register_component_, __LINE__ )() \
+            { \
+                KM_RESULT_PROLOG(); \
+                    KM_RESULT_PUSH( "id", type::id ); \
+                struct KMAP_CONCAT( component_ctor, __LINE__ ) : public kmap::ComponentConstructor \
+                { \
+                    using ComponentConstructor::ComponentConstructor; \
+                    virtual auto construct( kmap::Kmap& km ) const -> std::shared_ptr< kmap::Component > override { return std::static_pointer_cast< kmap::Component >( std::make_shared< type >( km, requisites(), description() ) ); } \
+                    virtual ~KMAP_CONCAT( component_ctor, __LINE__ )() = default; \
+                }; \
+                auto cctor = std::make_shared< KMAP_CONCAT( component_ctor, __LINE__ ) >( type::id, reqs, desc ); \
+                auto bptr = std::static_pointer_cast< kmap::ComponentConstructor >( cctor ); \
+                kmap::NativeComponentRegistry::instance().emplace( type::id, bptr ); \
+            } \
+        } \
+    }
+#endif // !KMAP_NATIVE
 
 namespace kmap {
 

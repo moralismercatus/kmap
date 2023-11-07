@@ -43,9 +43,7 @@ auto operator|( Tether const& lhs
     if( auto const qr = qcache.fetch( lhs )
       ; qr )
     {
-        rv = qr.value()
-           | rvs::transform( []( auto const& e ){ return LinkNode{ .id = e }; } )
-           | ranges::to< FetchSet >();
+        rv = qr.value();
     }
     else
     {
@@ -87,9 +85,7 @@ auto operator|( Tether const& lhs
         }
 
         {
-            auto const ns = fs
-                          | rvs::transform( []( auto const& e ){ return e.id; } )
-                          | ranges::to< UuidSet >();
+            auto const ns = fs;
             KTRYE( const_cast< com::db::QueryCache& >( qcache ).push( lhs, ns ) ); // TODO: WARNING FLAGS!!! VERY TEMPORARY! const_cast a no-no!
             KMAP_ENSURE_EXCEPT( qcache.fetch( lhs ) );
         }

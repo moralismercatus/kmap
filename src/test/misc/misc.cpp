@@ -6,11 +6,11 @@
 #include <com/canvas/common.hpp>
 #include <com/cli/cli.hpp>
 #include <com/database/db.hpp>
-#include <com/database/db_fs.hpp>
+#include <com/database/filesystem/db_fs.hpp>
 #include <com/event/event.hpp>
 #include <com/filesystem/filesystem.hpp>
 #include <component.hpp>
-#include <js_iface.hpp>
+#include <js/iface.hpp>
 #include <test/util.hpp>
 
 #include <boost/filesystem.hpp>

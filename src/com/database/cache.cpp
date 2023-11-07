@@ -19,6 +19,7 @@
 #include <range/v3/view/reverse.hpp>
 #include <range/v3/view/transform.hpp>
 
+#include <fmt/format.h>
 #include <tuple>
 #include <variant>
 

@@ -19,7 +19,6 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
-#include <emscripten.h>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/filter.hpp>

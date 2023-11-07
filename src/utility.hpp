@@ -25,17 +25,12 @@
 #define KMAP_TIME_SCOPE( msg ) \
     fmt::print( "{}...\n", msg ); \
     boost::timer::auto_cpu_timer kmap_scope_timer( fmt::format( "{} done: %ws\n", msg ) );
-#if KMAP_PROFILE || 1
+#if KMAP_PROFILE || 0
     #define KMAP_PROFILE_SCOPE() \
             boost::timer::auto_cpu_timer KMAP_CONCAT( kmap_profile_scope_timer_, __LINE__ )( fmt::format( "{}|{}| done: %ws\n", __PRETTY_FUNCTION__, __LINE__ ) ); 
 #else
     #define KMAP_PROFILE_SCOPE() ( void )0;
 #endif // KMAP_PROFILE
-#if KMAP_DEBUG_LOG || 1
-    #define KMAP_LOG_LINE() fmt::print( "[log.line] {}|{}|{}\n", __func__, __LINE__, kmap::FsPath{ __FILE__ }.filename().string() ); std::cout.flush();
-#else
-    #define KMAP_LOG_LINE()
-#endif
 
 namespace kmap {
 
@@ -208,9 +203,6 @@ auto to_uuid( std::string const& s )
 auto match_closest( Heading const& unknown
                   , std::vector< Heading > const& knowns )
     -> Heading;
-[[ nodiscard ]]
-auto markdown_to_html( std::string const& text )
-    -> std::string;
 [[ nodiscard ]]
 auto xor_ids( Uuid const& lhs
             , Uuid const& rhs )

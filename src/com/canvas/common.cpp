@@ -16,7 +16,6 @@
 #include <error/network.hpp>
 #include <error/node_manip.hpp>
 #include <filesystem.hpp>
-#include <js_iface.hpp>
 #include <path.hpp>
 #include <path/act/abs_path.hpp>
 #include <path/act/order.hpp>
@@ -28,11 +27,13 @@
 #include <util/result.hpp>
 #include <util/window.hpp>
 
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
+
 #include <boost/filesystem.hpp>
 #include <boost/json/parse.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
-#include <emscripten/val.h>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/contains.hpp>
 #include <range/v3/algorithm/find_if.hpp>
@@ -75,6 +76,7 @@ auto to_string( Orientation const& orientation )
 {
     switch( orientation )
     {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case Orientation::horizontal: return "horizontal";
         case Orientation::vertical: return "vertical";
     }
@@ -239,21 +241,6 @@ auto load_initial_layout( FsPath const& path )
     rv = kmap::to_string( KTRY( open_ifstream( path, std::ios::binary ) ) );
 
     return rv;
-}
-
-namespace {
-namespace canvas_def {
-
-using namespace std::string_literals;
-
-REGISTER_COMPONENT
-(
-    kmap::com::Canvas
-,   std::set({ "command.store"s, "event_store"s, "option_store"s, "network"s, "root_node"s })
-,   "canvas related functionality"
-);
-
-} // namespace canvas_def 
 }
 
 } // namespace kmap::com

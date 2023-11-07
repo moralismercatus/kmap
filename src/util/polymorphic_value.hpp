@@ -8,13 +8,12 @@
 #define KMAP_UTIL_POLYMORPHIC_VALUE_HPP
 
 #include "utility.hpp" // Testing
+#include <contract.hpp>
 
 #include <memory>
 
 namespace kmap {
 
-// TODO: Should I rather use more robustly tested [polymorphic_value](https://github.com/jbcoe/polymorphic_value)? It was proposed for C++20.
-//       Or raname to PolymorphicValue, if internals of unique_ptr are kept hidden? Read the paper before doing anything. Strictly-value semantics are hard when holding derived types.
 template< typename T >
     // requires requires( T t ){ t.clone(); }
 class PolymorphicValue
@@ -76,10 +75,10 @@ public:
 
 
     auto get() const { return ptr_.get(); }
-    auto operator*() -> T& { return *ptr_; }
-    auto operator*() const -> T const& { return *ptr_; }
-    auto operator->() { return ptr_.operator->(); }
-    auto operator->() const { return ptr_.operator->(); }
+    auto operator*() -> T& { BC_ASSERT( ptr_ ); return *ptr_; }
+    auto operator*() const -> T const& { BC_ASSERT( ptr_ ); return *ptr_; }
+    auto operator->() { BC_ASSERT( ptr_ ); return ptr_.operator->(); }
+    auto operator->() const { BC_ASSERT( ptr_ ); return ptr_.operator->(); }
     // auto operator!(){ return !ptr_; }
     explicit operator bool() const{ return !!ptr_; }
     auto operator<( PolymorphicValue const& other ) const

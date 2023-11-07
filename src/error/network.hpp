@@ -57,8 +57,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< network >( c ) )
+        switch( static_cast< network >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case network::success: return "success";
         case network::ambiguous_path: return "path is ambiguous";
         case network::attribute: return "attribute";

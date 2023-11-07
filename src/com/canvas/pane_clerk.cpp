@@ -13,6 +13,10 @@
 #include <util/result.hpp>
 #include <utility.hpp>
 
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
+
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/reverse.hpp>
 
@@ -29,33 +33,33 @@ PaneClerk::~PaneClerk()
 {
     try
     {
-        if( auto const canvasc = kmap_.fetch_component< com::Canvas >()
-          ; canvasc )
-        {
-            auto& canvas = canvasc.value();
-            for( auto const& e : installed_panes_
-                               | rvs::values
-                               | rvs::reverse )
-            {
-                // TODO:
-                // if( auto const res = canvas->erase_subdivision( e )
-                // ; !res && res.error().ec != error_code::network::invalid_node ) // invalid_node => !exists - fine - no need to erase already erased.
-                // {
-                //     KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) ); \
-                // }
-            }
-            for( auto const& e : installed_overlays_
-                               | rvs::values
-                               | rvs::reverse )
-            {
-                // TODO:
-                // if( auto const res = canvas->erase_subdivision( e )
-                // ; !res && res.error().ec != error_code::network::invalid_node ) // invalid_node => !exists - fine - no need to erase already erased.
-                // {
-                //     KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) ); \
-                // }
-            }
-        }
+        // if( auto const canvasc = kmap_.fetch_component< com::Canvas >()
+        //   ; canvasc )
+        // {
+        //     auto& canvas = canvasc.value();
+        //     for( auto const& e : installed_panes_
+        //                        | rvs::values
+        //                        | rvs::reverse )
+        //     {
+        //         // TODO:
+        //         if( auto const res = canvas->erase_subdivision( e )
+        //         ; !res && res.error().ec != error_code::network::invalid_node ) // invalid_node => !exists - fine - no need to erase already erased.
+        //         {
+        //             KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) );
+        //         }
+        //     }
+        //     for( auto const& e : installed_overlays_
+        //                        | rvs::values
+        //                        | rvs::reverse )
+        //     {
+        //         // TODO:
+        //         if( auto const res = canvas->erase_subdivision( e )
+        //         ; !res && res.error().ec != error_code::network::invalid_node ) // invalid_node => !exists - fine - no need to erase already erased.
+        //         {
+        //             KMAP_THROW_EXCEPTION_MSG( kmap::error_code::to_string( res.error() ) ); 
+        //         }
+        //     }
+        // }
     }
     catch( std::exception const& e )
     {
@@ -81,12 +85,8 @@ auto PaneClerk::check_registered()
         {
             KTRY( install_pane( pane ) );
         }
-        if( !js::element_exists( to_string( pane.id ) ) )
-        {
-            auto const canvas = KTRY( kmap_.fetch_component< com::Canvas >() );
 
-            KTRY( canvas->create_html_element( pane.id ) );
-        }
+        KTRY( ensure_html_element_exists( pane.id ) );
         // TODO: For consistency, shouldn't we check for html element for pane.id as well?
     }
     for( auto const& overlay : registered_overlays_
@@ -115,12 +115,7 @@ auto PaneClerk::check_registered()
             }
         }
 
-        if( !js::element_exists( to_string( overlay.id ) ) )
-        {
-            auto const canvas = KTRY( kmap_.fetch_component< com::Canvas >() );
-
-            KTRY( canvas->create_html_element( overlay.id ) );
-        }
+        KTRY( ensure_html_element_exists( overlay.id ) );
     }
 
     rv = outcome::success();
@@ -154,6 +149,28 @@ auto PaneClerk::register_overlay( Overlay const& overlay )
     KMAP_ENSURE( !registered_overlays_.contains( overlay.heading ), error_code::common::uncategorized );
 
     registered_overlays_.insert( { overlay.heading, overlay } );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto PaneClerk::ensure_html_element_exists( Uuid const& id )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "id", id );
+
+    auto rv = result::make_result< void >();
+
+#if !KMAP_NATIVE
+    if( !js::element_exists( to_string( id ) ) )
+    {
+        auto const canvas = KTRY( kmap_.fetch_component< com::Canvas >() );
+
+        KTRY( canvas->create_html_element( id ) );
+    }
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 

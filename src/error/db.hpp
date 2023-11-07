@@ -50,8 +50,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< db >( c ) )
+        switch( static_cast< db >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case db::success: return "success";
         case db::no_lhs: return "no LHS";
         case db::no_rhs: return "no RHS";

@@ -8,6 +8,17 @@
 #define BOOST_TEST_NO_MAIN
 #define BOOST_TEST_ALTERNATIVE_INIT_API
 #define BOOST_TEST_DISABLE_ALT_STACK
+
+#include <test/master.hpp>
+
+#include <cmd/command.hpp>
+#include <contract.hpp>
+#include <com/database/db.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <path.hpp>
+#include <js/iface.hpp>
+
 // unit_test.hpp must go after config macros.
 #include <boost/filesystem.hpp>
 #include <boost/optional/optional_io.hpp>
@@ -15,15 +26,6 @@
 #include <catch2/catch_session.hpp>
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/split.hpp>
-
-#include "cmd/command.hpp"
-#include "contract.hpp"
-#include "com/database/db.hpp"
-#include "io.hpp"
-#include "kmap.hpp"
-#include "path.hpp"
-#include "js_iface.hpp"
-#include "master.hpp"
 
 using namespace kmap;
 namespace utf = boost::unit_test;

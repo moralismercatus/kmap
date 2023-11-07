@@ -906,7 +906,7 @@ auto Desc::operator()( Kmap const& kmap
                                                                      } )
                                                                    | ranges::to< std::set< UuidSet > >();
 
-                                            if( arg.data.size() == ranges::count_if( all_of_sets, []( auto const& e ){ return !e.empty(); } ) )
+                                            if( std::cmp_equal( arg.data.size(), ranges::count_if( all_of_sets, []( auto const& e ){ return !e.empty(); } ) ) )
                                             {
                                                 for( auto const& e : all_of_sets )
                                                 {
@@ -1143,7 +1143,7 @@ auto DirectDesc::operator()( Kmap const& kmap
                                                                      } )
                                                                    | ranges::to< std::set< UuidSet > >();
 
-                                            if( arg.data.size() == ranges::count_if( all_of_sets, []( auto const& e ){ return !e.empty(); } ) )
+                                            if( std::cmp_equal( arg.data.size(), ranges::count_if( all_of_sets, []( auto const& e ){ return !e.empty(); } ) ) )
                                             {
                                                 for( auto const& e : all_of_sets )
                                                 {

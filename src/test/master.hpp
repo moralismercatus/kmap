@@ -7,11 +7,12 @@
 #ifndef KMAP_TEST_MASTER_HPP
 #define KMAP_TEST_MASTER_HPP
 
-#include "../kmap.hpp"
-#include "com/cli/cli.hpp"
-#include "com/network/network.hpp"
-#include "path/act/abs_path.hpp"
-#include "util/concepts.hpp"
+#include <kmap.hpp>
+#include <com/cli/cli.hpp>
+#include <com/network/network.hpp>
+#include <path/act/abs_path.hpp>
+#include <util/concepts.hpp>
+#include <contract.hpp>
 
 #include <boost/test/unit_test.hpp>
 

@@ -3,29 +3,30 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "cli.hpp"
+#include <com/cli/cli.hpp>
 
-#include "cli/parser.hpp"
-#include "cmd.hpp"
-#include "cmd/command.hpp"
+#include <cli/parser.hpp>
+#include <cmd.hpp>
+#include <cmd/command.hpp>
 #include <com/cmd/command.hpp>
-#include "cmd/parser.hpp"
-#include "cmd/select_node.hpp"
-#include "com/canvas/canvas.hpp"
-#include "com/network/network.hpp"
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "io.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/act/order.hpp"
-#include "util/result.hpp"
+#include <cmd/parser.hpp>
+#include <cmd/select_node.hpp>
+#include <com/canvas/canvas.hpp>
+#include <com/network/network.hpp>
+#include <contract.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <path/act/order.hpp>
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#include <emscripten/val.h>
+#endif // !KMAP_NATIVE
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/sml.hpp>
-#include <emscripten.h>
-#include <emscripten/val.h>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/count_if.hpp>
 #include <range/v3/algorithm/find_if.hpp>
@@ -55,6 +56,7 @@ namespace kmap::com {
 auto register_commands()
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
     using emscripten::vecFromJSArray;
 
@@ -70,11 +72,13 @@ auto register_commands()
                       , cmd );
         }
     }
+#endif // !KMAP_NATIVE
 }
 
 auto register_arguments()
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
     using emscripten::vecFromJSArray;
 
@@ -90,6 +94,7 @@ auto register_arguments()
                       , arg );
         }
     }
+#endif // !KMAP_NATIVE
 }
 
 Cli::Cli( Kmap& km
@@ -355,12 +360,14 @@ auto Cli::parse_raw( std::string const& input )
         rv = KMAP_PROPAGATE_FAILURE( pres );
     }
 
+#if !KMAP_NATIVE
     if( is_focused() )
     {
         auto const nw = KTRY( fetch_component< com::VisualNetwork >() );
 
         nw->focus();
     }
+#endif // !KMAP_NATIVE
 
     return rv;
 }
@@ -501,10 +508,14 @@ auto Cli::fetch_general_command_guard_resolved( Heading const& path ) const
         KM_RESULT_PUSH( "path", path );
 
     auto rv = result::make_result< Uuid >();
+#if KMAP_LOG && 0
     io::print( "fetching: {}\n", path );
+#endif
 
     auto const guarded = KTRY( fetch_general_command( path ) );
+#if KMAP_LOG && 0
     io::print( "found: {}\n", path );
+#endif
 
     rv = KTRY( resolve_contextual_guard( guarded ) );
     
@@ -738,6 +749,7 @@ auto Cli::complete_command( std::string const& scmd
 auto Cli::write( std::string const& out )
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
 
     KM_RESULT_PROLOG(); 
@@ -753,14 +765,13 @@ auto Cli::write( std::string const& out )
     ;
 
     val::global( to_string( canvas->cli_pane() ).c_str() ).set( "value", out );
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::read()
     -> std::string
 {
-    using emscripten::val;
-    using std::string;
-
+#if !KMAP_NATIVE
     KM_RESULT_PROLOG(); 
 
     auto const& km = kmap_inst();
@@ -769,20 +780,24 @@ auto Cli::read()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( to_string( canvas->cli_pane() ).c_str() ).isUndefined() );
+            BC_ASSERT( !emscripten::val::global( to_string( canvas->cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto const elem = val::global( to_string( canvas->cli_pane() ).c_str() )[ "value" ];
+    auto const elem = emscripten::val::global( to_string( canvas->cli_pane() ).c_str() )[ "value" ];
 
     assert( elem.as< bool >() );
 
-    return elem.as< string >();
+    return elem.as< std::string >();
+#else
+    return {};
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::focus()
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
 
     KM_RESULT_PROLOG(); 
@@ -797,18 +812,16 @@ auto Cli::focus()
         })
     ;
 
-    auto elem = js::fetch_element_by_id< val >( to_string( canvas->cli_pane() ) );
+    auto elem = KTRYE( js::fetch_element_by_id< val >( to_string( canvas->cli_pane() ) ) );
 
-    BC_ASSERT( elem );
-
-    elem.value().call< val >( "focus" );
+    elem.call< val >( "focus" );
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::is_focused()
     -> bool
 {
-    using emscripten::val;
-
+#if !KMAP_NATIVE
     KM_RESULT_PROLOG(); 
 
     auto const& km = kmap_inst();
@@ -817,14 +830,17 @@ auto Cli::is_focused()
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( to_string( canvas->cli_pane() ).c_str() ).isUndefined() );
+            BC_ASSERT( !emscripten::val::global( to_string( canvas->cli_pane() ).c_str() ).isUndefined() );
         })
     ;
 
-    auto const elem = val::global( to_string( canvas->cli_pane() ).c_str() );
-    auto const doc = val::global( "document" );
+    auto const elem = emscripten::val::global( to_string( canvas->cli_pane() ).c_str() );
+    auto const doc = emscripten::val::global( "document" );
 
     return elem == doc[ "activeElement" ];
+#else
+    return false;
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::clear_input()
@@ -836,10 +852,12 @@ auto Cli::clear_input()
     auto const& km = kmap_inst();
     auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
 
+#if !KMAP_NATIVE
     auto elem = KTRY( js::fetch_style_member( to_string( canvas->cli_pane() ) ) );
 
     elem.set( "value", "" );
     elem.set( "backgroundColor", "white" );
+#endif // !KMAP_NATIVE
 
     KTRY( hide_popup() );
 
@@ -858,6 +876,7 @@ auto Cli::valid_commands()
 auto Cli::enable_write()
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
 
     KM_RESULT_PROLOG();
@@ -875,11 +894,13 @@ auto Cli::enable_write()
     auto elem = val::global( to_string( canvas->cli_pane() ).c_str() );
 
     elem.set( "readOnly", false );
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::disable_write()
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
 
     KM_RESULT_PROLOG();
@@ -897,11 +918,13 @@ auto Cli::disable_write()
     auto elem = val::global( to_string( canvas->cli_pane() ).c_str() );
 
     elem.set( "readOnly", true );
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::set_color( Color const& c )
     -> void
 {
+#if !KMAP_NATIVE
     using emscripten::val;
 
     KM_RESULT_PROLOG();
@@ -919,6 +942,7 @@ auto Cli::set_color( Color const& c )
     auto style = KTRYE( js::fetch_style_member( to_string( canvas->cli_pane() ) ) ); 
 
     style.set( "backgroundColor", to_string( c ) );
+#endif // !KMAP_NATIVE
 }
 
 auto Cli::show_popup( std::string const& text )
@@ -927,14 +951,15 @@ auto Cli::show_popup( std::string const& text )
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "text", text );
 
-    using emscripten::val;
-
     auto rv = result::make_result< void >();
+
+#if !KMAP_NATIVE
+
     auto& km = kmap_inst();
-    auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
-    auto const cli_dims = canvas->dimensions( canvas->cli_pane() ).value();
+    auto const canvas = KTRY( km.fetch_component< com::Canvas >() );
+    auto const cli_dims = KTRY( canvas->dimensions( canvas->cli_pane() ) );
     auto box_dims = com::Dimensions{};
-    auto elem = KMAP_TRYE( js::fetch_element_by_id< val >( to_string( canvas->completion_overlay() ) ) ); 
+    auto elem = KMAP_TRYE( js::fetch_element_by_id< emscripten::val >( to_string( canvas->completion_overlay() ) ) ); 
     auto style = KTRYE( js::fetch_style_member( to_string( canvas->completion_overlay() ) ) ); 
     auto const font_size = [ & ]
     {
@@ -1008,6 +1033,7 @@ auto Cli::show_popup( std::string const& text )
 
     elem.set( "innerHTML", text );
     elem.set( "hidden", false );
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -1020,6 +1046,7 @@ auto Cli::show_popup( StringVec const& lines )
     KM_RESULT_PROLOG();
 
     auto rv = result::make_result< void >();
+#if !KMAP_NATIVE
     auto const formatted = lines
                          | views::intersperse( std::string{ "<br>" } )
                          | to_vector;
@@ -1028,6 +1055,7 @@ auto Cli::show_popup( StringVec const& lines )
                     | views::join
                     | to< std::string >() ) );
 
+#endif // !KMAP_NATIVE
     rv = outcome::success();
 
     return rv;
@@ -1036,12 +1064,11 @@ auto Cli::show_popup( StringVec const& lines )
 auto Cli::hide_popup()
     -> Result< void >
 {
-    using emscripten::val;
     KM_RESULT_PROLOG();
 
     auto rv = result::make_result< void >();
-    auto& km = kmap_inst();
-    auto const canvas = KTRY( km.fetch_component< com::Canvas >() );
+#if !KMAP_NATIVE
+    auto const canvas = KTRY( fetch_component< com::Canvas >() );
     auto constexpr code =
 R"%%%(
 const elem = document.getElementById( '{}' );
@@ -1049,6 +1076,7 @@ elem.hidden = true;
 )%%%";
 
     KTRY( js::eval_void( fmt::format( code, to_string( canvas->completion_overlay() ) ) ) );
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -1079,12 +1107,13 @@ auto Cli::execute_command( Uuid const& id
                          , std::string const& code )
     -> bool
 {
-    using emscripten::val;
 
     BC_CONTRACT()
         BC_PRE([ & ]
         {
-            BC_ASSERT( !val::global( "append_script" ).isUndefined() );
+            #if !KMAP_NATIVE
+            BC_ASSERT( !emscripten::val::global( "append_script" ).isUndefined() );
+            #endif // !KMAP_NATIVE
         })
     ;
 
@@ -1096,10 +1125,11 @@ auto Cli::execute_command( Uuid const& id
     
     // TODO: The registration "append_script call" should happen at the callback of writes to body (or leaving body editor).
     //       This function should merely translate the id to a cmd_* function and call it.
-
-    auto append_script = val::global( "append_script" );
+    #if !KMAP_NATIVE
+    auto append_script = emscripten::val::global( "append_script" );
 
     append_script( fn, code );
+    #endif // !KMAP_NATIVE
 
     fmt::print( "Command {} updated\n", fn );
 
@@ -1166,7 +1196,6 @@ auto Cli::on_key_down( int const key
         KM_RESULT_PUSH_STR( "text", text );
 
     auto rv = KMAP_MAKE_RESULT( void );
-    auto const nw = KTRY( fetch_component< com::VisualNetwork >() );
 
     switch( key )
     {
@@ -1186,7 +1215,13 @@ auto Cli::on_key_down( int const key
             if( is_ctrl && 67 == key ) // ctrl+c
             {
                 KTRY( clear_input() );
-                nw->focus();
+                #if !KMAP_NATIVE
+                // TODO: Surely this should be accomplished via event dispatch?
+                {
+                    auto const nw = KTRY( fetch_component< com::VisualNetwork >() );
+                    nw->focus();
+                }
+                #endif // !KMAP_NATIVE
             }
             break;
         }
@@ -1195,7 +1230,13 @@ auto Cli::on_key_down( int const key
             if( is_ctrl )
             {
                 KTRY( clear_input() );
-                nw->focus();
+                #if !KMAP_NATIVE
+                // TODO: Surely this should be accomplished via event dispatch?
+                {
+                    auto const nw = KTRY( fetch_component< com::VisualNetwork >() );
+                    nw->focus();
+                }
+                #endif // !KMAP_NATIVE
             }
             break;
         }
@@ -1226,128 +1267,26 @@ auto Cli::update_pane()
     KTRYE( canvas->update_pane( canvas->cli_pane() ) ); // TODO: Find out why focusing requires a repositioning of the CLI element. That is, why calls to this are necessary to maintain dimensions.
 }
 
-namespace binding {
-
-using namespace emscripten;
-
-struct Cli
-{
-    kmap::Kmap& km;
-
-    auto clear_input()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG(); 
-
-        auto const cli = KTRY( km.fetch_component< com::Cli >() );
-
-        return cli->clear_input();
-    }
-    auto enable_write()
-        -> void
-    {
-        KM_RESULT_PROLOG(); 
-
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
-
-        cli->enable_write();
-    }
-    auto focus()
-        -> void
-    {
-        KM_RESULT_PROLOG(); 
-
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
-
-        cli->focus();
-    }
-    auto on_key_down( int const key
-                    , bool const is_ctrl
-                    , bool const is_shift
-                    , std::string const& text )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const cli = KTRY( km.fetch_component< com::Cli >() );
-
-        return cli->on_key_down( key
-                               , is_ctrl 
-                               , is_shift
-                               , text );
-    }
-    auto notify_success( std::string const& message )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
-
-        KTRYE( cli->notify_success( message ) );
-    }
-    auto notify_failure( std::string const& message )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
-
-        KTRYE( cli->notify_failure( message ) );
-    }
-    auto parse_cli( std::string const& input )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
-
-        cli->parse_cli( input );
-    }
-    auto write( std::string const& input )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const cli = KTRYE( km.fetch_component< com::Cli >() );
-
-        cli->write( input );
-    }
-};
-
-auto cli()
-    -> com::binding::Cli
-{
-    return com::binding::Cli{ kmap::Singleton::instance() };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_cli )
-{
-    function( "cli", &kmap::com::binding::cli );
-    class_< kmap::com::binding::Cli >( "Cli" )
-        .function( "clear_input", &kmap::com::binding::Cli::clear_input )
-        .function( "enable_write", &kmap::com::binding::Cli::enable_write )
-        .function( "focus", &kmap::com::binding::Cli::focus )
-        .function( "notify_failure", &kmap::com::binding::Cli::notify_failure )
-        .function( "notify_success", &kmap::com::binding::Cli::notify_success )
-        .function( "on_key_down", &kmap::com::binding::Cli::on_key_down )
-        .function( "parse_cli", &kmap::com::binding::Cli::parse_cli )
-        .function( "write", &kmap::com::binding::Cli::write );
-        ;
-}
-
-} // namespace binding
-
 namespace {
 namespace cli_def {
 
 using namespace std::string_literals;
 
+#if !KMAP_NATIVE
 REGISTER_COMPONENT
 (
     kmap::com::Cli
 ,   std::set({ "canvas"s, "event_store"s, "visnetwork"s, "root_node"s })
 ,   "cli related functionality"
 );
+#else
+REGISTER_COMPONENT
+(
+    kmap::com::Cli
+,   std::set({ "canvas"s, "event_store"s, "root_node"s })
+,   "cli related functionality"
+);
+#endif // !KMAP_NATIVE
 
 } // namespace cli_def 
 }

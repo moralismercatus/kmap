@@ -3,12 +3,15 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "profile.hpp"
+#include <util/profile.hpp>
 
-#include "js_iface.hpp"
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <boost/timer/timer.hpp>
-#include <emscripten.h>
 #include <fmt/format.h>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/view/take.hpp>
@@ -92,11 +95,11 @@ auto stack_trace()
 {
     KM_RESULT_PROLOG();
 
-    auto const st = KTRYE( kmap::js::eval< std::string >( "return stackTrace();" ) );
-
-    fmt::print( "got stacktrace from eval!: {}\n", st );
-
-    return { st };
+#if !KMAP_NATIVE
+    return { KTRYE( kmap::js::eval< std::string >( "return stackTrace();" ) ) };
+#else
+    return {};
+#endif // !KMAP_NATIVE
 }
 
 __attribute__((no_instrument_function))
@@ -117,7 +120,7 @@ void __cyg_profile_func_exit( void *this_fn
 
             // Record fn time
             {
-                auto const& [ cs_fid, cs_timer ] = call_stack.back(); assert( cs_fid == (uint32_t)this_fn );
+                auto const& [ cs_fid, cs_timer ] = call_stack.back(); assert( cs_fid == (uint64_t)this_fn );
 
                 if( !fn_runtime.contains( cs_fid ) )
                 {
@@ -145,11 +148,13 @@ void __cyg_profile_func_exit( void *this_fn
                     {
                         fmt::print( "fn_index: '{}', time: {{ '{}ns', {}s }}\n", k, v, ( v / double{ ::one_second_in_ns } ) );
 
+#if !KMAP_NATIVE
                         EM_ASM(
                         {
                             console.log( getWasmTableEntry( $0 ) );
                         }
                         , k );
+#endif // !KMAP_NATIVE
                     }
                     overall_timer = boost::timer::cpu_timer{};
                     // Note: For whatever reason, unless I exit, the console won't print the function names for `console.log( getWasmTableEntry( $0 ) )`. Very strange.

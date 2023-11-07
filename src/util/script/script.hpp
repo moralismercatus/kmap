@@ -27,4 +27,11 @@ auto to_kscript_body_code( std::string const& raw_code )
 
 } // namespace kmap::util
 
+namespace kmap::util::js {
+
+auto beautify( std::string const& code )
+    -> std::string;
+
+}
+
 #endif // KMAP_UTIL_SCRIPT_HPP

@@ -17,9 +17,8 @@
 #define REQUIRE_RES( ... ) REQUIRE( kmap::test::succ( __VA_ARGS__ ) )
 #define REQUIRE_RFAIL( ... ) REQUIRE( kmap::test::fail( __VA_ARGS__ ) )
 
-#include "com/canvas/canvas.hpp"
-#include "com/network/network.hpp"
-#include "js_iface.hpp"
+#include <com/canvas/canvas.hpp>
+#include <com/network/network.hpp>
 
 #include <boost/filesystem/path.hpp>
 #include <range/v3/range/conversion.hpp>

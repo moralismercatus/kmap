@@ -3,30 +3,31 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "event.hpp"
+#include <com/event/event.hpp>
 
-#include "cmd/parser.hpp"
-#include "com/network/network.hpp"
-#include "common.hpp"
-#include "error/network.hpp"
-#include "error/parser.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path.hpp"
-#include "path/act/abs_path.hpp"
-#include "path/act/front.hpp"
-#include "path/act/order.hpp"
-#include "path/act/push.hpp"
-#include "path/node_view.hpp"
-#include "path/node_view2.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
-#include "util/script/script.hpp"
-#include <kmap/binding/js/result.hpp>
+#include <cmd/parser.hpp>
+#include <com/network/network.hpp>
+#include <common.hpp>
+#include <error/network.hpp>
+#include <error/parser.hpp>
+#include <kmap.hpp>
+#include <path.hpp>
+#include <path/act/abs_path.hpp>
+#include <path/act/front.hpp>
+#include <path/act/order.hpp>
+#include <path/act/push.hpp>
+#include <path/node_view.hpp>
+#include <path/node_view2.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
+#include <util/script/script.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
 #include <range/v3/algorithm/all_of.hpp>
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -430,9 +431,11 @@ auto EventStore::install_outlet_internal( Uuid const& root
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const eroot = KTRY( event_root() );
 
+#if !KMAP_NATIVE
     KMAP_ENSURE( js::lint( leaf.action ), error_code::js::lint_failed );
+#endif // !KMAP_NATIVE
 
-    auto const action_body = util::to_js_body_code( js::beautify( leaf.action ) );
+    auto const action_body = util::to_js_body_code( util::js::beautify( leaf.action ) );
 
     KMAP_ENSURE( cmd::parser::parse_body_code( action_body ), error_code::parser::parse_failed );
 
@@ -735,9 +738,11 @@ auto EventStore::execute_body( Uuid const& node )
                                               }
                                               else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                                               {
+                                                  #if !KMAP_NATIVE
                                                   auto const pp = KTRYE( js::preprocess( e.code ) );
 
                                                   KTRY( js::eval_void( pp ) );
+                                                  #endif // !KMAP_NATIVE
                                               }
                                               else
                                               {
@@ -786,7 +791,7 @@ auto EventStore::fetch_matching_outlets( std::set< std::string > const& requisit
                          | view::to_node_set( km )
                          | ranges::to< std::vector >();
 
-        return ranges::distance( rvs::set_intersection( sreqs, oreqs ) ) == sreqs.size();
+        return std::cmp_equal( ranges::distance( rvs::set_intersection( sreqs, oreqs ) ), sreqs.size() );
     };
     auto const all_outlets = ver
                            | view::child( "outlet" )
@@ -1499,75 +1504,6 @@ auto outlet_matches( Kmap const& km
 
     return match_count == req_count;
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-struct EventStore
-{
-    Kmap& kmap_;
-
-    EventStore( Kmap& kmap )
-        : kmap_{ kmap }
-    {
-    }
-
-    auto fire_event( std::vector< std::string > const& requisites )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const estore = KTRY( kmap_.fetch_component< com::EventStore >() );
-
-        return estore->fire_event( requisites | ranges::to< std::set >() );
-    }
-    auto fetch_payload()
-        -> kmap::Result< com::EventStore::Payload >
-    {
-        KM_RESULT_PROLOG();
-
-        auto rv = result::make_result< com::EventStore::Payload >();
-        auto const estore = KTRY( kmap_.fetch_component< com::EventStore >() );
-
-        if( auto const& pl = estore->fetch_payload()
-          ; pl )
-        {
-            rv = pl.value();
-        }
-
-        return rv;
-    }
-    auto reset_transitions( std::vector< std::string > const& requisites )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const estore = KTRY( kmap_.fetch_component< com::EventStore >() );
-
-        return estore->reset_transitions( requisites | ranges::to< std::set >() );
-    }
-};
-
-auto event_store()
-    -> binding::EventStore
-{
-    return binding::EventStore{ Singleton::instance() };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_event_store )
-{
-    function( "event_store", &kmap::com::binding::event_store );
-    class_< kmap::com::binding::EventStore >( "EventStore" )
-        .function( "fire_event", &kmap::com::binding::EventStore::fire_event )
-        .function( "fetch_payload", &kmap::com::binding::EventStore::fetch_payload )
-        .function( "reset_transitions", &kmap::com::binding::EventStore::reset_transitions )
-        ;
-}
-
-KMAP_BIND_RESULT( com::EventStore::Payload );
-
-} // namespace binding
 
 namespace {
 namespace event_store_def {

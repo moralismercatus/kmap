@@ -18,7 +18,7 @@
 #define KMAP_THROW_EXCEPTION_MSG( msg ) \
     ({ \
         kmap::log_exception( ( msg ), __PRETTY_FUNCTION__, __FILE__, __LINE__ ); \
-        throw std::runtime_error( fmt::format( "Exception:\n\tmessage: {}\n\t{}|{}|{}", ( msg ), __LINE__, __PRETTY_FUNCTION__, __FILE__ ) ); \
+        throw std::runtime_error( fmt::format( "Exception:\n\tmessage: {}\n\t{}|{}:{}", ( msg ), __LINE__, (char const*)__PRETTY_FUNCTION__,  (char const*)__FILE__ ) ); \
     })
 // TODO: Replace macros with std::source_location. This can be done by creating a default
 //       argument KMAP_MAKE_RESULT( T >( boost::system::error_code const& ec = common::uncategorized, std::source_location const& = std::source_location::current() )
@@ -304,8 +304,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< common >( c ) )
+        switch( static_cast< common >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case common::uncategorized: return "uncategorized";
         case common::data_already_exists: return "data already exists";
         case common::data_not_found: return "data not found";

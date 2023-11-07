@@ -7,7 +7,7 @@
 
 #include <common.hpp>
 #include <error/master.hpp> // Payload
-#include <js_iface.hpp>
+#include <js/iface.hpp>
 #include <util/result.hpp>
 
 #include <catch2/catch_test_macros.hpp>

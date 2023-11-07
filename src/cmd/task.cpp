@@ -17,8 +17,6 @@
 #include <path/node_view2.hpp>
 
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
-#include <emscripten/bind.h>
 
 namespace kmap::cmd {
 
@@ -29,9 +27,18 @@ SCENARIO( "cmd::create_task" , "[cmd][task]" )
     // TODO: I think the problem is in the CLI. Requires a Canvas to update, but it shouldn't. That should all be event sender/listener.
     // TODO: Component::load, rather than Component::initialize(). This will require some major work, I suspect, but same "requisites" principle apply.
     //       But first make everything work with "initialize()", COMPONENT_FIXTURE.
+    KMAP_LOG_LINE();
     KMAP_COMPONENT_FIXTURE_SCOPED( "task_store", "cli" );
+    KMAP_LOG_LINE();
 
     auto& kmap = Singleton::instance();
+#if KMAP_LOG && 0
+    fmt::print( "components initialized: {}\n", kmap.component_store().all_initialized_components().size() );
+    for( auto const& c : kmap.component_store().all_initialized_components() )
+    {
+        fmt::print( "initialized com: {}\n", c );
+    }
+#endif
     auto const cli = REQUIRE_TRY( kmap.fetch_component< com::Cli >() );
 
     GIVEN( "default state" )

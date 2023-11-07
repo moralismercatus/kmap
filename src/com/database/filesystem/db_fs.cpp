@@ -3,25 +3,22 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "db_fs.hpp"
+#include <com/database/filesystem/db_fs.hpp>
 
-#include "com/cli/cli.hpp"
-#include "com/cmd/cclerk.hpp"
-#include "com/database/db.hpp"
-#include "com/filesystem/filesystem.hpp"
-#include "db.hpp"
-#include "error/filesystem.hpp"
-#include "io.hpp"
-#include "kmap.hpp"
-#include "table_decl.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
-#include "util/signal_exception.hpp"
-#include "utility.hpp"
+#include <com/cmd/cclerk.hpp>
+#include <com/database/db.hpp>
+#include <com/database/table_decl.hpp>
+#include <com/filesystem/filesystem.hpp>
+#include <error/filesystem.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
+#include <util/signal_exception.hpp>
+#include <utility.hpp>
 
 #include <boost/filesystem.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/transform.hpp>
@@ -39,9 +36,7 @@ DatabaseFilesystem::DatabaseFilesystem( Kmap& kmap
                                       , std::set< std::string > const& requisites
                                       , std::string const& description )
     : Component{ kmap, requisites, description }
-    , cclerk_{ kmap }
 {
-    register_standard_commands();
 }
 
 auto DatabaseFilesystem::initialize()
@@ -50,8 +45,6 @@ auto DatabaseFilesystem::initialize()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
-
-    KTRY( cclerk_.install_registered() );
 
     rv = outcome::success();
 
@@ -65,103 +58,9 @@ auto DatabaseFilesystem::load()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    KTRY( cclerk_.check_registered() );
-    // TODO: cclerk_.attach( "save.as" );?
-
     rv = outcome::success();
 
     return rv;
-}
-
-// TODO: Should go under db.fs.cmd component, to alleviate dependence on command.store for db.fs (perhaps).
-//       And, to make standard practice out of isolating commands for a component, so it is not doing more than one job.
-auto DatabaseFilesystem::register_standard_commands()
-    -> void
-{
-    // save.as
-    {
-        auto const action_code =
-        R"%%%(
-            const path = args.get( 0 );
-
-            if( !kmap.fs_path_exists( path ) )
-            {
-                ktry( kmap.database().init_db_on_disk( path ) );
-                ktry( kmap.database().flush_cache_to_disk() );
-            }
-            else
-            {
-                return kmap.failure( 'file already exists found' );
-            }
-        )%%%";
-
-        using Argument = com::Command::Argument;
-
-        auto const description = "saves current state as new file on disk";
-        auto const arguments = std::vector< Argument >{ Argument{ "new_file_path"
-                                                                , "path where state file will be saved. Appends \".kmap\" if no extension given."
-                                                                , "filesystem_path" } };
-        auto const command = Command{ .path = "save.as"
-                                    , .description = description
-                                    , .arguments = arguments
-                                    , .guard = "unconditional"
-                                    , .action = action_code };
-
-        cclerk_.register_command( command );
-    }
-    // save
-    {
-        auto const action_code =
-        R"%%%(
-            ktry( kmap.database().flush_delta_to_disk() );
-        )%%%";
-
-        using Argument = com::Command::Argument;
-
-        auto const description = "saves current state to associated file on disk";
-        auto const arguments = std::vector< Argument >{};
-        auto const command = Command{ .path = "save"
-                                    , .description = description
-                                    , .arguments = arguments
-                                    , .guard = "unconditional" // TODO: has_file_on_disk()
-                                    , .action = action_code };
-
-        cclerk_.register_command( command );
-    }
-    // load
-    {
-        // TODO: Verify reasoning about execution order.
-        //       The theory is as follows: setTimeout() will not be triggered, no matter the time, until after the CLI command execution flow finishes because
-        //       of the single-threaded event stack used by javascript. Be it 0ms or 100s. It must wait until the flow finishes before dispatching the timer.
-        //       In this way, we should be able to trigger Kmap::load outside of any component (which will be destroyed by Kmap::load), avoiding corruption.
-        auto const action_code =
-        R"%%%(
-            const path = args.get( 0 );
-
-            if( kmap.fs_path_exists( path ) )
-            {
-                kmap.throw_load_signal( path );
-            }
-            else
-            {
-                return kmap.failure( "file not found: " + path );
-            }
-        )%%%";
-
-        using Argument = com::Command::Argument;
-
-        auto const description = "loads state from disk";
-        auto const arguments = std::vector< Argument >{ Argument{ "map_file_path"
-                                                                , "path to map file"
-                                                                , "filesystem_path" } };
-        auto const command = Command{ .path = "load"
-                                    , .description = description
-                                    , .arguments = arguments
-                                    , .guard = "unconditional"
-                                    , .action = action_code };
-
-        cclerk_.register_command( command );
-    }
 }
 
 SCENARIO( "saved data mirrors runtime data", "[db][fs][save][load]")
@@ -198,7 +97,7 @@ SCENARIO( "saved data mirrors runtime data", "[db][fs][save][load]")
 
         GIVEN( "root node flush" )
         {
-            REQUIRE_RES( db->flush_delta_to_disk() );
+           REQUIRE_RES( db->flush_delta_to_disk() );
 
             THEN( "root on disk" )
             {
@@ -281,6 +180,169 @@ SCENARIO( "saved data mirrors runtime data", "[db][fs][save][load]")
     }
 }
 
+SCENARIO( "save and load results in identical state for minimal state", "[db][fs][save][load]")
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "database", "database.filesystem", "network" );
+
+    GIVEN( "minimal state" )
+    {
+        auto& km = Singleton::instance();
+        // Using these helpers to ensure always drawing on the latest component (which are destroyed by reloads).
+        auto const db = [ & ] { return REQUIRE_TRY( km.fetch_component< com::Database >() ); };
+        auto const nw = [ & ] { return REQUIRE_TRY( km.fetch_component< com::Network >() ); };
+        auto initialized_coms = km.component_store().all_initialized_components();
+        auto const disk_path = ".db_fs_test.kmap";
+        auto const abs_disk_path = com::kmap_root_dir / disk_path;
+
+        if( exists( abs_disk_path ) ) { boost::filesystem::remove( abs_disk_path ); }
+
+        GIVEN( "init_db_on_disk" )
+        {
+            REQUIRE_TRY( db()->init_db_on_disk( abs_disk_path ) );
+            REQUIRE( exists( abs_disk_path ) );
+            REQUIRE( db()->has_delta() ); // At least has root_node delta (creation of root node), given current network dependence.
+
+            // TODO:
+            // auto const n1 = REQUIRE_TRY( nw()->create_child( nw()->root_node(), "1" ) );
+            // auto const a21 = REQUIRE_TRY( nw()->create_alias( n1, n2 ) );
+            // nw->create_alias() // create alias... then ensure that alias exists after load...
+            // REQUIRE_TRY( nw->create_alias() );
+
+            GIVEN( "flush_delta_to_disk" )
+            {
+                REQUIRE_TRY( db()->flush_delta_to_disk() );
+
+                
+                THEN( "!has_delta" )
+                {
+                    REQUIRE( !db()->has_delta() );
+                }
+
+                // REQUIRE( nw()->exists( a21 ) );
+
+                GIVEN( "load state from db flushed to disk" )
+                {
+                    // KM_LOG_ENABLE( "*" );
+                    KMAP_LOG_LINE();
+                    // KM_LOG_ST_ENABLE();
+                    REQUIRE_TRY( km.load( disk_path, initialized_coms ) );
+                    // KM_LOG_ST_DISABLE();
+                    KMAP_LOG_LINE();
+                    REQUIRE( db()->has_file_on_disk() );
+                    REQUIRE( !db()->has_delta() );
+                    // KM_LOG_DISABLE( "*" );
+                    
+                    THEN( "!has_delta" )
+                    {
+                        REQUIRE( !db()->has_delta() );
+                    }
+
+                    GIVEN( "create child /1")
+                    {
+                        auto const c1 = REQUIRE_TRY( nw()->create_child( nw()->root_node(), "1" ) );
+
+                        GIVEN( "flush_delta_to_disk" )
+                        {
+                            REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                            GIVEN( "erase 1" )
+                            {
+                                REQUIRE_RES( nw()->erase_node( c1 ) );
+
+                                GIVEN( "flush_delta_to_disk" )
+                                {
+                                    REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                                    GIVEN( "load state from db flushed to disk" )
+                                    {
+                                        REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                                        THEN( "!has_delta" )
+                                        {
+                                            REQUIRE( !db()->has_delta() );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        GIVEN( "create child /2")
+                        {
+                            auto const c2 = REQUIRE_TRY( nw()->create_child( nw()->root_node(), "2" ) );
+
+                            GIVEN( "create_alias( src=/1 dst=/2 )" )
+                            {
+                                auto const a21 = REQUIRE_TRY( nw()->create_alias( c1, c2 ) );
+
+                                REQUIRE( nw()->exists( a21 ) );
+                                REQUIRE( !nw()->fetch_children( c2 ).empty() );
+
+                                GIVEN( "flush_delta_to_disk" )
+                                {
+                                    REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                                    GIVEN( "load state from db flushed to disk" )
+                                    {
+                                        REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                                        THEN( "nodes and alias still exists across save/load" )
+                                        {
+                                            REQUIRE( nw()->exists( c1 ) );
+                                            REQUIRE( nw()->exists( c2 ) );
+                                            REQUIRE( nw()->exists( a21 ) );
+                                            REQUIRE( !nw()->fetch_children( c2 ).empty() );
+                                            REQUIRE_TRY( nw()->select_node( c2 ) );
+                                        }
+                                    }
+                                    GIVEN( "erase alias( src=/1 dst=/2 )" )
+                                    {
+                                        REQUIRE_RES( nw()->erase_node( a21 ) );
+
+                                        GIVEN( "flush_delta_to_disk" )
+                                        {
+                                            REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                                            REQUIRE( !nw()->exists( a21 ) );
+                                            REQUIRE( nw()->fetch_children( c2 ).empty() );
+
+                                            GIVEN( "load state from db flushed to disk" )
+                                            {
+                                                REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                                                THEN( "alias erased across save/load" )
+                                                {
+                                                    REQUIRE( !nw()->exists( a21 ) );
+                                                    REQUIRE( nw()->fetch_children( c2 ).empty() );
+                                                    REQUIRE_RES( nw()->select_node( c2 ) );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    GIVEN( "flush_delta_to_disk" )
+                    {
+                        REQUIRE_RES( db()->flush_delta_to_disk() );
+
+                        GIVEN( "load state from db flushed to disk" )
+                        {
+                            REQUIRE_RES( km.load( disk_path, initialized_coms ) );
+
+                            THEN( "!has_delta" )
+                            {
+                                REQUIRE( !db()->has_delta() );
+                            }
+                        }
+                    }
+                }
+            }
+
+            if( exists( abs_disk_path ) ) { boost::filesystem::remove( abs_disk_path ); }
+        }
+    }
+}
+
 // TODO: Simply put, I believe there is a bug in emscripten's ___syscall_newfstatat that is called by fs::exists, that will trigger in Debug builds
 //       because there assertions are included. It doesn't seem to be a real problem, but a false positive "assert()", so testing on files cannot proceed
 //       in Debug mode. See https://github.com/emscripten-core/emscripten/issues/17660 for a related open ticket.
@@ -305,13 +367,20 @@ SCENARIO( "save and load results in identical state for all listed components", 
 
         GIVEN( "init_db_on_disk" )
         {
-            REQUIRE_RES( db()->init_db_on_disk( abs_disk_path ) );
+            REQUIRE_TRY( db()->init_db_on_disk( abs_disk_path ) );
             REQUIRE( exists( abs_disk_path ) );
             REQUIRE( db()->has_delta() ); // At least has command.store delta, given current db.fs dependence.
 
+            THEN( "travel.right command has unconditional guard" )
+            {
+                REQUIRE(( view2::cmd::command_root
+                        | view2::direct_desc( "travel.right.guard.unconditional" )
+                        | act2::exists( km ) ));
+            }
+
             GIVEN( "flush_delta_to_disk" )
             {
-                REQUIRE_RES( db()->flush_delta_to_disk() );
+                REQUIRE_TRY( db()->flush_delta_to_disk() );
                 
                 THEN( "!has_delta" )
                 {
@@ -320,13 +389,22 @@ SCENARIO( "save and load results in identical state for all listed components", 
 
                 GIVEN( "load state from db flushed to disk" )
                 {
-                    REQUIRE_RES( km.load( disk_path, initialized_coms ) );
-                    
-                    THEN( "!has_delta" )
+                    // KM_LOG_ENABLE( "*" );
+                    KMAP_LOG_LINE();
+                    // KM_LOG_ST_ENABLE();
+                    REQUIRE_TRY( km.load( disk_path, initialized_coms ) );
+                    // KM_LOG_ST_DISABLE();
+                    KMAP_LOG_LINE();
+                    THEN( "travel.right command has unconditional guard" )
                     {
-                        REQUIRE( !db()->has_delta() );
+                        REQUIRE(( view2::cmd::command_root
+                                | view2::direct_desc( "travel.right.guard.unconditional" )
+                                | act2::exists( km ) ));
                     }
-
+                    REQUIRE( db()->has_file_on_disk() );
+                    REQUIRE( !db()->has_delta() );
+                    // KM_LOG_DISABLE( "*" );
+                    
                     GIVEN( "create child /1")
                     {
                         auto const c1 = REQUIRE_TRY( nw()->create_child( nw()->root_node(), "1" ) );
@@ -432,7 +510,12 @@ SCENARIO( "save.as after save.as output DBs are mirrored for all listed componen
     auto const disk_path_2 = ".db_fs_test.2.kmap";
     auto const abs_disk_path_1 = com::kmap_root_dir / disk_path_1;
     auto const abs_disk_path_2 = com::kmap_root_dir / disk_path_2;
-    auto const cli = [ & ] { return REQUIRE_TRY( km.fetch_component< com::Cli >() ); };
+    auto const save_as = [ & ]( auto const& p )
+    {
+        auto const db = REQUIRE_TRY( km.fetch_component< com::Database >() );
+        REQUIRE_TRY( db->init_db_on_disk( p ) );
+        REQUIRE_TRY( db->flush_cache_to_disk() );
+    };
     auto const fetch_cache = [ & ]()
     {
         auto const db = REQUIRE_TRY( km.fetch_component< com::Database >() );
@@ -446,13 +529,17 @@ SCENARIO( "save.as after save.as output DBs are mirrored for all listed componen
 
         GIVEN( "save.as path_1" )
         {
-            REQUIRE_TRY( cli()->parse_raw( fmt::format( ":save.as {}", disk_path_1 ) ) );
+            KM_LOG_ENABLE( "*" );
+            // TODO: I think the thing to do is drop parse_raw, as it requries JS. The command should be unit tested separately.
+            //       Rather, we should call the functions directly ("init_on_disk, flush_delta").
+            save_as( disk_path_1 );
+            KM_LOG_DISABLE( "*" );
             REQUIRE_TRY( km.load( disk_path_1, initialized_coms ) );
             auto const cache_post_save_1 = fetch_cache();
 
             WHEN( "save.as path_2" )
             {
-                REQUIRE_TRY( cli()->parse_raw( fmt::format( ":save.as {}", disk_path_2 ) ) );
+                save_as( disk_path_2 );
                 REQUIRE_TRY( km.load( disk_path_2, initialized_coms ) );
 
                 auto const cache_post_save_2 = fetch_cache();
@@ -536,20 +623,11 @@ using namespace std::string_literals;
 REGISTER_COMPONENT
 (
     kmap::com::DatabaseFilesystem
-,   std::set({ "command.store"s, "command.standard_items"s, "database"s, "filesystem"s })
+,   std::set({ "database"s, "filesystem"s })
 ,   "database's filesystem support"
 );
 
 } // namespace filesystem_def 
 }
-
-namespace binding
-{
-    using namespace emscripten;
-
-    EMSCRIPTEN_BINDINGS( kmap_database_filesystem )
-    {
-    }
-} // namespace binding
 
 } // namespace kmap::com

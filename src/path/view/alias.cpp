@@ -5,16 +5,17 @@
  ******************************************************************************/
 #include "path/view/alias.hpp"
 
-#include "com/network/network.hpp"
-#include "kmap.hpp"
-#include "path/view/act/fetch_node.hpp"
-#include "path/view/act/to_string.hpp"
-#include "path/view/ancestor.hpp"
-#include "path/view/anchor/node.hpp"
-#include "path/view/parent.hpp"
-#include "path/view/resolve.hpp"
-#include "path/view/tether.hpp"
-#include "test/util.hpp"
+#include <com/network/network.hpp>
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <path/view/act/fetch_node.hpp>
+#include <path/view/act/to_string.hpp>
+#include <path/view/ancestor.hpp>
+#include <path/view/anchor/node.hpp>
+#include <path/view/parent.hpp>
+#include <path/view/resolve.hpp>
+#include <path/view/tether.hpp>
+#include <test/util.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/sort.hpp>

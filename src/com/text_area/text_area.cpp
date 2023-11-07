@@ -3,26 +3,27 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "text_area.hpp"
+#include <com/text_area/text_area.hpp>
 
-#include "com/canvas/canvas.hpp"
-#include "com/cli/cli.hpp"
-#include "com/database/db.hpp"
-#include "com/database/root_node.hpp"
-#include "com/network/network.hpp"
-#include "com/visnetwork/visnetwork.hpp"
-#include "emcc_bindings.hpp"
-#include "error/result.hpp"
-#include "io.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/act/value_or.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
+#include <com/canvas/canvas.hpp>
+#include <com/cli/cli.hpp>
+#include <com/database/db.hpp>
+#include <com/database/root_node.hpp>
+#include <com/network/network.hpp>
+#include <com/visnetwork/visnetwork.hpp>
+#include <error/result.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <path/act/value_or.hpp>
+#include <test/util.hpp>
+#include <util/markdown.hpp>
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
-#include <emscripten/val.h>
 
 namespace kmap::com {
 
@@ -71,13 +72,20 @@ auto TextArea::load()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
+KMAP_LOG_LINE();
     KTRY( oclerk_.check_registered() );
+KMAP_LOG_LINE();
     KTRY( cclerk_.check_registered() );
+KMAP_LOG_LINE();
     KTRY( eclerk_.check_registered() );
+KMAP_LOG_LINE();
     KTRY( pclerk_.check_registered() );
 
+KMAP_LOG_LINE();
     KTRY( install_event_sources() );
+KMAP_LOG_LINE();
     KTRY( apply_static_options() );
+KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -204,12 +212,10 @@ SCENARIO( "edit.body", "[cmd][text_area][edit.body]" ) // TODO: Move to text_are
     auto& km = Singleton::instance();
     auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
-    auto const vnw = REQUIRE_TRY( km.fetch_component< com::VisualNetwork >() );
 
     GIVEN( "root node selected" )
     {
         REQUIRE( nw->root_node() == nw->selected_node() );
-        // REQUIRE( nw->selected_node() == vnw->selected_node() );
 
         WHEN( "edit.body executed" )
         {
@@ -365,7 +371,9 @@ auto TextArea::load_preview( Uuid const& id )
 
     auto const body = db->fetch_body( nw->resolve( id ) ) | act::value_or( std::string{} ); // TODO: Why not use Kmap::fetch_body? Advantage?
 
+#if !KMAP_NATIVE
     KTRY( show_preview( markdown_to_html( body ) ) );
+#endif //!KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -373,54 +381,67 @@ auto TextArea::load_preview( Uuid const& id )
 }
 
 auto TextArea::clear()
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
 
-    val::global().call< val >( "clear_text_area" );
+#if !KMAP_NATIVE
+    KTRY( js::eval_void( "clear_text_area();" ) );
+#endif // !KMAP_NATIVE
+
+    return outcome::success();
 }
 
 auto TextArea::set_editor_text( std::string const& text )
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
 
-    val::global().call< val >( "write_text_area", text );
+#if !KMAP_NATIVE
+    KTRY( js::eval_void( fmt::format( "write_text_area( '{}' );", text ) ) );
+#endif // !KMAP_NATIVE
+
+    return outcome::success();
 }
 
 auto TextArea::focus_editor()
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
 
-    val::global().call< val >( "focus_text_area" );
+#if !KMAP_NATIVE
+    KTRY( js::eval_void( "focus_text_area();" ) );
+#endif // !KMAP_NATIVE
+    KTRY( update_pane() );
 
-    update_pane();
+    return outcome::success();
 }
 
 auto TextArea::focus_preview()
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
 
-    val::global().call< val >( "focus_preview" );
+#if !KMAP_NATIVE
+    KTRY( js::eval_void( "focus_preview();" ) );
+#endif // !KMAP_NATIVE
+    KTRY( update_pane() );
 
-    update_pane();
+    return outcome::success();
 }
 
 auto TextArea::editor_contents()
-    -> std::string
+    -> Result< std::string >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
 
-    auto rv = val::global().call< val >( "get_editor_contents" );
+    auto rv = result::make_result< std::string >();
 
-    if( !rv.as< bool >() )
-    {
-        return {};
-    }
+#if !KMAP_NATIVE
+    rv = KTRY( js::eval< std::string >( "get_editor_contents" ) );
+#endif // !KMAP_NATIVE
 
-    return rv.as< std::string >();
+    return rv;
 }
 
 auto TextArea::hide_editor()
@@ -454,60 +475,64 @@ auto TextArea::show_editor()
 }
 
 auto TextArea::rebase_pane( float const base )
-    -> void
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
 
-    auto& km = kmap_inst();
-    auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
+    auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
-    canvas->rebase( canvas->text_area_pane(), base ).value();
+    KTRY( canvas->rebase( canvas->text_area_pane(), base ) );
+    
+    return outcome::success();
 }
 
 auto TextArea::rebase_editor_pane( float const base )
-    -> void
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
 
-    auto& km = kmap_inst();
-    auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
+    auto const canvas = KTRYE( fetch_component< com::Canvas >() );
     auto const pane = canvas->editor_pane();
 
-    canvas->rebase( pane, base ).value();
+    KTRY( canvas->rebase( pane, base ) );
+
+    return outcome::success();
 }
 
 auto TextArea::rebase_preview_pane( float const base )
-    -> void
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
 
-    auto& km = kmap_inst();
-    auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
+    auto const canvas = KTRYE( fetch_component< com::Canvas >() );
     auto const pane = canvas->preview_pane();
 
-    canvas->rebase( pane, base ).value();
+    KTRY( canvas->rebase( pane, base ) );
+
+    return outcome::success();
 }
 
+// TODO:
+//     Q: What does the relationship between TextArea and JS look like? Are they inseparable? No JS, no TA?
+//     A: Maybe... right now, very much intertwined. TA depends on div, and largely looks like a C++ interface to it.
+//        On the other hand, it has distinct kmap aspects, such as events, events, commands, options, etc.
 auto TextArea::show_preview( std::string const& text )
     -> Result< void >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
 
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
     auto rv = result::make_result< void >();
 
-    val::global().call< val >( "write_preview", text );
-    // js::eval_void( io::format( "document.getElementById( '{}' ).innerHTML = '{}';"
-    //                          , to_string( canvas.preview_pane() )
-    //                          , text ) );
+#if !KMAP_NATIVE
+    KTRY( js::eval_void( fmt::format( "write_preview( '{}' );", text ) ) );
 
     if( KTRY( canvas->pane_hidden( canvas->preview_pane() ) ) )
     {
         KTRY( canvas->reveal( canvas->preview_pane() ) );
     }
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -530,145 +555,52 @@ auto TextArea::hide_preview()
 }
 
 auto TextArea::resize_preview( std::string const& attr )
-    -> void
+    -> Result< void >
 {
-    using emscripten::val;
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "attr", attr );
 
-    val::global().call< val >( "resize_preview", attr );
+#if !KMAP_NATIVE
+    KTRY( js::eval_void( fmt::format( "resize_preview( '{}' );", attr ) ) );
+#endif // !KMAP_NATIVE
 
-    update_pane();
+    KTRY( update_pane() );
+
+    return outcome::success();
 }
 
 auto TextArea::update_pane()
-    -> void
+    -> Result< void >
 {
     KM_RESULT_PROLOG();
 
-    auto& km = kmap_inst();
-    auto const canvas = KTRYE( km.fetch_component< com::Canvas >() );
+    auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
-    canvas->update_pane( canvas->text_area_pane() ).value();
+    KTRY( canvas->update_pane( canvas->text_area_pane() ) );
+
+    return outcome::success();
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-struct TextArea
-{
-    Kmap& km;
-
-    TextArea( Kmap& kmap )
-        : km{ kmap }
-    {
-    }
-
-    auto focus_editor()
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
-
-       tv->focus_editor();
-    }
-
-    auto load_preview( Uuid const& node )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRY( km.fetch_component< com::TextArea >() );
-
-        return tv->load_preview( node );
-    }
-
-    auto rebase_pane( float percent )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
-
-        tv->rebase_pane( percent );
-    }
-
-    auto rebase_preview_pane( float percent )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
-
-        tv->rebase_preview_pane( percent );
-    }
-    
-    auto set_editor_text( std::string const& text )
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRYE( km.fetch_component< com::TextArea >() );
-
-        tv->set_editor_text( text );
-    }
-
-    auto show_editor()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRY( km.fetch_component< com::TextArea >() );
-
-        return tv->show_editor();
-    }
-
-    auto show_preview( std::string const& body_text )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const tv = KTRY( km.fetch_component< com::TextArea >() );
-
-        return tv->show_preview( body_text );
-    }
-};
-
-auto text_area()
-    -> binding::TextArea
-{
-    auto& kmap = Singleton::instance();
-
-    return binding::TextArea{ kmap };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_text_area )
-{
-    function( "text_area", &kmap::com::binding::text_area );
-    class_< kmap::com::binding::TextArea >( "TextArea" )
-        .function( "focus_editor", &kmap::com::binding::TextArea::focus_editor )
-        .function( "load_preview", &kmap::com::binding::TextArea::load_preview )
-        .function( "rebase_pane", &kmap::com::binding::TextArea::rebase_pane )
-        .function( "rebase_preview_pane", &kmap::com::binding::TextArea::rebase_preview_pane )
-        .function( "set_editor_text", &kmap::com::binding::TextArea::set_editor_text )
-        .function( "show_editor", &kmap::com::binding::TextArea::show_editor )
-        .function( "show_preview", &kmap::com::binding::TextArea::show_preview )
-        ;
-}
-
-} // namespace binding
 
 namespace {
 namespace text_area_def {
 
 using namespace std::string_literals;
 
+#if !KMAP_NATIVE
 REGISTER_COMPONENT
 (
     kmap::com::TextArea
 ,   std::set({ "canvas.workspace"s, "command.store"s, "command.standard_items"s, "event_store"s, "visnetwork"s }) // TODO: rather than depend on visnetwork, fire events that visnetwork listens for, if initialized.
 ,   "text_area related functionality"
 );
+#else
+REGISTER_COMPONENT
+(
+    kmap::com::TextArea
+,   std::set({ "canvas.workspace"s, "command.store"s, "command.standard_items"s, "event_store"s })
+,   "text_area related functionality"
+);
+#endif // !KMAP_NATIVE
 
 } // namespace text_area_def 
 } // namespace anon

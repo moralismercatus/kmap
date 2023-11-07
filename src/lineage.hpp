@@ -163,7 +163,7 @@ auto operator|( In&& in, LinealRange&& rhs )
 {
     ranges::copy( std::forward< In >( in ), ranges::back_inserter( rhs ) );
 
-    return std::move( rhs );
+    return rhs;
 }
 
 // TODO: This is a temporary workaround until I can figure out how to connect ranges::to< LinealRange >().
@@ -217,7 +217,7 @@ struct tuple_size< kmap::Lineal >
 };
 
 template< size_t I >
-class std::tuple_element< I, kmap::Lineal > {
+class tuple_element< I, kmap::Lineal > {
 public:
     using type = decltype( declval< kmap::Lineal >().get< I >() );
 };
@@ -229,7 +229,7 @@ struct tuple_size< kmap::Descendant >
 };
 
 template< size_t I >
-class std::tuple_element< I, kmap::Descendant > {
+class tuple_element< I, kmap::Descendant > {
 public:
     using type = decltype( declval< kmap::Descendant >().get< I >() );
 };

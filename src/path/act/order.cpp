@@ -23,7 +23,7 @@ auto order( Kmap const& kmap )
     return Order{ kmap };
 }
 
-SCENARIO( "act::Order", "[order]" )
+SCENARIO( "act::Order", "[order][node_view]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
 
@@ -168,6 +168,25 @@ SCENARIO( "act::Order", "[order]" )
                             }
                         }
                     }
+                }
+            }
+        }
+
+        GIVEN( "/task" )
+        {
+            auto const task1 = REQUIRE_TRY( nw->create_child( root, "task" ) );
+
+            REQUIRE( UuidVec{ root, task1 } == ( UuidVec{ task1, root } | act::order( km ) ) );
+
+            GIVEN( "/misc" )
+            {
+                auto const misc = REQUIRE_TRY( nw->create_child( root, "misc" ) );
+
+                GIVEN( "/misc.task" )
+                {
+                    auto const task2 = REQUIRE_TRY( nw->create_child( misc, "task" ) );
+
+                    REQUIRE( UuidVec{ root, misc, task2 } == ( UuidVec{ task2, misc, root } | act::order( km ) ) );
                 }
             }
         }

@@ -42,6 +42,10 @@ auto to_log_date_string( TimePoint const& tp )
 
     return date::format( "%Y.%m.%d", tp );
 }
+auto present_date_string()
+    -> std::string;
+auto present_daily_log_path()
+    -> std::string;
 
 } // namespace kmap::com
 

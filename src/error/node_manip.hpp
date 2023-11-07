@@ -7,6 +7,8 @@
 #ifndef KMAP_EC_NODE_MANIP_HPP
 #define KMAP_EC_NODE_MANIP_HPP
 
+#include <error/master.hpp>
+
 #include <boost/system/error_code.hpp>
 
 #include <type_traits>
@@ -115,8 +117,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< canvas >( c ) )
+        switch( static_cast< canvas >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case canvas::success: return "success";
         case canvas::conflicts: return "subdivision conflicts with existing subdivision";
         case canvas::invalid_pane: return "invalid pane";
@@ -136,8 +139,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< command >( c ) )
+        switch( static_cast< command >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case command::success: return "success";
         case command::kscript_unsupported: return "kscript unsupported";
         case command::fn_publication_failed: return "function publication failed";
@@ -159,8 +163,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< create_alias >( c ) )
+        switch( static_cast< create_alias >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case create_alias::success: return "alias successfully created";
         case create_alias::src_not_found: return "source not found";
         case create_alias::dst_not_found: return "destination not found";
@@ -180,8 +185,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< create_node >( c ) )
+        switch( static_cast< create_node >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case create_node::success: return "node successfully created";
         case create_node::invalid_parent: return "parent is invalid";
         case create_node::node_already_exists: return "node already exists";
@@ -199,8 +205,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< node >( c ) )
+        switch( static_cast< node >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case node::success: return "node operation successful";
         case node::not_found: return "node not found";
         case node::not_descendant: return "node is not a descendant of ancestor";
@@ -217,7 +224,6 @@ public:
         case node::invalid_alias: return "invalid alias";
         case node::invalid_uuid: return "invalid uuid";
         case node::invalid_mirror: return "invalid mirror";
-        default: return "unknown error code";
         }
     }
 };

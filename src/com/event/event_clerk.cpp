@@ -9,7 +9,6 @@
 #include <com/event/event.hpp>
 #include <contract.hpp>
 #include <error/master.hpp>
-#include <js_iface.hpp>
 #include <kmap.hpp>
 #include <path.hpp>
 #include <path/act/fetch_body.hpp>
@@ -586,7 +585,7 @@ auto match_requisites( Kmap const& km
                          | view::to_node_set( km )
                          | ranges::to< std::vector >();
 
-    rv = ( ranges::distance( rvs::set_intersection( rreq_srcs, oreq_srcs ) ) == rreq_srcs.size() )
+    rv = ( std::cmp_equal( ranges::distance( rvs::set_intersection( rreq_srcs, oreq_srcs ) ), rreq_srcs.size() ) )
       && ( rreq_srcs.size() == alias_paths.size() );
 
     return rv;

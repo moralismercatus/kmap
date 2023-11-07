@@ -34,7 +34,7 @@ ComponentFixture::ComponentFixture( std::set< std::string > const& components
         auto& kmap = Singleton::instance();
 
         // Register all components, first.
-        kmap.init_component_store();
+        // kmap.init_component_store();
         KTRYE( register_all_components() );
         // Determine just those needed for the component.
         auto deps = std::set< std::string >();
@@ -50,11 +50,28 @@ ComponentFixture::ComponentFixture( std::set< std::string > const& components
                   , deps | ranges::views::join( ',' ) | ranges::to< std::string >() );
         // "component_store" is special, as it is never "registered", as the "root" component.
         deps.erase( "component_store" ); // TODO: Is this right? component_store isn't registered? What if it is?
+
+#if KMAP_NATIVE && 0
+        auto const registered_components = kmap.component_store().registered_components();
+#endif // !KMAP_NATIVE
+
         // Reset store.
         KTRYE( kmap.clear_component_store() );
         // Register and initialize only needed components.
         kmap.init_component_store();
         KTRYE( register_components( deps ) );
+
+#if KMAP_NATIVE && 0
+        // TODO: Filter to just "deps"... Meh... should still all work, but this isn't filtering to just "deps".
+        for( auto const& component : registered_components )
+        {
+            #if KMAP_LOG && 0
+            fmt::print( "re-registering: {}\n", component.first );
+            #endif
+            KTRYE( kmap.component_store().register_component( component.second ) );
+        }
+#endif // !KMAP_NATIVE
+
         KTRYE( kmap.component_store().fire_initialized( "component_store" ) );
     }
     catch( std::exception const& e )
@@ -72,8 +89,22 @@ ComponentFixture::~ComponentFixture()
     try
     {
         KM_RESULT_PROLOG();
+#if KMAP_NATIVE && 0
+        auto const registered_components = kmap.component_store().registered_components();
+#endif // !KMAP_NATIVE
 
         KTRYE( kmap.clear() );
+
+#if KMAP_NATIVE && 0
+        // TODO: Filter to just "deps"... Meh... should still all work, but this isn't filtering to just "deps".
+        for( auto const& component : registered_components )
+        {
+            #if KMAP_LOG && 0
+            fmt::print( "re-registering: {}\n", component.first );
+            #endif
+            KTRYE( kmap.component_store().register_component( component.second ) );
+        }
+#endif // !KMAP_NATIVE
     }
     catch( std::exception const& e )
     {

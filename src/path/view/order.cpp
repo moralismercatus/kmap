@@ -23,16 +23,15 @@ auto Order::fetch( FetchContext const& ctx
     KM_RESULT_PROLOG();
 
     auto rv = FetchSet{};
-    auto ns = fs
-            | rvs::transform( [ & ]( auto const& e ){ return e.id; } )
-            | ranges::to< std::vector >();
+    auto const ns = fs
+                  | rvs::transform( [ & ]( auto const& e ){ return e.id; } )
+                  | ranges::to< std::vector< Uuid > >();
 
     auto const ordered = ns | view::act::order( ctx.km );
-    auto& rai = rv.get< random_access_index >();
 
     for( auto const& n : ordered )
     {
-        rai.emplace_back( LinkNode{ .id = n } );
+        rv.insert( LinkNode{ .id = n } );
     }
 
     return rv;

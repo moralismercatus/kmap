@@ -3,21 +3,24 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "utility.hpp"
+#include <utility.hpp>
 
-#include "contract.hpp"
-#include "com/database/db.hpp"
-#include "com/filesystem/filesystem.hpp"
-#include "com/network/network.hpp"
-#include "error/master.hpp"
-#include "error/node_manip.hpp"
-#include "io.hpp"
-#include "kmap.hpp"
-#include "path/act/order.hpp"
-#include "path/act/value_or.hpp"
-#include "path/node_view.hpp"
+#include <contract.hpp>
+#include <com/database/db.hpp>
+#include <com/filesystem/filesystem.hpp>
+#include <com/network/network.hpp>
+#include <error/master.hpp>
+#include <error/node_manip.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <path/act/order.hpp>
+#include <path/act/value_or.hpp>
+#include <path/node_view.hpp>
 #include <cmd/parser.hpp>
-#include <js_iface.hpp>
+
+#if !KMAP_NATIVE
+#include <emscripten.h>
+#endif // !KMAP_NATIVE
 
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/filesystem.hpp>
@@ -25,8 +28,6 @@
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
-#include <emscripten/val.h>
 #include <openssl/md5.h>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/action/transform.hpp>
@@ -906,29 +907,6 @@ auto fetch_completions( std::string const& unknown
          | to< StringVec >();
 }
 
-auto markdown_to_html( std::string const& text )
-    -> std::string 
-{
-    using emscripten::val;
-
-    if( text.empty() )
-    {
-        return {};
-    }
-
-    auto v = val::global().call< val >( "convert_markdown_to_html"
-                                      , text );
-
-    if( !v.as< bool >() )
-    {
-        return "Error: markdown to html conversion failed";
-    }
-    else
-    {
-        return v.as< std::string >();
-    }
-}
-
 auto xor_ids( Uuid const& lhs
             , Uuid const& rhs )
     -> Uuid
@@ -1104,6 +1082,7 @@ auto merge_trees( com::Network& nw
     merge_trees_internal( nw, src, dst );
 }
 
+#if 0
 auto merge_trees( StatementPreparer& stmts
                 , Uuid const& src 
                 , Uuid const& dst )
@@ -1111,6 +1090,7 @@ auto merge_trees( StatementPreparer& stmts
 {
     merge_trees_internal( stmts, src, dst );
 }
+#endif // 0
 
 auto merge_ranges( std::set< uint64_t > const& values )
     -> std::set< std::pair< uint64_t, uint64_t > >
@@ -1146,10 +1126,12 @@ auto merge_ranges( std::set< uint64_t > const& values )
 auto print_stacktrace()
     -> void
 {
+    #if !KMAP_NATIVE
     EM_ASM(
     {
         console.log( stackTrace() );
     } );
+    #endif // !KMAP_NATIVE
 }
 
 auto print_tree( Kmap const& km

@@ -331,14 +331,14 @@ using ArgumentList = std::vector< std::shared_ptr< Argument > >; // TODO: should
 template< typename DerivedArg >
 auto operator|( ArgumentList lhs
               , DerivedArg rhs )
-    -> ArgumentList&&
+    -> ArgumentList
 {
     using std::make_shared;
     using std::static_pointer_cast;
 
     lhs.push_back( make_shared< DerivedArg >( rhs ) );
 
-    return std::move( lhs );
+    return lhs;
 }
 
 enum class Attr
@@ -349,11 +349,11 @@ enum class Attr
 inline
 auto operator|( ArgumentList lhs
               , Attr rhs )
-    -> ArgumentList&&
+    -> ArgumentList
 {
     if( lhs.empty() )
     {
-        return std::move( lhs );
+        return lhs;
     }
     else
     {
@@ -368,7 +368,7 @@ auto operator|( ArgumentList lhs
             break;
         }
 
-        return std::move( lhs );
+        return lhs;
     }
 }
 

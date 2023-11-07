@@ -49,8 +49,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< taint >( c ) )
+        switch( static_cast< taint >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case taint::success: return "success";
         case taint::invalid_address: return "invalid address";
         case taint::invalid_inst_index: return "invalid instruction index";

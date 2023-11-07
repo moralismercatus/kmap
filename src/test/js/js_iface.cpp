@@ -4,7 +4,7 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #include "../master.hpp"
-#include "js_iface.hpp"
+#include "js/iface.hpp"
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>

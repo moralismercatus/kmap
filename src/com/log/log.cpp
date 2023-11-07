@@ -3,23 +3,21 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/cli/cli.hpp" // TODO: To be replaced by command.hpp once transition to CommandStore is complete.
-#include "com/cmd/cclerk.hpp"
-#include "com/cmd/command.hpp"
-#include "com/event/event.hpp"
-#include "com/event/event_clerk.hpp"
-#include "component.hpp"
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "kmap.hpp"
-#include "path/act/order.hpp"
-#include "path/node_view.hpp"
-#include "com/tag/tag.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
+#include <com/cli/cli.hpp> // TODO: To be replaced by command.hpp once transition to CommandStore is complete.
+#include <com/cmd/cclerk.hpp>
+#include <com/cmd/command.hpp>
+#include <com/event/event.hpp>
+#include <com/event/event_clerk.hpp>
+#include <component.hpp>
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <path/act/order.hpp>
+#include <path/node_view.hpp>
+#include <com/tag/tag.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
 
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten/bind.h>
 
 namespace kmap::com {
 
@@ -262,18 +260,6 @@ auto fetch_daily_log( Kmap const& kmap )
 
     return rv;
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-EMSCRIPTEN_BINDINGS( kmap_log )
-{
-    function( "present_date_string", &kmap::com::present_date_string );
-    function( "present_daily_log_path", &kmap::com::present_daily_log_path );
-}
-
-} // namespace binding
 
 } // namespace kmap::com
 

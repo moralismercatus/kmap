@@ -3,13 +3,13 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "js_iface.hpp"
+#include <js/iface.hpp>
 
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "error/js_iface.hpp"
-#include "util/result.hpp"
-#include "utility.hpp"
+#include <contract.hpp>
+#include <emcc_bindings.hpp>
+#include <error/js_iface.hpp>
+#include <util/result.hpp>
+#include <utility.hpp>
 #include <test/util.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -46,16 +46,6 @@ auto append_child_element( std::string const& parent_doc_id
     rv = outcome::success();
 
     return rv;
-}
-
-auto beautify( std::string const& code )
-    -> std::string
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "code", code );
-
-    // TODO: Strip leading whitespace. `beautify_javascript` will use first line indent as pattern for remaining line indent.
-    return KTRYE( js::call< std::string >( "beautify_javascript", code ) );
 }
 
 // TODO: Should probably de-constrain and rename to: create_html_elem_child( id=<'uuid'>, tag=<'e.g., body'> )
@@ -453,65 +443,6 @@ auto set_tab_index( std::string const& elem_id
     rv = outcome::success();
 
     return rv;
-}
-
-ScopedCode::ScopedCode( std::string const& ctor
-                      , std::string const& dtor )
-    : ctor_code{ ctor }
-    , dtor_code{ dtor }
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "ctor", ctor );
-        KM_RESULT_PUSH( "dtor", dtor );
-
-    if( !ctor_code.empty() )
-    {
-        // TOTOD: log... fmt::print( "scoped ctor, evaling: {}\n", ctor_code );
-        auto const pp = KTRYE( js::preprocess( ctor_code ) );
-
-        KTRYE( eval_void( pp ) );
-    }
-}
-
-ScopedCode::ScopedCode( ScopedCode&& other )
-    : ctor_code{ std::move( other.ctor_code ) }
-    , dtor_code{ std::move( other.dtor_code ) }
-{
-    other.ctor_code = {};
-    other.dtor_code = {};
-}
-
-ScopedCode::~ScopedCode()
-{
-    KM_RESULT_PROLOG();
-
-    try
-    {
-        if( !dtor_code.empty() )
-        {
-            fmt::print( "scoped dtor, evaling: {}\n", dtor_code );
-            auto const pp = KTRYE( js::preprocess( dtor_code ) );
-
-            KTRYE( eval_void( pp ) );
-        }
-    }
-    catch( std::exception const& e )
-    {
-        std::cerr << e.what() << '\n';
-        std::terminate();
-    }
-}
-
-auto ScopedCode::operator=( ScopedCode&& other )
-    -> ScopedCode&
-{
-    ctor_code = std::move( other.ctor_code );
-    dtor_code = std::move( other.dtor_code );
-
-    other.ctor_code = {};
-    other.dtor_code = {};
-
-    return *this;
 }
 
 } // namespace kmap::js

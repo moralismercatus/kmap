@@ -5,18 +5,21 @@
  ******************************************************************************/
 #include <com/cmd/command.hpp>
 
-#include "com/network/network.hpp"
-#include "error/js_iface.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/act/abs_path.hpp"
-#include "path/act/back.hpp"
-#include "path/act/erase.hpp"
-#include "path/act/update_body.hpp"
-#include "path/node_view.hpp"
-#include "path.hpp"
-#include "util/script/script.hpp"
-#include "util/result.hpp"
+#include <com/network/network.hpp>
+#include <error/js_iface.hpp>
+#include <kmap.hpp>
+#include <path/act/abs_path.hpp>
+#include <path/act/back.hpp>
+#include <path/act/erase.hpp>
+#include <path/act/update_body.hpp>
+#include <path/node_view.hpp>
+#include <path.hpp>
+#include <util/script/script.hpp>
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 namespace kmap::com {
 
@@ -53,15 +56,17 @@ auto CommandStore::install_argument( Argument const& arg )
     auto rv = result::make_result< Uuid >();
     auto& km = kmap_inst();
 
+#if !KMAP_NATIVE
     KMAP_ENSURE( js::lint( arg.guard ), error_code::js::lint_failed );
     KMAP_ENSURE( js::lint( arg.completion ), error_code::js::lint_failed );
+#endif // !KMAP_NATIVE
     
     auto const arg_root = KTRY( view2::cmd::argument_root
                               | act2::fetch_or_create_node( km ) );
     auto const vargn = view::make( arg_root ) 
                      | view::direct_desc( arg.path );
-    auto const guard_code = util::to_js_body_code( js::beautify( arg.guard ) );
-    auto const completion_code = util::to_js_body_code( js::beautify( arg.completion ) );
+    auto const guard_code = util::to_js_body_code( util::js::beautify( arg.guard ) );
+    auto const completion_code = util::to_js_body_code( util::js::beautify( arg.completion ) );
     
     if( vargn | view::exists( km ) )
     {
@@ -93,7 +98,9 @@ auto CommandStore::install_command( Command const& cmd )
 
     auto rv = result::make_result< Uuid >();
 
+#if !KMAP_NATIVE
     KMAP_ENSURE( js::lint( cmd.action ), error_code::js::lint_failed );
+#endif // !KMAP_NATIVE
 
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
@@ -148,7 +155,7 @@ auto CommandStore::install_command( Command const& cmd )
         auto const actn = KTRY( vcmd
                             | view::child( "action" )
                             | view::fetch_node( km ) );
-        auto const action_code = util::to_js_body_code( js::beautify( cmd.action ) );
+        auto const action_code = util::to_js_body_code( util::js::beautify( cmd.action ) );
 
         KTRY( nw->update_body( actn, action_code ) );
     }
@@ -167,13 +174,15 @@ auto CommandStore::install_guard( Guard const& guard )
     auto rv = result::make_result< Uuid >();
     auto& km = kmap_inst();
 
+#if !KMAP_NATIVE
     KMAP_ENSURE( js::lint( guard.action ), error_code::js::lint_failed );
+#endif // !KMAP_NATIVE
     
     auto const guard_root = KTRY( view2::cmd::guard_root
                                 | act2::fetch_or_create_node( km ) );
     auto const vguardn = view::make( guard_root ) 
                        | view::direct_desc( guard.path );
-    auto const guard_code = util::to_js_body_code( js::beautify( guard.action ) );
+    auto const guard_code = util::to_js_body_code( util::js::beautify( guard.action ) );
     
     if( vguardn | view::exists( km ) )
     {
@@ -277,7 +286,6 @@ auto CommandStore::uninstall_command( Uuid const& cmdn )
                              | view::desc( cmdn )
                              | act::abs_path_flat( km ) );
 
-    fmt::print( "uninstalling: {}\n", abspath );
     KTRY( nw->erase_node( cmdn ) );
 
     rv = outcome::success();

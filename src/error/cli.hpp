@@ -43,8 +43,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< cli >( c ) )
+        switch( static_cast< cli >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case cli::success: return "success";
         case cli::failure: return "failure";
         }

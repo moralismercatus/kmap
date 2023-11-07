@@ -7,9 +7,10 @@
 #ifndef KMAP_UTIL_RESULT_HPP
 #define KMAP_UTIL_RESULT_HPP
 
-#include "common.hpp"
-#include "util/macro.hpp"
-#include "utility.hpp"
+#include <common.hpp>
+#include <util/log/log.hpp>
+#include <util/macro.hpp>
+#include <utility.hpp>
 
 #include <chrono>
 #include <string>
@@ -34,33 +35,56 @@ namespace kmap {
 
 namespace kmap::result {
 
-struct LocalLog
+class LocalLog
 {
+public:
     struct MultiValue
     {
-        using ValueVariant = std::variant< char const*, std::string, Uuid, std::vector< MultiValue > >;
+        using ValueVariant = std::variant< char const*
+                                         , std::string
+                                         , Uuid
+                                         , std::vector< MultiValue > >;
 
         std::string key = {};
         ValueVariant value = {};
     };
 
-   std::vector< MultiValue > kvs = {};
+private:
+    std::vector< MultiValue > kvs = {};
+#if KMAP_LOG
+    util::log::ScopedFunctionLog scoped_log_;
+#endif // KMAP_LOG
 
-#if KMAP_PROFILE_LOG
+public:
+#if KMAP_LOG
+    LocalLog( const char* function
+            , const char* file
+            , unsigned line ); /* TODO: replace with std::source_location */
+    LocalLog() = default;
+#endif // KMAP_PROFILE
+#if 0 // TODO: This belongs in util::log::ScopedFunctionLog, actually. Or, rather, as a separate logging scoped class, that could be used with scoped function.
     std::string const func_name;
     std::chrono::time_point< std::chrono::system_clock > start_time = std::chrono::system_clock::now();
     LocalLog( const char* function = __builtin_FUNCTION() /* TODO: replace with std::source_location */ );
     ~LocalLog();
-#else
-    LocalLog() = default;
-#endif // KMAP_PROFILE
+#endif
 
     auto push( MultiValue const& mv )
         -> void;
+    auto values() const
+        -> std::vector< MultiValue > const&;
 };
 
 struct LocalState
 {
+#if KMAP_LOG
+    LocalState( const char* function = __builtin_FUNCTION() /* TODO: replace with std::source_location */
+              , const char* file = __builtin_FILE() /* TODO: replace with std::source_location */
+              , unsigned line = __builtin_LINE() ); /* TODO: replace with std::source_location */
+#else
+    LocalState() = default;
+#endif // KMAP_LOG
+
     LocalLog log;
 };
 
@@ -68,6 +92,8 @@ auto dump_about( Kmap const& km
                , Uuid const& node )
     -> std::vector< LocalLog::MultiValue >;
 auto to_string( LocalLog const& state )
+    -> std::string;
+auto to_string( LocalLog::MultiValue const& mv )
     -> std::string;
 auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
     -> std::string;

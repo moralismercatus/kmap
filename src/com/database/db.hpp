@@ -7,25 +7,21 @@
 #ifndef KMAP_DB_HPP
 #define KMAP_DB_HPP
 
-#include "com/database/cache.hpp"
-#include "com/database/common.hpp"
-#include "com/database/query_cache.hpp"
-#include "common.hpp"
-#include "component.hpp"
-#include "path.hpp"
-#include "utility.hpp" // TODO: Remove. Only reason this is here is for testing.
+#include <com/database/cache.hpp>
+#include <com/database/common.hpp>
+#include <com/database/query_cache.hpp>
+#include <common.hpp>
+#include <component.hpp>
+#include <path.hpp>
+#include <sqlpp11/sqlpp11.h>
+#include <utility.hpp> // TODO: Remove. Only reason this is here is for testing.
 
-// #include <sqlpp11/sqlite3/connection.h>
+#include <sqlpp11/sqlite3/connection.h>
 
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-namespace sqlpp::sqlite3
-{
-    class connection;
-}
 
 namespace kmap::com {
 

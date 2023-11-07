@@ -19,7 +19,11 @@ namespace kmap
 
 namespace kmap::com {
 
+#if !KMAP_NATIVE
 auto const kmap_root_dir = FsPath{ "/kmap" }; // TODO: Don't make this publicly available. Make clients require the component top access, ensuring no files are used until this is initialized.
+#else
+auto const kmap_root_dir = FsPath{ "./" }; // TODO: Don't make this publicly available. Make clients require the component top access, ensuring no files are used until this is initialized.
+#endif // !KMAP_NATIVE
 
 class Filesystem : public Component
 {

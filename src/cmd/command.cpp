@@ -3,30 +3,25 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "command.hpp"
+#include <cmd/command.hpp>
 
-#include "../common.hpp"
-#include "../contract.hpp"
-#include "../emcc_bindings.hpp"
-#include "../error/master.hpp"
-#include "../error/network.hpp"
-#include "../io.hpp"
-#include "../io.hpp"
-#include "../js_iface.hpp"
-#include "../kmap.hpp"
-#include "../path.hpp"
-#include "com/cmd/command.hpp"
-#include "com/network/network.hpp"
-#include "parser.hpp"
-#include "path/act/order.hpp"
-#include "path/node_view.hpp"
-#include "util/script/script.hpp"
-#include "util/result.hpp"
+#include <cmd/parser.hpp>
+#include <com/cmd/command.hpp>
+#include <com/network/network.hpp>
+#include <common.hpp>
+#include <contract.hpp>
+#include <emcc_bindings.hpp>
+#include <error/master.hpp>
+#include <error/network.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <path.hpp>
+#include <path/act/order.hpp>
+#include <path/node_view.hpp>
+#include <util/result.hpp>
+#include <util/script/script.hpp>
 
 #include <boost/algorithm/string/replace.hpp>
-#include <emscripten.h>
-#include <emscripten/bind.h>
-#include <emscripten/val.h>
 #include <range/v3/action/join.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/enumerate.hpp>
@@ -35,6 +30,10 @@
 #include <range/v3/view/remove.hpp>
 #include <range/v3/view/split.hpp>
 #include <range/v3/view/transform.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <sstream>
 
@@ -149,8 +148,6 @@ auto execute_javascript( Uuid const& node
                        , StringVec const& args )
     -> Result< void >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "node", node );
         KM_RESULT_PUSH( "body", std::string{ body } );
@@ -163,11 +160,15 @@ auto execute_javascript( Uuid const& node
                     | views::join( ',' )
                     | to< std::string >();
 
+#if KMAP_LOG && 0
     io::print( "execute_javascript.args: {}\n", csep );
+#endif
 
+#if !KMAP_NATIVE
     auto const pp_body = KTRY( js::preprocess( std::string{ body } ) );
 
     KTRY( js::eval_void( fmt::format( "const args = to_VectorString( [{}] );\n{}", csep, pp_body ) ) );
+#endif // !KMAP_NATIVE
     
     rv = outcome::success();
 
@@ -291,6 +292,7 @@ auto evaluate_completer( Kmap& kmap
         }
         else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
         {
+            #if !KMAP_NATIVE
             auto const fn_name = fmt::format( "fn_{}", format_heading( to_string( completer_node ) ) );
 
             if( auto const fn_created = js::publish_function( fn_name, { "arg" }, e.code )
@@ -313,6 +315,7 @@ auto evaluate_completer( Kmap& kmap
             {
                 rv = KMAP_MAKE_ERROR( error_code::command::fn_publication_failed );
             }
+            #endif // !KMAP_NATIVE
         }
         else
         {
@@ -380,7 +383,7 @@ auto parse_args( Kmap& kmap
     {
         rv = StringVec{ arg };
     }
-    else if( distance( split_args ) == arg_nodes.size() )
+    else if( std::cmp_equal( distance( split_args ), arg_nodes.size() ) )
     {
         auto validated_args = StringVec{}; // TODO: Is this even of use?
 
@@ -498,67 +501,5 @@ auto execute_command( Kmap& kmap
 
     return rv;
 }
-
-namespace command::binding {
-
-using namespace emscripten;
-
-auto create_command( std::string const& path )
-    -> kmap::Result< Uuid >
-{
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    // auto& kmap = Singleton::instance();
-    auto const prereg = com::Command{ path
-                                    , "Undescribed"
-                                    , {}
-                                    , { "unconditional", "```javascript\nreturn kmap.success( 'unconditional' );\n```" }
-                                    , "```kscript\n:echo Command Unimplemented\n```" };
-    // auto const cmd = kmap.cli().create_command( prereg );
-
-    // rv = cmd;
-
-    return rv;
-}
-
-auto fetch_nearest_command( Uuid const& node )
-    -> kmap::Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_NODE( "node", node );
-
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const& kmap = Singleton::instance();
-    auto const cmd_root = KTRY( view2::cmd::command_root
-                              | act2::fetch_node( kmap ) );
-
-    auto parent = Optional< Uuid >( node );
-
-    while( parent
-        && ( parent.value() != cmd_root ) )
-    {
-        auto const p = parent.value();
-
-        if( is_general_command( kmap, p ) )
-        {
-            rv = p;
-        }
-        else
-        {
-            auto const nw = KTRY( kmap.fetch_component< com::Network >() );
-
-            parent = to_optional( nw->fetch_parent( p ) );
-        }
-    }
-
-    return rv;
-}
-
-EMSCRIPTEN_BINDINGS( kmap_module )
-{
-    function( "create_command", &kmap::cmd::command::binding::create_command );
-    function( "fetch_nearest_command", &kmap::cmd::command::binding::fetch_nearest_command );
-}
-
-} // namespace command::binding
 
 } // namespace kmap::cmd

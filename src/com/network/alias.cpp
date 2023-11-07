@@ -629,18 +629,4 @@ auto AliasStore::resolve( Uuid const& id ) const
     return rv;
 }
 
-// namespace {
-
-// namespace binding
-// {
-//     using namespace emscripten;
-
-//     EMSCRIPTEN_BINDINGS( kmap_filesystem )
-//     {
-//         function( "complete_filesystem_path", &kmap::com::complete_filesystem_path );
-//         function( "fs_path_exists", &kmap::com::fs_path_exists );
-//     }
-// } // namespace binding
-// } // namespace anon
-
 } // namespace kmap::com

@@ -6,7 +6,10 @@
 #include <com/option/option_clerk.hpp>
 #include <common.hpp>
 #include <component.hpp>
-#include <js_iface.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <map>
 #include <memory>

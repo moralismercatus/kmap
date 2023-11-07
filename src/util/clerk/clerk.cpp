@@ -3,15 +3,18 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "util/clerk/clerk.hpp"
+#include <util/clerk/clerk.hpp>
 
-#include "cmd/parser.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/act/fetch_body.hpp"
-#include "path/node_view.hpp"
-#include "util/result.hpp"
+#include <cmd/parser.hpp>
+#include <kmap.hpp>
+#include <path/act/fetch_body.hpp>
+#include <path/node_view.hpp>
+#include <util/result.hpp>
+#include <util/script/script.hpp>
 
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <fmt/format.h>
 
@@ -25,7 +28,11 @@ auto confirm_reinstall( std::string const& item
         KM_RESULT_PUSH_STR( "item", item );
         KM_RESULT_PUSH_STR( "path", path );
 
-    return KTRY( js::eval< bool >( fmt::format( "return confirm( \"{0} '{1}' out of date.\\nRe-install {0}?\" );", item, path ) ) );
+#if !KMAP_NATIVE
+    return KTRY( kmap::js::eval< bool >( fmt::format( "return confirm( \"{0} '{1}' out of date.\\nRe-install {0}?\" );", item, path ) ) );
+#else
+    return true;
+#endif // !KMAP_NATIVE
 }
 
 auto match_body_code( Kmap const& km
@@ -52,7 +59,13 @@ auto match_body_code( Kmap const& km
                                 }
                                 else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                                 {
-                                    rv = ( js::beautify( content ) == js::beautify( e.code ) ); 
+                                    rv = ( util::js::beautify( content ) == util::js::beautify( e.code ) ); 
+                                    if( !rv )
+                                    {
+                                        fmt::print( "content matches e.code: {}\n", rv );
+                                        fmt::print( "content: {}\n" , util::js::beautify( content ) );
+                                        fmt::print( "e.code: {}\n" , util::js::beautify( e.code ) );
+                                    }
                                 }
                                 else
                                 {

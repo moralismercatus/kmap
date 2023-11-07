@@ -47,8 +47,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< js >( c ) )
+        switch( static_cast< js >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case js::success: return "success";
         case js::eval_failed: return "eval failed";
         case js::element_already_exists: return "element already exists";

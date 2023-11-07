@@ -3,23 +3,26 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/visnetwork/visnetwork.hpp"
+#include <com/visnetwork/visnetwork.hpp>
 
-#include "com/canvas/canvas.hpp"
-#include "com/database/db.hpp"
-#include "com/event/event_clerk.hpp"
-#include "com/network/network.hpp"
-#include "com/option/option.hpp"
-#include "component.hpp"
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "error/network.hpp"
-#include "io.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
-#include "utility.hpp"
+#include <com/canvas/canvas.hpp>
+#include <com/database/db.hpp>
+#include <com/event/event_clerk.hpp>
+#include <com/network/network.hpp>
+#include <com/option/option.hpp>
+#include <component.hpp>
+#include <contract.hpp>
+#include <emcc_bindings.hpp>
+#include <error/network.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
+#include <utility.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <boost/filesystem.hpp>
 #include <boost/uuid/random_generator.hpp>

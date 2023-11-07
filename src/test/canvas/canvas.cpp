@@ -7,7 +7,7 @@
 #include "../../kmap.hpp"
 #include "../master.hpp"
 #include "com/canvas/canvas.hpp"
-#include "js_iface.hpp"
+#include "js/iface.hpp"
 #include "test/util.hpp"
 
 #include <catch2/catch_test_macros.hpp>

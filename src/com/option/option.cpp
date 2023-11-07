@@ -3,26 +3,26 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "option.hpp"
+#include <com/option/option.hpp>
 
-#include "cmd/command.hpp"
-#include "cmd/parser.hpp"
-#include "com/cmd/command.hpp"
-#include "com/network/network.hpp"
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "error/master.hpp"
-#include "error/parser.hpp"
-#include "io.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/node_view.hpp"
-#include "util/script/script.hpp"
-#include "util/result.hpp"
+#include <cmd/command.hpp>
+#include <cmd/parser.hpp>
+#include <com/cmd/command.hpp>
+#include <com/network/network.hpp>
+#include <contract.hpp>
+#include <error/master.hpp>
+#include <error/parser.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <path/node_view.hpp>
+#include <util/script/script.hpp>
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <boost/variant.hpp>
-
-#include <emscripten.h>
 
 namespace kmap::com {
 
@@ -75,9 +75,11 @@ auto OptionStore::install_option( Option const& option )
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
 
+#if !KMAP_NATIVE
     KMAP_ENSURE( js::lint( option.action ), error_code::js::lint_failed );
+#endif // !KMAP_NATIVE
 
-    auto const action_body = util::to_js_body_code( js::beautify( option.action ) );
+    auto const action_body = util::to_js_body_code( util::js::beautify( option.action ) );
 
     KMAP_ENSURE( cmd::parser::parse_body_code( action_body ), error_code::parser::parse_failed );
 
@@ -200,10 +202,12 @@ auto OptionStore::apply( Uuid const& option )
                                     }
                                     else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                                     {
+                                        #if !KMAP_NATIVE
                                         auto const opt_val = fmt::format( "let option_value = {};", value_body );
                                         auto const pp = KTRYE( js::preprocess( e.code ) );
 
                                         KTRY( js::eval_void( fmt::format( "{}\n{}", opt_val, pp ) ) );
+                                        #endif // !KMAP_NATIVE
                                     }
                                     else
                                     {
@@ -261,72 +265,6 @@ auto OptionStore::apply_all()
 
     return rv;
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-struct OptionStore
-{
-    Kmap& km;
-
-    OptionStore( Kmap& kmap )
-        : km{ kmap }
-    {
-    }
-
-    auto apply( Uuid const& option )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_STR( "option", option );
-
-        auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
-
-        return ostore->apply( option );
-    }
-
-    auto apply_all()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
-
-        return ostore->apply_all();
-    }
-
-    auto update_value( std::string const& path
-                     , float const& value )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_STR( "path", path );
-            KM_RESULT_PUSH_STR( "value", std::to_string( value ) );
-
-        auto const ostore = KTRY( km.fetch_component< com::OptionStore >() );
-
-        return ostore->update_value( path, fmt::format( "{:.2f}", value ) );
-    }
-};
-
-auto option_store()
-    -> com::binding::OptionStore
-{
-    return com::binding::OptionStore{ kmap::Singleton::instance() };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_option_store )
-{
-    function( "option_store", &kmap::com::binding::option_store );
-    class_< kmap::com::binding::OptionStore >( "OptionStore" )
-        .function( "apply", &kmap::com::binding::OptionStore::apply )
-        .function( "apply_all", &kmap::com::binding::OptionStore::apply_all )
-        .function( "update_value", &kmap::com::binding::OptionStore::update_value )
-        ;
-}
-
-} // namespace binding
 
 namespace {
 namespace option_store_def {

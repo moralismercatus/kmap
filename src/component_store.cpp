@@ -47,7 +47,7 @@ ComponentStore::~ComponentStore()
     }
 }
 
-auto ComponentStore::all_initialized_components()
+auto ComponentStore::all_initialized_components() const
     -> std::set< std::string >
 {
     auto rv = std::set< std::string >{};
@@ -59,7 +59,19 @@ auto ComponentStore::all_initialized_components()
     return rv;
 }
 
-auto ComponentStore::all_uninit_dependents( std::string const& component )
+auto ComponentStore::all_uninitialized_components() const
+    -> std::set< std::string >
+{
+    auto rv = std::set< std::string >{};
+
+    rv = uninitialized_components_
+       | rvs::keys
+       | ranges::to< std::set >();
+
+    return rv;
+}
+
+auto ComponentStore::all_uninit_dependents( std::string const& component ) const
     -> std::set< std::string >
 {
     auto rv = std::set< std::string >{};
@@ -81,6 +93,12 @@ auto ComponentStore::all_uninit_dependents( std::string const& component )
     }
 
     return rv;
+}
+
+auto ComponentStore::registered_components() const
+    -> std::map< std::string, ComponentCtorPtr > const&
+{
+    return registered_components_;
 }
 
 // TODO: Make better...
@@ -119,8 +137,6 @@ auto ComponentStore::erase_component( ComponentPtr const com )
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_STR( "component", std::string{ com->name() } )
 
-    fmt::print( "[component] erasing component: {}\n", com->name() );
-
     auto rv = result::make_result< void >();
     auto const depends_on_com = [ & ]( auto const& e ){ return e.second->requisites().contains( std::string{ com->name() } ); };
 
@@ -130,8 +146,6 @@ auto ComponentStore::erase_component( ComponentPtr const com )
     }
 
     initialized_components_.erase( std::string{ com->name() } );
-
-    fmt::print( "[component] erased component: {}\n", com->name() );
 
     rv = outcome::success();
 
@@ -177,15 +191,13 @@ auto ComponentStore::register_component( ComponentCtorPtr const& cctor )
     auto rv = result::make_result< void >();
 
     KMAP_ENSURE( !initialized_components_.contains( cctor->name() ), error_code::common::uncategorized );
+    KMAP_ENSURE( !uninitialized_components_.contains( cctor->name() ), error_code::common::uncategorized );
+    KMAP_ENSURE( !registered_components_.contains( cctor->name() ), error_code::common::uncategorized );
 
-    if( !uninitialized_components_.contains( cctor->name() ) )
-    {
-        // fmt::print( "[component] register_component: {}\n", cctor->name() );
+    registered_components_.emplace( cctor->name(), cctor );
+    uninitialized_components_.emplace( cctor->name(), cctor );
 
-        uninitialized_components_.emplace( cctor->name(), cctor );
-
-        rv = outcome::success();
-    }
+    rv = outcome::success();
 
     return rv;
 }
@@ -215,7 +227,6 @@ auto ComponentStore::fire_initialized( std::string const& id )
         auto com = cctor->construct( km_ );
 
         {
-            KMAP_TIME_SCOPE( fmt::format( "[component] initializing: {}", id ) );
             KTRY( com->initialize() );
         }
 
@@ -259,9 +270,11 @@ auto ComponentStore::fire_loaded( std::string const& id )
         auto const [ name, cctor ] = *uc_it; // Note: No reference. Iterator become invalid.
         auto com = cctor->construct( km_ );
 
-        fmt::print( "[component] loading: {}\n", name );
+        KM_LOG_MSG( "[component.store]", fmt::format( "loading: {}\n", name ) );
 
         KTRY( com->load() );
+
+        KM_LOG_MSG( "[component.store]", fmt::format( "loaded: {}\n", name ) );
 
         initialized_components_.emplace( name, com );
 
@@ -279,17 +292,3 @@ auto ComponentStore::fire_loaded( std::string const& id )
 }
 
 } // namespace kmap
-
-namespace kmap::binding {
-
-struct ComponentStore
-{
-    auto register_component( std::string const& id )
-        -> void;
-};
-
-} // namespace kmap::binding
-
-// EMSCRIPTEN_BINDINGS( kmap_component_store )
-// {
-// }

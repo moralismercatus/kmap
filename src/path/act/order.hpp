@@ -95,9 +95,14 @@ auto operator|( RT const& range, Order const& op )
     { 
         BC_ASSERT( lhs != rhs );
 
+        auto rv = bool{};
+
+        auto const lhs_heading = KTRYE( nw->fetch_heading( lhs ) );
+        auto const rhs_heading = KTRYE( nw->fetch_heading( rhs ) );
+
         if( nw->is_sibling( lhs, rhs ) )
         {
-            return is_sibling_ordered( lhs, rhs );
+            rv = is_sibling_ordered( lhs, rhs );
         }
         else
         {
@@ -120,21 +125,23 @@ auto operator|( RT const& range, Order const& op )
             {
                 BC_ASSERT( rit != rhs_lin.end() );
 
-                return true;
+                rv = true;
             }
             else if( rit == rhs_lin.end() ) // rhs precedes lhs
             {
                 BC_ASSERT( lit != lhs_lin.end() );
 
-                return false;
+                rv = false;
             }
             else// if( nw->is_sibling( *lit, *rit ) )
             {
                 BC_ASSERT( nw->is_sibling( *lit, *rit ) );
 
-                return is_sibling_ordered( *lit, *rit );
+                rv = is_sibling_ordered( *lit, *rit );
             }
         }
+
+        return rv;
     };
     using OrderedNodes = std::set< Uuid, decltype( compare ) >;
 

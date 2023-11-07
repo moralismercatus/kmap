@@ -1477,7 +1477,15 @@ auto disambiguate_path( Kmap const& km
             //       Again, contracts behaving strangely. Worrying.
             // if( rv )
             // {
-            //     BC_ASSERT( rv.value().contains( node ) );
+                // fmt::print( "[post] input node:\n" );
+                // BC_ASSERT( print_tree( km, node ) );
+                // for( auto const& [ k, v ] : rv.value() )
+                // {
+                //     fmt::print( "[post] output node:\n" );
+                //     BC_ASSERT( print_tree( km, k ) );
+                // }
+                // std::cout.flush();
+                // BC_ASSERT( rv.value().contains( node ) );
             // }
         })
     ;
@@ -1521,9 +1529,22 @@ auto disambiguate_paths2( Kmap const& km
     {
         KMAP_ENSURE( !lineage.empty(), error_code::common::uncategorized );
 
-        #if KMAP_DEBUG || 1
-        fmt::print( "disambig lineage: {}\n", absolute_path_flat( km, lineage.back() ).value() );
-        #endif // KMAP_DEBUG
+        // Ensure "lineage" are lineal.
+        {
+            auto const nw = KTRY( km.fetch_component< com::Network >() );
+            auto pit = lineage.begin();
+            auto cit = std::next( pit );
+
+            while( cit != lineage.end() )
+            {
+                KMAP_ENSURE( is_parent( *nw, *pit, *cit ), error_code::common::uncategorized );
+
+                pit = cit;
+                cit = std::next( pit );
+            }
+        }
+
+        KM_RESULT_PUSH( "lineage", lineage.back() );
     }
 
     auto rv = result::make_result< std::map< Uuid, Uuid > >();
@@ -1541,10 +1562,12 @@ auto disambiguate_paths2( Kmap const& km
     }
     else
     {
+        BC_ASSERT( !lineages.empty() && !lineages[ 0 ].empty() );
         auto const common_root = lineages[ 0 ][ 0 ]; // Ensured to exist by code above.
 
         for( auto const& lineage : lineages )
         {
+            BC_ASSERT( !lineage.empty() );
             KMAP_ENSURE( lineage[ 0 ] == common_root, error_code::common::uncategorized );
         }
 
@@ -1558,6 +1581,7 @@ auto disambiguate_paths2( Kmap const& km
             {
                 if( it->size() == 2 )
                 {
+                    BC_ASSERT( !it->empty() );
                     rmap.emplace( std::pair{ it->back(), it->front() } );
 
                     it = mlineages.erase( it );
@@ -1570,29 +1594,12 @@ auto disambiguate_paths2( Kmap const& km
         }
         // Process remaining
         {
-            // Pre-root-drop unique root
-            {
-                for( auto it = mlineages.begin()
-                   ; it != mlineages.end()
-                   ; )
-                {
-                    if( ranges::find_if( mlineages, [ & ]( auto const& e ){ return it->at( 0 ) ==  e.at( 0 ); } ) == mlineages.end() )
-                    {
-                        rmap.emplace( std::pair{ it->back(), it->front() } );
-
-                        it = mlineages.erase( it );
-                    }
-                    else
-                    {
-                        ++it;
-                    }
-                }
-            }
             {
                 // Drop roots
                 for( auto&& lin : mlineages )
                 {
                     // lin.pop_front();
+                    BC_ASSERT( !lin.empty() );
                     lin.erase( lin.begin() );
                 }
 
@@ -1600,6 +1607,7 @@ auto disambiguate_paths2( Kmap const& km
 
                 for( auto const& lin : mlineages )
                 {
+                    BC_ASSERT( !lin.empty() );
                     auto const root = lin.front();
 
                     if( auto it = root_groups.find( root )
@@ -1644,6 +1652,7 @@ SCENARIO( "disambiguate_path" , "[path]" )
     };
     auto const check = [ & ]( auto const& ipath, std::vector< std::string > const& opaths ) -> bool
     {
+        KM_RESULT_PROLOG();
         auto const target = decide_unique_path( ipath );
         auto const expected = [ & ]
         {
@@ -1655,26 +1664,11 @@ SCENARIO( "disambiguate_path" , "[path]" )
             }
             return es;
         }();
-        auto const dis = KTRYB( disambiguate_path( km, target ) );
+        auto const dis = KTRYE( disambiguate_path( km, target ) );
         auto const roots = dis
                          | rvs::values
                          | ranges::to< std::set >();
         
-        for( auto const& e : roots )
-        {
-            if( e == nw->root_node() )
-            {
-                fmt::print( "root: /\n" );
-            }
-            else
-            {
-                auto const x = REQUIRE_TRY( anchor::abs_root | view2::desc( e ) | act2::abs_path_flat( km ) );
-
-                fmt::print( "root: {}\n", x );
-            }
-            
-        }
-
         return roots == expected;
     };
 
@@ -1892,6 +1886,49 @@ auto is_descending( Kmap const& kmap
     return is_ascending( kmap
                        , lineage | views::reverse | to< UuidVec >() );
 }
+
+auto is_parent( com::Network const& nw
+              , Uuid const& parent
+              , Uuid const& child )
+    -> bool
+{
+    return KTRYB( nw.fetch_parent( child ) ) == parent;
+}
+
+auto is_sibling_adjacent( Kmap const& km
+                        , Uuid const& node
+                        , Uuid const& other )
+    -> bool
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+        KM_RESULT_PUSH( "other", other );
+    // Ensure nodes are siblings.
+    {
+        auto const nw = KTRYE( km.fetch_component< com::Network >() );
+        auto const np = KTRYB( nw->fetch_parent( node ) );
+        auto const op = KTRYB( nw->fetch_parent( other ) );
+
+        KENSURE_B( np == op );
+    }
+    
+    auto const siblings = anchor::node( node )
+                        | view2::sibling_incl
+                        | view2::order
+                        | act2::to_node_vec( km );
+    auto const it1 = ranges::find( siblings, node );
+    auto const it2 = ranges::find( siblings, other );
+
+    if( it1 < it2 )
+    {
+        return std::distance( it1, it2 ) == 1;
+    }
+    else
+    {
+        return std::distance( it2, it1 ) == 1; 
+    }
+}
+
 
 // Inclusive of "leaf". Exclusive of "root".
 // Note: Possible to further generalize as an ancestor possessing a geometry more than one level deep by making it a RegexVector.

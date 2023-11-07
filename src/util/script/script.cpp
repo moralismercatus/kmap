@@ -3,21 +3,25 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "script.hpp"
+#include <util/script/script.hpp>
 
-#include "common.hpp"
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "error/filesystem.hpp"
-#include "io.hpp"
-#include "kmap.hpp"
-#include "cmd/command.hpp"
-#include "com/cmd/command.hpp"
-#include "com/filesystem/filesystem.hpp"
+#include <common.hpp>
+#include <contract.hpp>
+#include <error/filesystem.hpp>
+#include <io.hpp>
+#include <kmap.hpp>
+#include <cmd/command.hpp>
+#include <com/cmd/command.hpp>
+#include <com/filesystem/filesystem.hpp>
 
-#include <boost/filesystem.hpp>
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#endif // !KMAP_NATIVE
+
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 
 #include <fstream>
 #include <istream>
@@ -92,8 +96,27 @@ auto to_kscript_body_code( std::string const& raw_code )
     return fmt::format( "```kscript\n{}\n```", raw_code );
 }
 
-
 } // namespace kmap::util
+
+namespace kmap::util::js {
+
+auto beautify( std::string const& code )
+    -> std::string
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "code", code );
+
+    auto const trimmed_code = boost::trim_left_copy( code );
+
+#if !KMAP_NATIVE
+
+    return KTRYE( kmap::js::call< std::string >( "beautify_javascript", trimmed_code ) );
+#else
+    return trimmed_code;
+#endif // !KMAP_NATIVE
+}
+
+} // kmap::util::js
 
 #if 0
 namespace kmap::cmd::load_kscript_def {
@@ -135,6 +158,7 @@ REGISTER_COMMAND
 } // namespace kmap::cmd::load_kscript_def
 #endif // 0
 
+#if !KMAP_NATIVE
 namespace kmap::cmd::script::binding {
 
 using namespace emscripten;
@@ -153,4 +177,5 @@ EMSCRIPTEN_BINDINGS( kmap_script )
 }
 
 }  // namespace kmap::cmd::script::binding
+#endif // !KMAP_NATIVE
 

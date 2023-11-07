@@ -3,14 +3,17 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "timer.hpp"
+#include <com/chrono/timer.hpp>
 
-#include "com/event/event.hpp"
-#include "error/master.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/node_view.hpp"
-#include "util/result.hpp"
+#include <com/event/event.hpp>
+#include <error/master.hpp>
+#include <kmap.hpp>
+#include <path/node_view.hpp>
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 namespace kmap::com {
 

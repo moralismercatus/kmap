@@ -9,6 +9,7 @@
 
 #include <emscripten/bind.h>
 
+// TODO: What is the point of this macro?
 #define KMAP_EMSCRIPTEN_BINDINGS( name ) EMSCRIPTEN_BINDINGS( name )
    
 #endif // KMAP_BINDING_JS_UTIL_HPP

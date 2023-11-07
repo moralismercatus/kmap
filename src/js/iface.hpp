@@ -7,12 +7,12 @@
 #ifndef KMAP_JS_IFACE_HPP
 #define KMAP_JS_IFACE_HPP
 
-#include "common.hpp"
-#include "contract.hpp"
-#include "error/js_iface.hpp"
-#include "error/master.hpp"
-#include "utility.hpp"
-#include "util/result.hpp"
+#include <common.hpp>
+#include <contract.hpp>
+#include <error/js_iface.hpp>
+#include <error/master.hpp>
+#include <utility.hpp>
+#include <util/result.hpp>
 
 #include <emscripten.h>
 #include <emscripten/val.h>
@@ -27,16 +27,16 @@ namespace kmap::js {
 auto append_child_element( std::string const& parent_doc_id
                          , std::string const& child_doc_id )
     -> Result< void >;
-auto beautify( std::string const& code )
-    -> std::string;
 auto create_child_element( std::string const& parent_id
                          , std::string const& child_id
                          , std::string const& elem_type )
     -> Result< void >;
 auto create_html_canvas( std::string const& id )
     -> Result< void >;
+#if !KMAP_NATIVE
 auto eval_val( std::string const& expr )
     -> Result< emscripten::val >;
+#endif // !KMAP_NATIVE
 auto eval_void( std::string const& expr )
     -> Result< void >;
 auto erase_child_element( std::string const& doc_id )
@@ -156,30 +156,15 @@ auto exists( Uuid const& id )
     -> bool;
 auto element_exists( std::string const& doc_id )
     -> bool;
+#if !KMAP_NATIVE
 auto fetch_style_member( std::string const& elem_id )
     -> Result< emscripten::val >;
+#endif // !KMAP_NATIVE
 auto is_child_element( std::string const& parent_id
                      , std::string const& child_id )
     -> bool;
 auto is_global_kmap_valid()
     -> bool;
-
-class ScopedCode
-{
-    std::string ctor_code;
-    std::string dtor_code;
-
-public:
-    ScopedCode() = default;
-    ScopedCode( std::string const& ctor
-              , std::string const& dtor );
-    ScopedCode( ScopedCode&& other );
-    ScopedCode( ScopedCode const& other ) = delete;
-    ~ScopedCode();
-
-    auto operator=( ScopedCode&& other ) -> ScopedCode&;
-    auto operator=( ScopedCode const& other ) -> ScopedCode& = delete;
-};
 
 } // namespace kmap::js
 

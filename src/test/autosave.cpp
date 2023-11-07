@@ -12,7 +12,7 @@
 #include "com/event/event.hpp"
 #include "com/network/network.hpp"
 #include "com/option/option.hpp"
-#include "js_iface.hpp"
+#include "js/iface.hpp"
 #include "kmap.hpp"
 #include "test/master.hpp"
 #include "test/util.hpp"

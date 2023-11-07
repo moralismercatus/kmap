@@ -7,14 +7,15 @@
 #ifndef KMAP_DB_QUERY_CACHE_HPP
 #define KMAP_DB_QUERY_CACHE_HPP
 
-#include "common.hpp"
-#include "path/node_view2.hpp"
+#include <common.hpp>
+#include <path/view/common.hpp>
+#include <path/view/tether.hpp>
 
 namespace kmap::com::db {
 
 class QueryCache
 {
-    using TetherMap = std::map< view2::Tether, UuidSet >;
+    using TetherMap = std::map< view2::Tether, view2::FetchSet >;
 
     TetherMap map_ = {};
 
@@ -24,9 +25,9 @@ public:
     auto clear()
         -> void;
     auto fetch( view2::Tether const& tether ) const
-        -> Result< UuidSet >;
+        -> Result< view2::FetchSet >;
     auto push( view2::Tether const& tether
-             , UuidSet const& result )
+             , view2::FetchSet const& result )
         -> Result< void >;
 
     auto begin() const

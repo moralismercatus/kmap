@@ -8,6 +8,7 @@
 #define KMAP_COMMON_HPP
 
 #include "error/master.hpp"
+#include <util/log/log.hpp> // Make logging common to all.
 
 #include <boost/container_hash/hash.hpp>
 #include <boost/filesystem/path.hpp>

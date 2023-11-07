@@ -166,6 +166,16 @@ auto is_descending( Kmap const& kmap
                   , UuidVec const& lineage )
     -> bool;
 [[ nodiscard ]]
+auto is_parent( com::Network const& nw
+              , Uuid const& parent
+              , Uuid const& child )
+    -> bool;
+[[ nodiscard ]]
+auto is_sibling_adjacent( Kmap const& km
+                        , Uuid const& node
+                        , Uuid const& other )
+    -> bool;
+[[ nodiscard ]]
 auto create_descendants( Kmap& kmap
                        , Uuid const& root
                        , Uuid const& selected

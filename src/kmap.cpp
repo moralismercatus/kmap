@@ -127,7 +127,6 @@ auto Kmap::initialize()
     auto rv = KMAP_MAKE_RESULT( void );
 
     {
-        init_component_store();
         KTRY( register_all_components() );
         KTRY( component_store_->fire_initialized( "component_store" ) );
     }
@@ -223,7 +222,7 @@ auto Kmap::on_leaving_editor()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const tv = KTRY( fetch_component< com::TextArea >() );
-    auto const contents = tv->editor_contents();
+    auto const contents = KTRY( tv->editor_contents() );
     auto const rid = nw->resolve( nw->selected_node() );
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
     auto const db = KTRY( fetch_component< com::Database >() );
@@ -258,7 +257,12 @@ auto Kmap::load( FsPath const& db_path
 
     database_path_ = full_path; // Set state, so Database::load can read.
 
+    fmt::print( "************************************LOADING************************************\n" );
+
     KTRY( component_store_->fire_loaded( "component_store" ) );
+
+    KM_LOG_DISABLE();
+    // KM_LOG_ST_DISABLE();
     
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )

@@ -46,8 +46,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< filesystem >( c ) )
+        switch( static_cast< filesystem >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case filesystem::success: return "success";
         case filesystem::file_not_found: return "file not found";
         case filesystem::file_open_failed: return "file open failed";

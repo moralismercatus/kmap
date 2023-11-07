@@ -7,9 +7,8 @@
 #ifndef KMAP_DB_FS_HPP
 #define KMAP_DB_FS_HPP
 
-#include "common.hpp"
-#include "component.hpp"
-#include "com/cmd/cclerk.hpp"
+#include <common.hpp>
+#include <component.hpp>
 
 namespace kmap
 {
@@ -25,8 +24,6 @@ namespace kmap::com {
  */
 class DatabaseFilesystem : public Component
 {
-    CommandClerk cclerk_;
-
 public:
     static constexpr auto id = "database.filesystem";
     constexpr auto name() const -> std::string_view override { return id; }
@@ -40,9 +37,6 @@ public:
         -> Result< void > override;
     auto load()
         -> Result< void > override;
-
-    auto register_standard_commands()
-        -> void;
 
     auto copy_state( FsPath const& dst )
         -> Result< void >;

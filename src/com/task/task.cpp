@@ -5,18 +5,18 @@
  ******************************************************************************/
 #include <com/task/task.hpp>
 
-#include "com/cmd/cclerk.hpp"
-#include "com/network/network.hpp"
-#include "com/tag/tag.hpp"
-#include "contract.hpp"
-#include "error/master.hpp"
-#include "error/result.hpp"
-#include "kmap.hpp"
-#include "path/act/update_body.hpp"
-#include "path/node_view.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
-#include "utility.hpp"
+#include <com/cmd/cclerk.hpp>
+#include <com/network/network.hpp>
+#include <com/tag/tag.hpp>
+#include <contract.hpp>
+#include <error/master.hpp>
+#include <error/result.hpp>
+#include <kmap.hpp>
+#include <path/act/update_body.hpp>
+#include <path/node_view.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
+#include <utility.hpp>
 #include <path/node_view2.hpp>
 #include <path/act/order.hpp>
 
@@ -926,91 +926,4 @@ REGISTER_COMPONENT
 );
 
 } // namespace task_store_def 
-
-struct TaskStore
-{
-    kmap::Kmap& km;
-
-    TaskStore( kmap::Kmap& kmap )
-        : km{ kmap }
-    {
-    }
-
-    auto cascade_tags( kmap::Uuid const& task )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->cascade_tags( task );
-    }
-    auto create_task( std::string const& title )
-        -> kmap::Result< kmap::Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->create_task( title );
-    }
-    auto create_subtask( kmap::Uuid const& supertask
-                       , std::string const& title )
-        -> kmap::Result< kmap::Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->create_subtask( supertask, title );
-    }
-    auto close_task( kmap::Uuid const& task )
-                   
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->close_task( task );
-    }
-    auto activate_task( kmap::Uuid const& task )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.component_store().fetch_component< kmap::com::TaskStore >() )->activate_task( task );
-    }
-    auto deactivate_task( kmap::Uuid const& task )
-                   
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.component_store().fetch_component< kmap::com::TaskStore >() )->deactivate_task( task );
-    }
-    auto is_task( kmap::Uuid const& task )
-        -> bool
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.component_store().fetch_component< kmap::com::TaskStore >() )->is_task( task );
-    }
-};
-
-auto task_store()
-    -> ::TaskStore
-{
-    return ::TaskStore{ kmap::Singleton::instance() };
-}
-
 } // namespace anonymous
-
-using namespace emscripten;
-
-EMSCRIPTEN_BINDINGS( kmap_task_store )
-{
-    function( "task_store", &::task_store );
-
-    class_< ::TaskStore >( "TaskStore" )
-        .function( "cascade_tags", &::TaskStore::cascade_tags )
-        .function( "create_task", &::TaskStore::create_task )
-        .function( "create_subtask", &::TaskStore::create_subtask )
-        .function( "close_task", &::TaskStore::close_task )
-        .function( "activate_task", &::TaskStore::activate_task )
-        .function( "deactivate_task", &::TaskStore::deactivate_task )
-        .function( "is_task", &::TaskStore::is_task )
-        ;
-}

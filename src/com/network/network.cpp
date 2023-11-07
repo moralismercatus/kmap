@@ -24,7 +24,6 @@
 #include <boost/json.hpp>
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
 #include <range/v3/action/join.hpp>
 #include <range/v3/action/reverse.hpp>
 #include <range/v3/action/sort.hpp>
@@ -107,8 +106,8 @@ auto Network::load_aliases()
                                                                                           , .dst_id = AliasItem::dst_type{ e.right().value() } } }; } )
                      | ranges::to< AliasLoadSet >();
 
-    auto& av = all_aliases.get< AliasLoadItem::loaded_type >();
-    auto eq = av.equal_range( AliasLoadItem::loaded_type{ false } );
+    // auto& av = all_aliases.get< AliasLoadItem::loaded_type >();
+    auto eq = all_aliases.get< AliasLoadItem::loaded_type >().equal_range( AliasLoadItem::loaded_type{ false } );
 
     while( eq.first != eq.second )
     {
@@ -116,7 +115,7 @@ auto Network::load_aliases()
 
         KTRY( load_alias_leaf( next.src().value(), next.dst().value(), all_aliases ) );
 
-        eq = av.equal_range( AliasLoadItem::loaded_type{ false } );
+        eq = all_aliases.get< AliasLoadItem::loaded_type >().equal_range( AliasLoadItem::loaded_type{ false } );
     }
 
     rv = outcome::success();
@@ -2810,16 +2809,20 @@ auto Network::update_title( Uuid const& id
     KMAP_ENSURE( exists( id ), error_code::network::invalid_node );
 
     auto const db = KTRY( fetch_component< com::Database >() );
-    auto const vnw = KTRY( fetch_component< com::VisualNetwork >() );
     auto const rid = alias_store().resolve( id );
 
     KTRY( db->update_title( rid, title ) );
 
-    if( vnw->exists( rid ) )
+    #if !KMAP_NATIVE
     {
-        // TODO: Should rather fire event.
-        KTRY( vnw->update_title( rid, title ) );
+        auto const vnw = KTRY( fetch_component< com::VisualNetwork >() );
+        if( vnw->exists( rid ) )
+        {
+            // TODO: Should rather fire event.
+            KTRY( vnw->update_title( rid, title ) );
+        }
     }
+    #endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -3372,6 +3375,9 @@ auto Network::load_alias_leaf( Uuid const& src
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "src", src );
         KM_RESULT_PUSH( "dst", dst );
+    
+    // fmt::print( "[load_alias_leaf][src]: {}\n", KTRY( fetch_heading( src ) ) );
+    // fmt::print( "[load_alias_leaf][dst]: {}, parent: {}\n", KTRY( fetch_heading( dst ) ), KTRY( fetch_heading( KTRY( fetch_parent( dst ) ) ) ) );
 
     auto rv = result::make_result< void >();
     auto const rsrc = resolve( src );
@@ -3393,7 +3399,7 @@ auto Network::load_alias_leaf( Uuid const& src
 
     auto const populate_src = [ & ]( auto const& ts ) -> Result< void >
     {
-        // If "src has alias children", then "create alias children".
+        // If "src has alias children", then "create those alias children", so the aliases exist when we need to reference them while populating another alias tree.
         auto const& dv = all_aliases.get< AliasItem::dst_type >();
 
         for( auto dst_er = dv.equal_range( AliasItem::dst_type{ ts } )
@@ -3487,215 +3493,6 @@ SCENARIO( "Network::is_alias", "[com][network][alias]" )
         }
     }
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-struct Network
-{
-    Kmap& kmap_;
-
-    Network( Kmap& kmap )
-        : kmap_{ kmap }
-    {
-    }
-
-    auto create_child( Uuid const& parent
-                     , std::string const& title )
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH( "parent", parent );
-            KM_RESULT_PUSH( "title", title );
-            
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-
-        return nw->create_child( parent, format_heading( title ), title );
-    }
-    auto erase_node( Uuid const& node )
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH( "node", node );
-
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-
-        return nw->erase_node( node );
-    }
-    auto fetch_node( std::string const& path )
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_STR( "path", path );
-
-        auto rv = KMAP_MAKE_RESULT( Uuid );
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-        auto const rs = KTRY( decide_path( kmap_, nw->root_node(), nw->selected_node(), path ) );
-        
-        if( rs.size() == 1 )
-        {
-            rv = rs.back();
-        }
-
-        return rv;
-    }
-    auto fetch_parent( Uuid const& node )
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_NODE( "node", node );
-
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-
-        return nw->fetch_parent( node );
-    }
-    auto fetch_title( Uuid const& node )
-        -> Result< std::string >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-
-        return nw->fetch_title( node );
-    }
-    auto is_alias( Uuid const& node )
-        -> bool 
-    {
-        KM_RESULT_PROLOG();
-
-        auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
-
-        return nw->is_alias( node );
-    }
-    auto move_node( Uuid const& src
-                  , Uuid const& dst )
-        -> Result< void >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH( "src", src );
-            KM_RESULT_PUSH( "dst", dst );
-
-        auto rv = KMAP_MAKE_RESULT( void );
-
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-
-        KTRY( nw->move_node( src, dst ) );
-
-        rv = outcome::success();
-
-        return rv;
-    }
-    auto selected_node()
-        -> Uuid
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( kmap_.fetch_component< com::Network >() )->selected_node();
-    }
-    auto select_node( Uuid const& node )
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-            // KM_RESULT_PUSH_NODE( "node", node );
-
-        auto const nw = KTRY( kmap_.fetch_component< com::Network >() );
-
-        return nw->select_node( node );
-    }
-    auto travel_down()
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        auto& km = Singleton::instance();
-        auto const nw = KTRY( km.fetch_component< com::Network >() );
-        
-        return nw->travel_down();
-    }
-    auto travel_left()
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        auto& km = Singleton::instance();
-        auto const nw = KTRY( km.fetch_component< com::Network >() );
-        
-        return nw->travel_left();
-    }
-    auto travel_right()
-        -> Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        auto& km = Singleton::instance();
-        auto const nw = KTRY( km.fetch_component< com::Network >() );
-        
-        return nw->travel_right();
-    }
-    auto travel_top()
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto& km = Singleton::instance();
-        auto const nw = KTRYE( km.fetch_component< com::Network >() );
-        
-        nw->travel_top();
-    }
-    auto travel_up()
-        -> Result< Uuid >
-    {
-        KMAP_PROFILE_SCOPE();
-        KM_RESULT_PROLOG();
-
-        auto& km = Singleton::instance();
-        auto const nw = KTRY( km.fetch_component< com::Network >() );
-        
-        return nw->travel_up();
-    }
-    auto travel_bottom()
-        -> void
-    {
-        KM_RESULT_PROLOG();
-
-        auto& km = Singleton::instance();
-        auto const nw = KTRYE( km.fetch_component< com::Network >() );
-        
-        nw->travel_bottom();
-    }
-};
-
-auto network()
-    -> binding::Network
-{
-    return binding::Network{ Singleton::instance() };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_network )
-{
-    function( "network", &kmap::com::binding::network );
-    class_< kmap::com::binding::Network >( "Network" )
-        .function( "create_child", &kmap::com::binding::Network::create_child )
-        .function( "erase_node", &kmap::com::binding::Network::erase_node )
-        .function( "fetch_node", &kmap::com::binding::Network::fetch_node )
-        .function( "fetch_parent", &kmap::com::binding::Network::fetch_parent )
-        .function( "fetch_title", &kmap::com::binding::Network::fetch_title )
-        // .function( "move_children", &kmap::com::binding::Network::move_children )
-        .function( "is_alias", &kmap::com::binding::Network::is_alias )
-        .function( "move_node", &kmap::com::binding::Network::move_node )
-        .function( "select_node", &kmap::com::binding::Network::select_node )
-        .function( "selected_node", &kmap::com::binding::Network::selected_node )
-        .function( "travel_bottom", &kmap::com::binding::Network::travel_bottom )
-        .function( "travel_down", &kmap::com::binding::Network::travel_down )
-        .function( "travel_left", &kmap::com::binding::Network::travel_left )
-        .function( "travel_right", &kmap::com::binding::Network::travel_right )
-        .function( "travel_top", &kmap::com::binding::Network::travel_top )
-        .function( "travel_up", &kmap::com::binding::Network::travel_up )
-        ;
-}
-
-} // namespace binding
 
 namespace {
 namespace network_def {

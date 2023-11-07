@@ -34,6 +34,7 @@ class ComponentStore
     Kmap& km_;
     // event::EventClerk eclerk_;
     std::set< std::string > received_inits_ = {};
+    std::map< std::string, ComponentCtorPtr > registered_components_ = {};
     std::map< std::string, ComponentCtorPtr > uninitialized_components_ = {};
     ComponentMap initialized_components_ = {};
 
@@ -41,10 +42,14 @@ public:
     ComponentStore( Kmap& km );
     ~ComponentStore();
 
-    auto all_initialized_components()
+    auto all_initialized_components() const
         -> std::set< std::string >;
-    auto all_uninit_dependents( std::string const& component )
+    auto all_uninitialized_components() const
         -> std::set< std::string >;
+    auto all_uninit_dependents( std::string const& component ) const
+        -> std::set< std::string >;
+    auto registered_components() const
+        -> std::map< std::string, ComponentCtorPtr > const&;
     auto clear()
         -> Result< void >;
     auto erase_component( ComponentPtr const com )
@@ -77,16 +82,28 @@ public:
         auto rv = result::make_result< std::shared_ptr< T > >();
         auto const id = T::id;
 
-        if( initialized_components_.contains( id ) )
-        {
-            if( auto const com = std::dynamic_pointer_cast< T >( initialized_components_[ id ] )
-              ; com )
-            {
-                rv = com;
-            }
-        }
+        KMAP_ENSURE( initialized_components_.contains( id ), error_code::common::uncategorized );
 
-        KMAP_ENSURE( rv, error_code::common::uncategorized ); // Ensure RESULT_PROLOG info propagates.
+        auto const com = std::dynamic_pointer_cast< T >( initialized_components_.at( id ) );
+
+        KMAP_ENSURE( com != nullptr, error_code::common::conversion_failed );
+        
+        rv = com;
+
+        // fmt::print( "initialized_components.size: {}\n", initialized_components_.size() );
+
+        // if( initialized_components_.contains( id ) )
+        // {
+        //     if( auto const com = std::dynamic_pointer_cast< T >( initialized_components_[ id ] )
+        //       ; com )
+        //     {
+        //         rv = com;
+        //     }
+        // }
+
+        // if( rv ) fmt::print( "fetch_component< {} > IS fetched!\n", id );
+        // else fmt::print( "fetch_component< {} > is NOT fetched!\n", id );
+        // KMAP_ENSURE( rv, error_code::common::uncategorized ); // Ensure RESULT_PROLOG info propagates.
 
         return rv;
     }

@@ -43,8 +43,9 @@ public:
     {
         using namespace kmap::error_code;
 
-        switch ( static_cast< parser >( c ) )
+        switch( static_cast< parser >( c ) )
         {
+        default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
         case parser::success: return "success";
         case parser::parse_failed: return "parse_failed";
         }

@@ -9,7 +9,7 @@
 #include "com/canvas/canvas.hpp"
 #include "com/network/network.hpp"
 #include "filesystem.hpp"
-#include "js_iface.hpp"
+#include "js/iface.hpp"
 #include "path/act/order.hpp"
 #include "path/node_view.hpp"
 #include "test/util.hpp"

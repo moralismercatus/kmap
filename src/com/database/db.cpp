@@ -7,20 +7,20 @@
     #define KMAP_LOGGING_DB
 #endif // KMAP_LOGGING_PATH_ALL
 
-#include "db.hpp"
+#include <com/database/db.hpp>
 
-#include "contract.hpp"
-#include "com/database/table_decl.hpp"
-#include "com/database/util.hpp"
-#include "com/filesystem/filesystem.hpp" // TODO: only present until sql db moves to DatabaseFilesystem.
-#include "emcc_bindings.hpp"
-#include "error/db.hpp"
-#include "error/filesystem.hpp"
-#include "error/network.hpp"
-#include "io.hpp"
-#include "test/util.hpp"
-#include "utility.hpp"
-#include "util/result.hpp"
+#include <contract.hpp>
+#include <com/database/table_decl.hpp>
+#include <com/database/util.hpp>
+#include <com/filesystem/filesystem.hpp> // TODO: only present until sql db moves to DatabaseFilesystem.
+#include <emcc_bindings.hpp>
+#include <error/db.hpp>
+#include <error/filesystem.hpp>
+#include <error/network.hpp>
+#include <io.hpp>
+#include <test/util.hpp>
+#include <utility.hpp>
+#include <util/result.hpp>
 
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -28,8 +28,6 @@
 #include <boost/hana/ext/std/tuple.hpp>
 #include <boost/hana/for_each.hpp>
 #include <boost/hana/reverse.hpp>
-#include <emscripten.h>
-#include <emscripten/bind.h>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/find.hpp>
 #include <range/v3/algorithm/find.hpp>
@@ -50,7 +48,6 @@
 // TODO: TESTING
 #include <fstream>
 
-using namespace emscripten;
 using namespace ranges;
 namespace fs = boost::filesystem;
 namespace sql = sqlpp::sqlite3;
@@ -105,6 +102,8 @@ auto Database::initialize()
 {
     auto rv = KMAP_MAKE_RESULT( void );
 
+    fmt::print( "[database] initializing\n" );
+
     rv = outcome::success();
 
     return rv;
@@ -113,6 +112,7 @@ auto Database::initialize()
 auto Database::load()
     -> Result< void >
 {
+    fmt::print( "[database] loading\n" );
     return load_internal( kmap_inst().database_path() );
 }
 
@@ -129,6 +129,8 @@ auto Database::load_internal( FsPath const& path )
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "path", path.string() );
 
+    KM_LOG_ST_DISABLE();
+
     auto rv = KMAP_MAKE_RESULT( void );
 
     BC_CONTRACT()
@@ -137,7 +139,8 @@ auto Database::load_internal( FsPath const& path )
             if( rv )
             {
                 BC_ASSERT( con_ );
-                BC_ASSERT( path_ == sqlite3_db_filename( con_->native_handle(), nullptr ) );
+                BC_ASSERT( fs::equivalent( path_, sqlite3_db_filename( con_->native_handle(), nullptr ) ) );
+                fmt::print( "Datatbase::load_internal, post, has_delta: {}\n", has_delta() );
                 BC_ASSERT( !has_delta() );
             }
         })
@@ -291,7 +294,7 @@ auto Database::init_db_on_disk( FsPath const& path )
             if( rv )
             {
                 BC_ASSERT( con_ );
-                BC_ASSERT( path_ == sqlite3_db_filename( con_->native_handle(), nullptr ) );
+                BC_ASSERT( fs::equivalent( fs::absolute( path_ ), sqlite3_db_filename( con_->native_handle(), nullptr ) ) );
             }
         })
     ;
@@ -381,7 +384,7 @@ auto Database::has_file_on_disk()
     return !p.string().empty()
         && fs::exists( p )
         && static_cast< bool >( con_ )
-        && p == sqlite3_db_filename( con_->native_handle(), nullptr );
+        && fs::equivalent( p, sqlite3_db_filename( con_->native_handle(), nullptr ) );
 
     // TODO: SCENARIO( "external actor alters file on disk" )
 }
@@ -1929,116 +1932,6 @@ auto execute_raw( sqlpp::sqlite3::connection& con
 
     return rv;
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-struct Database
-{
-    Kmap& kmap_;
-
-    Database( Kmap& kmap )
-        : kmap_{ kmap }
-    {
-    }
-
-    auto init_db_on_disk( std::string const& path )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_STR( "path", path );
-
-        auto const db = KTRY( kmap_.fetch_component< com::Database >() );
-
-        return db->init_db_on_disk( com::kmap_root_dir / path );
-    }
-
-    auto flush_delta_to_disk()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        try
-        {
-            auto const db = KTRY( kmap_.fetch_component< com::Database >() );
-
-            return db->flush_delta_to_disk();
-        }
-        catch( std::exception const& e )
-        {
-            return kmap::Result< void >{ KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, e.what() ) };
-        }
-    }
-
-    auto flush_cache_to_disk()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        try
-        {
-            auto const db = KTRY( kmap_.fetch_component< com::Database >() );
-
-            return db->flush_cache_to_disk();
-        }
-        catch( std::exception const& e )
-        {
-            return kmap::Result< void >{ KMAP_MAKE_ERROR_MSG( error_code::common::uncategorized, e.what() ) };
-        }
-    }
-
-    auto has_delta()
-        -> bool
-    {
-        KM_RESULT_PROLOG();
-
-        auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
-
-        return db->has_delta();
-    }
-
-    auto has_file_on_disk()
-        -> bool
-    {
-        KM_RESULT_PROLOG();
-
-        auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
-
-        return db->has_file_on_disk();
-    }
-
-    auto path()
-        -> Result< std::string >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const db = KTRYE( kmap_.fetch_component< com::Database >() );
-
-        return KTRY( db->path() ).string();
-    }
-};
-
-auto database()
-    -> binding::Database
-{
-    return binding::Database{ Singleton::instance() };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_database )
-{
-    function( "database", &kmap::com::binding::database );
-    class_< kmap::com::binding::Database >( "Database" )
-        .function( "init_db_on_disk", &kmap::com::binding::Database::init_db_on_disk )
-        .function( "flush_delta_to_disk", &kmap::com::binding::Database::flush_delta_to_disk )
-        .function( "flush_cache_to_disk", &kmap::com::binding::Database::flush_cache_to_disk )
-        .function( "has_delta", &kmap::com::binding::Database::has_delta )
-        .function( "has_file_on_disk", &kmap::com::binding::Database::has_file_on_disk )
-        .function( "path", &kmap::com::binding::Database::path )
-        ;
-}
-
-} // namespace binding
 
 namespace {
 namespace database_def {

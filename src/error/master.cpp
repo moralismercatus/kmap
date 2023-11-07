@@ -9,8 +9,10 @@
 #include "filesystem.hpp"
 #include "kmap.hpp"
 
+#if !KMAP_NATIVE
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#endif // !KMAP_NATIVE
 #include <range/v3/view/enumerate.hpp>
 
 #include <string>
@@ -77,11 +79,11 @@ auto to_string( Payload const& sp )
     for( auto const& [ index, e ] : sp.stack | ranges::views::enumerate )
     {
         ss << fmt::format( "-------stack_item[{}]-------\n", index );
-        ss << fmt::format( "\tmessage: {}\n{}|{}|{}\n"
+        ss << fmt::format( "\tmessage: {}\n{}|{}:{}\n"
                          , e.message
-                         , e.line
                          , e.function
-                         , e.file );
+                         , e.file
+                         , e.line );
     }
 
     return ss.str();
@@ -89,6 +91,7 @@ auto to_string( Payload const& sp )
 
 } // kmap::error_code
 
+#if !KMAP_NATIVE
 using namespace emscripten;
 
 EMSCRIPTEN_BINDINGS( kmap_result_module )
@@ -96,3 +99,4 @@ EMSCRIPTEN_BINDINGS( kmap_result_module )
     class_< kmap::error_code::Payload >( "result::Payload" )
         ;
 }
+#endif // !KMAP_NATIVE

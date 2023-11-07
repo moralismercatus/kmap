@@ -3,16 +3,17 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "util/result.hpp"
+#include <util/result.hpp>
 
-#include "com/network/network.hpp"
-#include "error/result.hpp"
-#include "js_iface.hpp"
-#include "kmap.hpp"
-#include "path/act/fetch_heading.hpp"
-#include "path/node_view2.hpp"
-#include "utility.hpp"
 #include <attribute.hpp>
+#include <com/network/network.hpp>
+#include <error/result.hpp>
+#include <kmap.hpp>
+#include <path/act/fetch_heading.hpp>
+#include <path/node_view2.hpp>
+#include <util/log/xml.hpp>
+#include <util/script/script.hpp>
+#include <utility.hpp>
 
 #include <sstream>
 #include <string>
@@ -32,14 +33,16 @@ namespace kmap::result {
 //     log.insert( log.end(), v.begin(), v.end() );
 // }
 
-#if KMAP_PROFILE_LOG || 0
-static auto local_log_depth = 0u;
-LocalLog::LocalLog( const char* function )
-    : func_name{ function }
+#if KMAP_LOG
+LocalLog::LocalLog( const char* function
+                  , const char* file
+                  , unsigned line )
+    : scoped_log_{ function, file, line }
 {
-    ++local_log_depth;
 }
+#endif // KMAP_LOG
 
+#if 0 // KMAP_LOG_PROFILE
 LocalLog::~LocalLog()
 {
     {
@@ -57,14 +60,52 @@ LocalLog::~LocalLog()
         }
     }
 }
-#endif // KMAP_PROFILE_LOG
+#endif // KMAP_LOG_PROFILE
+
+#if KMAP_LOG
+LocalState::LocalState( const char* function
+                      , const char* file
+                      , unsigned line )
+    : log{ function, file, line }
+{
+}
+#endif // KMAP_LOG
 
 auto LocalLog::push( LocalLog::MultiValue const& mv )
     -> void
 {
-    // fmt::print( "LocalLog::push: {}\n", mv.key );
+#if KMAP_LOG
+    auto const logging_enabled = KM_LOG_IS_ENABLED();
+
+    KM_LOG_PAUSE_SCOPE(); // Must pause logging to avoid recursion, specifically for to_string().
+
+    if( logging_enabled )
+    {
+        // TODO: print to xml file: <value key="{}">{}</value>
+        // global_state.call_stack.push_val()
+        // v. global_state.call_stack.push_fn()
+        // TODO: Further, enable KM_RESULT_PROLOG_RV( rv ) - to declare a return value such that on exit, it can be logged as well.
+        //       Tricky... I think the stored RV type would need to be an std::any, then check for the basic types, and ignore the others.
+        if( kmap::util::log::Singleton::instance().flags.enable_call_stack )
+        {
+            auto csn = kmap::util::log::GlobalState::CallStack::Node{};
+            auto const val = std::visit( [ & ]( auto const& e ){ return util::log::to_xml( e ); }, mv.value );
+
+            csn.put( "<xmlattr>.key", mv.key );
+            csn.put_child( "value", val );
+
+            kmap::util::log::Singleton::instance().call_stack.add( "fvalue", csn );
+        }
+    }
+#endif // KMAP_LOG
 
     kvs.emplace_back( mv );
+}
+
+auto LocalLog::values() const
+    -> std::vector< MultiValue > const&
+{
+    return kvs;
 }
 
 auto dump_about( Kmap const& km
@@ -131,6 +172,41 @@ auto dump_about( Kmap const& km
            , { "path", path } };
 }
 
+auto to_string( LocalLog::MultiValue const& mv )
+    -> std::string
+{
+    auto ss = std::stringstream{};
+    auto const dispatch = util::Dispatch
+    {
+        [ & ]( char const* arg )
+        {
+            ss << "'"
+                << arg
+                << "'";
+        }
+    ,   [ & ]( std::string const& arg )
+        {
+            ss << "'"
+                << arg
+                << "'";
+        }
+    ,   [ & ]( Uuid const& arg )
+        {
+            ss << to_string( result::dump_about( kmap::Singleton::instance(), arg ) );
+        }
+    ,   [ & ]( std::vector< LocalLog::MultiValue > const& arg )
+        {
+            ss << "{"
+                << to_string( arg )
+                << "}";
+        }
+    };
+
+    std::visit( dispatch, mv.value );
+
+    return ss.str();
+}
+
 auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
     -> std::string
 {
@@ -140,65 +216,7 @@ auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
 
     for( auto const& mv : mvs )
     {
-        ss << "'"
-           << mv.key
-           << "'"
-           << ":";
-        auto const dispatch = util::Dispatch
-        {
-            [ & ]( char const* arg )
-            {
-                ss << "'"
-                   << arg
-                   << "'";
-            }
-        ,   [ & ]( std::string const& arg )
-            {
-                ss << "'"
-                   << arg
-                   << "'";
-            }
-        ,   [ & ]( Uuid const& arg )
-            {
-                ss << to_string( result::dump_about( kmap::Singleton::instance(), arg ) );
-            }
-        ,   [ & ]( std::vector< LocalLog::MultiValue > const& arg )
-            {
-                ss << "{"
-                   << to_string( arg )
-                   << "}";
-            }
-        };
-        std::visit( dispatch, mv.value );
-
-        ss << ",";
-
-        // if( mv.values.empty() )
-        // {
-        //     ss << "'"
-        //        << mv.name
-        //        << "'";
-        // }
-        // else
-        // {
-        //     ss << "'"
-        //        << mv.name
-        //        << "'"
-        //        << ":";
-            
-        //     if( mv.values.size() == 1 )
-        //     {
-        //         ss << to_string( mv.values );
-        //     }
-        //     else
-        //     {
-        //         ss << "{"
-        //            << to_string( mv.values )
-        //            << "}";
-        //     }
-            
-        //     ss << ",";
-        // }
+        ss << to_string( mv );
     }
 
     ss << "}";
@@ -206,47 +224,19 @@ auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
     return ss.str();
 }
 
-// auto to_string( LocalLog::MultiValue const& mv )
-//     -> std::string
-// {
-//     if( mv.values.size() == 0 )
-//     {
-//         return fmt::format( "'{}'", mv.name );
-//     }
-//     else
-//     {
-//         auto ss = std::stringstream{};
-
-//         ss << "{ '"
-//            << mv.name
-//            << "'"
-//            << " : ";
-
-//         for( auto const& nmv : mv.values )
-//         {
-//            ss << to_string( nmv )
-//               << ",";
-//         }
-
-//         ss << " }";
-
-//         return ss.str();
-//     }
-// }
-
 auto to_string( LocalLog const& state )
     -> std::string
 {
     auto rv = std::string{};
     auto ss = std::stringstream{};
 
-    ss << to_string( state.kvs );
+    ss << to_string( state.values() );
 
     rv = ss.str();
 
     if( !rv.empty() )
     {
-        rv = js::beautify( rv );
+        rv = util::js::beautify( rv );
     }
 
     return rv;

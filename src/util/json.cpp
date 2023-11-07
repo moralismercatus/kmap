@@ -5,11 +5,16 @@
  ******************************************************************************/
 #include <util/json.hpp>
 
-#include <js_iface.hpp>
+#include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#include <emscripten/bind.h>
+#endif // !KMAP_NATIVE
 
 #include <boost/json.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten/bind.h>
+
 
 #include <string>
 
@@ -93,8 +98,6 @@ SCENARIO( "json::object", "[json]" )
 
 namespace kmap::binding::json {
 
-using namespace emscripten;
-
 auto at( boost::json::object const& jo
        , std::string const& key )
     -> boost::json::value const&
@@ -126,6 +129,9 @@ auto to_string( boost::json::value const& jv )
     }
 }
 
+#if !KMAP_NATIVE
+using namespace emscripten;
+
 EMSCRIPTEN_BINDINGS( kmap_json )
 {
     class_< boost::json::value >( "boost::json::value" )
@@ -138,5 +144,6 @@ EMSCRIPTEN_BINDINGS( kmap_json )
     class_< boost::json::string_view >( "boost::json::string_view" )
         ;
 }
+#endif // !KMAP_NATIVE
 
 } // namespace kmap::binding::json

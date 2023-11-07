@@ -7,7 +7,6 @@
 
 #include "cmd/parser.hpp"
 #include "com/cmd/command.hpp"
-#include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/act/fetch_body.hpp"
 #include "util/result.hpp"
@@ -58,21 +57,25 @@ auto CommandClerk::check_registered()
 
     auto rv = result::make_result< void >();
 
+KMAP_LOG_LINE();
     for( auto const& guard : registered_guards
                            | rvs::values )
     {
         KTRY( check_registered( guard ) );
     }
+KMAP_LOG_LINE();
     for( auto const& arg : registered_arguments
                          | rvs::values )
     {
         KTRY( check_registered( arg ) );
     }
+KMAP_LOG_LINE();
     for( auto const& cmd : registered_commands
                          | rvs::values )
     {
         KTRY( check_registered( cmd ) );
     }
+KMAP_LOG_LINE();
 
     rv = outcome::success();
 
@@ -170,7 +173,7 @@ auto CommandClerk::check_registered( Command const& cmd )
                                        | view2::direct_desc( cmd.guard )
                                        | act2::fetch_node( kmap ) );
             auto const guard_dst_r = KTRYB( vcmd 
-                                          | view2::child( "guard" ) 
+                                          | view2::child( "guard" )
                                           | view2::child 
                                           | view2::resolve 
                                           | act2::fetch_node( kmap ) );
@@ -187,6 +190,7 @@ auto CommandClerk::check_registered( Command const& cmd )
 
             if( reinstall )
             {
+                KMAP_LOG_LINE();
                 KTRY( anchor::node( cmdn.value() )
                     | act2::erase_node( kmap ) );
                 KTRY( install_command( cmd ) ); // Re-install.
@@ -199,6 +203,7 @@ auto CommandClerk::check_registered( Command const& cmd )
 
         if( reinstall )
         {
+            KMAP_LOG_LINE();
             KTRY( install_command( cmd ) );
         }
     }
@@ -220,6 +225,7 @@ auto CommandClerk::check_registered( Guard const& guard )
                          | view2::direct_desc( guard.path )
       ; vnode | act2::exists( kmap ) )
     {
+        // KTRY( print_tree( kmap, KTRY( vnode | act2::fetch_node( kmap ) ) ) );
         auto const matches = [ & ]() -> bool
         {
             return util::match_body_code( kmap, vnode | view2::child( "action" ), guard.action )

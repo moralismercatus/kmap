@@ -10,6 +10,7 @@ add_compile_definitions( ZLIB_CONST=1
                          BOOST_CONTRACT_STATIC_LINK=1
                          BOOST_SML_CFG_DISABLE_MIN_SIZE # See https://github.com/boost-ext/sml/issues/249. Without this defined, UB detected.
                          CATCH_CONFIG_ENABLE_BENCHMARKING=1
+                         KMAP_NATIVE=0
                        )
 
 
@@ -74,9 +75,9 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
                          -sEXCEPTION_DEBUG=1 
                          -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                          -sDEMANGLE_SUPPORT=1 
-                         -sSAFE_HEAP=1 
+                        #  -sSAFE_HEAP=1 
                         #  -fsanitize=address
-                        #  -fsanitize=undefined
+                         -fsanitize=undefined
                          -sASSERTIONS=2 
                          -sSTACK_OVERFLOW_CHECK=2 
                         #  -sWASM=1
@@ -90,10 +91,10 @@ else() # Warning: There is a known but in which a false-positive assert is trigg
 add_link_options( -sALLOW_MEMORY_GROWTH=1 
                   -sNO_DISABLE_EXCEPTION_CATCHING # Flag must be present in both compile and link options
                 #   -s USE_OFFSET_CONVERTER # Needed by -finstrument-functions
-                  -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
+                  # -sSAFE_HEAP=1 # Incompatible with -fsanitize=address
 
                   # -fsanitize=address
-                  # -fsanitize=undefined 
+                  -fsanitize=undefined 
 
                   -sSTACK_SIZE=100MB
                   -sASSERTIONS=2 
@@ -109,6 +110,7 @@ add_executable( emcc.index.html
                 cmd/canvas.cpp
                 cmd/cardinality.cpp
                 cmd/command.cpp
+                cmd/js_bind.cpp
                 cmd/node_manip.cpp
                 cmd/parser.cpp
                 cmd/repair.cpp
@@ -116,7 +118,9 @@ add_executable( emcc.index.html
                 cmd/task.cpp 
                 cmd/text_area.cpp
                 com/autosave/autosave.cpp com/autosave/autosave.hpp
+                com/autosave/js_bind.cpp
                 com/breadcrumb/breadcrumb.cpp com/breadcrumb/breadcrumb.hpp
+                com/canvas/js_bind.cpp
                 com/canvas/canvas.cpp com/canvas/canvas.hpp
                 com/canvas/common.cpp com/canvas/common.hpp
                 com/canvas/layout.cpp com/canvas/layout.hpp
@@ -124,30 +128,43 @@ add_executable( emcc.index.html
                 com/canvas/workspace.cpp com/canvas/workspace.hpp
                 com/chrono/timer.cpp com/chrono/timer.hpp
                 com/cli/cli.cpp com/cli/cli.hpp
+                com/cli/js_bind.cpp
                 com/cmd/cclerk.cpp com/cmd/cclerk.hpp
                 com/cmd/command.cpp com/cmd/command.hpp
                 com/cmd/standard_items.cpp
                 com/database/cache.cpp com/database/cache.hpp
                 com/database/db.cpp com/database/db.hpp
-                com/database/db_fs.cpp com/database/db_fs.hpp
+                com/database/filesystem/db_fs.cpp com/database/filesystem/db_fs.hpp
+                com/database/filesystem/command.cpp com/database/filesystem/command.hpp
+                com/database/js_bind.cpp
                 com/database/query_cache.cpp com/database/query_cache.hpp
                 com/database/root_node.cpp com/database/root_node.hpp
                 com/database/sm.cpp com/database/sm.hpp
                 com/database/util.cpp com/database/util.hpp
                 com/event/event.cpp com/event/event.hpp
                 com/event/event_clerk.cpp com/event/event_clerk.hpp
+                com/event/js_bind.cpp
                 com/filesystem/filesystem.cpp com/filesystem/filesystem.hpp
+                com/filesystem/js_bind.cpp
+                com/jump_stack/js_bind.cpp
                 com/jump_stack/jump_stack.cpp com/jump_stack/jump_stack.hpp
+                com/log/js_bind.cpp
                 com/log/log.cpp com/log/log.hpp
-                com/log/log_task.cpp
+                com/log_task/log_task.cpp com/log_task/log_task.hpp
+                com/log_task/js_bind.cpp
                 com/network/alias.cpp com/network/alias.hpp
                 com/network/command.cpp com/network/command.hpp
+                com/network/js_bind.cpp
                 com/network/network.cpp com/network/network.hpp
                 com/option/command.cpp
+                com/option/js_bind.cpp
                 com/option/option.cpp
                 com/option/option_clerk.cpp
+                com/tag/js_bind.cpp
                 com/tag/tag.cpp com/tag/tag.hpp
+                com/task/js_bind.cpp
                 com/task/task.cpp com/task/task.hpp
+                com/text_area/js_bind.cpp
                 com/text_area/text_area.cpp com/text_area/text_area.hpp
                 com/visnetwork/option.cpp com/visnetwork/option.hpp
                 com/visnetwork/visnetwork.cpp com/visnetwork/visnetwork.hpp
@@ -159,7 +176,8 @@ add_executable( emcc.index.html
                 emcc_bindings.cpp
                 error/master.cpp error/master.hpp
                 filesystem.cpp filesystem.hpp
-                js_iface.cpp js_iface.hpp
+                js/iface.cpp js/iface.hpp
+                js/scoped_code.cpp js/scoped_code.hpp
                 kmap.cpp kmap.hpp
                 kmap/binding/js/result.cpp kmap/binding/js/result.hpp
                 lineage.cpp
@@ -232,6 +250,9 @@ add_executable( emcc.index.html
                 test/util/util.cpp
                 util/clerk/clerk.cpp util/clerk/clerk.hpp
                 util/json.cpp util/json.hpp
+                util/log/log.cpp util/log/log.hpp
+                util/log/xml.cpp util/log/xml.hpp
+                util/markdown.cpp util/markdown.hpp
                 util/profile.cpp util/profile.hpp
                 util/result.cpp util/result.hpp
                 util/script/script.cpp util/script/script.hpp
@@ -257,12 +278,12 @@ add_dependencies( emcc.index.html
 link_directories( ${CMAKE_BINARY_DIR}/lib )
 
 target_link_libraries( emcc.index.html
-                      ${CMAKE_BINARY_DIR}/lib/libboost_chrono.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_contract.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_filesystem.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_json.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_system.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_timer.bc
+                      ${CMAKE_BINARY_DIR}/lib/libboost_chrono.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_unit_test_framework.bc
                       ${CMAKE_BINARY_DIR}/lib/libcrypto.bc
                       ${CMAKE_BINARY_DIR}/lib/libfmt.bc

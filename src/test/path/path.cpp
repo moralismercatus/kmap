@@ -5,7 +5,6 @@
  ******************************************************************************/
 #include "../master.hpp"
 #include "com/canvas/canvas.hpp"
-#include "js_iface.hpp"
 #include "kmap.hpp"
 #include "path/node_view.hpp"
 

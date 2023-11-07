@@ -11,7 +11,7 @@
 #include <com/event/event_clerk.hpp>
 #include <common.hpp>
 #include <component.hpp>
-#include <js_iface.hpp>
+#include <js/scoped_code.hpp>
 #include <kmap.hpp>
 #include <path/node_view2.hpp>
 

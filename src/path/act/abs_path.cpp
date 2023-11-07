@@ -3,16 +3,17 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "abs_path.hpp"
+#include <path/act/abs_path.hpp>
 
-#include "com/database/root_node.hpp"
-#include "com/network/network.hpp"
-#include "common.hpp"
-#include "kmap.hpp"
-#include "path.hpp"
-#include "path/node_view.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
+#include <com/database/root_node.hpp>
+#include <com/network/network.hpp>
+#include <common.hpp>
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <path.hpp>
+#include <path/node_view.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <catch2/catch_test_macros.hpp>

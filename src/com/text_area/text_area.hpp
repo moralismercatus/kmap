@@ -7,13 +7,13 @@
 #ifndef KMAP_TEXT_AREA_HPP
 #define KMAP_TEXT_AREA_HPP
 
-#include "com/cmd/cclerk.hpp"
-#include "com/canvas/pane_clerk.hpp"
-#include "com/event/event_clerk.hpp"
-#include "com/option/option_clerk.hpp"
-#include "common.hpp"
-#include "component.hpp"
-#include "js_iface.hpp"
+#include <com/cmd/cclerk.hpp>
+#include <com/canvas/pane_clerk.hpp>
+#include <com/event/event_clerk.hpp>
+#include <com/option/option_clerk.hpp>
+#include <common.hpp>
+#include <component.hpp>
+#include <js/scoped_code.hpp>
 
 #include <string>
 #include <vector>
@@ -50,7 +50,7 @@ public:
     auto apply_static_options()
         -> Result< void >;
     auto clear()
-        -> void;
+        -> Result< void >;
     auto register_panes()
         -> Result< void >;
     auto register_standard_commands()
@@ -64,31 +64,31 @@ public:
     auto load_preview( Uuid const& node )
         -> Result< void >;
     auto set_editor_text( std::string const& text )
-        -> void;
+        -> Result< void >;
     auto focus_editor()
-        -> void;
+        -> Result< void >;
     auto focus_preview()
-        -> void;
+        -> Result< void >;
     auto editor_contents()
-        -> std::string;
+        -> Result< std::string >;
     auto hide_editor()
         -> Result< void >;
     auto show_editor()
         -> Result< void >;
     auto rebase_pane( float const base )
-        -> void;
+        -> Result< void >;
     auto rebase_preview_pane( float const base )
-        -> void;
+        -> Result< void >;
     auto rebase_editor_pane( float const base )
-        -> void;
+        -> Result< void >;
     auto show_preview( std::string const& text )
         -> Result< void >;
     auto hide_preview()
         -> Result< void >;
     auto resize_preview( std::string const& attr )
-        -> void;
+        -> Result< void >;
     auto update_pane()
-        -> void;
+        -> Result< void >;
 };
 
 } // namespace kmap::com

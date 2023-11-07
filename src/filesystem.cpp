@@ -9,7 +9,6 @@
 #include <util/result.hpp>
 
 #include <boost/filesystem.hpp>
-#include <emscripten.h>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/range/operations.hpp>
 #include <range/v3/view/transform.hpp>

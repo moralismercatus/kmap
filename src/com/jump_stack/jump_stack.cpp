@@ -9,13 +9,16 @@
 #include <com/network/network.hpp>
 #include <com/visnetwork/visnetwork.hpp>
 #include <contract.hpp>
-#include <emcc_bindings.hpp>
-#include <js_iface.hpp>
 #include <kmap.hpp>
-#include <path/disambiguate.hpp>
+#include <path.hpp>
 #include <path/act/order.hpp>
+#include <path/disambiguate.hpp>
 #include <test/util.hpp>
 #include <util/result.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -226,6 +229,7 @@ auto JumpStack::build_pane_table()
 
     auto rv = result::make_result< void >();
 
+#if !KMAP_NATIVE
     KTRY( js::eval_void( 
 R"%%%(
 const canvas = kmap.canvas();
@@ -256,6 +260,7 @@ for( let i = 0; i < 10; ++i )
 
 tbl.appendChild( tbl_body );
 )%%%" ) );
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -412,6 +417,9 @@ auto JumpStack::jump_out()
     return rv;
 }
 
+// TODO: Are jump_in/out even used? I notice that outlet for node selected uses push_transition.
+//       I think they are, but I'm not sure they _should be_. Maybe jump_out, but I imagine jump_in has been superceded fully by push_transition.
+//       The contents of the test may properly carry over to push_transition, though. 
 SCENARIO( "JumpStack::jump_in/out", "[jump_stack]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "jump_stack" );
@@ -430,6 +438,10 @@ SCENARIO( "JumpStack::jump_in/out", "[jump_stack]" )
         WHEN( ":@/a.1" )
         {
             REQUIRE_TRY( nw->select_node( n1 ) );
+            
+            #if KMAP_NATIVE
+            REQUIRE_TRY( jstack->push_transition( root, n1 ) ); // Native omits JS-based events, so transition event fired by select_node won't be captured.
+            #endif // KMAP_NATIVE
 
             REQUIRE( jstack->active_item_index() );
             REQUIRE( jstack->active_item_index().value() == 0 );
@@ -552,14 +564,7 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
                               | rvs::transform( [ & ]( auto const& e ){ return num_to_node_map.at( e ); } )
                               | ranges::to< std::deque< Uuid > >();
 
-            // for( auto const& jse : jstack->stack() )
-            // {
-            //     fmt::print( "jstack[i]: {}\n", REQUIRE_TRY( nw->fetch_heading( jse ) ) );
-            // }
-            // for( auto const& tse : tstack )
-            // {
-            //     fmt::print( "tstack[i]: {}\n", REQUIRE_TRY( nw->fetch_heading( tse ) ) );
-            // }
+            // fmt::print( "{} == {}\n", jstack->stack().size(), tstack.size() );
 
             return jstack->stack() == tstack;
         };
@@ -568,7 +573,7 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
         {
             REQUIRE( check( 1, 1, {} ) );
             REQUIRE( check( 1, 2, {} ) );
-            REQUIRE( check( 1, 3, { 1 } ) );
+            REQUIRE( check( 1, 3, { 1 } ) ); // Non-adjacent, but repeat
             REQUIRE( check( 1, 4, { 1 } ) ); // Non-adjacent, but repeat
             REQUIRE( check( 2, 1, { 1 } ) );
             REQUIRE( check( 2, 2, { 1 } ) );
@@ -656,6 +661,7 @@ auto JumpStack::update_pane()
     KM_RESULT_PROLOG();
 
     auto rv = result::make_result< void >();
+#if !KMAP_NATIVE
     auto const raw_code = 
 R"%%%(
 const canvas = kmap.canvas();
@@ -709,52 +715,11 @@ for( let i = 0
     auto const pped = KTRY( js::preprocess( raw_code ) );
 
     KTRY( js::eval_void( pped ) );
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
     return rv;
-}
-
-auto is_parent( com::Network const& nw
-              , Uuid const& parent
-              , Uuid const& child )
-    -> bool
-{
-    return KTRYB( nw.fetch_parent( child ) ) == parent;
-}
-
-auto is_sibling_adjacent( Kmap const& km
-                        , Uuid const& node
-                        , Uuid const& other )
-    -> bool
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH( "node", node );
-        KM_RESULT_PUSH( "other", other );
-    // Ensure nodes are siblings.
-    {
-        auto const nw = KTRYE( km.fetch_component< com::Network >() );
-        auto const np = KTRYB( nw->fetch_parent( node ) );
-        auto const op = KTRYB( nw->fetch_parent( other ) );
-
-        KENSURE_B( np == op );
-    }
-    
-    auto const siblings = anchor::node( node )
-                        | view2::sibling_incl
-                        | view2::order
-                        | act2::to_node_vec( km );
-    auto const it1 = ranges::find( siblings, node );
-    auto const it2 = ranges::find( siblings, other );
-
-    if( it1 < it2 )
-    {
-        return std::distance( it1, it2 ) == 1;
-    }
-    else
-    {
-        return std::distance( it2, it1 ) == 1; 
-    }
 }
 
 namespace {
@@ -770,142 +735,5 @@ REGISTER_COMPONENT
 );
 
 } // namespace jump_stack_def 
-
-namespace binding
-{
-    using namespace emscripten;
-
-    struct JumpStack
-    {
-        Kmap& km_;
-
-        auto active_item_index() const
-            -> kmap::com::JumpStack::Stack::size_type
-        {
-            KM_RESULT_PROLOG();
-
-            auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
-
-            return jstack->active_item_index().value_or( 0 );
-        }
-        // TODO: format_cell_label (not even sure 'format' is right term...)
-        auto format_node_label( Uuid const& node )
-            -> Result< std::string >
-        {
-            KM_RESULT_PROLOG();
-                KM_RESULT_PUSH( "node", node );
-
-            auto rv = result::make_result< std::string >();
-            auto const nl = com::format_node_label( km_, node );
-            auto const disset = KTRY( disambiguate_path3( km_, node ) );
-
-            if( disset.empty() )
-            {
-                rv = nl;
-            }
-            else
-            {
-                KMAP_ENSURE( disset.contains( node ), error_code::common::uncategorized );
-
-                auto const disroot_path = disset.at( node );
-
-                if( disroot_path.empty() )
-                {
-                    rv = nl;
-                }
-                else
-                {
-                    rv = fmt::format( "{}<br>{}", nl, disroot_path );
-                }
-            }
-
-            return rv;
-        }
-        auto jump_in()
-            -> kmap::Result< void >
-        {
-            KM_RESULT_PROLOG();
-
-            auto rv = KMAP_MAKE_RESULT( void );
-            auto const jstack = KTRY( km_.fetch_component< com::JumpStack >() );
-
-            KTRY( jstack->jump_in() );
-
-            rv = outcome::success();
-
-            return rv;
-        }
-        auto jump_out()
-            -> kmap::Result< void >
-        {
-            KM_RESULT_PROLOG();
-
-            auto rv = KMAP_MAKE_RESULT( void );
-            auto const jstack = KTRY( km_.fetch_component< com::JumpStack >() );
-
-            KTRY( jstack->jump_out() );
-
-            rv = outcome::success();
-
-            return rv;
-        }
-        auto push_transition( Uuid const& from
-                            , Uuid const& to )
-            -> kmap::Result< void >
-        {
-            KM_RESULT_PROLOG();
-                KM_RESULT_PUSH_NODE( "from", from );
-                KM_RESULT_PUSH_NODE( "to", to );
-
-            auto rv = KMAP_MAKE_RESULT( void );
-            auto const jstack = KTRY( km_.fetch_component< com::JumpStack >() );
-
-            KTRY( jstack->push_transition( from, to ) );
-
-            rv = outcome::success();
-
-            return rv;
-        }
-        auto set_threshold( unsigned const& max )
-            -> void
-        {
-            KM_RESULT_PROLOG();
-
-            auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
-
-            jstack->threshold( max );
-        }
-        auto stack() const
-            -> std::vector< Uuid >
-        {
-            KM_RESULT_PROLOG();
-
-            auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
-
-            return jstack->stack() | ranges::to< std::vector >();
-        }
-    };
-
-    auto jump_stack()
-        -> binding::JumpStack
-    {
-        return binding::JumpStack{ kmap::Singleton::instance() };
-    }
-
-    EMSCRIPTEN_BINDINGS( kmap_jump_stack )
-    {
-        function( "jump_stack", &kmap::com::binding::jump_stack );
-        class_< kmap::com::binding::JumpStack >( "JumpStack" )
-            .function( "active_item_index", &kmap::com::binding::JumpStack::active_item_index )
-            .function( "format_node_label", &kmap::com::binding::JumpStack::format_node_label )
-            .function( "jump_in", &kmap::com::binding::JumpStack::jump_in )
-            .function( "jump_out", &kmap::com::binding::JumpStack::jump_out )
-            .function( "push_transition", &kmap::com::binding::JumpStack::push_transition )
-            .function( "set_threshold", &kmap::com::binding::JumpStack::set_threshold )
-            .function( "stack", &kmap::com::binding::JumpStack::stack )
-            ;
-    }
-} // namespace binding
 } // namespace anon
-
 } // namespace kmap::com

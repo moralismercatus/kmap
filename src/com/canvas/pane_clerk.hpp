@@ -45,6 +45,8 @@ public:
         -> Result< void >;
 
 protected:
+    auto ensure_html_element_exists( Uuid const& id )
+        -> Result< void >;
     auto install_pane( Pane const& pane )
         -> Result< Uuid >;
     auto install_overlay( Overlay const& overlay )

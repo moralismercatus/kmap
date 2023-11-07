@@ -7,11 +7,11 @@
 #ifndef KMAP_CLI_HPP
 #define KMAP_CLI_HPP
 
-#include "arg.hpp"
-#include "common.hpp"
-#include "component.hpp"
-#include "js_iface.hpp"
-#include "utility.hpp"
+#include <arg.hpp>
+#include <common.hpp>
+#include <component.hpp>
+#include <js/scoped_code.hpp>
+#include <utility.hpp>
 #include <com/canvas/pane_clerk.hpp>
 #include <com/event/event_clerk.hpp>
 #include <com/option/option_clerk.hpp>

@@ -3,172 +3,145 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "com/event/event.hpp"
-#include "com/event/event_clerk.hpp"
-#include "com/network/network.hpp"
-#include "com/log/log.hpp"
-#include "com/tag/tag.hpp"
-#include "com/task/task.hpp"
-#include "component.hpp"
-#include "contract.hpp"
-#include "emcc_bindings.hpp"
-#include "kmap.hpp"
-#include "path/act/order.hpp"
-#include "path/node_view.hpp"
-#include "test/util.hpp"
-#include "util/result.hpp"
+#include <com/log_task/log_task.hpp>
+
+#include <com/event/event.hpp>
+#include <com/event/event_clerk.hpp>
+#include <com/network/network.hpp>
+#include <com/log/log.hpp>
+#include <com/tag/tag.hpp>
+#include <com/task/task.hpp>
+#include <component.hpp>
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <path/act/order.hpp>
+#include <path/node_view.hpp>
+#include <test/util.hpp>
+#include <util/result.hpp>
 
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten/bind.h>
 
 namespace kmap::com {
 
-// TODO: So... the gist here is that there is Log and Task, and there's no interdependency between them, though they do publish events about their doings.
-//       Rather, there's a 3rd party that performs the interplay, "bridges" them. That is what this is trying to achieve. It consumes the events and dispatches
-//       to each. Maybe the "bridge" concept isn't even the right approach. Maybe individual outlets are the way to go, but that is what is ultimately installed.
-//       The bridge is just a place to gather the functionality into a file.
-//       Part of the gist is avoiding needing to alter Kmap.hpp/.cpp code to be aware of this component. An idea is to use something like the command registration.
-//       The other requirement is for dependencies. Basically, this has other component dependencies. If that can somehow be communicated, then we won't hit the continual
-//       uninitialized dep problem.
-// TODO: A thought on how to achieve dependency resolution is through event system. Basically, when each component is initialized, it fires an event notifying its init-completion.
-//       Other dependent components await requisite event notifications. For the possibility that a component isn't listening before a component fires init'd, some kind of
-//       state would need to be maintained: if requisites already fired, init this component, otherwise, wait until all requisites fired.
-//       This would allow for a dynamic means of handling component dependencies. It would also mean that _at least_ `EventStore` would need to be a common dependency.
-//       I.e., EventStore is initialized before dynamic components.
-//       A component might look something like: if req components fired, then init, else, create outlet for reqs that will call this component to be initialized.
-//       It's a little complicated, because it's not like all req components are fired at the same time; however, it may be possible to make it work:
-//       An outlet that listens for { "subject.component", "verb.commissioned" }, so any init'd fired will trigger. (following: { "verb.decommissioned" } on dtor)
-//       Assuming I can integrate the payload mechanism, the payload can contain the ID of the component intialized, and store it somewhere, in a component store of some sort.
-//       Then, each component can query this store on creation to see if it can be initialized at the outset, or listen for { "subject.component", "verb.commissioned" }
-//       to inspect the component store for requisites. Outlet for ComponentStore must precede component outlets.
-struct LogTask : public Component
+LogTask::LogTask( Kmap& kmap
+                , std::set< std::string > const& requisites
+                , std::string const& description )
+    : Component{ kmap, requisites, description }
+    , eclerk_{ kmap }
 {
-    static constexpr auto id = "log_task";
-    constexpr auto name() const -> std::string_view override { return id; }
+    KM_RESULT_PROLOG();
 
-    com::EventClerk eclerk_;
+    KTRYE( register_standard_events() );
+}
 
-    LogTask( Kmap& kmap
-           , std::set< std::string > const& requisites
-           , std::string const& description )
-        : Component{ kmap, requisites, description }
-        , eclerk_{ kmap }
+auto LogTask::initialize()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KTRY( eclerk_.install_registered() );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto LogTask::load()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    KTRY( eclerk_.check_registered() );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto LogTask::register_standard_events()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    // Note: Under domain of "log", as no change is actually made to task, all changes made to log.
+    eclerk_.register_outlet( Leaf{ .heading = "log.add_task_when_task_activated"
+                                    , .requisites = { "subject.task_store", "verb.open.activated", "object.task" }
+                                    , .description = "adds task to log task list when a task is opened"
+                                    , .action = R"%%%(kmap.log_task().push_task_to_log();)%%%" } );
+    eclerk_.register_outlet( Leaf{ .heading = "log.add_active_tasks_on_daily_log_creation"
+                                    , .requisites = { "subject.log", "verb.created", "object.daily" }
+                                    , .description = "adds active tasks to task list when new daily log is created"
+                                    , .action = R"%%%(kmap.log_task().push_active_tasks_to_log();)%%%" } );
+    
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto LogTask::push_task_to_log()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto rv = KMAP_MAKE_RESULT( void );
+
+    auto& kmap = kmap_inst();
+    auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
+    auto const nw = KTRY( kmap.fetch_component< com::Network >() );
+    auto const payload = KTRY( estore->fetch_payload() );
+    auto const task = KTRY( uuid_from_string( std::string{ payload.at( "task_id" ).as_string() } ) );
+    auto const dl = KTRY( com::fetch_or_create_daily_log( kmap ) );
+
+    KMAP_ENSURE( nw->exists( task ), error_code::network::invalid_node );
+
+    KTRY( view::make( dl )
+        | view::child( "task" )
+        | view::alias( view::Alias::Src{ task } )
+        | view::fetch_or_create_node( kmap ) );
+
+    rv = outcome::success();
+
+    return rv;
+}
+
+auto LogTask::push_active_tasks_to_log()
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+
+    auto& km = kmap_inst();
+    auto const tag_store = KTRY( fetch_component< TagStore >() );
+    auto const active_tag = KTRY( tag_store->fetch_tag( "task.status.open.active" ) ); 
+    auto const has_active_tag = [ & ]( Uuid const& n )
     {
-        KM_RESULT_PROLOG();
+        return tag_store->has_tag( n, active_tag );
+    };
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const task_root = KTRY( fetch_task_root( km ) );
+    auto const active_tasks = view::make( task_root )
+                            | view::child( view::PredFn{ has_active_tag } ) // TODO: Need view::task instead of view::child, as a non-task could be a child.
+                            | view::to_node_set( km )
+                            | act::order( km );
+    auto const dl = KTRY( com::fetch_or_create_daily_log( km ) );
 
-        KTRYE( register_standard_events() );
-    }
-    virtual ~LogTask() = default;
-
-    auto initialize()
-        -> Result< void > override
+    for( auto const& active_task : active_tasks )
     {
-        KM_RESULT_PROLOG();
-
-        auto rv = KMAP_MAKE_RESULT( void );
-
-        KTRY( eclerk_.install_registered() );
-
-        rv = outcome::success();
-
-        return rv;
-    }
-
-    auto load()
-        -> Result< void > override
-    {
-        KM_RESULT_PROLOG();
-
-        auto rv = KMAP_MAKE_RESULT( void );
-
-        KTRY( eclerk_.check_registered() );
-
-        rv = outcome::success();
-
-        return rv;
-    }
-
-    auto register_standard_events()
-        -> Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto rv = KMAP_MAKE_RESULT( void );
-
-        // Note: Under domain of "log", as no change is actually made to task, all changes made to log.
-        eclerk_.register_outlet( Leaf{ .heading = "log.add_task_when_task_activated"
-                                     , .requisites = { "subject.task_store", "verb.open.activated", "object.task" }
-                                     , .description = "adds task to log task list when a task is opened"
-                                     , .action = R"%%%(kmap.log_task().push_task_to_log();)%%%" } );
-        eclerk_.register_outlet( Leaf{ .heading = "log.add_active_tasks_on_daily_log_creation"
-                                     , .requisites = { "subject.log", "verb.created", "object.daily" }
-                                     , .description = "adds active tasks to task list when new daily log is created"
-                                     , .action = R"%%%(kmap.log_task().push_active_tasks_to_log();)%%%" } );
-        
-        rv = outcome::success();
-
-        return rv;
-    }
-
-    auto push_task_to_log()
-        -> Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto rv = KMAP_MAKE_RESULT( void );
-
-        auto& kmap = kmap_inst();
-        auto const estore = KTRY( kmap.fetch_component< com::EventStore >() );
-        auto const nw = KTRY( kmap.fetch_component< com::Network >() );
-        auto const payload = KTRY( estore->fetch_payload() );
-        auto const task = KTRY( uuid_from_string( std::string{ payload.at( "task_id" ).as_string() } ) );
-        auto const dl = KTRY( com::fetch_or_create_daily_log( kmap ) );
-
-        KMAP_ENSURE( nw->exists( task ), error_code::network::invalid_node );
-
         KTRY( view::make( dl )
             | view::child( "task" )
-            | view::alias( view::Alias::Src{ task } )
-            | view::fetch_or_create_node( kmap ) );
-
-        rv = outcome::success();
-
-        return rv;
+            | view::alias( view::Alias::Src{ active_task } ) // TODO: Why not view::alias( open_tasks [UuidVec]? )
+            | view::fetch_or_create_node( km ) );
     }
+    
+    rv = outcome::success();
 
-    auto push_active_tasks_to_log()
-        -> Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto& km = kmap_inst();
-        auto const tag_store = KTRY( fetch_component< TagStore >() );
-        auto const active_tag = KTRY( tag_store->fetch_tag( "task.status.open.active" ) ); 
-        auto const has_active_tag = [ & ]( Uuid const& n )
-        {
-            return tag_store->has_tag( n, active_tag );
-        };
-        auto rv = KMAP_MAKE_RESULT( void );
-        auto const task_root = KTRY( fetch_task_root( km ) );
-        auto const active_tasks = view::make( task_root )
-                              | view::child( view::PredFn{ has_active_tag } ) // TODO: Need view::task instead of view::child, as a non-task could be a child.
-                              | view::to_node_set( km )
-                              | act::order( km );
-        auto const dl = KTRY( com::fetch_or_create_daily_log( km ) );
-
-        for( auto const& active_task : active_tasks )
-        {
-            KTRY( view::make( dl )
-                | view::child( "task" )
-                | view::alias( view::Alias::Src{ active_task } ) // TODO: Why not view::alias( open_tasks [UuidVec]? )
-                | view::fetch_or_create_node( km ) );
-        }
-        
-        rv = outcome::success();
-
-        return rv;
-    }
-};
+    return rv;
+}
 
 SCENARIO( "push active tasks to new daily log", "[cmd][log][task]" )
 {
@@ -337,41 +310,6 @@ SCENARIO( "push active tasks to new daily log", "[cmd][log][task]" )
 } // namespace kmap::com
 
 namespace {
-
-struct LT
-{ 
-    kmap::Kmap& km;
-
-    LT( kmap::Kmap& kmap )
-        : km{ kmap }
-    {
-    }
-
-    auto push_task_to_log()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_task_to_log();
-    }
-    auto push_active_tasks_to_log()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.fetch_component< kmap::com::LogTask >() )->push_active_tasks_to_log();
-    }
-};
-
-auto log_task()
-    -> LT
-{
-    return LT{ kmap::Singleton::instance() };
-}
-
-} // namespace anonymous
-
-namespace {
 namespace log_task_def {
 
 using namespace std::string_literals;
@@ -385,15 +323,3 @@ REGISTER_COMPONENT
 
 } // namespace log_task_def 
 } // namespace anonymous
-
-using namespace emscripten;
-
-EMSCRIPTEN_BINDINGS( kmap_com_log_task )
-{
-    function( "log_task", &::log_task );
-
-    class_< LT >( "LogTask" )
-        .function( "push_task_to_log", &::LT::push_task_to_log )
-        .function( "push_active_tasks_to_log", &::LT::push_active_tasks_to_log )
-        ;
-}

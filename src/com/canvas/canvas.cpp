@@ -17,8 +17,6 @@
 #include <error/network.hpp>
 #include <error/node_manip.hpp>
 #include <filesystem.hpp>
-#include <js_iface.hpp>
-#include <kmap/binding/js/result.hpp>
 #include <path.hpp>
 #include <path/act/abs_path.hpp>
 #include <path/act/order.hpp>
@@ -30,11 +28,13 @@
 #include <util/result.hpp>
 #include <util/window.hpp>
 
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
+
 #include <boost/filesystem.hpp>
 #include <boost/json/parse.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <emscripten.h>
-#include <emscripten/val.h>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/algorithm/contains.hpp>
 #include <range/v3/algorithm/find_if.hpp>
@@ -84,7 +84,9 @@ Canvas::~Canvas()
 
         // TODO: This *should* implicitly erase all HTML elements recursively, but should I do it explicitly?
         //       Any benefit/need to do it explicitly?
+        #if !KMAP_NATIVE
         KTRYW( js::erase_child_element( to_string( util_canvas_uuid ) ) );
+        #endif // !KMAP_NATIVE
 
         if( auto const croot = view2::canvas::canvas_root
                              | act2::fetch_node( km )
@@ -136,12 +138,6 @@ auto Canvas::load()
 
     return rv;
 }
-
-// auto Canvas::init_event_callbacks()
-//     -> Result< void >
-// {
-//     return js::eval_void( "window.onresize = function(){ kmap.canvas().update_all_panes(); };" );
-// }
 
 auto Canvas::install_events()
     -> Result< void >
@@ -423,8 +419,6 @@ auto Canvas::is_overlay( Uuid const& node )
 auto Canvas::is_pane( Uuid const& node ) const
     -> bool
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH( "node", node );
 
@@ -447,7 +441,6 @@ auto Canvas::is_pane( Uuid const& node ) const
                              , "hidden"
                              , "type"
                              , "subdivision" );
-            //   && js::fetch_element_by_id< val >( to_string( node ) ).has_value();
         }
     }
 
@@ -457,8 +450,6 @@ auto Canvas::is_pane( Uuid const& node ) const
 auto Canvas::set_breadcrumb( UuidVec const& bc )
     -> Result< void >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
@@ -501,12 +492,17 @@ auto Canvas::set_breadcrumb( UuidVec const& bc )
                                            , fmt::format( "{}", index ) // Simply use enumeration value as pane heading.
                                            , Division{ Orientation::horizontal, accumulated_width, false, "div" } ) );
         io::print( "created subdivision: {}, {}\n", index, to_string( subdiv ) );
-        auto div = KTRY( js::fetch_element_by_id< val >( to_string( subdiv ) ) );
-        auto style = KTRYE( js::fetch_style_member( to_string( subdiv ) ) ); 
 
-        div.set( "innerText", fmt::format( "{}", title ) );
-        div.set( "onclick", fmt::format( "function(){{ kmap.select_node( '{}' ).throw_on_error(); }}", to_string( target ) ) );
-        style.set( "color", "black" );
+        #if !KMAP_NATIVE
+        KTRY( js::eval_void( fmt::format( "const elem = document.getElementById( '{}' );"
+                                          "elem.innerText = '{}';"
+                                          "elem.onclick = function(){{ kmap.select_node( '{}' ).throw_on_error(); }};"
+                                          "elem.style.color = 'black';"
+                                        , to_string( subdiv )
+                                        , title
+                                        , to_string( target ) ) ) );
+        #endif // !KMAP_NATIVE
+
         accumulated_width += 0.10;//calc_text_width( title );
     }
 
@@ -578,6 +574,8 @@ auto Canvas::update_overlays()
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( void );
+
+#if !KMAP_NATIVE
     auto const& km = kmap_inst();
     auto const canvas_root = KTRY( view2::canvas::canvas_root
                                  | act2::fetch_node( km ) );
@@ -592,6 +590,7 @@ auto Canvas::update_overlays()
             KTRY( create_html_child_element( "div", canvas_root, overlay ) );
         }
     }
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -641,14 +640,12 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     -> Result< void >
 {
     KMAP_PROFILE_SCOPE();
-    using emscripten::val;
 
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "root", root );
 
     auto rv = KMAP_MAKE_RESULT( void );
     auto const nw = KTRY( fetch_component< com::Network >() );
-    auto const subdivn = KTRY( pane_subdivision( root ) );
     
     KMAP_ENSURE( is_pane( root ), error_code::network::invalid_node );
 
@@ -656,6 +653,9 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
     //       The one piece I'm missing - I think - is the type of element ('text_area', 'div', etc.). If I have this info,
     //       No problem!
     // html element creation must happen before subdiv, as subdiv depends on parent element.
+#if !KMAP_NATIVE
+    auto const subdivn = KTRY( pane_subdivision( root ) );
+
     if( !js::exists( root ) )
     {
         KTRY( create_html_element( root ) );
@@ -700,6 +700,7 @@ auto Canvas::update_pane_descending( Uuid const& root ) // TODO: Lineal< window_
 
         KTRY( js::eval_void( io::format( "document.getElementById( '{}' ).hidden={};", to_string( root ), hidden_body ) ) );
     }
+#endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -891,6 +892,7 @@ auto Canvas::reorient( Uuid const& pane )
     {
         switch( prev_orient )
         {
+            default: KMAP_THROW_EXCEPTION_MSG( "invalid enum val" );
             case Orientation::horizontal: return Orientation::vertical;
             case Orientation::vertical: return Orientation::horizontal;
         }
@@ -920,8 +922,6 @@ auto Canvas::hide_internal( Uuid const& pane
                           , bool const hidden )
     -> Result< void >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "pane", pane );
 
@@ -954,8 +954,9 @@ auto Canvas::create_html_canvas( Uuid const& id )
         
     auto rv = KMAP_MAKE_RESULT( void );
 
-fmt::print( "Canvas::create_html_canvas( {} );\n", to_string( id ) );
+    #if !KMAP_NATIVE
     KTRY( js::create_html_canvas( to_string( id ) ) );
+    #endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -970,7 +971,9 @@ auto Canvas::create_html_element( Uuid const& pane )
     auto rv = result::make_result< void >();
     auto const& km = kmap_inst();
 
+    #if !KMAP_NATIVE
     KMAP_ENSURE( !js::exists( pane ), error_code::common::uncategorized );
+    #endif // !KMAP_NATIVE
 
     auto const canvas_root = KTRY( view2::canvas::canvas_root
                                  | act2::fetch_node( km ) );
@@ -1006,8 +1009,10 @@ auto Canvas::create_html_child_element( std::string const& elem_type
 
     auto rv = KMAP_MAKE_RESULT( void );
 
+    #if !KMAP_NATIVE
     KTRY( js::create_child_element( to_string( parent_id ), to_string( child_id ), elem_type ) );
     KTRY( js::set_tab_index( to_string( child_id ), next_tabindex_++ ) );
+    #endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -1178,6 +1183,7 @@ auto Canvas::create_html_root_element( Uuid const& root_pane )
 
     auto rv = KMAP_MAKE_RESULT( void );
 
+    #if !KMAP_NATIVE
     BC_ASSERT( !js::element_exists( to_string( root_pane ) ) );
 
     // TODO: Shouldn't... this be a child of the 'canvas' element that we created?
@@ -1188,6 +1194,7 @@ auto Canvas::create_html_root_element( Uuid const& root_pane )
                                      "let body_tag = document.getElementsByTagName( 'body' )[ 0 ];"
                                      "body_tag.appendChild( canvas_div );" 
                                     , to_string( root_pane ) ) ) );
+    #endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -1197,8 +1204,6 @@ auto Canvas::create_html_root_element( Uuid const& root_pane )
 auto Canvas::ensure_root_initialized()
     -> Result< Uuid >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
@@ -1369,8 +1374,6 @@ auto Canvas::pane_path( Uuid const& subdiv )
 auto Canvas::delete_pane( Uuid const& pane )
     -> Result< void >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "pane", pane );
 
@@ -1378,14 +1381,18 @@ auto Canvas::delete_pane( Uuid const& pane )
     auto const nw = KTRY( fetch_component< com::Network >() );
 
     KMAP_ENSURE( is_pane( pane ), error_code::canvas::invalid_pane );
+    #if !KMAP_NATIVE
     KMAP_ENSURE( js::element_exists( to_string( pane ) ), error_code::canvas::invalid_pane );
+    #endif // !KMAP_NATIVE
     
     for( auto const& sp : KTRY( fetch_subdivisions( pane ) ) )
     {
         KTRY( delete_pane( sp ) );
     }
 
+    #if !KMAP_NATIVE
     KTRY( js::eval_void( fmt::format( "document.getElementById( '{}' ).remove();", to_string( pane ) ) ) );
+    #endif // !KMAP_NATIVE
     KTRY( nw->erase_node( pane ) );
 
     rv = outcome::success();
@@ -1606,14 +1613,14 @@ auto Canvas::fetch_subdivisions( Uuid const& pane )
 auto Canvas::focus( Uuid const& pane )
     -> Result< void >
 {
-    using emscripten::val;
-
     KM_RESULT_PROLOG();
         KM_RESULT_PUSH_NODE( "pane", pane );
     
     auto rv = KMAP_MAKE_RESULT( void );
 
+    #if !KMAP_NATIVE
     KTRY( js::eval_void( io::format( "document.getElementById( '{}' ).focus();", pane ) ) );
+    #endif // !KMAP_NATIVE
 
     rv = outcome::success();
 
@@ -1721,220 +1728,6 @@ auto Canvas::workspace_pane() const
 {
     return workspace_uuid;
 }
-
-namespace binding {
-
-using namespace emscripten;
-
-struct Canvas
-{
-    kmap::Kmap& km;
-
-    Canvas( kmap::Kmap& kmap )
-        : km{ kmap }
-    {
-    }
-
-    auto apply_layout( std::string const& json_contents ) const
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const canvas = KTRYE( km.fetch_component< kmap::com::Canvas >() );
-
-        KTRY( canvas->apply_layout( json_contents ) );
-
-        return outcome::success();
-    }
-
-    auto complete_path( std::string const& path ) const
-        -> StringVec
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRYE( km.fetch_component< kmap::com::Canvas >() )->complete_path( path );
-    }
-
-    auto fetch_base( Uuid const& pane ) const
-        -> kmap::Result< float >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->pane_base( pane );
-    }
-
-    auto fetch_orientation( Uuid const& pane ) const
-        -> kmap::Result< kmap::com::Orientation >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->pane_orientation( pane );
-    }
-
-    auto fetch_pane( std::string const& path ) const
-        -> kmap::Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->fetch_pane( path );
-    }
-    
-    auto focus( Uuid const& pane )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->focus( pane );
-    }
-
-    auto hide( Uuid const& pane )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->hide( pane );
-    }
-
-    auto orient( Uuid const& pane
-               , kmap::com::Orientation const orientation )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->orient( pane, orientation );
-    }
-
-    auto rebase( Uuid const& pane
-               , float const base )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->rebase( pane, base );
-    }
-
-    auto redraw()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->redraw();
-    }
-
-    auto reorient( Uuid const& pane )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->reorient( pane );
-    }
-
-    auto reveal( Uuid const& pane )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->reveal( pane );
-    }
-
-    auto subdivide( Uuid const& pane
-                  , std::string const& heading
-                  , std::string const& orientation
-                  , float const base
-                  , std::string const& elem_type )
-        -> kmap::Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-
-        auto const parsed_orient = KTRY( from_string< Orientation >( orientation ) );
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->subdivide( pane, heading, Division{ parsed_orient, base, false, elem_type } );
-    }
-
-    auto toggle_pane( Uuid const& pane )
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        auto canvas = KTRY( km.fetch_component< kmap::com::Canvas >() );
-        auto const hidden = KTRY( canvas->pane_hidden( pane ) );
-
-        if( hidden )
-        {
-            return canvas->reveal( pane );
-        }
-        else
-        {
-            return canvas->hide( pane );
-        }
-    }
-
-    auto update_all_panes()
-        -> kmap::Result< void >
-    {
-        KM_RESULT_PROLOG();
-
-        return KTRY( km.fetch_component< kmap::com::Canvas >() )->update_all_panes();
-    }
-
-    auto breadcrumb_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->breadcrumb_pane(); } 
-    auto breadcrumb_table_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->breadcrumb_table_pane(); } 
-    auto canvas_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->canvas_pane(); } 
-    auto cli_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->cli_pane(); } 
-    auto completion_overlay() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->completion_overlay(); }
-    auto editor_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->editor_pane(); } 
-    auto jump_stack_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->jump_stack_pane(); }
-    auto network_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->network_pane(); }
-    auto preview_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->preview_pane(); }
-    auto text_area_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->text_area_pane(); }
-    auto workspace_pane() const -> Uuid { KM_RESULT_PROLOG(); return KTRYE( km.fetch_component< kmap::com::Canvas >() )->workspace_pane(); }
-};
-
-auto canvas()
-    -> binding::Canvas
-{
-    return binding::Canvas{ kmap::Singleton::instance() };
-}
-
-EMSCRIPTEN_BINDINGS( kmap_canvas )
-{
-    function( "canvas", &kmap::com::binding::canvas );
-    class_< kmap::com::binding::Canvas >( "Canvas" )
-        .function( "apply_layout", &kmap::com::binding::Canvas::apply_layout )
-        .function( "breadcrumb_pane", &kmap::com::binding::Canvas::breadcrumb_pane )
-        .function( "breadcrumb_table_pane", &kmap::com::binding::Canvas::breadcrumb_table_pane )
-        .function( "canvas_pane", &kmap::com::binding::Canvas::canvas_pane )
-        .function( "cli_pane", &kmap::com::binding::Canvas::cli_pane )
-        .function( "complete_path", &kmap::com::binding::Canvas::complete_path )
-        .function( "completion_overlay", &kmap::com::binding::Canvas::completion_overlay )
-        .function( "editor_pane", &kmap::com::binding::Canvas::editor_pane )
-        .function( "jump_stack_pane", &kmap::com::binding::Canvas::jump_stack_pane )
-        .function( "fetch_base", &kmap::com::binding::Canvas::fetch_base )
-        .function( "fetch_orientation", &kmap::com::binding::Canvas::fetch_orientation )
-        .function( "fetch_pane", &kmap::com::binding::Canvas::fetch_pane )
-        .function( "focus", &kmap::com::binding::Canvas::focus )
-        .function( "hide", &kmap::com::binding::Canvas::hide )
-        .function( "network_pane", &kmap::com::binding::Canvas::network_pane )
-        .function( "orient", &kmap::com::binding::Canvas::orient )
-        .function( "preview_pane", &kmap::com::binding::Canvas::preview_pane )
-        .function( "rebase", &kmap::com::binding::Canvas::rebase )
-        .function( "redraw", &kmap::com::binding::Canvas::redraw )
-        .function( "reorient", &kmap::com::binding::Canvas::reorient )
-        .function( "reveal", &kmap::com::binding::Canvas::reveal )
-        .function( "text_area_pane", &kmap::com::binding::Canvas::text_area_pane )
-        .function( "toggle_pane", &kmap::com::binding::Canvas::toggle_pane )
-        .function( "update_all_panes", &kmap::com::binding::Canvas::update_all_panes )
-        .function( "workspace_pane", &kmap::com::binding::Canvas::workspace_pane )
-        ;
-    enum_< kmap::com::Orientation >( "Orientation" )
-        .value( "horizontal", kmap::com::Orientation::horizontal )
-        .value( "vertical", kmap::com::Orientation::vertical )
-        ;
-}
-    
-KMAP_BIND_RESULT( kmap::com::Orientation );
-
-} // namespace binding
 
 namespace {
 namespace canvas_def {
