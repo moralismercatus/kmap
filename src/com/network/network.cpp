@@ -67,7 +67,7 @@ auto Network::initialize()
     auto rv = KMAP_MAKE_RESULT( void );
     auto const rn = KTRY( fetch_component< com::RootNode >() );
 
-    selected_node_ = rn->root_node();
+    KTRY( select_node_initial( rn->root_node() ) );
     
     rv = outcome::success();
 

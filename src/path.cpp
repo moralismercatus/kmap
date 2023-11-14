@@ -1462,6 +1462,9 @@ auto disambiguate_paths( Kmap const& kmap
     return rv;
 }
 
+// TODO: This should be renamed to "disambiguate_paths".
+//       "disambiguate_path" should return a vector< Uuid > which is the roots, in order, needed to disambiguate.
+//       If node => NodeVec (to_node_vec), then it can be cached, and view2::disambiguate( 10 ) | act2::to_node_vec( km ) can be used, where e.g., "10" is limiting number.
 auto disambiguate_path( Kmap const& km
                       , Uuid const& node )
     -> Result< std::map< Uuid, Uuid > >

@@ -1039,13 +1039,13 @@ auto VisualNetwork::register_standard_events()
     eclerk_.register_outlet( Leaf{ .heading = "network.leave_editor.esc"
                                  , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.esc" }
                                  , .description = "leave editor mode."
-                                 , .action = R"%%%(kmap.on_leaving_editor();)%%%" } );
+                                 , .action = R"%%%(ktry(kmap.on_leaving_editor());)%%%" } );
     eclerk_.register_outlet( Branch{ .heading = "network.leave_editor.control"
                                    , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.control" }
                                    , .transitions = { Leaf{ .heading = "c"
                                                           , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.c" }
                                                           , .description = "leave editor mode."
-                                                          , .action = R"%%%(kmap.on_leaving_editor();)%%%" } } } );
+                                                          , .action = R"%%%(ktry(kmap.on_leaving_editor());)%%%" } } } );
     eclerk_.register_outlet( Leaf{ .heading = "network.update_viewport_scale_on_network_resize"
                                  , .requisites = { "subject.network", "verb.scaled", "object.viewport" }
                                  , .description = "updates network viewport scale option value"

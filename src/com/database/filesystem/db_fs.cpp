@@ -532,14 +532,14 @@ SCENARIO( "save.as after save.as output DBs are mirrored for all listed componen
             KM_LOG_ENABLE( "*" );
             // TODO: I think the thing to do is drop parse_raw, as it requries JS. The command should be unit tested separately.
             //       Rather, we should call the functions directly ("init_on_disk, flush_delta").
-            save_as( disk_path_1 );
+            save_as( abs_disk_path_1 );
             KM_LOG_DISABLE( "*" );
             REQUIRE_TRY( km.load( disk_path_1, initialized_coms ) );
             auto const cache_post_save_1 = fetch_cache();
 
             WHEN( "save.as path_2" )
             {
-                save_as( disk_path_2 );
+                save_as( abs_disk_path_2 );
                 REQUIRE_TRY( km.load( disk_path_2, initialized_coms ) );
 
                 auto const cache_post_save_2 = fetch_cache();

@@ -11,6 +11,7 @@ add_compile_definitions( ZLIB_CONST=1
                          BOOST_SML_CFG_DISABLE_MIN_SIZE # See https://github.com/boost-ext/sml/issues/249. Without this defined, UB detected.
                          CATCH_CONFIG_ENABLE_BENCHMARKING=1
                          KMAP_NATIVE=0
+                         KMAP_LOG=1 # Enable logging for all builds. Only production/true release would omit.
                        )
 
 

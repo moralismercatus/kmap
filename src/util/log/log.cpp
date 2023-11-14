@@ -7,6 +7,7 @@
 
 #include <common.hpp>
 #include <contract.hpp>
+#include <com/filesystem/filesystem.hpp>
 
 #if KMAP_NATIVE
 #include <boost/stacktrace.hpp>
@@ -84,7 +85,7 @@ ScopedCallStack::~ScopedCallStack()
 
     if( !call_stack_enabled_ ) // End of call stack enabling, so dump to file here.
     {
-        auto ofs = std::ofstream{ "call_stack.xml" };
+        auto ofs = std::ofstream{ ( com::kmap_root_dir / "call_stack.xml" ).string() };
 
         BC_ASSERT( ofs.good() );
 

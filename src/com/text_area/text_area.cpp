@@ -181,7 +181,7 @@ auto TextArea::register_standard_commands()
             ktry( canvas.orient( workspace_pane, old_ws_orient ) );
             console.log( 'old_ta_base: ' + old_ta_base );
             ktry( canvas.rebase( ta_pane, old_ta_base ) );
-            kmap.on_leaving_editor();
+            ktry( kmap.on_leaving_editor() );
             ktry( canvas.redraw() );
             {
                 const opt_root = ktry( kmap.fetch_node( '/meta.setting.option' ) );
@@ -205,21 +205,52 @@ auto TextArea::register_standard_commands()
     }
 }
 
-SCENARIO( "edit.body", "[cmd][text_area][edit.body]" ) // TODO: Move to text_area.cmd component?
+SCENARIO( "edit.body", "[cli][text_area][edit.body]" ) // TODO: Move to text_area.cmd component?
 {
-    KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "cli", "visnetwork" );
+    KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "cli", "visnetwork", "canvas", "network" );
 
     auto& km = Singleton::instance();
-    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const canvas = REQUIRE_TRY( km.fetch_component< com::Canvas >() );
     auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const vnw = REQUIRE_TRY( km.fetch_component< com::VisualNetwork >() );
 
     GIVEN( "root node selected" )
     {
         REQUIRE( nw->root_node() == nw->selected_node() );
+        REQUIRE_TRY( canvas->update_all_panes() );
 
-        WHEN( "edit.body executed" )
+        THEN( "editor should be hidden" )
+        {
+            REQUIRE( true == REQUIRE_TRY( js::eval< bool >( "return document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).hidden;" ) ) );
+        }
+
+        GIVEN( "edit.body executed" )
         {
             REQUIRE_RES( cli->parse_raw( ":edit.body" ) );
+
+            THEN( "editor should NOT be hidden" )
+            {
+                REQUIRE( false == REQUIRE_TRY( js::eval< bool >( "return document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).hidden;" ) ) );
+            }
+
+            GIVEN( "leave editor via select node" )
+            {
+                REQUIRE_TRY( nw->select_node( nw->selected_node() ) );
+
+                THEN( "editor should be hidden" )
+                {
+                    // TODO: Remedy necessity of calling vnw->select_node (focus) explicitly.
+                    //       Here's the situation. VisualNetwork::select_node() is called via event, and it eventually calls focus(), so on_leave_editor should be invoked.
+                    //       The catch is that select node is called via "debounce()". Even with a timeout of 0, the internal "setTimeout()" requires at least one cycle before
+                    //       calling "VisualNetwork::select_node()". Given that the system is single threaded, there is no way for that to execute/debounce before the check
+                    //       is done here. So, the check that expects VisualNetwork::select_node() to change focus away from editor will always fail.
+                    //       A better way to bypass is probably to have some kind of flag that disables debouncing, and use that for these tests.
+                    //       FWIW: Calling vnw->select_node doesn't exactly work for the same reason: debounce hasn't occurred, so it will complain about no initial node being set.
+                    vnw->focus();
+                    REQUIRE( true == REQUIRE_TRY( js::eval< bool >( "return document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).hidden;" ) ) );
+                }
+            }
         }
     }
 }
@@ -380,6 +411,34 @@ auto TextArea::load_preview( Uuid const& id )
     return rv;
 }
 
+SCENARIO( "TextArea::load_preview", "[text_area][js]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "network", "visnetwork" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const ta = REQUIRE_TRY( km.fetch_component< com::TextArea >() );
+
+    GIVEN( "root body => multiline text")
+    {
+        auto const text = "This is.\n\na multiline `nested backtick` text";
+
+        REQUIRE_TRY( nw->update_body( nw->root_node(), text ) );
+
+        GIVEN( "load_preview( root_node )" )
+        {
+            REQUIRE_TRY( ta->load_preview( nw->root_node() ) );
+
+            THEN( "pane content matches expected" )
+            {
+                auto const elem_text = REQUIRE_TRY( js::eval< std::string >( "return document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).innerHTML;" ) );
+                
+                REQUIRE( elem_text == markdown_to_html( text ) );
+            }
+        }
+    }
+}
+
 auto TextArea::clear()
     -> Result< void >
 {
@@ -438,7 +497,7 @@ auto TextArea::editor_contents()
     auto rv = result::make_result< std::string >();
 
 #if !KMAP_NATIVE
-    rv = KTRY( js::eval< std::string >( "get_editor_contents" ) );
+    rv = KTRY( js::eval< std::string >( "return document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).value;" ) );
 #endif // !KMAP_NATIVE
 
     return rv;
@@ -526,7 +585,7 @@ auto TextArea::show_preview( std::string const& text )
     auto rv = result::make_result< void >();
 
 #if !KMAP_NATIVE
-    KTRY( js::eval_void( fmt::format( "write_preview( '{}' );", text ) ) );
+    KTRY( js::eval_void( fmt::format( "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).innerHTML = `{}`;", text ) ) );
 
     if( KTRY( canvas->pane_hidden( canvas->preview_pane() ) ) )
     {

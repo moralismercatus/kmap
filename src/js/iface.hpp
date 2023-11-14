@@ -56,6 +56,8 @@ auto publish_function( std::string_view const name
     -> Result< void >;
 auto set_global_kmap( Kmap& kmap )
     -> void;
+auto set_last_eval_code_var( std::string const& expr )
+    -> Result< void >;
 auto set_tab_index( std::string const& elem_id
                   , unsigned const& index )
     -> Result< void >;

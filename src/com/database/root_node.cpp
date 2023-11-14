@@ -29,7 +29,7 @@ auto RootNode::initialize()
     KTRY( db->push_node( root_ ) );
     KTRY( db->push_heading( root_, heading ) );
     KTRY( db->push_title( root_, title ) );
-    KTRY( db->push_body( root_, "Welcome.\n\nType `:help` for assistance." ) );
+    KTRY( db->push_body( root_, root_node_welcome_text ) );
 
     auto const attrn = KTRY( create_attr_node( *db, root_ ) );
 

@@ -7,8 +7,8 @@
 #ifndef KMAP_COM_ROOT_NODE_HPP
 #define KMAP_COM_ROOT_NODE_HPP
 
-#include "common.hpp"
-#include "component.hpp"
+#include <common.hpp>
+#include <component.hpp>
 
 namespace kmap
 {
@@ -16,6 +16,8 @@ namespace kmap
 }
 
 namespace kmap::com {
+
+constexpr auto root_node_welcome_text = "Welcome.\n\nType `:help` for assistance.";
 
 // TODO: Belongs in network rather than db.
 class RootNode : public Component

@@ -257,13 +257,8 @@ auto Kmap::load( FsPath const& db_path
 
     database_path_ = full_path; // Set state, so Database::load can read.
 
-    fmt::print( "************************************LOADING************************************\n" );
-
     KTRY( component_store_->fire_loaded( "component_store" ) );
 
-    KM_LOG_DISABLE();
-    // KM_LOG_ST_DISABLE();
-    
     if( auto const estore = fetch_component< com::EventStore >()
       ; estore )
     {

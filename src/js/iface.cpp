@@ -12,6 +12,7 @@
 #include <utility.hpp>
 #include <test/util.hpp>
 
+#include <boost/algorithm/string.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
@@ -274,6 +275,8 @@ R"%%%(
 
     KMAP_ENSURE( lint( eval_str ), error_code::js::lint_failed );
 
+    KTRY( set_last_eval_code_var( expr ) );
+
     auto const eval_res = val::global().call< val >( "eval", eval_str );
 
     KMAP_ENSURE_MSG( !eval_res.isNull(), error_code::js::eval_failed, "Null returned (did you fail to return a result?) failed to evaluate javascript expression" );
@@ -424,6 +427,26 @@ auto set_global_kmap( Kmap& kmap )
     {
         fmt::print( stderr, "Unable to set kmap module\n" );
     }
+}
+
+auto set_last_eval_code_var( std::string const& expr )
+    -> Result< void >
+{
+    using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "expr", expr );
+
+    // Note: "kmap.js_last_eval_code" used to convey what JS code failed evaluation after non-try-catch-able to `.onerror` handler.
+    auto expr_escaped = boost::algorithm::replace_all_copy( expr, "`", "\\`" );
+    expr_escaped = boost::algorithm::replace_all_copy( expr_escaped, "$", "\\$" );
+    auto const script = fmt::format( "kmap.js_last_eval_code = `{}`;", expr_escaped );
+
+    KMAP_ENSURE( lint( script ), error_code::js::lint_failed );
+
+    auto const eval_res = val::global().call< val >( "eval", script );
+
+    return outcome::success();
 }
 
 auto set_tab_index( std::string const& elem_id

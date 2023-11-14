@@ -66,7 +66,8 @@ auto init_window_error_handler()
                                                   , 'URL: ' + url
                                                   , 'Line: ' + lineNo
                                                   , 'Column: ' + columnNo
-                                                  , 'Error object: ' + JSON.stringify( error ) ];
+                                                  , 'Error object: ' + JSON.stringify( error )
+                                                  , 'Last kmap eval code:\n' + kmap.js_last_eval_code ];
                                     console.log( message.join( '\n' ) );
                                     alert( message.join( '\n' ) );
                                     return true;

@@ -9,6 +9,7 @@ var kmap_components = // Curiously, failure occurs if `const` used instead of `v
 ,   "command.store"
 ,   "database"
 ,   "database.filesystem"
+,   "database.filesystem.command"
 ,   "event_store"
 ,   "filesystem"
 ,   "jump_stack"
