@@ -195,11 +195,6 @@ protected:
         -> Result< void >;
 };
 
-[[nodiscard]]
-auto format_node_label( Kmap const& km
-                      , Uuid const& node )
-    -> std::string;
-
 } // namespace kmap::com
 
 #endif // KMAP_VISUAL_NETWORK_HPP

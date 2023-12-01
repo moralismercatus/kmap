@@ -45,6 +45,7 @@
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/for_each.hpp>
 #include <range/v3/view/indices.hpp>
+#include <range/v3/view/intersperse.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/map.hpp>
 #include <range/v3/view/remove_if.hpp>
@@ -2259,6 +2260,46 @@ auto fetch_or_create_descendant( Kmap& kmap
                                    , root
                                    , selected
                                    , heading ) );
+    }
+
+    return rv;
+}
+
+auto format_node_label( Kmap const& km
+                      , Uuid const& node )
+    -> Result< std::string >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
+    auto rv = std::string{};
+    auto const nw = KTRY( km.fetch_component< com::Network >() );
+    auto const db_title = KTRY( nw->fetch_title( node ) );
+    auto const child_count = nw->fetch_children( node ).size();
+    auto const tags = view::make( node )
+                    | view::tag
+                    | view::to_node_set( km );
+    auto const tag_hs = tags
+                        | views::transform( [ & ]( auto const& t ){ return KTRYE( nw->fetch_heading( t ) ); } )
+                        | ranges::to< std::vector >()
+                        | actions::sort;
+    auto const tag_line = tag_hs
+                        | views::intersperse( "][" )
+                        | views::join
+                        | ranges::to< std::string >();
+
+    if( !tags.empty() )
+    {
+        rv = fmt::format( "{} ({})\n<i>[{}]</i>"
+                        , db_title
+                        , child_count
+                        , tag_line );
+    }
+    else
+    {
+        rv = fmt::format( "{} ({})"
+                        , db_title
+                        , child_count );
     }
 
     return rv;

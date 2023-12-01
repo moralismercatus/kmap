@@ -280,11 +280,11 @@ auto disambiguate_path3( Kmap const& km
 
 auto disambiguate_path3( Kmap const& km
                        , Uuid const& node )
-    -> Result< std::map< Uuid, std::string > >
+    -> Result< std::string >
 {
     KM_RESULT_PROLOG();
 
-    auto rv = result::make_result< std::map< Uuid, std::string > >();
+    auto rv = result::make_result< std::string >();
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -300,8 +300,9 @@ auto disambiguate_path3( Kmap const& km
 
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto const heading = KTRY( nw->fetch_heading( node ) );
+    auto const dpaths =  KTRY( disambiguate_path3( km, heading ) );
 
-    rv = KTRY( disambiguate_path3( km, heading ) );
+    rv = dpaths.at( node );
 
     return rv;
 }

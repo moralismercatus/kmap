@@ -27,7 +27,12 @@ namespace kmap::com {
 class JumpStack : public Component
 {
 public:
-    using Stack = std::deque< Uuid >;
+    struct StackItem
+    {
+        Uuid id;
+        std::string label;
+    };
+    using Stack = std::deque< StackItem >;
 
 private:
     EventClerk eclerk_;
@@ -69,6 +74,8 @@ public:
         -> std::optional< Stack::size_type >;
     auto clear_jump_in_items()
         -> void;
+    auto format_cell_label( Uuid const& node )
+        -> Result< std::string >;
     auto is_adjacent( Uuid const& n1
                     , Uuid const& n2 )
         -> bool;
@@ -76,6 +83,8 @@ public:
         -> Result< bool >;
     auto jump_out()
         -> Result< bool >;
+    auto purge_nonexistent()
+        -> void;
     auto push_transition( Uuid const& from
                         , Uuid const& to )
         -> Result< bool >;

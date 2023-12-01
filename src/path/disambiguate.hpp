@@ -20,7 +20,7 @@ auto disambiguate_path3( Kmap const& km
     -> Result< std::map< Uuid, std::string > >;
 auto disambiguate_path3( Kmap const& km
                        , Uuid const& node )
-    -> Result< std::map< Uuid, std::string > >;
+    -> Result< std::string >;
 
 } // namespace kmap
 

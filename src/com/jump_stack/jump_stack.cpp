@@ -296,6 +296,29 @@ auto JumpStack::clear_jump_in_items()
     }
 }
 
+auto JumpStack::format_cell_label( Uuid const& node )
+    -> Result< std::string >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "node", node );
+
+    auto rv = result::make_result< std::string >();
+    auto const& km = kmap_inst();
+    auto const dpath = KTRY( disambiguate_path3( km, node ) );
+    auto const nl = KTRY( format_node_label( km, node ) );
+
+    if( dpath.empty() )
+    {
+        rv = nl;
+    }
+    else
+    {
+        rv = fmt::format( "{}<br>{}", nl, dpath );
+    }
+
+    return rv;
+}
+
 auto JumpStack::is_adjacent( Uuid const& n1
                            , Uuid const& n2 )
     -> bool 
@@ -332,6 +355,8 @@ auto JumpStack::jump_in()
         })
     ;
 
+    purge_nonexistent();
+
     auto const nw = KTRY( fetch_component< com::Network >() );
 
     KMAP_ENSURE_BOOL( active_item_index_ );
@@ -344,11 +369,12 @@ auto JumpStack::jump_in()
     --active_index;
 
     auto const prev = buffer_.at( active_index );
+    auto const label = KTRY( format_cell_label( selected ) );
 
-    buffer_.at( active_index ) = selected;
+    buffer_.at( active_index ) = StackItem{ selected, label };
 
     ignore_transitions_ = true;
-    KTRY( nw->select_node( prev ) );
+    KTRY( nw->select_node( prev.id ) );
     ignore_transitions_ = false;
 
     KTRY( update_pane() );
@@ -388,6 +414,8 @@ auto JumpStack::jump_out()
         })
     ;
 
+    purge_nonexistent();
+
     auto const nw = KTRY( fetch_component< com::Network >() );
 
     if( !active_item_index_ )
@@ -401,13 +429,14 @@ auto JumpStack::jump_out()
 
     auto const selected = nw->selected_node();
     auto const next = buffer_.at( active_index );
+    auto const label = KTRY( format_cell_label( selected ) );
 
-    buffer_[ active_index ] = selected;
+    buffer_[ active_index ] = StackItem{ selected, label };
 
     ++active_index;
 
     ignore_transitions_ = true;
-    KTRY( nw->select_node( next ) );
+    KTRY( nw->select_node( next.id ) );
     ignore_transitions_ = false;
 
     KTRY( update_pane() );
@@ -445,7 +474,7 @@ SCENARIO( "JumpStack::jump_in/out", "[jump_stack]" )
 
             REQUIRE( jstack->active_item_index() );
             REQUIRE( jstack->active_item_index().value() == 0 );
-            REQUIRE( jstack->stack().at( 0 ) == root );
+            REQUIRE( jstack->stack().at( 0 ).id == root );
             REQUIRE( !REQUIRE_TRY( jstack->jump_in() ) );
 
             WHEN( ":jump.out" )
@@ -456,7 +485,7 @@ SCENARIO( "JumpStack::jump_in/out", "[jump_stack]" )
                 REQUIRE( jstack->active_item_index() );
                 REQUIRE( jstack->active_item_index().value() == 1 );
                 REQUIRE( jstack->stack().size() == 1 );
-                REQUIRE( jstack->stack().at( 0 ) == n1 );
+                REQUIRE( jstack->stack().at( 0 ).id == n1 );
 
                 REQUIRE( REQUIRE_TRY( jstack->jump_out() ) == false );
 
@@ -468,7 +497,7 @@ SCENARIO( "JumpStack::jump_in/out", "[jump_stack]" )
                     REQUIRE( jstack->active_item_index() );
                     REQUIRE( jstack->active_item_index().value() == 0 );
                     REQUIRE( jstack->stack().size() == 1 );
-                    REQUIRE( jstack->stack().at( 0 ) == root );
+                    REQUIRE( jstack->stack().at( 0 ).id == root );
                 }
             }
         }
@@ -483,6 +512,29 @@ SCENARIO( "JumpStack::jump_in/out", "[jump_stack]" )
                 // TODO:
                 // auto const n3 = REQUIRE_TRY(( anchor::abs_root | view2::direct_desc( "c.3" ) | act2::create_node( km ) ));
             }
+        }
+    }
+}
+
+auto JumpStack::purge_nonexistent()
+    -> void
+{
+    KM_RESULT_PROLOG();
+
+    auto const nw = KTRYE( fetch_component< com::Network >() );
+    auto& s = buffer_;
+
+    for( auto it = s.begin()
+       ; it != s.end()
+       ; )
+    {
+        if( !nw->exists( it->id ) )
+        {
+            it = s.erase( it );
+        }
+        else
+        {
+            ++it;
         }
     }
 }
@@ -506,12 +558,16 @@ auto JumpStack::push_transition( Uuid const& from
         })
     ;
 
+    purge_nonexistent();
+
     KMAP_ENSURE_BOOL( !ignore_transitions_ ); // ignore push
     KMAP_ENSURE_BOOL( !is_adjacent( from, to ) ); // adjacent push
 
     clear_jump_in_items();
 
-    KMAP_ENSURE_BOOL( buffer_.empty() || ( buffer_.front() != from ) ); // duplicate push
+    auto const from_label = KTRY( format_cell_label( from ) );
+
+    KMAP_ENSURE_BOOL( buffer_.empty() || ( buffer_.front().id != from ) ); // duplicate push
 
     if( buffer_.size() >= threshold()
      && threshold() > 0 )
@@ -519,7 +575,7 @@ auto JumpStack::push_transition( Uuid const& from
         buffer_.pop_back();
     }
 
-    buffer_.push_front( from );
+    buffer_.push_front( StackItem{ from, from_label } );
 
     active_item_index_ = 0;
 
@@ -560,13 +616,16 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
         {
             REQUIRE_TRY( jstack->push_transition( num_to_node_map.at( from ), num_to_node_map.at( to ) ) );
 
-            auto const tstack = istack
-                              | rvs::transform( [ & ]( auto const& e ){ return num_to_node_map.at( e ); } )
-                              | ranges::to< std::deque< Uuid > >();
+            auto const tistack = istack
+                               | rvs::transform( [ & ]( auto const& e ){ return num_to_node_map.at( e ); } )
+                               | ranges::to< std::deque< Uuid > >();
+            auto const tjstack = jstack->stack()
+                               | rvs::transform( [ & ]( auto const& e ){ return e.id; } )
+                               | ranges::to< std::deque< Uuid > >();
 
             // fmt::print( "{} == {}\n", jstack->stack().size(), tstack.size() );
 
-            return jstack->stack() == tstack;
+            return tjstack == tistack;
         };
 
         THEN( "Only non-adjacent are pushed" )
@@ -603,7 +662,7 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
                 }
                 THEN( "stack.top == first push" )
                 {
-                    REQUIRE( jstack->stack().front() == num_to_node_map.at( 1 ) );
+                    REQUIRE( jstack->stack().front().id == num_to_node_map.at( 1 ) );
                 }
 
                 WHEN( "non-adjacement second push" )
@@ -616,7 +675,7 @@ SCENARIO( "JumpStack::push_transition", "[jump_stack]" )
                     }
                     THEN( "stack.top == most recent push" )
                     {
-                    REQUIRE( jstack->stack().front() == num_to_node_map.at( 4 ) );
+                    REQUIRE( jstack->stack().front().id == num_to_node_map.at( 4 ) );
                     }
                 }
             }

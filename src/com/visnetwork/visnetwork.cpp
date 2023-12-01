@@ -39,7 +39,6 @@
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/remove.hpp>
 #include <range/v3/view/transform.hpp>
-#include <range/v3/view/intersperse.hpp>
 
 using namespace ranges;
 using boost::uuids::to_string;
@@ -398,7 +397,8 @@ auto VisualNetwork::select_node( Uuid const& id )
     for( auto const& cid : visible_nodes )
     {
         BC_ASSERT( nw->exists( cid ) );
-        KTRY( create_node( cid, format_node_label( km, cid ) ) );
+        auto const label = KTRY( format_node_label( km, cid ) );
+        KTRY( create_node( cid, label ) );
         create_edge( cid );
     }
 
@@ -1260,45 +1260,6 @@ vnw_div.onkeyup = null;
     return rv;
 }
 
-auto format_node_label( Kmap const& km
-                      , Uuid const& node )
-    -> std::string // TODO: Should be Result< std::string >?
-{
-    KM_RESULT_PROLOG();
-
-    auto rv = std::string{};
-    auto const nw = KTRYE( km.fetch_component< com::Network >() );
-    auto const db_title = KTRYE( nw->fetch_title( node ) );
-    auto const child_count = nw->fetch_children( node ).size();
-    auto const tags = view::make( node )
-                    | view::tag
-                    | view::to_node_set( km );
-    auto const tag_hs = tags
-                        | views::transform( [ & ]( auto const& t ){ return KTRYE( nw->fetch_heading( t ) ); } )
-                        | ranges::to< std::vector >()
-                        | actions::sort;
-    auto const tag_line = tag_hs
-                        | views::intersperse( "][" )
-                        | views::join
-                        | ranges::to< std::string >();
-
-    if( !tags.empty() )
-    {
-        rv = fmt::format( "{} ({})\n<i>[{}]</i>"
-                        , db_title
-                        , child_count
-                        , tag_line );
-    }
-    else
-    {
-        rv = fmt::format( "{} ({})"
-                        , db_title
-                        , child_count );
-    }
-
-    return rv;
-}
-
 
 namespace binding
 {
@@ -1327,12 +1288,6 @@ namespace binding
             KM_RESULT_PROLOG();
 
             KTRYE( km.fetch_component< kmap::com::VisualNetwork >() )->focus();
-        }
-
-        auto format_node_label( Uuid const& node )
-            -> std::string
-        {
-            return com::format_node_label( km, node );
         }
 
         auto select_node( Uuid const& node )
@@ -1380,7 +1335,6 @@ namespace binding
         class_< kmap::com::binding::VisualNetwork >( "VisualNetwork" )
             .function( "center_viewport_node", &kmap::com::binding::VisualNetwork::center_viewport_node )
             .function( "focus", &kmap::com::binding::VisualNetwork::focus )
-            .function( "format_node_label", &kmap::com::binding::VisualNetwork::format_node_label )
             .function( "scale_viewport", &kmap::com::binding::VisualNetwork::scale_viewport )
             .function( "select_node", &kmap::com::binding::VisualNetwork::select_node )
             .function( "underlying_js_network", &kmap::com::binding::VisualNetwork::underlying_js_network )

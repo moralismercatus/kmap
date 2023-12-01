@@ -261,3 +261,16 @@ ExternalProject_Add(
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
 )
+
+ExternalProject_Add(
+    zadeh
+
+    GIT_REPOSITORY
+        https://github.com/atom-community/zadeh.git
+    GIT_TAG
+        v2.1.0
+    UPDATE_COMMAND ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+)

@@ -4,8 +4,11 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 #include <com/jump_stack/jump_stack.hpp>
-#include <com/visnetwork/visnetwork.hpp> // "format_node_label"
+#include <path.hpp>
 #include <path/disambiguate.hpp>
+
+#include <range/v3/algorithm/find_if.hpp>
+#include <range/v3/view/transform.hpp>
 
 namespace rvs = ranges::views;
 
@@ -36,27 +39,13 @@ namespace binding
                 KM_RESULT_PUSH( "node", node );
 
             auto rv = result::make_result< std::string >();
-            auto const nl = com::format_node_label( km_, node );
-            auto const disset = KTRY( disambiguate_path3( km_, node ) );
+            auto const jstack = KTRY( km_.fetch_component< com::JumpStack >() );
+            auto const& jss = jstack->stack();
 
-            if( disset.empty() )
+            if( auto const it = ranges::find_if( jss, [ &node ]( auto const& e ){ return e.id == node; } )
+              ; it != jss.end() )
             {
-                rv = nl;
-            }
-            else
-            {
-                KMAP_ENSURE( disset.contains( node ), error_code::common::uncategorized );
-
-                auto const disroot_path = disset.at( node );
-
-                if( disroot_path.empty() )
-                {
-                    rv = nl;
-                }
-                else
-                {
-                    rv = fmt::format( "{}<br>{}", nl, disroot_path );
-                }
+                rv = it->label;
             }
 
             return rv;
@@ -122,7 +111,9 @@ namespace binding
 
             auto const jstack = KTRYE( km_.fetch_component< com::JumpStack >() );
 
-            return jstack->stack() | ranges::to< std::vector >();
+            return jstack->stack()
+                 | rvs::transform( []( auto const& e ){ return e.id; } )
+                 | ranges::to< std::vector >();
         }
     };
 

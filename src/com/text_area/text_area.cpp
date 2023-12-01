@@ -205,6 +205,7 @@ auto TextArea::register_standard_commands()
     }
 }
 
+#if !KMAP_NATIVE
 SCENARIO( "edit.body", "[cli][text_area][edit.body]" ) // TODO: Move to text_area.cmd component?
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "cli", "visnetwork", "canvas", "network" );
@@ -254,6 +255,7 @@ SCENARIO( "edit.body", "[cli][text_area][edit.body]" ) // TODO: Move to text_are
         }
     }
 }
+#endif // !KMAP_NATIVE
 
 auto TextArea::register_panes()
     -> Result< void >
@@ -411,6 +413,7 @@ auto TextArea::load_preview( Uuid const& id )
     return rv;
 }
 
+#if !KMAP_NATIVE
 SCENARIO( "TextArea::load_preview", "[text_area][js]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "network", "visnetwork" );
@@ -438,6 +441,7 @@ SCENARIO( "TextArea::load_preview", "[text_area][js]" )
         }
     }
 }
+#endif // !KMAP_NATIVE
 
 auto TextArea::clear()
     -> Result< void >

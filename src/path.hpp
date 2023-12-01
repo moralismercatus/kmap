@@ -187,6 +187,10 @@ auto fetch_or_create_descendant( Kmap& kmap
                                , Uuid const& selected
                                , Heading const& heading )
     -> Result< Uuid >;
+[[nodiscard]]
+auto format_node_label( Kmap const& km
+                      , Uuid const& node )
+    -> Result< std::string >;
 [[ nodiscard ]]
 auto tokenize_path( std::string const& path )
     -> StringVec;

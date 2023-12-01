@@ -250,6 +250,9 @@ add_executable( emcc.index.html
                 test/util.cpp
                 test/util/util.cpp
                 util/clerk/clerk.cpp util/clerk/clerk.hpp
+                util/fuzzy_search/fuzzy_search.cpp util/fuzzy_search/fuzzy_search.hpp
+                util/fuzzy_search/js_bind.cpp
+                util/fuzzy_search/test.cpp
                 util/json.cpp util/json.hpp
                 util/log/log.cpp util/log/log.hpp
                 util/log/xml.cpp util/log/xml.hpp
@@ -279,18 +282,18 @@ add_dependencies( emcc.index.html
 link_directories( ${CMAKE_BINARY_DIR}/lib )
 
 target_link_libraries( emcc.index.html
+                      # ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
+                      # ${CMAKE_BINARY_DIR}/lib/libxed.bc
+                      ${CMAKE_BINARY_DIR}/lib/libCatch2.a
+                      ${CMAKE_BINARY_DIR}/lib/libboost_chrono.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_contract.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_filesystem.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_json.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_system.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_timer.bc
-                      ${CMAKE_BINARY_DIR}/lib/libboost_chrono.bc
                       ${CMAKE_BINARY_DIR}/lib/libboost_unit_test_framework.bc
                       ${CMAKE_BINARY_DIR}/lib/libcrypto.bc
                       ${CMAKE_BINARY_DIR}/lib/libfmt.bc
-                      # ${CMAKE_BINARY_DIR}/lib/libxed-ild.bc
-                      # ${CMAKE_BINARY_DIR}/lib/libxed.bc
-                      ${CMAKE_BINARY_DIR}/lib/libz.bc
                       ${CMAKE_BINARY_DIR}/lib/libsqlite3.bc
-                      ${CMAKE_BINARY_DIR}/lib/libCatch2.a
+                      ${CMAKE_BINARY_DIR}/lib/libz.bc
                       nodefs.js )
