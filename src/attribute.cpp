@@ -66,7 +66,7 @@ auto is_in_attr_tree( Kmap const& kmap
 {
     return is_attr( kmap, node )
         || ( anchor::node( node )
-           | view2::ancestor( "$" ) // TODO: Can't I do something like view::ancestor( view::attr ); composable?
+           | view2::ancestor( "$" ) // TODO: Can't I do something like view2::ancestor( view2::attr ); composable?
            | act2::exists( kmap ) );
 }
 
@@ -120,11 +120,10 @@ auto push_genesis( Kmap& kmap
         })
     ;
 
-    auto const genesisn = KMAP_TRY( view::make( node )
-                                  | view::attr
-                                  | view::child( "genesis" )
-                                  | view::create_node( kmap )
-                                  | view::to_single );
+    auto const genesisn = KMAP_TRY( anchor::node( node )
+                                  | view2::attr
+                                  | view2::child( "genesis" )
+                                  | act2::create_node( kmap ) );
 
     KMAP_TRY( nw->update_body( genesisn, std::to_string( present_time() ) ) );
 
@@ -165,7 +164,8 @@ auto push_order( Kmap& kmap
     auto const ordern = KTRY( anchor::node( rparent )
                             | view2::attr
                             | view2::child( "order" )
-                            | act2::fetch_or_create_node( kmap ) );
+                            | act2::fetch_or_create_node( kmap )
+                            | act2::single );
 
     if( auto const b = nw->fetch_body( ordern )
       ; b && !b.value().empty() )

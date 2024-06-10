@@ -159,12 +159,30 @@ auto VisualNetwork::create_node( Uuid const& id
     KMAP_ENSURE( !exists( id ), error_code::network::invalid_node );
 
     auto const& sid = to_string( id );
+    auto const& km = kmap_inst();
 
-    js_nw_->call< val >( "create_node"
-                       , sid
-                       , label ); // Note: I'd like to have markdown_to_html( title ) here, but visjs doesn't support HTML labels.
-    // TODO: Remake to something like this:
-    // KMAP_TRY( js::call< val >( *js_nw_, "select_node", to_string( id ) ) );
+    if( auto const ian_body = anchor::node( id )
+                            | view2::attr
+                            | view2::direct_desc( "node.image" )
+                            | act2::fetch_body( km )
+      ; ian_body )
+    {
+        auto const url = ian_body.value();
+        // TODO: should be KTRY() operation.
+        js_nw_->call< val >( "create_image_node"
+                           , sid
+                           , label
+                           , url );
+    }
+    else
+    {
+        js_nw_->call< val >( "create_node"
+                           , sid
+                           , label ); // Note: I'd like to have markdown_to_html( title ) here, but visjs doesn't support HTML labels.
+        // TODO: Remake to something like this:
+        // KMAP_TRY( js::call< val >( *js_nw_, "select_node", to_string( id ) ) );
+    }
+
 
     rv = outcome::success();
 
@@ -960,6 +978,7 @@ auto VisualNetwork::register_standard_events()
     auto rv = KMAP_MAKE_RESULT( void );
 
     // Initial
+    // TODO: These actions' select node should be ktry'd, but need to account for no previous node selected return, and ignore that.
     eclerk_.register_outlet( Leaf{ .heading = "network.select_node_on_init"
                                 , .requisites = { "verb.initialized", "object.kmap" }
                                 , .description = "updates network with selected node"
@@ -978,6 +997,7 @@ auto VisualNetwork::register_standard_events()
                                  , .requisites = { "subject.network", "verb.selected", "object.node" }
                                  , .description = "updates network with selected node"
                                  , .action = R"%%%(debounce( function(){{ kmap.visnetwork().select_node( kmap.selected_node() ); }}, 'debounce_timer_select_node', 10 )();)%%%" } );
+    // TODO: `node_moved`s select node should be ktry'd, but need to account for no previous node selected return, and ignore that.
     eclerk_.register_outlet( Leaf{ .heading = "network.node_moved"
                                  , .requisites = { "subject.network", "verb.moved", "object.node" }
                                  , .description = "updates network with selected node"
@@ -1082,8 +1102,8 @@ auto VisualNetwork::register_standard_events()
     {
         auto const script =
         R"%%%(
-            kmap.canvas().toggle_pane( kmap.canvas().text_area_pane() );
-            kmap.canvas().update_all_panes();
+            ktry( kmap.canvas().toggle_pane( kmap.canvas().text_area_pane() ) );
+            ktry( kmap.canvas().update_all_panes() );
         )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "workspace.toggle_preview"
                                      , .requisites = { "subject.network", "verb.depressed", "object.keyboard.key.p" }
@@ -1290,6 +1310,14 @@ namespace binding
             KTRYE( km.fetch_component< kmap::com::VisualNetwork >() )->focus();
         }
 
+        auto format_node_label( Uuid const& node )
+            -> std::string
+        {
+            KM_RESULT_PROLOG();
+
+            return KTRYE( kmap::format_node_label( km, node ) );
+        }
+
         auto select_node( Uuid const& node )
             -> kmap::Result< Uuid >
         {
@@ -1335,6 +1363,7 @@ namespace binding
         class_< kmap::com::binding::VisualNetwork >( "VisualNetwork" )
             .function( "center_viewport_node", &kmap::com::binding::VisualNetwork::center_viewport_node )
             .function( "focus", &kmap::com::binding::VisualNetwork::focus )
+            .function( "format_node_label", &kmap::com::binding::VisualNetwork::format_node_label )
             .function( "scale_viewport", &kmap::com::binding::VisualNetwork::scale_viewport )
             .function( "select_node", &kmap::com::binding::VisualNetwork::select_node )
             .function( "underlying_js_network", &kmap::com::binding::VisualNetwork::underlying_js_network )

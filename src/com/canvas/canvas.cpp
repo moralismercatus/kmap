@@ -258,7 +258,7 @@ auto Canvas::apply_layout( bjn::object const& layout
     auto const lpane = KTRY( com::fetch_pane( layout ) );
     auto const update = [ & ]( std::string const& child, std::string const& body ) -> Result< void >
     {
-        auto const cn = KTRY( anchor::node( lpane.id ) | view2::child( child ) | act2::fetch_or_create_node( km ) );
+        auto const cn = KTRY( anchor::node( lpane.id ) | view2::child( child ) | act2::fetch_or_create_node( km ) | act2::single );
 
         KTRY( anchor::node( cn ) | act2::update_body( km, body ) );
 
@@ -318,7 +318,8 @@ auto Canvas::install_pane( Pane const& pane )
 
     auto& km = kmap_inst();
     auto const canvas_root = KTRY( view2::canvas::canvas_root
-                                 | act2::fetch_or_create_node( km ) );
+                                 | act2::fetch_or_create_node( km )
+                                 | act2::single );
 
     rv = KTRY( subdivide( canvas_root, pane.id, pane.heading, pane.division ) );
 
@@ -347,7 +348,8 @@ auto Canvas::install_overlay( Overlay const& overlay )
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const overlay_root = KTRY( view2::canvas::overlay_root
-                                  | act2::fetch_or_create_node( km ) );
+                                  | act2::fetch_or_create_node( km )
+                                  | act2::single );
     auto const overlayn = KTRY( nw->create_child( overlay_root, overlay.id, overlay.heading ) );
     auto const canvas_root = KTRY( view2::canvas::canvas_root
                                  | act2::fetch_node( km ) );
@@ -852,8 +854,7 @@ auto Canvas::register_standard_events()
     {
         auto const action = 
 R"%%%(
-console.log( 'update_all_panes()' );
-kmap.canvas().update_all_panes();
+ktry( kmap.canvas().update_all_panes() );
 )%%%";
         eclerk_.register_outlet( Leaf{ .heading = "window.update_canvas_on_window_resize"
                                      , .requisites = { "verb.scaled", "object.window" }
@@ -1077,11 +1078,11 @@ auto Canvas::make_subdivision( Uuid const& target
     auto& km = kmap_inst();
     auto const vsub = anchor::node( target );
 
-    KTRY( vsub | view2::child( "orientation" ) | act2::fetch_or_create_node( km ) );
-    KTRY( vsub | view2::child( "base" ) | act2::fetch_or_create_node( km ) );
-    KTRY( vsub | view2::child( "hidden" ) | act2::fetch_or_create_node( km ) );
-    KTRY( vsub | view2::child( "type" ) | act2::fetch_or_create_node( km ) );
-    KTRY( vsub | view2::child( "subdivision" ) | act2::fetch_or_create_node( km ) );
+    KTRY( vsub | view2::child( "orientation" ) | act2::fetch_or_create_node( km ) | act2::single );
+    KTRY( vsub | view2::child( "base" ) | act2::fetch_or_create_node( km ) | act2::single );
+    KTRY( vsub | view2::child( "hidden" ) | act2::fetch_or_create_node( km ) | act2::single );
+    KTRY( vsub | view2::child( "type" ) | act2::fetch_or_create_node( km ) | act2::single );
+    KTRY( vsub | view2::child( "subdivision" ) | act2::fetch_or_create_node( km ) | act2::single );
 
     KTRY( vsub | view2::child( "orientation" ) | act2::update_body( km, to_string( subdiv.orientation ) ) );
     KTRY( vsub | view2::child( "base" ) | act2::update_body( km, io::format( "{:.4f}", subdiv.base ) ) );
@@ -1118,7 +1119,8 @@ auto Canvas::create_overlay( Uuid const& id
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const overlay_root = KTRY( view2::canvas::overlay_root
-                                  | act2::fetch_or_create_node( km ) );
+                                  | act2::fetch_or_create_node( km )
+                                  | act2::single );
     auto const overlay = KTRY( nw->create_child( overlay_root, id, heading ) );
 
     rv = overlay;
@@ -1210,7 +1212,8 @@ auto Canvas::ensure_root_initialized()
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const win_root = KTRY( view2::canvas::window_root
-                              | act2::fetch_or_create_node( km ) );
+                              | act2::fetch_or_create_node( km )
+                              | act2::single );
 
     if( auto const croot = view2::canvas::canvas_root
                          | act2::fetch_node( km )

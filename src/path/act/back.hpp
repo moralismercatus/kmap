@@ -29,6 +29,8 @@ template< concepts::Range RT >
 auto operator|( RT const& range, Back const& op )
     -> Result< typename RT::value_type >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( typename RT::value_type );
 
     if( !range.empty() )
@@ -43,6 +45,8 @@ template< concepts::Range RT >
 auto operator|( kmap::Result< RT > const& rrange, Back const& op )
     -> Result< typename RT::value_type >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( typename RT::value_type );
 
     if( rrange )

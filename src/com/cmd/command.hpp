@@ -45,6 +45,12 @@ struct Command
     std::string action;
 };
 
+struct CommandAlias
+{
+    std::string src_path;
+    std::string dst_path;
+};
+
 struct Guard
 {
     std::string path;
@@ -70,6 +76,8 @@ public:
         -> Result< Uuid >;
     auto install_command( Command const& cmd )
         -> Result< Uuid >;
+    auto install_command_alias( CommandAlias const& ca )
+        -> Result< Uuid >;
     auto install_guard( Guard const& guard )
         -> Result< Uuid >;
     auto is_argument( Uuid const& node )
@@ -94,7 +102,8 @@ namespace kmap::view2::cmd
     auto const command_root = cli_root | view2::child( "command" );
     auto const argument_root = cli_root | view2::child( "argument" );
     auto const guard_root = cli_root | view2::child( "guard" );
-    auto const command = view2::all_of( view2::child, { "action", "argument", "description", "guard" } ) | view2::parent;
+    auto const command_children = view2::all_of( view2::child, { "action", "argument", "description", "guard" } );
+    auto const command = command_children | view2::parent;
     auto const guard = view2::all_of( view2::child, { "action", "description" } ) | view2::parent;
 }
 

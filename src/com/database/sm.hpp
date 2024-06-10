@@ -60,10 +60,11 @@ namespace sm::state
 {
     // Exposed States.
     class CacheExists {};
-    class CreateDelta {};
+    class ClearAndUpdateDelta {};
     class ClearDelta {};
-    class EraseDelta {};
+    class CreateDelta {};
     class DeltaExists {};
+    class EraseDelta {};
     class Error {};
     class Nop {};
     class Start {};
@@ -72,10 +73,11 @@ namespace sm::state
     namespace detail
     {
         inline auto const CacheExists = boost::sml::state< sm::state::CacheExists >;
-        inline auto const CreateDelta = boost::sml::state< sm::state::CreateDelta >;
+        inline auto const ClearAndUpdateDelta = boost::sml::state< sm::state::ClearAndUpdateDelta >;
         inline auto const ClearDelta = boost::sml::state< sm::state::ClearDelta >;
-        inline auto const EraseDelta = boost::sml::state< sm::state::EraseDelta >;
+        inline auto const CreateDelta = boost::sml::state< sm::state::CreateDelta >;
         inline auto const DeltaExists = boost::sml::state< sm::state::DeltaExists >;
+        inline auto const EraseDelta = boost::sml::state< sm::state::EraseDelta >;
         inline auto const Error = boost::sml::state< sm::state::Error >;
         inline auto const Nop = boost::sml::state< sm::state::Nop >;
         inline auto const Start = boost::sml::state< sm::state::Start >;
@@ -209,7 +211,7 @@ public:
         ,   Start + any                      = Error  
         ,   Start + unexpected               = Error  
 
-        ,   DeltaExists + push [ delta_deleted ]   = err( "cache item previously deleted" ) // Treating as an error, but `delete <id>, create <id>` isn't logically impossible, but unexpected. Subject to change if such behavior is desirable.
+        ,   DeltaExists + push [ delta_deleted ]   = ClearAndUpdateDelta // Only way for push to occur with delta_deleted is if there is a cache entry (erase on delta-only yields a clear operation).
         ,   DeltaExists + push [ delta_matches ]   = Nop
         ,   DeltaExists + push                     = UpdateDelta
         ,   DeltaExists + erase [ delta_deleted ]  = err( "cache item previously deleted" ) // Treating as an error, but `delete <id>, create <id>` isn't logically impossible, but unexpected. Subject to change if such behavior is desirable.
@@ -239,6 +241,10 @@ public:
         ,   ClearDelta + erase / set_done                        = ClearDelta
         ,   ClearDelta + any                                     = Error  
         ,   ClearDelta + unexpected                              = Error  
+
+        ,   ClearAndUpdateDelta + push       / set_done = ClearAndUpdateDelta
+        ,   ClearAndUpdateDelta + any                   = Error  
+        ,   ClearAndUpdateDelta + unexpected            = Error  
 
         ,   Nop + push       / set_done = Nop 
         ,   Nop + any                   = Error  

@@ -36,7 +36,7 @@ OptionStore::OptionStore( Kmap& km
 auto OptionStore::initialize()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     rv = outcome::success();
 
@@ -46,7 +46,7 @@ auto OptionStore::initialize()
 auto OptionStore::load()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     rv = outcome::success();
 

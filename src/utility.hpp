@@ -301,6 +301,10 @@ auto make( Args&&... args )
 {
     return Target::make( std::forward< Args >( args )... );
 }
+auto replace_unescaped_char( std::string const& input
+                           , char const c
+                           , std::string rep )
+    -> std::string;
 
 } // namespace kmap
 

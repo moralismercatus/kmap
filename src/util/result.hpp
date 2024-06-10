@@ -12,6 +12,9 @@
 #include <util/macro.hpp>
 #include <utility.hpp>
 
+#include <boost/json.hpp>
+
+#include <concepts>
 #include <chrono>
 #include <string>
 #include <tuple>
@@ -24,8 +27,10 @@ namespace kmap {
 
 #define KM_RESULT_PROLOG() \
     auto km_result_local_state = kmap::result::LocalState{};
+// #define KM_RESULT_PUSH( key, value ) \
+//     km_result_local_state.log.push( { key, value } );
 #define KM_RESULT_PUSH( key, value ) \
-    km_result_local_state.log.push( { key, value } );
+    km_result_local_state.log.push( { key, kmap::result::to_log_value( value ) } );
 #define KM_RESULT_PUSH_NODE( name, id ) \
     km_result_local_state.log.push( { name, id } );
     // km_result_local_state.log.push( { name, { kmap::result::dump_about( kmap::Singleton::instance(), id ) } } );
@@ -91,12 +96,33 @@ struct LocalState
 auto dump_about( Kmap const& km
                , Uuid const& node )
     -> std::vector< LocalLog::MultiValue >;
+auto to_json( LocalLog::MultiValue const& mv )
+    -> boost::json::object;
+auto to_json( std::vector< LocalLog::MultiValue > const& mvs )
+    -> boost::json::array;
 auto to_string( LocalLog const& state )
     -> std::string;
 auto to_string( LocalLog::MultiValue const& mv )
     -> std::string;
 auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
     -> std::string;
+template< typename T >
+auto to_log_value( T const& t )
+    -> LocalLog::MultiValue::ValueVariant
+{
+    if constexpr( std::convertible_to< T, std::string >
+               || std::convertible_to< T, Uuid >
+               || std::convertible_to< T, std::vector< LocalLog::MultiValue > >)
+    {
+        return { t };
+    }
+    else
+    {
+        using std::to_string;
+
+        return { to_string( t ) };
+    }
+}
 
 /**
  * @brief 

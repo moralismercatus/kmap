@@ -105,6 +105,23 @@ auto call( std::string const& name
     return rv;
 }
 
+template< typename... Args >
+auto call_rvoid( std::string const& name
+               , Args&&... args )
+    -> Result< void >
+{
+    using emscripten::val;
+
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "name", name );
+
+    auto global = val::global();
+
+    KTRY( call< val >( global, name, std::forward< Args >( args )... ) );
+
+    return outcome::success();
+}
+
 template< typename RT >
 auto eval( std::string const& expr )
     -> Result< RT >

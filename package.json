@@ -36,6 +36,7 @@
     "showdown-highlight": "^2.1.4",
     "timsort": "^0.3.0",
     "uuid": "^8.0.0",
+    "vex-js": "^4.1.0",
     "vis-data": "^6.5.1",
     "vis-network": "^7.6.1",
     "vis-util": "^4.0.0"
@@ -54,6 +55,7 @@
     "showdown-highlight": "^2.1.4",
     "timsort": "^0.3.0",
     "uuid": "^8.0.0",
+    "vex-js": "^4.1.0",
     "vis-data": "^6.5.1",
     "vis-network": "^7.6.1",
     "vis-util": "^4.0.0"

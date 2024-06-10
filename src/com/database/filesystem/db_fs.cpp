@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include <com/database/filesystem/db_fs.hpp>
 
+#include <com/cli/cli.hpp> // For testing.
 #include <com/cmd/cclerk.hpp>
 #include <com/database/db.hpp>
 #include <com/database/table_decl.hpp>
@@ -86,7 +87,7 @@ SCENARIO( "saved data mirrors runtime data", "[db][fs][save][load]")
                           . where( key ) );
     };
 
-    GIVEN( "initit db on disk" )
+    GIVEN( "init db on disk" )
     {
         if( exists( abs_disk_path ) )
         {

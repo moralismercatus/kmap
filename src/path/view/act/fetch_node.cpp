@@ -29,7 +29,7 @@ auto operator|( Tether const& lhs
               , FetchNode const& rhs )
     -> Result< Uuid >
 {
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto rv = result::make_result< Uuid >();
     auto const ns = lhs | act::to_node_set( rhs.km );
 
     if( ns.size() == 1 )

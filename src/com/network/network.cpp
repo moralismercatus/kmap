@@ -103,7 +103,8 @@ auto Network::load_aliases()
     auto all_aliases = alias_tbl
                      | rvs::transform([]( auto const& e ){ return AliasLoadItem{ AliasItem{ .src_id = AliasItem::src_type{ e.left().value( ) }
                                                                                           , .rsrc_id = AliasItem::rsrc_type{ e.left().value() }
-                                                                                          , .dst_id = AliasItem::dst_type{ e.right().value() } } }; } )
+                                                                                          , .dst_id = AliasItem::dst_type{ e.right().value() }
+                                                                                          , .top_id = AliasItem::top_type{ make_alias_id( e.left().value(), e.right().value() ) } } }; } )
                      | ranges::to< AliasLoadSet >();
 
     // auto& av = all_aliases.get< AliasLoadItem::loaded_type >();
@@ -113,7 +114,7 @@ auto Network::load_aliases()
     {
         auto const next = *eq.first;
 
-        KTRY( load_alias_leaf( next.src().value(), next.dst().value(), all_aliases ) );
+        KTRY( load_alias_leaf( next.top().value(), next.src().value(), next.dst().value(), all_aliases ) );
 
         eq = all_aliases.get< AliasLoadItem::loaded_type >().equal_range( AliasLoadItem::loaded_type{ false } );
     }
@@ -207,11 +208,11 @@ auto Network::create_alias( Uuid const& src
         KTRY( attr::push_order( km, rdst, rsrc ) ); // Resolve src ID gets placed in ordering, rather than the alias ID.
     }
 
-    auto const pushed_id = KTRY( create_alias_leaf( rsrc, rdst ) );
+    auto const pushed_id = KTRY( create_alias_leaf( alias_id, rsrc, rdst ) );
 
-    for( auto const& alias : astore_.fetch_aliases( AliasItem::rsrc_type{ rdst } ) )
+    for( auto const& entry : astore_.fetch_entries( AliasItem::rsrc_type{ rdst } ) )
     {
-        KTRY( create_alias_leaf( rsrc, alias ) );
+        KTRY( create_alias_leaf( entry.top().value(), rsrc, entry.alias() ) );
     }
 
     if( auto const estore = fetch_component< com::EventStore >()
@@ -233,6 +234,11 @@ SCENARIO( "Network::create_alias", "[network][alias]" )
     auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
     auto const rnc = REQUIRE_TRY( km.fetch_component< com::RootNode >() );
     auto const rootn = rnc->root_node();
+    auto const dependent_aliases = [ & ]( Uuid const& top_alias )
+    {
+        auto const& astore = nw->alias_store();
+        return astore.fetch_aliases( AliasItem::top_type{ top_alias } );
+    };
 
     GIVEN( "/1, /2" )
     {
@@ -250,6 +256,7 @@ SCENARIO( "Network::create_alias", "[network][alias]" )
                 REQUIRE(( anchor::node( n2 )
                         | view2::alias( view2::resolve( n1 ) )
                         | act2::exists( km ) ));
+                REQUIRE( dependent_aliases( a2_1 ) == UuidSet{ a2_1 } );
             }
 
             GIVEN( "/1.1" )
@@ -264,6 +271,7 @@ SCENARIO( "Network::create_alias", "[network][alias]" )
                                                     | act2::fetch_node( km ) ));
 
                     REQUIRE( nw->resolve( n1_1 ) == nw->resolve( a2_1_1 ) );
+                    REQUIRE( dependent_aliases( a2_1 ) == UuidSet{ a2_1, a2_1_1 } );
                 }
 
                 GIVEN( "/3" )
@@ -296,9 +304,13 @@ SCENARIO( "Network::create_alias", "[network][alias]" )
                                                         | view2::alias( view2::resolve( n1 ) )
                                                         | view2::alias( view2::resolve( n1_1 ) )
                                                         | act2::fetch_node( km ) ));
-                        auto const a2_1_1_3 = REQUIRE_TRY( nw->create_alias( n3, a2_1_1 ) );
+                        auto const a1_1_3 = REQUIRE_TRY( nw->create_alias( n3, a2_1_1 ) );
+                        auto const a2_1_1_3 = REQUIRE_TRY( anchor::node( n2 )
+                                                         | view2::direct_desc( "1.1.3" )
+                                                         | act2::fetch_node( km ) );
 
                         REQUIRE( nw->resolve( a2_1_1_3 ) == n3 );
+                        REQUIRE( dependent_aliases( a2_1 ) == UuidSet{ a2_1, a2_1_1, a2_1_1_3 } );
 
                         THEN( "/2.1[/1].1[/1.1].3[/3] exists" )
                         {
@@ -309,6 +321,15 @@ SCENARIO( "Network::create_alias", "[network][alias]" )
                                     | act2::exists( km ) ));
                         }
                     }
+                }
+            }
+            GIVEN( "erase_node( /2.1[/1] )" )
+            {
+                REQUIRE_TRY( nw->erase_node( a2_1 ) );
+
+                THEN( "create_alias( src:/1, dst:/2 ); recreate erased alias /2.1[/1]" )
+                {
+                    REQUIRE_TRY( nw->create_alias( n1, n2 ) );
                 }
             }
         }
@@ -485,37 +506,50 @@ auto Network::create_child( Uuid const& parent
     return rv;
 }
 
-auto Network::create_alias_leaf( Uuid const& src
+auto Network::create_alias_leaf( Uuid const& top
+                               , Uuid const& src 
                                , Uuid const& dst )
     -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "top", top );
         KM_RESULT_PUSH( "src", src );
         KM_RESULT_PUSH( "dst", dst );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const rsrc = resolve( src );
-    auto const alias_item = make_alias_item( src, rsrc, dst );
 
     BC_CONTRACT()
         BC_POST([ & ]
         {
             if( rv )
             {
-                BC_ASSERT( fetch_parent( alias_item.alias() ).has_value() );
-                BC_ASSERT( fetch_parent( alias_item.alias() ).value() == dst );
+                auto const alias_id = make_alias_id( src, dst );
+                BC_ASSERT( fetch_parent( alias_id ).has_value() );
+                BC_ASSERT( fetch_parent( alias_id ).value() == dst );
             }
         })
     ;
 
     KMAP_ENSURE( exists( rsrc ), error_code::network::invalid_node );
     KMAP_ENSURE( exists( dst ), error_code::network::invalid_node );
+    // KMAP_ENSURE( is_top_alias( top ), error_code::network::invalid_node ); // TODO: Re-enable. First call of this, top alias doesn't yet exist, so this fails, but afterwards should succeed.
 
+    auto const alias_item = make_alias_item( top, src, rsrc, dst );
     auto const alias_id = KTRY( astore_.push_alias( alias_item ) );
 
-    for( auto const& e : fetch_children( rsrc ) )
+    for( auto const& child : fetch_children( src ) )
     {
-        KTRY( create_alias_leaf( e, alias_id ) );
+        if( is_alias( child ) )
+        {
+            auto const entry = KTRY( astore_.fetch_entry( child ) );
+
+            KTRY( create_alias_leaf( entry.top().value(), entry.rsrc().value(), alias_id ) );
+        }
+        else
+        {
+            KTRY( create_alias_leaf( top, child, alias_id ) );
+        }
     }
 
     rv = alias_id;
@@ -622,10 +656,7 @@ auto Network::erase_alias_desc( Uuid const& id )
     KMAP_ENSURE( is_alias( id ), error_code::node::invalid_alias );
     KMAP_ENSURE( !is_top_alias( id ), error_code::node::invalid_alias );
 
-    for( auto const children = anchor::node( id )
-                             | view2::child
-                             | view2::order
-                             | act2::to_node_vec( km )
+    for( auto const children = KTRY( fetch_children_ordered( id ) )
        ; auto const& child : children | views::reverse )
     {
         KTRY( erase_alias_desc( child ) );
@@ -651,11 +682,11 @@ auto Network::erase_alias_leaf( Uuid const& id )
 
     KTRY( alias_store().erase_alias( AliasItem::alias_type{ id } ) );
 
-    if( auto const estore = fetch_component< com::EventStore >()
-      ; estore )
-    {
-        KTRY( estore.value()->fire_event( { "subject.network", "verb.erased", "object.node" },  { { "node_id", to_string( id ) } } ) );
-    }
+    // if( auto const estore = fetch_component< com::EventStore >()
+    //   ; estore )
+    // {
+    //     KTRY( estore.value()->fire_event( { "subject.network", "verb.erased", "object.node" },  { { "node_id", to_string( id ) } } ) );
+    // }
 
     rv = outcome::success();
 
@@ -677,30 +708,20 @@ auto Network::erase_alias_root( Uuid const& id )
     KMAP_ENSURE( is_alias( id ), error_code::node::invalid_alias );
     KMAP_ENSURE( is_top_alias( id ), error_code::node::invalid_alias );
 
-    { // Only erase alias dsts that map to this specific top alias, but not this specific alias (currently being erased).
-        auto const rsrc_aliases = astore.fetch_aliases( AliasItem::rsrc_type{ dst } );
-
-        for( auto const& alias : rsrc_aliases )
-        {
-            for( auto const children = anchor::node( alias )
-                                     | view2::child
-                                     | view2::order
-                                     | act2::to_node_vec( km )
-               ; auto const& child : children | views::reverse )
-            {
-                KTRY( erase_alias_desc( child ) );
-            }
-        }
-    }
-
-    for( auto const children = anchor::node( id )
-                             | view2::child
-                             | view2::order
-                             | act2::to_node_vec( km )
-       ; auto const& child : children | views::reverse )
     {
-        KTRY( erase_alias_desc( child ) );
-    }
+        auto const dependent_aliases = astore.fetch_aliases( AliasItem::top_type{ id } );
+        auto const ordered_das = KTRY( anchor::node( dependent_aliases )
+                                     | view2::order
+                                     | act2::try_node_vec( km ) );
+        
+        // Ordering should guarantee that leaves are erased before branches.
+        for( auto const& da : ordered_das
+                            | rvs::filter( [ &id ]( auto const& e ){ return e != id; } )
+                            | rvs::reverse )
+        {
+            KTRY( erase_alias_leaf( da ) );
+        }
+    } 
 
     if( !attr::is_in_attr_tree( km, dst ) )
     {
@@ -777,14 +798,7 @@ auto Network::erase_node_internal( Uuid const& id )
         }();
         for( auto const& e : children | views::reverse ) // Not necessary to erase in reverse order, but it seems like a reasonable requirement (FILO)
         {
-            if( is_top_alias( e ) )
-            {
-                KTRY( erase_alias_root( e ) );
-            }
-            else
-            {
-                KTRY( erase_node_internal( e ) );
-            }
+            KTRY( erase_node_internal( e ) );
         }
 
         KTRY( erase_node_leaf( id ) );
@@ -1043,6 +1057,19 @@ SCENARIO( "Network::erase_node", "[network][alias]" )
         auto const n432 = REQUIRE_TRY( anchor::node( n43 ) | view2::alias( view2::resolve( n2 ) ) | act2::fetch_node( km ) );
         auto const n4321 = REQUIRE_TRY( anchor::node( n432 ) | view2::alias( view2::resolve( n1 ) ) | act2::fetch_node( km ) );
 
+        THEN( "dependent aliases properly established" )
+        {
+            auto const dependent_aliases = [ & ]( Uuid const& top_alias )
+            {
+                auto const& astore = nw->alias_store();
+                return astore.fetch_aliases( AliasItem::top_type{ top_alias } );
+            };
+
+            REQUIRE( dependent_aliases( n21 ) == UuidSet{ n21, n321, n4321 } );
+            REQUIRE( dependent_aliases( n32 ) == UuidSet{ n32, n432 } );
+            REQUIRE( dependent_aliases( n43 ) == UuidSet{ n43 } );
+        }
+
         WHEN( "erase_node( /1 )" )
         {
             REQUIRE_TRY( nw->erase_node( n1 ) );
@@ -1194,6 +1221,26 @@ SCENARIO( "Network::erase_node", "[network][alias]" )
             THEN( "[x] /4.3.2.1" ) { REQUIRE( nw->exists( n4321 ) ); }
         }
     }
+    GIVEN( "/1\n/2.x.y\n/2.x.1[/1]\n/3.2[/2].x.1" )
+    {
+        REQUIRE_TRY( anchor::abs_root 
+                   | view2::all_of( view2::direct_desc, { "1"
+                                                        , "2.x"
+                                                        , "2.x.y"
+                                                        , "3" } )
+                   | act2::create( km ) );
+        auto const n1 = REQUIRE_TRY( anchor::abs_root | view2::direct_desc( "1" ) | act2::fetch_node( km ) );
+        auto const n2 = REQUIRE_TRY( anchor::abs_root | view2::direct_desc( "2" ) | act2::fetch_node( km ) );
+        auto const n2x = REQUIRE_TRY( anchor::abs_root | view2::direct_desc( "2.x" ) | act2::fetch_node( km ) );
+        auto const n3 = REQUIRE_TRY( anchor::abs_root | view2::direct_desc( "3" ) | act2::fetch_node( km ) );
+        REQUIRE_TRY( nw->create_alias( n1, n2x ) );
+        REQUIRE_TRY( nw->create_alias( n2, n3 ) );
+
+        THEN( "erase_node( /1 )" )
+        {
+            REQUIRE_TRY( nw->erase_node( n1 ) );
+        }
+    }
 }
 
 SCENARIO( "Network::erase_node erases attributes", "[network][attribute][alias]" )
@@ -1236,11 +1283,11 @@ SCENARIO( "Network::erase_node erases attributes", "[network][attribute][alias]"
             {
                 auto const n2 = REQUIRE_TRY( nw->create_child( kmap.root_node_id(), "2" ) );
 
-                REQUIRE_TRY( view::make( n1 )
-                           | view::attr
-                           | view::child( "test_attr" )
-                           | view::alias( view::Alias::Src{ n2 } )
-                           | view::create_node( kmap ) );
+                REQUIRE_TRY( anchor::node( n1 )
+                           | view2::attr
+                           | view2::child( "test_attr" )
+                           | view2::alias_src( n2 )
+                           | act2::create( kmap ) );
 
                 THEN( "erase node" )
                 {
@@ -1612,17 +1659,15 @@ auto Network::fetch_children_ordered( Uuid const& parent ) const
         auto const split = ordering_str
                          | rvs::split( '\n' )
                          | ranges::to< std::vector< std::string > >();
-        if( unord_children.size() != split.size() )
-        {
-            fmt::print( "unord_children:\n{}\n", unord_children | rvs::transform( [ & ]( auto const& e ){ return to_string( resolve( e ) ); } ) | rvs::join( '\n' ) | ranges::to< std::string >() );
-            fmt::print( "ordering_str:\n{}\n", ordering_str );
-        }
+
+        KM_RESULT_PUSH( "unordered_children.size", unord_children.size() );
+        KM_RESULT_PUSH( "ordering.size", split.size() );
         KMAP_ENSURE( unord_children.size() == split.size(), error_code::common::uncategorized ); 
 
         auto const map_resolve = [ & ]( auto const& s )
         {  
             auto const order_node = KTRYE( uuid_from_string( s ) );
-            // fmt::print( "r_to_a_map.at( '{}' )\n", s ); 
+
             if( !r_to_a_map.contains( order_node ) )
             {
                 KMAP_THROW_EXCEPTION_MSG( fmt::format( "mismatch between children and order nodes, for node: {}\n", s ) );
@@ -2033,7 +2078,7 @@ auto Network::fetch_parent( Uuid const& child ) const
     KM_RESULT_PROLOG();
         // KM_RESULT_PUSH( "child", child ); // Warning: This is prone to recursive invocation if fetch_parent itself fails, as AbsPathFlat uses fetch_parent to describe the arg node.
 
-    auto rv = KMAP_MAKE_RESULT_EC( Uuid, error_code::network::invalid_parent );
+    auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const db = KTRY( fetch_component< com::Database >() );
 
     if( is_alias( child ) )
@@ -2042,7 +2087,17 @@ auto Network::fetch_parent( Uuid const& child ) const
     }
     else
     {
-        rv = KTRY( db->fetch_parent( child ) );
+        // TODO: Hypothetically, db->fetch_parent could return an error for a reason other than that of not finding the parent.
+        //       I don't think, at time of writing, this is possible, but this should probably propagate any other error returned.
+        if( auto const p = db->fetch_parent( child )
+          ; p )
+        {
+            rv = p.value();
+        }
+        else
+        {
+            rv = KMAP_MAKE_ERROR( error_code::network::invalid_parent );
+        }
     }
 
     return rv;
@@ -3132,8 +3187,8 @@ auto Network::fetch_child( Uuid const& parent
    -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
-        // KM_RESULT_PUSH_NODE( "parent", parent );
-        // KM_RESULT_PUSH_STR( "heading", heading );
+        KM_RESULT_PUSH( "parent", parent );
+        KM_RESULT_PUSH( "heading", heading );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
 
@@ -3350,10 +3405,10 @@ auto Network::create_child_aliases( Uuid const& src
     KMAP_ENSURE( !is_alias( child ), error_code::common::uncategorized );
     KMAP_ENSURE( anchor::node( src ) | view2::child( child ) | act2::exists( kmap_inst() ), error_code::common::uncategorized );
 
-    for( auto const dsts = astore.fetch_aliases( AliasItem::rsrc_type{ src } )
-       ; auto const& dst : dsts )
+    for( auto const items = astore.fetch_entries( AliasItem::rsrc_type{ src } )
+       ; auto const& item : items )
     {
-        KTRY( create_alias_leaf( child, dst ) );
+        KTRY( create_alias_leaf( item.top().value(), child, item.alias() ) );
     }
 
     rv = outcome::success();
@@ -3367,12 +3422,14 @@ auto Network::is_alias( Uuid const& node ) const
     return alias_store().is_alias( node );
 }
 
-auto Network::load_alias_leaf( Uuid const& src
+auto Network::load_alias_leaf( Uuid const& top
+                             , Uuid const& src
                              , Uuid const& dst
                              , AliasLoadSet& all_aliases )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "top", top );
         KM_RESULT_PUSH( "src", src );
         KM_RESULT_PUSH( "dst", dst );
     
@@ -3381,7 +3438,7 @@ auto Network::load_alias_leaf( Uuid const& src
 
     auto rv = result::make_result< void >();
     auto const rsrc = resolve( src );
-    auto const alias_item = make_alias_item( src, rsrc, dst );
+    auto const alias_item = make_alias_item( top, src, rsrc, dst );
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -3410,7 +3467,7 @@ auto Network::load_alias_leaf( Uuid const& src
 
             if( !td.loaded() )
             {
-                KTRY( load_alias_leaf( td.rsrc().value(), td.dst().value(), all_aliases ) );
+                KTRY( load_alias_leaf( td.top().value(), td.rsrc().value(), td.dst().value(), all_aliases ) );
             }
         }
 
@@ -3434,7 +3491,7 @@ auto Network::load_alias_leaf( Uuid const& src
     for( auto const rchildren = fetch_children( rsrc )
        ; auto const rchild : rchildren )
     {
-        KTRY( load_alias_leaf( rchild, alias_item.alias(), all_aliases ) );
+        KTRY( load_alias_leaf( alias_item.top().value(), rchild, alias_item.alias(), all_aliases ) );
     }
 
     rv = outcome::success();

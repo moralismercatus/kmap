@@ -40,6 +40,10 @@ struct Order
 auto order( Kmap const& kmap )
     -> Order;
 
+// TODO: [[deprecated]]
+// Note: While overall a decent ordering algorithm, generally speaking, I believe it's less optimal than kmap::path::order. I would need benchmarks to confirm.
+//       The reason I'm thinking this is less efficient is that it compares nodes, walking down their lineages logarithmically until siblings are found, and ordering by sibling.
+//       kmap::path::order does the sibling walk for all nodes in question at the same time. Again, would need benchmarking.
 template< concepts::Range RT >
 auto operator|( RT const& range, Order const& op )
     -> UuidVec

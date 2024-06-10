@@ -11,8 +11,17 @@ const showdown = require( 'showdown' )
 const jshint = require( 'jshint' ).JSHINT;
 const js_beautify = require( 'js-beautify' ).js;
 const jscodeshift = require('jscodeshift');
+const vexjs = require( 'vex-js' )
 require( 'geteventlisteners' ); // This works by overriding Element.prototype.addEventListener and Element.prototype.removeEventListener upon import, so only after here are they overriden.
 
+vexjs.registerPlugin( require( 'vex-dialog' ) )
+vexjs.defaultOptions.className = 'vex-theme-os'
+
+kmap.flags = { 'debounce': true };
+
+// Note: Unfortunately, these cannot be simply accounted for by replacing all instaces of `ktry( <expr> )` with an IIFE (immediately invoked function expr).
+//       The point is to return to the nearest exit point - which would be the IIFE's exit point - not the intended function exit point! It would be useless.
+// TODO: These should ensure that ktry() has a single argument. If not, they shouldn't match. So, `ktry()` and `ktry( <expr>, ... )` should fail.
 function kmap_preprocess_js_script( code )
 {
     const cshift = jscodeshift;
@@ -30,6 +39,7 @@ function kmap_preprocess_js_script( code )
             const ktry_call = decl.init;
             const ktry_arg = ktry_call.arguments[ 0 ];
             const decl_kind =  decl_node_path.node.kind; 
+
             const tmp_decl = cshift.variableDeclaration( decl_kind, [ cshift.variableDeclarator( cshift.identifier( tmp_var_name ), ktry_arg ) ] );
             const condition = cshift.callExpression( cshift.memberExpression( cshift.identifier( tmp_var_name ), cshift.identifier( 'has_error' ) ), [] );
             const ret_result = cshift.returnStatement( cshift.callExpression( cshift.memberExpression( cshift.identifier( tmp_var_name ), cshift.identifier( 'error' ) ), [] ) );
@@ -53,6 +63,7 @@ function kmap_preprocess_js_script( code )
             const tmp_var_name = 'ktry_postproc_temp_val_' + lhs_name;
             const ktry_call = rhs;
             const ktry_arg = ktry_call.arguments[ 0 ];
+
             const tmp_decl = cshift.variableDeclaration( 'const', [ cshift.variableDeclarator( cshift.identifier( tmp_var_name ), ktry_arg ) ] );
             const condition = cshift.callExpression( cshift.memberExpression( cshift.identifier( tmp_var_name ), cshift.identifier( 'has_error' ) ), [] );
             const ret_result = cshift.returnStatement( cshift.callExpression( cshift.memberExpression( cshift.identifier( tmp_var_name ), cshift.identifier( 'error' ) ), [] ) );
@@ -62,6 +73,26 @@ function kmap_preprocess_js_script( code )
 
             return cshift.blockStatement( [ tmp_decl, if_stmt, new_assign ] );
         } ); 
+    // return ktry( <expr> );
+    collection.find( cshift.ReturnStatement, { argument: { type: 'CallExpression'
+                                                         , callee: { name: 'ktry' } } } )
+        .replaceWith( ( ktry_node_path ) => {
+            console.log( 'in RETURN KTRY CASE' );
+            const ktry_call = ktry_node_path.node.argument;
+            const ktry_args = ktry_call.arguments;
+            const [ ktry_body ] = ktry_args;
+
+            const temp_id = cshift.identifier( 'ktry_postproc_temp_val' );
+            const res_decl = cshift.variableDeclaration( 'const', [ cshift.variableDeclarator( temp_id, ktry_body ) ] );
+            const condition_call = cshift.callExpression( cshift.memberExpression( temp_id, cshift.identifier( 'has_error' ) ), [] );
+            const error_call = cshift.callExpression( cshift.memberExpression( temp_id, cshift.identifier( 'error' ) ), [] );
+            const value_call = cshift.callExpression( cshift.memberExpression( temp_id, cshift.identifier( 'value' ) ), [] );
+            const return_error = cshift.returnStatement( error_call );
+            const return_value = cshift.returnStatement( value_call );
+            const if_stmt = cshift.ifStatement( condition_call, cshift.blockStatement( [ return_error ] ), cshift.blockStatement( [ return_value ] ) );
+
+            return cshift.blockStatement( [ res_decl, if_stmt ] );
+        } );
     // <func>( ktry( < expr > ) )
     collection.find( cshift.CallExpression, { arguments: [ { type: 'CallExpression'
                                                            , callee: { name: 'ktry' } } ] } )
@@ -70,6 +101,7 @@ function kmap_preprocess_js_script( code )
             const outer_fn_id = outer_fn.callee.name; 
             const ktry_args = ktry_node_path.node.arguments[ 0 ].arguments;
             const [ ktry_body ] = ktry_args;
+
             const temp_id = cshift.identifier( 'ktry_postproc_temp_val' );
             const res_decl = cshift.variableDeclaration( 'const', [ cshift.variableDeclarator( temp_id, ktry_body ) ] );
             const condition = cshift.callExpression( cshift.memberExpression( temp_id, cshift.identifier( 'has_error' ) ), [] );
@@ -80,12 +112,13 @@ function kmap_preprocess_js_script( code )
             return cshift.blockStatement( [ res_decl
                                           , if_stmt
                                           , cshift.expressionStatement( outer_fn_call ) ] );
-        } ); 
+        } );
     // ktry( <expr> );
     collection.find( cshift.CallExpression, { callee: { name: 'ktry' } } )
         .replaceWith( ( ktry_node_path ) => {
             const ktry_args = ktry_node_path.node.arguments;
             const [ ktry_body ] = ktry_args;
+
             const temp_id = cshift.identifier( 'ktry_postproc_temp_val' );
             const res_decl = cshift.variableDeclaration( 'const', [ cshift.variableDeclarator( temp_id, ktry_body ) ] );
             const condition = cshift.callExpression( cshift.memberExpression( temp_id, cshift.identifier( 'has_error' ) ), [] );
@@ -109,7 +142,7 @@ function lint_javascript( code )
     try
     {
         let rv = null;
-        const options = { 'esversion': 6 // Just guessing on the EMCAScript version. May need to bump in the future.
+        const options = { 'esversion': 8 // Just guessing on the EMCAScript version. May need to bump in the future.
                         , 'laxcomma': true  // Allows for `, line_item` style of line breaking.
                         , 'laxbreak': true // Allows for `|| line_item` style of line breaking.
                         , '-W032': true // Allow for '{};' trailing semicolon, especially to facilitate output of ktry() transformation.
@@ -170,53 +203,11 @@ function to_VectorString( li )
     }
 }
 
-function clear_cli_error()
-{
-    try
-    {
-        let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) );
-
-        cli.style.backgroundColor = 'white';
-        cli.readOnly = false;
-    }
-    catch( err )
-    {
-        console.log( String( err ) );
-    }
-}
-
-function clear_canvas_cli()
-{
-    try
-    {
-        let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) );
-
-        cli.value = "";
-    }
-    catch( err )
-    {
-        console.log( String( err ) );
-    }
-}
-
 /// Emscripten Represents C++ exceptions by pointer to linear address / number.
 /// Only guaranteed to work when 'err_obj' is the object passed to catch().
 function is_cpp_exception( err_obj )
 {
     return typeof err_obj === 'number';
-}
-
-function reset_canvas_cli()
-{
-    try
-    {
-        clear_cli_error();
-        reset_cli_error();
-    }
-    catch( err )
-    {
-        console.log( String( err ) );
-    }
 }
 
 function clear_text_area()
@@ -231,6 +222,11 @@ function clear_text_area()
     {
         console.log( String( err ) );
     }
+}
+
+function sleep( ms )
+{
+    return new Promise( resolve => setTimeout( resolve, ms ) );
 }
 
 function write_text_area( text )
@@ -275,25 +271,11 @@ function focus_preview()
     }
 }
 
-function get_editor_contents()
-{
-    try
-    {
-        let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) );
-
-        return tv.value;
-    }
-    catch( err )
-    {
-        console.log( String( err ) );
-    }
-}
-
 function write_preview( text )
 {
     try
     {
-        let tv = document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).innerHTML = text;
+        document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).innerHTML = text;
     }
     catch( err )
     {
@@ -357,101 +339,22 @@ function append_script( fn, code )
     }
 }
 
-function eval_js_command( code )
-{
-    try
-    {
-        const res = eval( code );
-
-        console.log( 'res: ' + res );
-
-        if( res[ 0 ] )
-        {
-            kmap.cli().notify_success( res[ 1 ] );
-        }
-        else
-        {
-            kmap.cli().notify_failure( res[ 1 ] );
-        }
-    }
-    catch( err )
-    {
-        // TODO: Should return error info message, to help user debug...
-        console.error( "code execution failed: " + err.message );
-
-        return false;
-    }
-
-    return true;
-}
-
-// window.onkeydown = function( e )
-// {
-//     try
-//     {
-//         let key = e.keyCode ? e.keyCode : e.which;
-//         let is_shift = !!e.shiftKey;
-//         let cli = document.getElementById( kmap.uuid_to_string( kmap.canvas().cli_pane() ) );
-//         let editor = document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) );
-
-//         switch ( key )
-//         {
-//             case 186: // colon
-//             {
-//                 if( is_shift
-//                 && cli != document.activeElement
-//                 && editor != document.activeElement )
-//                 {
-//                     clear_cli_error();
-//                     cli.value = "";
-//                     kmap.cli().focus();
-//                 }
-//                 break;
-//             }
-//             case 50: // '2' for '@'
-//             {
-//                 if( is_shift
-//                 && cli != document.activeElement
-//                 && editor != document.activeElement )
-//                 {
-//                     clear_cli_error();
-//                     cli.value = ":";
-//                     kmap.cli().focus();
-//                 }
-//                 break;
-//             }
-//             case 191: // forward slash
-//             {
-//                 if( cli != document.activeElement
-//                 && editor != document.activeElement )
-//                 {
-//                     clear_cli_error();
-//                     cli.value = ":";
-//                     kmap.cli().focus();
-//                 }
-//                 break;
-//             }
-//             case 13: // enter
-//             {
-//                 break;
-//             }
-//         }
-//     }
-//     catch( err )
-//     {
-//         console.log( String( err ) );
-//     }
-// }
-
 function debounce( fn, timer_name, timeout )
 {
-  return function(...args) 
-  {
-    if( global[ timer_name ] !== undefined )
+    if( kmap.flags.debounce )
     {
-        clearTimeout( global[ timer_name ] );
-    }
+        return function(...args) 
+        {
+            if( global[ timer_name ] !== undefined )
+            {
+                clearTimeout( global[ timer_name ] );
+            }
 
-    global[ timer_name ] = setTimeout( function(){ fn.apply( this, args ); }, timeout );
-  };
+            global[ timer_name ] = setTimeout( function(){ fn.apply( this, args ); }, timeout );
+        };
+    }
+    else
+    {
+        return fn;
+    }
 }

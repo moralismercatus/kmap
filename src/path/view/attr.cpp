@@ -3,11 +3,12 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "path/view/attr.hpp"
+#include <path/view/attr.hpp>
 
-#include "com/network/network.hpp"
-#include "kmap.hpp"
-#include "test/util.hpp"
+#include <com/database/db.hpp>
+#include <com/network/network.hpp>
+#include <kmap.hpp>
+#include <test/util.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -22,7 +23,12 @@ auto Attr::create( CreateContext const& ctx
                  , Uuid const& root ) const
     -> Result< UuidSet >
 {
-    KMAP_THROW_EXCEPTION_MSG( "TODO" );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_NODE( "node", root );
+
+    auto const db = KTRY( ctx.km.fetch_component< com::Database >() );
+
+    return UuidSet{ KTRY( com::create_attr_node( *db, root ) ) };
 }
 
 auto Attr::fetch( FetchContext const& ctx

@@ -23,35 +23,35 @@ auto to_node_vec( Kmap const& km )
     return ToNodeVec{ km };
 }
 
+auto try_node_vec( Kmap const& km )
+    -> TryNodeVec 
+{
+    return TryNodeVec{ km };
+}
+
 auto operator|( Tether const& lhs
               , ToNodeVec const& rhs )
     -> UuidVec
 {
     KM_RESULT_PROLOG();
 
-    auto rv = UuidVec{};
-    // auto const db = KTRYE( rhs.km.fetch_component< com::Database >() );
-    // // TODO: qcaching should happen with to_fetch_set, rather.
-    // auto& qcache = db->query_cache();
+    return KTRYE( lhs | try_node_vec( rhs.km ) );
+}
 
-    // if( auto const qr = qcache.fetch( lhs )
-    //   ; qr )
-    // {
-    //     rv = qr.value();
-    // }
-    // else
-    {
-        auto const ctx = FetchContext{ rhs.km, lhs };
-        auto const fs = KTRYE( lhs | to_fetch_set( ctx ) );
-        auto const& fsv = fs.get< random_access_index >();
+auto operator|( Tether const& lhs
+              , TryNodeVec const& rhs )
+    -> Result< UuidVec >
+{
+    KM_RESULT_PROLOG();
 
-        rv = fsv
-           | rvs::transform( []( auto const& e ){ return e.id; } )
-           | ranges::to< UuidVec >();
+    auto rv = result::make_result< UuidVec >();
+    auto const ctx = FetchContext{ rhs.km, lhs };
+    auto const fs = KTRY( lhs | to_fetch_set( ctx ) );
+    auto const& fsv = fs.get< random_access_index >();
 
-        // KTRYE( const_cast< db::QueryCache& >( qcache ).push( lhs, rv ) ); // TODO: WARNING FLAGS!!! VERY TEMPORARY! const_cast a no-no!
-        // KMAP_ENSURE_EXCEPT( qcache.fetch( lhs ) );
-    }
+    rv = fsv
+        | rvs::transform( []( auto const& e ){ return e.id; } )
+        | ranges::to< UuidVec >();
 
     return rv;
 }

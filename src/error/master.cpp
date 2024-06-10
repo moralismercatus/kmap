@@ -79,11 +79,11 @@ auto to_string( Payload const& sp )
     for( auto const& [ index, e ] : sp.stack | ranges::views::enumerate )
     {
         ss << fmt::format( "-------stack_item[{}]-------\n", index );
-        ss << fmt::format( "\tmessage: {}\n{}|{}:{}\n"
-                         , e.message
+        ss << fmt::format( "{}|{}:{}\nmessage: {}\n"
                          , e.function
                          , e.file
-                         , e.line );
+                         , e.line
+                         , e.message );
     }
 
     return ss.str();

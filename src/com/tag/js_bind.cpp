@@ -5,6 +5,8 @@
  ******************************************************************************/
 #include <com/tag/tag.hpp>
 
+#include <path/node_view2.hpp>
+
 #include <emscripten.h>
 
 namespace kmap::com {
@@ -32,8 +34,20 @@ struct TagStore
 
         return tstore->create_tag( path );
     }
-    auto erase_tag( Uuid const& node
-                  , std::string const& tpath )
+    auto attach_tag( Uuid const& node
+                   , std::string const& tpath )
+        -> kmap::Result< Uuid >
+    {
+        KM_RESULT_PROLOG();
+            KM_RESULT_PUSH_NODE( "node", node );
+            KM_RESULT_PUSH_STR( "tpath", tpath );
+
+        auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
+
+        return tstore->tag_node( node, tpath );
+    }
+    auto detach_tag( Uuid const& node
+                   , std::string const& tpath )
         -> kmap::Result< void >
     {
         KM_RESULT_PROLOG();
@@ -41,27 +55,15 @@ struct TagStore
             KM_RESULT_PUSH_STR( "path", tpath );
 
         auto rv = KMAP_MAKE_RESULT( void );
-        auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
 
-        KTRY( view::make( node )
-            | view::tag( tpath )
-            | view::erase_node( kmap_ ) );
+        KTRY( anchor::node( node )
+            | view2::attrib::tag( view2::resolve( view2::tag::tag_root
+                                                | view2::desc( tpath ) ) )
+            | act2::erase_node( kmap_ ) );
 
         rv = outcome::success();
 
         return rv;
-    }
-    auto tag_node( Uuid const& node
-                 , std::string const& path )
-        -> kmap::Result< Uuid >
-    {
-        KM_RESULT_PROLOG();
-            KM_RESULT_PUSH_NODE( "node", node );
-            KM_RESULT_PUSH_STR( "path", path );
-
-        auto const tstore = KTRY( kmap_.fetch_component< com::TagStore >() );
-
-        return tstore->tag_node( node, path );
     }
 };
 
@@ -78,8 +80,8 @@ EMSCRIPTEN_BINDINGS( kmap_tag_store )
     function( "tag_store", &kmap::com::binding::tag_store );
     class_< kmap::com::binding::TagStore >( "TagStore" )
         .function( "create_tag", &kmap::com::binding::TagStore::create_tag )
-        .function( "erase_tag", &kmap::com::binding::TagStore::erase_tag )
-        .function( "tag_node", &kmap::com::binding::TagStore::tag_node )
+        .function( "attach_tag", &kmap::com::binding::TagStore::attach_tag )
+        .function( "detach_tag", &kmap::com::binding::TagStore::detach_tag )
         ;
 }
 

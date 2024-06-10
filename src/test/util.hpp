@@ -121,6 +121,17 @@ struct SaveToDiskFixture
 	~SaveToDiskFixture();
 };
 
+struct DisableDebounceFixture
+{
+	std::string file;
+	uint32_t line;
+    bool prev_debounce = {};
+
+    DisableDebounceFixture( std::string const& curr_file = __builtin_FILE()
+                          , uint32_t const curr_line = __builtin_LINE() );
+    ~DisableDebounceFixture();
+};
+
 template< typename Range >
 auto headings( com::Network const& nw 
              , Range const& rng )
@@ -137,5 +148,6 @@ auto headings( com::Network const& nw
 
 #define KMAP_COMPONENT_FIXTURE_SCOPED( ... ) kmap::test::ComponentFixture component_fixture{ { __VA_ARGS__ } }
 #define KMAP_INIT_DISK_DB_FIXTURE_SCOPED( db ) kmap::test::SaveToDiskFixture save_to_disk_fixture{ ( db ), __FILE__, __LINE__ }
+#define KMAP_DISABLE_DEBOUNCE_FIXTURE_SCOPED() kmap::test::DisableDebounceFixture disable_debounce_fixture{ __FILE__, __LINE__ }
 
 #endif // KMAP_TEST_UTIL_HPP

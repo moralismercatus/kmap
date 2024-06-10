@@ -7,9 +7,12 @@
 #ifndef KMAP_DB_COMMON_HPP
 #define KMAP_DB_COMMON_HPP
 
-#include "common.hpp"
-#include "utility.hpp"
-#include "error/db.hpp"
+#include <common.hpp>
+#include <error/db.hpp>
+#include <error/master.hpp>
+#include <utility.hpp>
+#include <util/concepts.hpp>
+#include <util/result.hpp>
 
 #include <boost/multi_index/composite_key.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -19,12 +22,26 @@
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index_container.hpp>
 #include <fmt/format.h>
+#include <range/v3/algorithm/count_if.hpp>
 
 #include <concepts>
 #include <tuple>
 #include <variant>
 
 namespace kmap::com::db {
+
+template< typename Table
+        , typename Key >
+    requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::NonRangeResult; }
+auto contains_erased_delta( Table const& table
+                          , Key const& key )
+    -> bool;
+template< typename Table
+        , typename Key >
+    requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::RangeResult; }
+auto contains_erased_delta( Table const& table
+                          , Key const& key )
+    -> bool;
 
 class Cache;
 
@@ -252,7 +269,7 @@ public:
     auto fetch( KV const& kv ) const
         -> Result< table_item_type >
     {
-        auto rv = KMAP_MAKE_RESULT( table_item_type );
+        auto rv = result::make_result< table_item_type >();
 
         if( auto const it = table.find( kv )
           ; it != table.end() )
@@ -265,24 +282,21 @@ public:
     auto create( KV const& kv )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< void >();
+
+        KMAP_ENSURE( !contains( kv ), error_code::common::data_already_exists );
 
         // fmt::print( "creating set entry: {}\n", to_string( kv ) );
-        if( !contains( kv ) )
-        {
-            auto const di = DeltaItem{ .value = kv 
-                                     , .action = DeltaType::created
-                                     , .transaction_id = {}/*TODO*/ };
+        auto const di = DeltaItem{ .value = kv 
+                                 , .action = DeltaType::created
+                                 , .transaction_id = {}/*TODO*/ };
 
-            if( auto const [ it, success ] = table.emplace( table_item_type{ .ukey = kv, .cache_item = {}, .delta_items = DeltaItems{ di } } )
-              ; success )
-            {
-                rv = outcome::success();
-            }
-        }
-        else
+        if( auto const [ it, success ] = table.emplace( table_item_type{ .ukey = kv, .cache_item = {}, .delta_items = DeltaItems{ di } } )
+          ; success )
         {
-            rv = KMAP_MAKE_ERROR( error_code::common::data_already_exists );
+            rv = outcome::success();
         }
 
         return rv;
@@ -290,7 +304,7 @@ public:
     auto erase( KV const& p )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
 
         auto&& tv = table.template get< KV >();
 
@@ -309,7 +323,9 @@ public:
                , UpdateFn const& update_fn )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< void >();
         auto const& tv = table.template get< KV >();
         
         // fmt::print( "updating settable entry: ( 'ukey' )\n" );
@@ -378,7 +394,7 @@ public:
     auto fetch( left_type const& left ) const 
         -> Result< table_item_type >
     {
-        auto rv = KMAP_MAKE_RESULT( table_item_type );
+        auto rv = result::make_result< table_item_type >();
 
         if( auto const it = table.find( left )
           ; it != table.end() )
@@ -391,7 +407,7 @@ public:
     auto fetch( right_type const& right ) const 
         -> Result< std::vector< table_item_type > >
     {
-        auto rv = KMAP_MAKE_RESULT( std::vector< table_item_type > );
+        auto rv = result::make_result< std::vector< table_item_type > >();
         auto er = std::vector< table_item_type >{};
         auto const& tv = table.template get< right_type >();
 
@@ -413,24 +429,21 @@ public:
                , Value const& val )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< void >();
+
+        KMAP_ENSURE( !contains( key ), error_code::common::data_already_exists );
 
         // fmt::print( "creating maptable entry: ( '{}', '{}' )\n", to_string( key ), val );
-        if( !contains( key ) )
-        {
-            auto const di = DeltaItem{ .value = val
-                                     , .action = DeltaType::created
-                                     , .transaction_id = {}/*TODO*/ };
+        auto const di = DeltaItem{ .value = val
+                                 , .action = DeltaType::created
+                                 , .transaction_id = {}/*TODO*/ };
 
-            if( auto const [ it, success ] = table.insert( table_item_type{ key, std::nullopt, DeltaItems{ di } } )
-              ; success )
-            {
-                rv = outcome::success();
-            }
-        }
-        else
+        if( auto const [ it, success ] = table.insert( table_item_type{ key, std::nullopt, DeltaItems{ di } } )
+            ; success )
         {
-            rv = KMAP_MAKE_ERROR( error_code::common::data_already_exists );
+            rv = outcome::success();
         }
 
         return rv;
@@ -438,7 +451,7 @@ public:
     auto erase( unique_key_type const& p )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
 
         auto&& tv = table.template get< unique_key_type >();
 
@@ -457,7 +470,7 @@ public:
                , UpdateFn const& update_fn )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
         auto const& tv = table.template get< left_type >();
         
         // fmt::print( "updating maptable entry: ( '{}' )\n", to_string( left ) );
@@ -537,7 +550,7 @@ public:
     auto fetch( Left const& left ) const
         -> Result< std::vector< table_item_type > >
     {
-        auto rv = KMAP_MAKE_RESULT( std::vector< table_item_type > );
+        auto rv = result::make_result< std::vector< table_item_type > >();
         auto&& tv = table.template get< Left >();
         auto er = std::vector< table_item_type >{};
 
@@ -558,7 +571,7 @@ public:
     auto fetch( Right const& right ) const
         -> Result< std::vector< table_item_type > >
     {
-        auto rv = KMAP_MAKE_RESULT( std::vector< table_item_type > );
+        auto rv = result::make_result< std::vector< table_item_type > >();
         auto er = std::vector< table_item_type >{};
         auto const& tv = table.template get< Right >();
 
@@ -579,7 +592,7 @@ public:
     auto fetch( Pair const& p ) const
         -> Result< table_item_type >
     {
-        auto rv = KMAP_MAKE_RESULT( table_item_type );
+        auto rv = result::make_result< table_item_type >();
         auto&& tv = table.template get< Pair >();
 
         if( auto const it = tv.find( p )
@@ -594,24 +607,21 @@ public:
                , Right const& right )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        KM_RESULT_PROLOG();
+
+        auto rv = result::make_result< void >();
+
+        KMAP_ENSURE( !contains( { left, right } ), error_code::common::data_already_exists );
 
         // fmt::print( "creating bimaptable entry: ( '{}', '{}' )\n", to_string( left.value() ), to_string( right.value() ) );
-        if( !contains( { left, right } ) )
-        {
-            auto const di = DeltaItem{ .value = { left, right }
-                                     , .action = DeltaType::created
-                                     , .transaction_id = {}/*TODO*/ };
+        auto const di = DeltaItem{ .value = { left, right }
+                                 , .action = DeltaType::created
+                                 , .transaction_id = {}/*TODO*/ };
 
-            if( auto const [ it, success ] = table.emplace( table_item_type{ .cache_item = {}, .delta_items = DeltaItems{ di } } )
-              ; success )
-            {
-                rv = outcome::success();
-            }
-        }
-        else
+        if( auto const [ it, success ] = table.emplace( table_item_type{ .cache_item = {}, .delta_items = DeltaItems{ di } } )
+            ; success )
         {
-            rv = KMAP_MAKE_ERROR( error_code::common::data_already_exists );
+            rv = outcome::success();
         }
 
         return rv;
@@ -619,7 +629,7 @@ public:
     auto erase( unique_key_type const& p )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
 
         auto&& tv = table.template get< unique_key_type >();
 
@@ -638,7 +648,7 @@ public:
                , UpdateFn const& update_fn )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
         auto const& tv = table.template get< unique_key_type >();
         
         // fmt::print( "updating bimaptable entry: ( 'ukey' )\n" );
@@ -720,6 +730,52 @@ auto fetch_deltas( Cache const& cache
                  , TableVariant const& table
                  , UniqueKeyVariant const& key )
     -> Result< DeltaItems< ValueVariant > >;
+
+template< typename Table
+        , typename Key >
+    requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::NonRangeResult; }
+auto contains_erased_delta( Table const& table
+                          , Key const& key )
+    -> bool
+{
+    auto rv = false;
+
+    if( auto const entry = table.fetch( key )
+      ; entry )
+    {
+        auto const& ev = entry.value();
+
+        if( !ev.delta_items.empty() )
+        {
+            rv = ( ev.delta_items.back().action == DeltaType::erased );
+        }
+    }
+
+    return rv;
+}
+template< typename Table
+        , typename Key >
+    requires requires( Table t ) { { t.fetch( Key{} ) } -> concepts::RangeResult; }
+auto contains_erased_delta( Table const& table
+                          , Key const& key )
+    -> bool
+{
+    auto rv = false;
+
+    if( auto const res = table.fetch( key )
+        ; res )
+    {
+        auto const& resv = res.value();
+        auto const contains_erased = []( auto const& ti )
+        {
+            return !ti.delta_items.empty() && ti.delta_items.back().action == DeltaType::erased; 
+        };
+        
+        rv = ( ranges::count_if( resv, contains_erased ) != 0 );
+    }
+
+    return rv;
+}
 
 } // namespace kmap::com::db
 

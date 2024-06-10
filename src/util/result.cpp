@@ -15,6 +15,8 @@
 #include <util/script/script.hpp>
 #include <utility.hpp>
 
+#include <boost/json.hpp>
+
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -172,56 +174,78 @@ auto dump_about( Kmap const& km
            , { "path", path } };
 }
 
-auto to_string( LocalLog::MultiValue const& mv )
-    -> std::string
+auto to_json( LocalLog::MultiValue const& mv )
+    -> boost::json::object
 {
     auto ss = std::stringstream{};
     auto const dispatch = util::Dispatch
     {
         [ & ]( char const* arg )
         {
-            ss << "'"
-                << arg
-                << "'";
+            auto obj = boost::json::object{};
+
+            obj[ mv.key ] = arg;
+
+            return obj;
         }
     ,   [ & ]( std::string const& arg )
         {
-            ss << "'"
-                << arg
-                << "'";
+            auto obj = boost::json::object{};
+
+            obj[ mv.key ] = arg;
+
+            return obj;
         }
     ,   [ & ]( Uuid const& arg )
         {
-            ss << to_string( result::dump_about( kmap::Singleton::instance(), arg ) );
+            auto obj = boost::json::object{};
+
+            obj[ mv.key ] = to_json( result::dump_about( kmap::Singleton::instance(), arg ) );
+
+            return obj;
         }
     ,   [ & ]( std::vector< LocalLog::MultiValue > const& arg )
         {
-            ss << "{"
-                << to_string( arg )
-                << "}";
+            auto obj = boost::json::object{};
+            auto arr = boost::json::array{};
+
+            for( auto const& elem : arg )
+            {
+                arr.emplace_back( to_json( elem ) );
+            }
+
+            obj[ mv.key ] = arr;
+
+            return obj;
         }
     };
 
-    std::visit( dispatch, mv.value );
+    return std::visit( dispatch, mv.value );
+}
 
-    return ss.str();
+auto to_json( std::vector< LocalLog::MultiValue > const& mvs )
+    -> boost::json::array
+{
+    auto arr = boost::json::array{};
+
+    for( auto const& mv : mvs )
+    {
+        arr.emplace_back( to_json( mv ) );
+    }
+
+    return arr;
+}
+
+auto to_string( LocalLog::MultiValue const& mv )
+    -> std::string
+{
+    return boost::json::serialize( to_json( mv ) );
 }
 
 auto to_string( std::vector< LocalLog::MultiValue > const& mvs )
     -> std::string
 {
-    auto ss = std::stringstream{};
-
-    ss << "{";
-
-    for( auto const& mv : mvs )
-    {
-        ss << to_string( mv );
-    }
-
-    ss << "}";
-
-    return ss.str();
+    return boost::json::serialize( to_json( mvs ) );
 }
 
 auto to_string( LocalLog const& state )

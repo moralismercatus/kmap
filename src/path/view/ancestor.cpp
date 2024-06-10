@@ -3,12 +3,13 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "path/view/ancestor.hpp"
+#include <path/view/ancestor.hpp>
 
-#include "com/network/network.hpp"
-#include "path.hpp"
-#include "test/util.hpp"
-#include "utility.hpp"
+#include <com/network/network.hpp>
+#include <path.hpp>
+#include <path/ancestry.hpp>
+#include <test/util.hpp>
+#include <utility.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 #include <range/v3/algorithm/sort.hpp>
@@ -112,17 +113,13 @@ auto Ancestor::fetch( FetchContext const& ctx
     }
     else
     {
-        auto rs = FetchSet{};
-        auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
-        auto it_node = nw->fetch_parent( node );
-
-        while( it_node )
+        auto const rs = KTRY( [ & ] -> Result< FetchSet >
         {
-            auto const cn = it_node.value();
-            rs.emplace( LinkNode{ .id = cn } );
-
-            it_node = nw->fetch_parent( cn );
-        }
+            auto const ancestry = KTRY( path::fetch_ancestry_ordered( ctx.km, node ) );
+            return ancestry
+                 | rvs::transform( []( auto const& n ){ return LinkNode{ .id = n }; } )
+                 | ranges::to< FetchSet >();
+        }() );
 
         return rs;
     }

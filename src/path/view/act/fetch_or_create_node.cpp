@@ -33,16 +33,16 @@ auto fetch_or_create_node( Kmap& km )
 
 auto operator|( Tether const& lhs
               , FetchOrCreateNode const& rhs )
-    -> Result< Uuid >
+    -> Result< UuidSet >
 {
     KM_RESULT_PROLOG();
 
-    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto rv = KMAP_MAKE_RESULT( UuidSet );
 
-    if( auto const fn = lhs | act::fetch_node( rhs.km )
-      ; fn )
+    if( auto const fn = lhs | act::to_node_set( rhs.km )
+      ; !fn.empty() )
     {
-        rv = fn.value();
+        rv = fn;
     }
     else
     {
@@ -75,12 +75,16 @@ auto operator|( Tether const& lhs
 
             if( nns.empty() )
             {
-                // TODO: Should this actually create based on all `ns` nodes? Rename to fetch_or_create, and force user to use view::single | fetch_or_create if
-                //       user desires only a single output.
-                KMAP_ENSURE( ns.size() == 1, error_code::common::uncategorized );
+                // TODO: One major difficulty: what happens if create fails? The whole operation should undo - but I don't have facilities for that at this point.
 
                 DerivationLink& dlink = KTRY( result::dyn_cast< DerivationLink >( link.get() ) );
-                auto const cs = KTRY( dlink.create( CreateContext{ rhs.km, fctx.tether }, ns.begin()->id ) );
+
+                KMAP_ENSURE( ns.size() == 1, error_code::common::uncategorized ); // TODO: Is it true that ns.size always makes sense to be 1?
+
+                auto const cctx = CreateContext{ .km = rhs.km
+                                               , .tether = fctx.tether
+                                               , .option = { .skip_existing = true }  };
+                auto const cs = KTRY( dlink.create( cctx, ns.begin()->id ) );
 
                 ns = cs
                    | rvs::transform( [ & ]( auto const& e ){ return LinkNode{ .id = e }; } )
@@ -92,12 +96,77 @@ auto operator|( Tether const& lhs
             }
         }
 
-        BC_ASSERT( ns.size() == 1 );
-
-        rv = ns.begin()->id;
+        rv = ns
+           | rvs::transform( &LinkNode::id )
+           | ranges::to< UuidSet >();
     }
 
     return rv;
+}
+
+SCENARIO( "act::fetch_or_create_node", "[nodVe_view][action]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "root_node", "network" );
+
+    auto& km = Singleton::instance();
+    auto const nw = REQUIRE_TRY( km.fetch_component< com::Network >() );
+    auto const root = nw->root_node();
+
+    GIVEN( "/" )
+    {
+        WHEN( "foc( /1 )" )
+        {
+            auto const n1 = REQUIRE_TRY( anchor::node( root )
+                                       | view2::child( "1" )
+                                       | act::fetch_or_create_node( km )
+                                       | act::single );
+            
+            THEN( "/1 created" )
+            {
+                REQUIRE(( anchor::node( n1 ) | view2::parent( root ) | act::exists( km ) ));
+            }
+        }
+
+        GIVEN( "/1" )
+        {
+            auto const n1 = REQUIRE_TRY( nw->create_child( root, "1" ) );
+
+            WHEN( "foc( /1 )" )
+            {
+                auto const res = REQUIRE_TRY( anchor::node( root )
+                                            | view2::child( "1" )
+                                            | act::fetch_or_create_node( km )
+                                            | act::single );
+
+                REQUIRE( res == n1 );
+            }
+
+            THEN( "foc( all_of( /1, /2 ) )")
+            {
+                auto const res = REQUIRE_TRY( anchor::node( root )
+                                            | view2::all_of( view2::child( "1" )
+                                                           , view2::child( "2" ) )
+                                            | act2::fetch_or_create_node( km ) );
+                auto const n2 = REQUIRE_TRY( anchor::node( root )
+                                           | view2::child( "2" )
+                                           | act2::fetch_node( km ) );
+
+                REQUIRE( res.contains( n2 ) );
+            }
+
+            GIVEN( "/2" )
+            {
+                auto const n2 = REQUIRE_TRY( nw->create_child( root, "2" ) );
+                auto const res = REQUIRE_TRY( anchor::node( root )
+                                            | view2::all_of( view2::child( "1" )
+                                                           , view2::child( "2" ) )
+                                            | act2::fetch_or_create_node( km ) );
+
+                REQUIRE( res.contains( n1 ) );
+                REQUIRE( res.contains( n2 ) );
+            }
+        }
+    }
 }
 
 SCENARIO( "act::fetch_or_create_node", "[node_view][action]" )
@@ -114,7 +183,8 @@ SCENARIO( "act::fetch_or_create_node", "[node_view][action]" )
         {
             auto const n1 = REQUIRE_TRY( anchor::node( root )
                                        | view2::child( "1" )
-                                       | act::fetch_or_create_node( km ) );
+                                       | act::fetch_or_create_node( km )
+                                       | act::single );
             
             THEN( "/1 created" )
             {
@@ -130,7 +200,8 @@ SCENARIO( "act::fetch_or_create_node", "[node_view][action]" )
             {
                 auto const res = REQUIRE_TRY( anchor::node( root )
                                             | view2::child( "1" )
-                                            | act::fetch_or_create_node( km ) );
+                                            | act::fetch_or_create_node( km )
+                                            | act::single );
 
                 REQUIRE( res == n1 );
             }

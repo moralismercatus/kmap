@@ -12,6 +12,7 @@
 #include "path.hpp"
 #include "path/act/abs_path.hpp"
 #include "util/result.hpp"
+#include <path/node_view2.hpp>
 
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/join.hpp>
@@ -83,7 +84,9 @@ auto Lineage::make( Kmap const& kmap
                   , UuidVec const& nodes )
     -> Result< Lineage >
 {
-    auto rv = KMAP_MAKE_RESULT( Lineage );
+    KM_RESULT_PROLOG();
+
+    auto rv = result::make_result< Lineage >();
 
     if( nodes.empty() )
     {

@@ -138,11 +138,6 @@ public:
     auto uninstall_outlet_transition( Uuid const& node )
         -> Result< void >;
 
-    auto action( std::string const& heading )
-        -> Result< Uuid >;
-    auto object( std::string const& heading )
-        -> Result< Uuid >;
-
     auto execute_body( Uuid const& node )
         -> Result< void >;
     auto fire_event( std::set< std::string > const& requisites )

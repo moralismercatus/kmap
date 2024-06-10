@@ -74,26 +74,6 @@ auto fetch_parent_recipe( Kmap const& kmap
 
     KMAP_ENSURE( kmap.exist( id ), error_code::network::invalid_node );
 
-    // auto const rroot = KMAP_TRY( fetch_recipes_root( kmap ) );
-    
-    // A little tricky to figure out the recipe to reproduce this using node_view.
-    // Requires (1) "first of"/"nearest to", and (2) ancestor between two points that has child( any_of( "step"", "steps" ) )
-    // rv = KTRY( view::make( view::make( rroot ) | view::lineage( id ) | view::to_node_set( kmap ) )
-    //          | view::ancestor( view::any_of( "step", "steps" ) )
-    //          | view::fetch_node( kmap_ ) );
-    // rv = KTRY( view::make( id )
-    //          | view::lineage( rroot )
-    //          | view::ancestor( view::any_of( "step", "steps" ) )
-    //          | view::fetch_node( kmap_ ) );
-    // This version has all properties except (1).
-    // rv = KTRY( view::make( id )
-    //          | view::lineage( rroot )
-    //          | view::child( view::any_of( "step", "steps" ) )
-    //          | view::parent
-    //          | view::to_node_set( kmap_ )
-    //          | view::order_by( ...distance_from_id...? )
-    //          | view::fetch_tail );
-
     auto const recipe_root = KMAP_TRY( fetch_recipes_root( kmap ) );
 
     rv = kmap.fetch_nearest_ancestor( recipe_root

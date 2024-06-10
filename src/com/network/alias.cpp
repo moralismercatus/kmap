@@ -25,14 +25,16 @@ auto make_alias_id( Uuid const& alias_src
     return xor_ids( alias_src, alias_dst );
 }
 
-auto make_alias_item( Uuid const& src
+auto make_alias_item( Uuid const& top
+                    , Uuid const& src
                     , Uuid const& rsrc
                     , Uuid const& dst )
-    ->AliasItem
+    -> AliasItem
 {
     return AliasItem{ .src_id = AliasItem::src_type{ src }
                     , .rsrc_id = AliasItem::rsrc_type{ rsrc }
-                    , .dst_id = AliasItem::dst_type{ dst } };
+                    , .dst_id = AliasItem::dst_type{ dst }
+                    , .top_id = AliasItem::top_type{ top } };
 }
 
 SCENARIO( "AliasSet basic ops", "[alias]" )
@@ -50,7 +52,7 @@ SCENARIO( "AliasSet basic ops", "[alias]" )
     {
         auto const src_id = gen_uuid();
         auto const dst_id = gen_uuid();
-        auto const alias_item = make_alias_item( src_id, src_id, dst_id );
+        auto const alias_item = make_alias_item( make_alias_id( src_id, dst_id ), src_id, src_id, dst_id );
         auto const alias = alias_item.alias();
 
         aliases.emplace( alias_item );
@@ -345,6 +347,34 @@ SCENARIO( "AliasStore::fetch_aliases", "[alias]" )
     }
 }
 
+auto AliasStore::fetch_aliases( AliasItem::top_type const& top ) const
+    -> std::set< Uuid > 
+{
+    auto rv = std::set< Uuid >{};
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            for( auto const& e : rv )
+            {
+                BC_ASSERT( is_alias( e ) );
+            }
+        })
+    ;
+
+    auto const& av = alias_set_.get< AliasItem::top_type >();
+    auto const er = av.equal_range( top );
+    
+    for( auto it = er.first
+       ; it != er.second
+       ; ++it )
+    {
+        rv.emplace( it->alias() );
+    }
+
+    return rv;
+}
+
 auto AliasStore::fetch_dsts( AliasItem::rsrc_type const& rsrc ) const
     -> std::set< Uuid > 
 {
@@ -416,6 +446,8 @@ SCENARIO( "AliasStore::fetch_dsts", "[alias]" )
 auto AliasStore::fetch_entry( AliasItem::alias_type const& id ) const
     -> Result< AliasItem >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( AliasItem );
     auto const& av = alias_set_.get< AliasItem::alias_type >();
     auto const er = av.equal_range( id );
@@ -428,6 +460,34 @@ auto AliasStore::fetch_entry( AliasItem::alias_type const& id ) const
     {
         // TODO: Inform rv what went wrong?
         fmt::print( "{} entries found for alias_id: {}\n", std::distance( er.first, er.second ), to_string( id ) );
+    }
+
+    return rv;
+}
+
+auto AliasStore::fetch_entries( AliasItem::rsrc_type const& rsrc ) const
+    -> std::set< AliasItem > 
+{
+    auto rv = std::set< AliasItem >{};
+
+    BC_CONTRACT()
+        BC_POST([ & ]
+        {
+            for( auto const& e : rv )
+            {
+                BC_ASSERT( is_alias( e ) );
+            }
+        })
+    ;
+
+    auto const& av = alias_set_.get< AliasItem::rsrc_type >();
+    auto const er = av.equal_range( rsrc );
+    
+    for( auto it = er.first
+       ; it != er.second
+       ; ++it )
+    {
+        rv.emplace( *it );
     }
 
     return rv;

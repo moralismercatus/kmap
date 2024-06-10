@@ -34,21 +34,31 @@ auto make_alias_id( Uuid const& alias_src
                   , Uuid const& alias_dst )
     -> Uuid;
 
+/**
+ * top - Refers to the topmost/root alias, "resolved"/original topmost alias, so even dependent aliases can easily identify which is original top alias.
+ *       This way, removal of a top alias can easily clean up all dependent aliases.
+ * 
+ */
 struct AliasItem
 {
     using alias_type = Uuid;
     using src_type   = StrongType< Uuid, class SrcId >;
-    using rsrc_type   = StrongType< Uuid, class RSrcId >;
+    using rsrc_type  = StrongType< Uuid, class RSrcId >;
     using dst_type   = StrongType< Uuid, class DstId >;
+    using top_type   = StrongType< Uuid, class TopId >;
 
     src_type src_id{}; // TODO: Having difficulty understanding the use case for storing unresolves source here. Likewise, distinction between source and resolved source?
     rsrc_type rsrc_id{};
     dst_type dst_id{};
+    top_type top_id{};
 
     auto alias() const { return make_alias_id( rsrc_id.value(), dst_id.value() ); }
     auto src() const { return src_id; }
     auto rsrc() const { return rsrc_id; }
     auto dst() const { return dst_id; }
+    auto top() const { return top_id; }
+
+    std::strong_ordering operator<=>( AliasItem const& ) const = default;
 };
 
 struct AliasLoadItem : public AliasItem
@@ -61,7 +71,8 @@ struct AliasLoadItem : public AliasItem
 };
 
 [[ nodiscard ]]
-auto make_alias_item( Uuid const& src
+auto make_alias_item( Uuid const& top
+                    , Uuid const& src
                     , Uuid const& rsrc
                     , Uuid const& dst )
     ->AliasItem; 
@@ -86,7 +97,12 @@ using AliasSet = boost::multi_index_container< AliasItem
                                                                                       , bmi::const_mem_fun< AliasItem
                                                                                                           , AliasItem::dst_type
                                                                                                           , &AliasItem::dst >
-                                                                                      , boost::hash< AliasItem::dst_type > > > >;
+                                                                                      , boost::hash< AliasItem::dst_type > >
+                                                              , bmi::hashed_non_unique< bmi::tag< AliasItem::top_type >
+                                                                                      , bmi::const_mem_fun< AliasItem
+                                                                                                          , AliasItem::top_type
+                                                                                                          , &AliasItem::top >
+                                                                                      , boost::hash< AliasItem::top_type > > > >;
 using AliasLoadSet = boost::multi_index_container< AliasLoadItem
                                                  , bmi::indexed_by< bmi::hashed_unique< bmi::tag< AliasItem::alias_type >
                                                                                       , bmi::const_mem_fun< AliasItem
@@ -108,6 +124,11 @@ using AliasLoadSet = boost::multi_index_container< AliasLoadItem
                                                                                                               , AliasItem::dst_type
                                                                                                               , &AliasItem::dst >
                                                                                           , boost::hash< AliasItem::dst_type > >
+                                                                  , bmi::hashed_non_unique< bmi::tag< AliasItem::top_type >
+                                                                                          , bmi::const_mem_fun< AliasItem
+                                                                                                              , AliasItem::top_type
+                                                                                                              , &AliasItem::top >
+                                                                                          , boost::hash< AliasItem::top_type > >
                                                                   , bmi::ordered_non_unique< bmi::tag< AliasLoadItem::loaded_type >
                                                                                            , bmi::const_mem_fun< AliasLoadItem
                                                                                                                , AliasLoadItem::loaded_type
@@ -137,10 +158,16 @@ public:
     auto fetch_aliases( AliasItem::rsrc_type const& rsrc ) const
         -> std::set< Uuid >;
     [[ nodiscard ]]
+    auto fetch_aliases( AliasItem::top_type const& top ) const
+        -> std::set< Uuid >;
+    [[ nodiscard ]]
     auto fetch_dsts( AliasItem::rsrc_type const& rsrc ) const
         -> std::set< Uuid >;
-    auto fetch_entry( AliasItem::alias_type const& child ) const
+    auto fetch_entry( AliasItem::alias_type const& id ) const
         -> Result< AliasItem >;
+    [[ nodiscard ]]
+    auto fetch_entries( AliasItem::rsrc_type const& rsrc ) const
+        -> std::set< AliasItem >;
     auto fetch_parent( AliasItem::alias_type const& child ) const
         -> Result< Uuid >;
     [[ nodiscard ]]

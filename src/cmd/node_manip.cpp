@@ -1249,7 +1249,8 @@ auto create_reference( Uuid const& src
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto const ref = KTRY( anchor::node( dst )
                          | view2::child( "references" )
-                         | act2::fetch_or_create_node( km ) );
+                         | act2::fetch_or_create_node( km )
+                         | act2::single );
 
     return nw->create_alias( src, ref );
 }

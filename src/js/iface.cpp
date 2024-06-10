@@ -438,8 +438,8 @@ auto set_last_eval_code_var( std::string const& expr )
         KM_RESULT_PUSH( "expr", expr );
 
     // Note: "kmap.js_last_eval_code" used to convey what JS code failed evaluation after non-try-catch-able to `.onerror` handler.
-    auto expr_escaped = boost::algorithm::replace_all_copy( expr, "`", "\\`" );
-    expr_escaped = boost::algorithm::replace_all_copy( expr_escaped, "$", "\\$" );
+    auto expr_escaped = replace_unescaped_char( expr, '`', R"(\\`)" );
+    expr_escaped = replace_unescaped_char( expr_escaped, '$', R"(\\$)" );
     auto const script = fmt::format( "kmap.js_last_eval_code = `{}`;", expr_escaped );
 
     KMAP_ENSURE( lint( script ), error_code::js::lint_failed );

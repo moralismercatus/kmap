@@ -100,6 +100,8 @@ auto parse_body_code( std::string_view const raw )
     using iterator_type = std::string_view::const_iterator;
     using error_handler_type = boost::spirit::x3::error_handler< iterator_type >;
 
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( cmd::ast::Code );
     auto cb_ast = cmd::ast::Code{};
     auto rb = raw.begin();

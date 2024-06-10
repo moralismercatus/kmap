@@ -167,6 +167,8 @@ public:
     auto fetch_value( Key const& key ) const // TODO: ought this be Table::key_type?
         -> Result< typename Table::value_type >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( typename Table::value_type );
 
         if( auto const dr = fetch_last_delta< Table, Key >( key )
@@ -295,6 +297,18 @@ public:
 
             KTRY( table.create( ukey ) );
         }
+        else if( decider.driver->is( boost::sml::state< sm::state::ClearAndUpdateDelta > ) )
+        {
+            auto&& table = std::get< Table >( cache_tables_ );
+
+            // Only erasing delta items here. Update would be redundant for a key-only entry.
+            auto const update_fn = [ & ]( auto&& table_item )
+            {
+                table_item.delta_items.clear();
+            };
+
+            KTRY( table.update( ukey, update_fn ) );
+        }
         else if( decider.driver->is( boost::sml::state< sm::state::UpdateDelta > ) )
         {
             // Q: Is it logical that a key-only entry cannot be updated? The key would change and therefore the entry,
@@ -364,6 +378,32 @@ public:
             auto&& table = std::get< Table >( cache_tables_ );
 
             KTRY( table.create( left, right ) );
+        }
+        else if( decider.driver->is( boost::sml::state< sm::state::ClearAndUpdateDelta > ) )
+        {
+            auto&& table = std::get< Table >( cache_tables_ );
+
+            if constexpr( concepts::Pair< typename Table::unique_key_type > )
+            {
+                auto const ukey = typename Table::unique_key_type{ left, right };
+                auto const update_fn = [ & ]( auto&& table_item )
+                {
+                    table_item.delta_items.clear();
+                    table_item.delta_items.emplace_back( typename Table::DeltaItem{ .value = ukey, .action = DeltaType::changed, .transaction_id = {} } );
+                };
+
+                KTRY( table.update( ukey, update_fn ) );
+            }
+            else
+            {
+                auto const update_fn = [ & ]( auto&& table_item )
+                {
+                    table_item.delta_items.clear();
+                    table_item.delta_items.emplace_back( typename Table::DeltaItem{ .value = right, .action = DeltaType::changed, .transaction_id = {} } );
+                };
+
+                KTRY( table.update( left, update_fn ) );
+            }
         }
         else if( decider.driver->is( boost::sml::state< sm::state::UpdateDelta > ) )
         {
@@ -479,6 +519,7 @@ public:
         {
             decider.driver->process_event( ev );
         }
+        // TODO: Following look a copy-paste error? Duplicate? I don't understand what this does differently than the above loop.
         for( auto const ev = sm::ev::Erase{ .table = Table{}, .key = key }
            ; !decider.output->done
            ; )
@@ -609,21 +650,9 @@ public:
     auto contains_erased_delta( Key const& key ) const
         -> bool
     {
-        auto rv = false;
         auto const& table = std::get< Table >( cache_tables_ );
 
-        if( auto const entry = table.fetch( key )
-          ; entry )
-        {
-            auto const& ev = entry.value();
-
-            if( !ev.delta_items.empty() )
-            {
-                rv = ( ev.delta_items.back().action == DeltaType::erased );
-            }
-        }
-
-        return rv;
+        return com::db::contains_erased_delta( table, key );
     }
     template< typename Table
             , typename Key >
@@ -631,22 +660,9 @@ public:
     auto contains_erased_delta( Key const& key ) const
         -> bool
     {
-        auto rv = false;
         auto const& table = std::get< Table >( cache_tables_ );
 
-        if( auto const res = table.fetch( key )
-          ; res )
-        {
-            auto const& resv = res.value();
-            auto const contains_erased = []( auto const& ti )
-            {
-                return !ti.delta_items.empty() && ti.delta_items.back().action == DeltaType::erased; 
-            };
-            
-            rv = ( ranges::count_if( resv, contains_erased ) != 0 );
-        }
-
-        return rv;
+        return com::db::contains_erased_delta( table, key );
     }
     template< typename Table
             , typename Key >
@@ -654,6 +670,8 @@ public:
     auto fetch_cached( Key const& key ) const
         -> Result< typename Table::value_type >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( typename Table::value_type );
 
         if( auto const ti = fetch_item< Table >( key )
@@ -674,6 +692,8 @@ public:
     auto fetch_cached_value( Key const& key ) const
         -> Result< typename Table::value_type >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( typename Table::value_type );
 
         if( auto const ti = fetch_item< Table >( key )
@@ -721,6 +741,8 @@ public:
     auto fetch_deltas( Key const& key ) const
         -> Result< typename Table::DeltaItems >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( typename Table::DeltaItems );
 
         if( auto const r = fetch_item< Table >( key )
@@ -745,6 +767,8 @@ public:
     {
         using namespace ranges;
         using value_type = typename Table::template value_type_v< Key >;
+
+        KM_RESULT_PROLOG();
 
         auto rv = KMAP_MAKE_RESULT( std::vector< std::vector< DeltaItem< value_type > > > );
 
@@ -840,6 +864,8 @@ protected:
     auto push_cached( Key const& key ) // SetTable variety
         -> Result< void >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT( void );
 
         std::visit( [ & ]( auto const& tbl ) mutable
@@ -866,7 +892,7 @@ protected:
                     , Value const& val ) // MapTable variety
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
 
         std::visit( [ & ]( auto const& tbl ) mutable
                     {
@@ -888,7 +914,7 @@ protected:
                    , TransactionIdSet const& groups )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
 
         std::visit( [ & ]( auto const& tbl ) mutable
                     {
@@ -912,7 +938,7 @@ protected:
                    , TransactionIdSet const& groups )
         -> Result< void >
     {
-        auto rv = KMAP_MAKE_RESULT( void );
+        auto rv = result::make_result< void >();
 
         std::visit( [ & ]( auto const& tbl ) mutable
                     {

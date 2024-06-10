@@ -8,6 +8,7 @@
 #include <com/network/network.hpp>
 #include <kmap.hpp>
 #include <utility.hpp>
+#include <util/result.hpp>
 
 #include <emscripten/bind.h>
 
@@ -19,7 +20,10 @@ using namespace emscripten;
 auto create_command( std::string const& path )
     -> kmap::Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
+
     // auto& kmap = Singleton::instance();
     auto const prereg = com::Command{ path
                                     , "Undescribed"

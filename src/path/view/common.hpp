@@ -33,7 +33,7 @@ struct LinkNode
 struct random_access_index {};
 
 using FetchSet = bmi::multi_index_container< LinkNode 
-                                           , bmi::indexed_by< bmi::hashed_unique< bmi::tag< decltype( LinkNode::id ) >
+                                           , bmi::indexed_by< bmi::hashed_unique< bmi::tag< decltype( LinkNode::id ) > // TODO: Shouldn't this tag be unordered_index? And the other tag ordered_index?
                                                                                 , bmi::member< LinkNode
                                                                                              , decltype( LinkNode::id )
                                                                                              , &LinkNode::id > >
@@ -45,6 +45,10 @@ struct CreateContext
 {
     Kmap& km;
     Tether const& tether;
+    struct
+    {
+        bool skip_existing = false;
+    } option;
 };
 struct FetchContext
 {

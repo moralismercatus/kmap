@@ -55,7 +55,7 @@
         if( !( res ) ) \
         { \
             { \
-                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( fmt::format( "predicate: {}\n\tmessage: '{}'\n{}\n", #pred, msg, kmap::result::to_string( km_result_local_state.log ) ) ) ) ); \
+                return ensure_propagate_error( res, ec, KMAP_MAKE_RESULT_STACK_ELEM_MSG( ( fmt::format( "predicate: {}\nmessage: '{}'\n{}\n", #pred, msg, kmap::result::to_string( km_result_local_state.log ) ) ) ) ); \
             } \
         } \
     }
@@ -142,10 +142,26 @@
         fmt::print( stdout, "\n" ); \
     }
 
+#define KMAP_TRY_UNLESS( res, except_ec ) \
+    ({ \
+        KMAP_KTRY_LOG(); \
+        if( BOOST_OUTCOME_V2_NAMESPACE::try_operation_has_value( res ) ) \
+            ; \
+        else if( except_ec == res.error().ec )\
+            ; \
+        else \
+        { \
+            res.error().stack.emplace_back( KMAP_MAKE_RESULT_STACK_ELEM_MSG( kmap::result::to_string( km_result_local_state.log ) ) ); \
+            return BOOST_OUTCOME_V2_NAMESPACE::try_operation_return_as( static_cast< decltype( res )&& >( res ) ); \
+        } \
+        BOOST_OUTCOME_V2_NAMESPACE::try_operation_extract_value( static_cast< decltype( res )&& >( res ) ); \
+    })
+
 #define KTRY( ... ) KMAP_TRY( __VA_ARGS__ )
 #define KTRYB( ... ) KMAP_TRYB( __VA_ARGS__ )
 #define KTRYE( ... ) KMAP_TRYE( __VA_ARGS__ )
 #define KTRYW( ... ) KMAP_TRY_WARN( __VA_ARGS__ )
+#define KTRY_UNLESS( ... ) KMAP_TRY_UNLESS( __VA_ARGS__ )
 
 #include <boost/outcome.hpp>
 #include <boost/system/error_code.hpp>
@@ -219,6 +235,7 @@ struct Payload
 {
     boost::system::error_code ec = {}; // TODO: Any good reason to choose boost over std error_code?
     std::vector< StackElement > stack = {};
+    // TODO: std::optional< std::reference_wrapper< LocalLog > > local_log? Any better idea of how to get pushes logged for unassigned rv?
 };
 
 template< typename T

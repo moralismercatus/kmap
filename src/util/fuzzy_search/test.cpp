@@ -26,7 +26,7 @@ SCENARIO( "zadeh", "[fuzzy_search]" )
         WHEN( "search: the code" )
         {
             // auto results = saf.filter_indices( "the code" );
-            auto results = kmap::util::fuzzy_search( candidates, "the code" );
+            auto results = kmap::util::fuzzy_search( candidates, "the code", 10 );
 
             THEN( "match at least: titles with 'the' and 'code'" )
             {

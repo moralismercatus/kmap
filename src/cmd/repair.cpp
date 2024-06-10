@@ -170,7 +170,7 @@ auto check_ids_for_valid_format( sql::connection& con
                                , bool fix )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
     bool alls_well = true;
     auto const check_id = []( auto const& id )
     {
@@ -1161,6 +1161,9 @@ auto check_order( sql::connection& con
 
             if( fix )
             {
+                io::print( "[log][repair] Removing non-existent node ({}) from 'order' attribute'\n"
+                         , d );
+
                 auto const new_body = body_vec
                                     | rvs::remove( d )
                                     | rvs::join( '\n' )

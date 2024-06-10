@@ -22,23 +22,11 @@ namespace kmap::cmd {
 
 namespace {
 
-SCENARIO( "cmd::create_task" , "[cmd][task]" )
+SCENARIO( "cmd::create_task" , "[cli][cmd][task]" )
 {
-    // TODO: I think the problem is in the CLI. Requires a Canvas to update, but it shouldn't. That should all be event sender/listener.
-    // TODO: Component::load, rather than Component::initialize(). This will require some major work, I suspect, but same "requisites" principle apply.
-    //       But first make everything work with "initialize()", COMPONENT_FIXTURE.
-    KMAP_LOG_LINE();
     KMAP_COMPONENT_FIXTURE_SCOPED( "task_store", "cli" );
-    KMAP_LOG_LINE();
 
     auto& kmap = Singleton::instance();
-#if KMAP_LOG && 0
-    fmt::print( "components initialized: {}\n", kmap.component_store().all_initialized_components().size() );
-    for( auto const& c : kmap.component_store().all_initialized_components() )
-    {
-        fmt::print( "initialized com: {}\n", c );
-    }
-#endif
     auto const cli = REQUIRE_TRY( kmap.fetch_component< com::Cli >() );
 
     GIVEN( "default state" )
@@ -67,9 +55,9 @@ SCENARIO( "cmd::activate_task", "[cmd][task]" )
 
         THEN( "task 1 in inactivate state" )
         {
-            REQUIRE(( view::make( t1 )
-                    | view::tag( "task.status.open.inactive" )
-                    | view::exists( kmap ) ));
+            REQUIRE(( anchor::node( t1 )
+                    | view2::attrib::tag( view2::resolve( view2::tag::tag( "task.status.open.inactive" ) ) )
+                    | act2::exists( kmap ) ));
         }
 
         WHEN( "activate.task" )
@@ -78,9 +66,9 @@ SCENARIO( "cmd::activate_task", "[cmd][task]" )
 
             THEN( "task 1 in activate state" )
             {
-                REQUIRE(( view::make( t1 )
-                        | view::tag( "task.status.open.active" )
-                        | view::exists( kmap ) ));
+                REQUIRE(( anchor::node( t1 )
+                        | view2::attrib::tag( view2::resolve( view2::tag::tag( "task.status.open.active" ) ) )
+                        | act2::exists( kmap ) ));
             }
         }
     }
@@ -134,10 +122,10 @@ SCENARIO( "cmd::cascade_tags" , "[cmd][task]" )
                 auto const tagn = REQUIRE_TRY( anchor::abs_root
                                              | view2::direct_desc( "meta.tag.cat" )
                                              | act2::fetch_node( kmap ) );
-                REQUIRE(( view::abs_root
-                        | view::direct_desc( "task.super.subtask.sub" )
-                        | view::tag( tagn )
-                        | view::exists( kmap ) ));
+                REQUIRE(( anchor::abs_root
+                        | view2::direct_desc( "task.super.subtask.sub" )
+                        | view2::attrib::tag( view2::resolve( tagn ) )
+                        | act2::exists( kmap ) ));
             }
         }
     }

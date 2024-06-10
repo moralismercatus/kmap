@@ -3,8 +3,9 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include <component.hpp>
+#include <com/cmd/cclerk.hpp>
 #include <com/event/event_clerk.hpp>
+#include <component.hpp>
 #include <kmap.hpp>
 
 namespace kmap::com {
@@ -33,6 +34,7 @@ struct LogTask : public Component
     constexpr auto name() const -> std::string_view override { return id; }
 
     com::EventClerk eclerk_;
+    com::CommandClerk cclerk_;
 
     LogTask( Kmap& kmap
            , std::set< std::string > const& requisites
@@ -43,9 +45,11 @@ struct LogTask : public Component
         -> Result< void > override;
     auto load()
         -> Result< void > override;
+    auto register_standard_commands()
+        -> Result< void >;
     auto register_standard_events()
         -> Result< void >;
-    auto push_task_to_log()
+    auto push_task_to_daily_log( Uuid const& task )
         -> Result< void >;
     auto push_active_tasks_to_log()
         -> Result< void >;

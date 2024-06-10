@@ -209,6 +209,7 @@ auto TextArea::register_standard_commands()
 SCENARIO( "edit.body", "[cli][text_area][edit.body]" ) // TODO: Move to text_area.cmd component?
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "cli", "visnetwork", "canvas", "network" );
+    KMAP_DISABLE_DEBOUNCE_FIXTURE_SCOPED();
 
     auto& km = Singleton::instance();
     auto const canvas = REQUIRE_TRY( km.fetch_component< com::Canvas >() );
@@ -241,13 +242,6 @@ SCENARIO( "edit.body", "[cli][text_area][edit.body]" ) // TODO: Move to text_are
 
                 THEN( "editor should be hidden" )
                 {
-                    // TODO: Remedy necessity of calling vnw->select_node (focus) explicitly.
-                    //       Here's the situation. VisualNetwork::select_node() is called via event, and it eventually calls focus(), so on_leave_editor should be invoked.
-                    //       The catch is that select node is called via "debounce()". Even with a timeout of 0, the internal "setTimeout()" requires at least one cycle before
-                    //       calling "VisualNetwork::select_node()". Given that the system is single threaded, there is no way for that to execute/debounce before the check
-                    //       is done here. So, the check that expects VisualNetwork::select_node() to change focus away from editor will always fail.
-                    //       A better way to bypass is probably to have some kind of flag that disables debouncing, and use that for these tests.
-                    //       FWIW: Calling vnw->select_node doesn't exactly work for the same reason: debounce hasn't occurred, so it will complain about no initial node being set.
                     vnw->focus();
                     REQUIRE( true == REQUIRE_TRY( js::eval< bool >( "return document.getElementById( kmap.uuid_to_string( kmap.canvas().editor_pane() ) ).hidden;" ) ) );
                 }
@@ -340,7 +334,7 @@ auto TextArea::register_standard_outlets()
     eclerk_.register_outlet( Leaf{ .heading = "text_area.load_preview_on_select_node"
                                  , .requisites = { "subject.network", "verb.selected", "object.node" }
                                  , .description = "Loads select node body in preview pane."
-                                 , .action = R"%%%(kmap.text_area().load_preview( kmap.selected_node() );)%%%" } );
+                                 , .action = R"%%%(ktry( kmap.text_area().load_preview( kmap.selected_node() ) );)%%%" } );
 }
 
 auto TextArea::install_event_sources()
@@ -583,13 +577,15 @@ auto TextArea::show_preview( std::string const& text )
     -> Result< void >
 {
     KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "text", text );
 
     auto const canvas = KTRY( fetch_component< com::Canvas >() );
 
     auto rv = result::make_result< void >();
+    auto const escaped_text = replace_unescaped_char( text, '`', R"(\\`)" );
 
 #if !KMAP_NATIVE
-    KTRY( js::eval_void( fmt::format( "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).innerHTML = `{}`;", text ) ) );
+    KTRY( js::eval_void( fmt::format( "document.getElementById( kmap.uuid_to_string( kmap.canvas().preview_pane() ) ).innerHTML = `{}`;", escaped_text ) ) );
 
     if( KTRY( canvas->pane_hidden( canvas->preview_pane() ) ) )
     {
@@ -601,6 +597,19 @@ auto TextArea::show_preview( std::string const& text )
 
     return rv;
 }
+
+#if !KMAP_NATIVE
+SCENARIO( "TextArea::show_preview", "[text_area][js]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "text_area", "network", "visnetwork" );
+
+    auto& km = Singleton::instance();
+    auto const ta = REQUIRE_TRY( km.fetch_component< com::TextArea >() );
+
+    REQUIRE_TRY( ta->show_preview( "hi der" ) );
+    REQUIRE_TRY( ta->show_preview( "hi `der`" ) ); // Backticks don't break system.
+}
+#endif // !KMAP_NATIVE
 
 auto TextArea::hide_preview()
     -> Result< void >

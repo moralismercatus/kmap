@@ -119,7 +119,12 @@ using Ancestor = Descendant;
  *  TODO: Biggest problem with this "range" is that it's eager rather than lazy. 
  *        In fact, I'm not entirely sure how to do "lazy", when nodes only have "parent" relationships. 
  **/
-class LinealRange
+// TODO: I don't see much justification for this class, in the presence of the (lazy) view:: mechanism.
+//       Usage can be replaced with anchor::node( desc ) | view2::ancestor... actually, I'm not sure there's currently a mechanism to replace this.
+//       Predicates for ancestor, direct_desc, right_lineal, etc., don't give a lineage between [a,d], but rather a specific node.
+//       This may prompt a change in interface. Maybe right/left_lineal should be distinct from right/left_lineage. Where lineage( n ) results in all nodes
+//       up to n, inclusive. Perhaps likewise a view::ancestor v. view::ancestry distinction.
+class [[ deprecated( "prefer passing node views" ) ]] LinealRange
 {
 public:
     using value_type = Uuid;

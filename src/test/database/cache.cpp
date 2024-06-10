@@ -13,7 +13,7 @@ using namespace kmap;
 using namespace kmap::com::db;
 using namespace kmap::test;
 
-SCENARIO( "cache is manipulated", "[cache]" )
+SCENARIO( "cache is manipulated", "[cache][db]" )
 {
     GIVEN( "umono table is empty" )
     {
@@ -188,5 +188,143 @@ SCENARIO( "cache is manipulated", "[cache]" )
         }
 
         REQUIRE( succ( cache.erase< AliasTable >( Src{ n2 }, Dst{ n1 } ) ) );
+    }
+}
+
+SCENARIO( "cache push + erase + push sequence", "[cache][db]" )
+{
+
+    GIVEN( "empty cache" )
+    {
+        auto cache = Cache{};
+
+        GIVEN( "mono table" ) // Just for separation/doc. Cache already has NodeTable; no need to create it.
+        {
+            GIVEN( "push n" )
+            {
+                auto const n = Uuid{ 1 };
+
+                REQUIRE_TRY( cache.push< NodeTable >( n ) );
+
+                GIVEN( "erase n" )
+                {
+                    REQUIRE_TRY( cache.erase< NodeTable >( n ) );
+
+                    GIVEN( "push n" )
+                    {
+                        REQUIRE_TRY( cache.push< NodeTable >( n ) );
+                    }
+                    GIVEN( "apply_delta_to_cache" )
+                    {
+                        cache.apply_delta_to_cache< NodeTable >();
+
+                        GIVEN( "push n" )
+                        {
+                            REQUIRE_TRY( cache.push< NodeTable >( n ) );
+                        }
+                    }
+                }
+                GIVEN( "apply_delta_to_cache" )
+                {
+                    cache.apply_delta_to_cache< NodeTable >();
+
+                    GIVEN( "erase n" )
+                    {
+                        REQUIRE_TRY( cache.erase< NodeTable >( n ) );
+
+                        GIVEN( "push n" )
+                        {
+                            REQUIRE_TRY( cache.push< NodeTable >( n ) );
+                        }
+                    }
+                }
+            }
+        }
+        GIVEN( "bimap table" ) // Just for separation/doc. Cache already has ChildTable; no need to create it.
+        {
+            GIVEN( "push p,c" )
+            {
+                auto const p = com::db::Parent{ Uuid{ 1 } };
+                auto const c =  com::db::Child{ Uuid{ 2 } };
+
+                REQUIRE_TRY( cache.push< ChildTable >( p, c ) );
+
+                GIVEN( "erase p,c" )
+                {
+                    REQUIRE_TRY( cache.erase< ChildTable >( p, c ) );
+
+                    GIVEN( "push p,c" )
+                    {
+                        REQUIRE_TRY( cache.push< ChildTable >( p, c ) );
+                    }
+                    GIVEN( "apply_delta_to_cache" )
+                    {
+                        cache.apply_delta_to_cache< ChildTable >();
+
+                        GIVEN( "push p,c" )
+                        {
+                            REQUIRE_TRY( cache.push< ChildTable >( p, c ) );
+                        }
+                    }
+                }
+                GIVEN( "apply_delta_to_cache" )
+                {
+                    cache.apply_delta_to_cache< ChildTable >();
+
+                    GIVEN( "erase p,c" )
+                    {
+                        REQUIRE_TRY( cache.erase< ChildTable >( p, c ) );
+
+                        GIVEN( "push p,c" )
+                        {
+                            REQUIRE_TRY( cache.push< ChildTable >( p, c ) );
+                        }
+                    }
+                }
+            }
+        }
+        GIVEN( "map table" ) // Just for separation/doc. Cache already has HeadingTable; no need to create it.
+        {
+            GIVEN( "push n,h" )
+            {
+                auto const n = Uuid{ 1 };
+                auto const h = std::string{ "h" };
+
+                REQUIRE_TRY( cache.push< HeadingTable >( n, h ) );
+
+                GIVEN( "erase p,c" )
+                {
+                    REQUIRE_TRY( cache.erase< HeadingTable >( n ) );
+
+                    GIVEN( "push n,h" )
+                    {
+                        REQUIRE_TRY( cache.push< HeadingTable >( n, h ) );
+                    }
+                    GIVEN( "apply_delta_to_cache" )
+                    {
+                        cache.apply_delta_to_cache< HeadingTable >();
+
+                        GIVEN( "push n,h" )
+                        {
+                            REQUIRE_TRY( cache.push< HeadingTable >( n, h ) );
+                        }
+                    }
+                }
+                GIVEN( "apply_delta_to_cache" )
+                {
+                    cache.apply_delta_to_cache< HeadingTable >();
+
+                    GIVEN( "erase p,c" )
+                    {
+                        REQUIRE_TRY( cache.erase< HeadingTable >( n ) );
+
+                        GIVEN( "push n,h" )
+                        {
+                            REQUIRE_TRY( cache.push< HeadingTable >( n, h ) );
+                        }
+                    }
+                }
+            }
+        }
     }
 }

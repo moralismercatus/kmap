@@ -7,8 +7,10 @@
 #ifndef KMAP_COM_LOG_HPP
 #define KMAP_COM_LOG_HPP
 
-#include "com/cli/cli.hpp"
-#include "error/master.hpp"
+#include <com/cli/cli.hpp>
+#include <error/master.hpp>
+#include <path/view/anchor/abs_root.hpp>
+#include <path/view/direct_desc.hpp>
 
 #include <date/date.h>
 
@@ -48,5 +50,10 @@ auto present_daily_log_path()
     -> std::string;
 
 } // namespace kmap::com
+
+namespace kmap::view2::log
+{
+    auto const daily_log_root = anchor::abs_root | view2::direct_desc( "log.daily" );
+} // kmap::view2::task
 
 #endif // KMAP_COM_LOG_HPP

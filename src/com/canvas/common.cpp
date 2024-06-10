@@ -251,6 +251,8 @@ namespace kmap
     auto from_string( std::string const& s )
         -> Result< com::Orientation >
     {
+        KM_RESULT_PROLOG();
+
         auto rv = KMAP_MAKE_RESULT_EC( com::Orientation, error_code::common::conversion_failed );
 
         if( s == "horizontal" )

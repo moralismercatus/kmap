@@ -61,13 +61,13 @@ auto init_window_error_handler()
                                             // handle_cpp_exception( error ); // inside: if( DoLoad ){ kmap.load( msg ); else{ print_std_exception( error )...} )}
                                         }
                                     }
-                                    let message = [ 'Caught by `window.onerror` handler. Major error occurred. Likely uncaught exception or uncatchable JS Syntax Error.'
+                                    let message = [ 'Caught by \'window.onerror\' handler. Major error occurred. Likely uncaught exception or uncatchable JS Syntax Error.'
                                                   , 'Message: ' + msg
                                                   , 'URL: ' + url
                                                   , 'Line: ' + lineNo
                                                   , 'Column: ' + columnNo
                                                   , 'Error object: ' + JSON.stringify( error )
-                                                  , 'Last kmap eval code:\n' + kmap.js_last_eval_code ];
+                                                  , 'Last kmap eval code (possibly unrelated to current error):\n' + kmap.js_last_eval_code ];
                                     console.log( message.join( '\n' ) );
                                     alert( message.join( '\n' ) );
                                     return true;

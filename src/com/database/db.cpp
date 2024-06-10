@@ -100,7 +100,7 @@ auto Database::ActionSequence::top()
 auto Database::initialize()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     fmt::print( "[database] initializing\n" );
 
@@ -286,7 +286,10 @@ auto Database::load_internal( FsPath const& path )
 auto Database::init_db_on_disk( FsPath const& path )
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "path", path.string() );
+
+    auto rv = result::make_result< void >();
 
     BC_CONTRACT()
         BC_POST([ & ]
@@ -641,6 +644,8 @@ auto Database::push_alias( Uuid const& src
 auto Database::path() const
     -> Result< FsPath >
 {
+    KM_RESULT_PROLOG();
+
     if( path_.empty() )
     {
         return KMAP_MAKE_ERROR( error_code::filesystem::file_not_found );
@@ -1487,6 +1492,11 @@ auto Database::flush_delta_to_disk()
     ;
 
     KMAP_ENSURE( has_file_on_disk(), error_code::common::uncategorized );
+
+    if( has_delta() )
+    {
+        fmt::print( "[kmap][log][db] flush_delta_to_disk: has_delta, flushing...\n" );
+    }
 
     auto proc_table = [ & ]( auto&& table ) mutable
     {

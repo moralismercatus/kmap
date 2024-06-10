@@ -7,9 +7,10 @@
 #ifndef KMAP_PATH_NODE_VIEW2_PARENT_HPP
 #define KMAP_PATH_NODE_VIEW2_PARENT_HPP
 
-#include "common.hpp"
+#include <common.hpp>
 
-#include "path/view/derivation_link.hpp"
+#include <path/view/derivation_link.hpp>
+#include <path/view/tether.hpp>
 
 #include <optional>
 #include <memory>
@@ -21,7 +22,8 @@ class Parent : public DerivationLink
 {
     using PredVariant = std::variant< char const*
                                     , std::string
-                                    , Uuid >;
+                                    , Uuid
+                                    , Tether >;
 
     std::optional< PredVariant > pred_ = std::nullopt; 
 

@@ -7,3 +7,5 @@ emcc.index.wasm
 node_modules
 package-lock.json
 tags
+*.kmap
+*.cmake

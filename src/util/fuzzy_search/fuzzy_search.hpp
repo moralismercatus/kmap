@@ -16,10 +16,12 @@
 namespace kmap::util {
 
 auto fuzzy_search( std::vector< std::string > const& candidates
-                 , std::string const& query )
+                 , std::string const& query
+                 , unsigned const& limit )
     -> std::vector< std::string >;
 auto fuzzy_search_titles( Kmap const& km
-                        , std::string const& query )
+                        , std::string const& query
+                        , unsigned const& limit )
     -> std::vector< std::pair< Uuid, std::string > >;
 
 } // namespace kmap::util

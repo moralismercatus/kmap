@@ -49,7 +49,7 @@ namespace kmap::com {
 auto EventStore::initialize()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     rv = outcome::success();
 
@@ -59,49 +59,9 @@ auto EventStore::initialize()
 auto EventStore::load()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     rv = outcome::success();
-
-    return rv;
-}
-
-auto EventStore::action( std::string const& heading )
-    -> Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_STR( "heading", heading );
-
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto& km = kmap_inst();
-    auto const eroot = KTRY( event_root() );
-    
-    rv = KTRY( view::make( eroot )
-             | view::child( "action" )
-             | view::desc( heading )
-             | view::single
-             | view::create_node( km )
-             | view::to_single );
-
-    return rv;
-}
-
-auto EventStore::object( std::string const& heading )
-    -> Result< Uuid >
-{
-    KM_RESULT_PROLOG();
-        KM_RESULT_PUSH_STR( "heading", heading );
-
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto& km = kmap_inst();
-    auto const eroot = KTRY( event_root() );
-    
-    rv = KTRY( view::make( eroot )
-             | view::child( "object" )
-             | view::desc( heading )
-             | view::single
-             | view::create_node( km )
-             | view::to_single );
 
     return rv;
 }
@@ -116,7 +76,8 @@ auto EventStore::event_root()
 
     rv = KTRY( anchor::abs_root
              | view2::direct_desc( "meta.event" ) 
-             | act2::fetch_or_create_node( km ) );
+             | act2::fetch_or_create_node( km )
+             | act2::single );
 
     return rv;
 }
@@ -136,7 +97,7 @@ auto EventStore::event_root() const
     return rv;
 }
 
-/// "Outlet base" refers to the root of an outlet tree (outlet branches and leaves). Avoiding overloading the word "outlet root" to emphasize that it isn't referring to event.outlet.
+/// "Outlet base" refers to the root of an outlet tree (outlet branches and leaves). Avoiding overloading the word "outlet root" to emphasize that it isn't referring to event.outlet. Perhaps "local_outlet_root"?
 auto EventStore::fetch_outlet_base( Uuid const& node )
     -> Result< Uuid >
 {
@@ -156,21 +117,16 @@ auto EventStore::fetch_outlet_base( Uuid const& node )
     ;
 
     auto& km = kmap_inst();
-    auto const eroot = KTRY( event_root() );
-    // TODO: Struggling to understand what this accomplishes...
-    auto const ofront = KTRY( view::make( eroot )
-                            | view::child( "outlet" )
-                            | view::rlineage( node )
-                            | view::child( "requisite" )
-                            | view::child/*( TODO: aliases to any subject/verb/object )*/
-                            | view::parent
-                            | view::parent
-                            | view::to_node_set( km )
-                            | ranges::to< std::vector >() // TODO: No longer necessary. act::order accepts any range type.
-                            | act::order( km )
-                            | act::front ); // act::front grabs base/root outlet for outlet tree.
+    auto const outlet_bases = anchor::node( node )
+                            | view2::left_lineal( view2::event::outlet_root
+                                                | view2::desc( view2::child( "requisite" )
+                                                             | view2::child /*( TODO: aliases to any subject/verb/object )*/ ) )
+                            | view2::order
+                            | act2::to_node_vec( km );
 
-    rv = ofront;
+    KMAP_ENSURE( !outlet_bases.empty(), error_code::common::uncategorized );
+
+    rv = outlet_bases.front();
 
     return rv;
 }
@@ -202,7 +158,7 @@ auto EventStore::fetch_outlet_tree( Uuid const& outlet )
 auto EventStore::fetch_payload()
     -> Result< Payload >
 {
-    auto rv = KMAP_MAKE_RESULT( Payload );
+    auto rv = result::make_result< Payload >();
 
     if( payload_ )
     {
@@ -233,7 +189,8 @@ auto EventStore::install_verb( Heading const& heading )
 
     rv = view2::event::verb_root
        | view2::direct_desc( heading ) 
-       | act2::fetch_or_create_node( km ); // TODO: For all of these install_* fns, I'm doing a fetch_or_create for convenience, but the name "install" implies that it doesn't already exist. Either rename (ensure_subject_installed?) or return error.
+       | act2::fetch_or_create_node( km )
+       | act2::single; // TODO: For all of these install_* fns, I'm doing a fetch_or_create for convenience, but the name "install" implies that it doesn't already exist. Either rename (ensure_subject_installed?) or return error.
 
     return rv;
 }
@@ -249,7 +206,8 @@ auto EventStore::install_object( Heading const& heading )
 
     rv = KTRY( view2::event::object_root
              | view2::direct_desc( heading )
-             | act2::fetch_or_create_node( km ) );
+             | act2::fetch_or_create_node( km )
+             | act2::single );
 
     return rv;
 }
@@ -265,7 +223,8 @@ auto EventStore::install_subject( Heading const& heading )
 
     rv = KTRY( view2::event::subject_root
              | view2::direct_desc( heading )
-             | act2::fetch_or_create_node( km ) );
+             | act2::fetch_or_create_node( km )
+             | act2::single );
 
     return rv;
 }
@@ -281,7 +240,8 @@ auto EventStore::install_component( Heading const& heading )
 
     rv = KTRY( view2::event::component_root
              | view2::direct_desc( heading )
-             | act2::fetch_or_create_node( km ) );
+             | act2::fetch_or_create_node( km )
+             | act2::single );
 
     return rv;
 }
@@ -294,12 +254,10 @@ auto EventStore::install_outlet( Leaf const& leaf )
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
-    auto const eroot = KTRY( event_root() );
-    auto const oroot = KTRY( view::make( eroot )
-                           | view::child( "outlet" )
-                           | view::direct_desc( leaf.heading )
-                           | view::create_node( km )
-                           | view::to_single );
+    auto const oroot = KTRY( view2::event::event_root
+                           | view2::child( "outlet" )
+                           | view2::direct_desc( leaf.heading )
+                           | act2::create_node( km ) );
 
     KTRY( install_outlet_internal( oroot, leaf ) );
     KTRY( reset_transitions( oroot ) );
@@ -333,9 +291,9 @@ SCENARIO( "install_outlet", "[event]" )
 
             THEN( "leaf structure exists" )
             {
-                REQUIRE_RES(( view::make( oleaf ) 
-                            | view::child( view::exactly( "requisite", "description", "action" ) )
-                            | view::exists( km ) ));
+                REQUIRE_RES(( anchor::node( oleaf ) 
+                            | view2::exactly( view2::child, { "requisite", "description", "action" } ) 
+                            | act2::exists( km ) ));
             }
         }
     }
@@ -349,12 +307,10 @@ auto EventStore::install_outlet( Branch const& branch )
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto& km = kmap_inst();
-    auto const eroot = KTRY( event_root() );
-    auto const oroot = KTRY( view::make( eroot )
-                           | view::child( "outlet" )
-                           | view::direct_desc( branch.heading )
-                           | view::create_node( km )
-                           | view::to_single );
+    auto const oroot = KTRY( view2::event::event_root
+                           | view2::child( "outlet" )
+                           | view2::direct_desc( branch.heading )
+                           | act2::create_node( km ) );
 
     KTRY( install_outlet_internal( oroot, branch ) );
     KTRY( reset_transitions( oroot ) );
@@ -363,60 +319,6 @@ auto EventStore::install_outlet( Branch const& branch )
 
     return rv;
 }
-
-#if 0
-auto EventStore::install_outlet_transition( Uuid const& root
-                                          , Transition const& transition )
-    -> Result< Uuid >
-{
-    auto rv = KMAP_MAKE_RESULT( Uuid );
-    auto const transdest = KMAP_TRY( view::make( root )
-                                   | view::child( "transition" )
-                                   | view::child( transition.heading )
-                                   | view::create_node( kmap_ )
-                                   | view::to_single );
-    auto const vres = std::visit( [ & ]( auto const& arg ) -> Result< void >
-                                  {
-                                      using T = std::decay_t< decltype( arg ) >;
-
-                                      auto rv = KMAP_MAKE_RESULT( void );
-
-                                      if constexpr( std::is_same_v< T, Transition::Leaf > )
-                                      {
-                                          KMAP_TRY( install_outlet_leaf( transdest, arg ) );
-
-                                          rv = outcome::success();
-                                      }
-                                      else if constexpr( std::is_same_v< T, Transition::Branch > )
-                                      {
-                                          for( auto const& new_trans : arg )
-                                          {
-                                            KMAP_TRY( install_outlet_transition( transdest, new_trans ) );
-                                          }
-
-                                          rv = outcome::success();
-                                      }
-                                      else
-                                      {
-                                          static_assert( always_false< T >::value, "non-exhaustive visitor!" );
-                                      }
-
-                                      return rv;
-                                  }
-                                , transition.type );
-
-    if( !vres )
-    {
-        rv = KMAP_PROPAGATE_FAILURE( vres );
-    }
-    else
-    {
-        rv = transdest;
-    }
-
-    return rv;
-}
-#endif
 
 auto EventStore::install_outlet_internal( Uuid const& root 
                                         , Leaf const& leaf )
@@ -441,25 +343,21 @@ auto EventStore::install_outlet_internal( Uuid const& root
 
     for( auto const& e : leaf.requisites )
     {
-        KMAP_TRY( view::make( root )
-                | view::child( "requisite" ) 
-                | view::alias( view::make( eroot ) | view::desc( e ) ) 
-                | view::create_node( km ) );
+        KMAP_TRY( anchor::node( root )
+                | view2::child( "requisite" ) 
+                | view2::alias_src( view2::event::event_root | view2::desc( e ) ) 
+                | act2::create_node( km ) );
     }
 
-    auto const descn  = KMAP_TRY( view::make( root )
-                                | view::child( "description" ) 
-                                | view::single
-                                | view::create_node( km )
-                                | view::to_single );
-    auto const actionn = KMAP_TRY( view::make( root )
-                                 | view::child( "action" ) 
-                                 | view::single
-                                 | view::create_node( km )
-                                 | view::to_single );
+    auto const descn  = KTRY( anchor::node( root )
+                            | view2::child( "description" ) 
+                            | act2::create_node( km ) );
+    auto const actionn = KTRY( anchor::node( root )
+                             | view2::child( "action" ) 
+                             | act2::create_node( km ) );
 
-    KMAP_TRY( nw->update_body( descn, leaf.description ) );
-    KMAP_TRY( nw->update_body( actionn, action_body ) );
+    KTRY( nw->update_body( descn, leaf.description ) );
+    KTRY( nw->update_body( actionn, action_body ) );
 
     rv = outcome::success();
 
@@ -774,33 +672,15 @@ auto EventStore::fetch_matching_outlets( std::set< std::string > const& requisit
     auto rv = KMAP_MAKE_RESULT( UuidSet );
     auto const& km = kmap_inst();
     auto const nw = KTRYE( fetch_component< com::Network >() );
-    auto const ver = view::make( KTRYE( event_root() ) );
-    auto const sreqs = ver
-                     | view::direct_desc( view::all_of( requisites ) ) // TODO: is view::all_of an all or nothing operation? Verify. Needs to be for this case.
-                     | view::to_node_set( km )
-                     | ranges::to< std::vector >();
+    auto const rreqs = view2::event::event_root
+                     | view2::all_of( view2::direct_desc, requisites )
+                     | act2::to_node_set( km );
+    auto const outlets = view2::event::outlet_root
+                       | view2::desc( view2::child( "requisite" )
+                                    | view2::exactly( view2::alias_src, rreqs ) )
+                       | act2::to_node_set( km );
 
-    KMAP_ENSURE( sreqs.size() == requisites.size(), error_code::common::uncategorized );
-
-    auto const reqs_match = [ & ]( auto const& outlet )
-    {
-        auto const oreqs = view::make( outlet )
-                         | view::child( "requisite" )
-                         | view::alias
-                         | view::resolve
-                         | view::to_node_set( km )
-                         | ranges::to< std::vector >();
-
-        return std::cmp_equal( ranges::distance( rvs::set_intersection( sreqs, oreqs ) ), sreqs.size() );
-    };
-    auto const all_outlets = ver
-                           | view::child( "outlet" )
-                           | view::child // TODO: This only accounts for immediate child nodes. I actually want view::desc( is_outlet )
-                           | view::to_node_set( km );
-
-    rv = all_outlets
-       | rvs::filter( reqs_match )
-       | ranges::to< UuidSet >();
+    rv = outlets;
 
     return rv;
 }
@@ -828,6 +708,7 @@ SCENARIO( "EventStore::fetch_matching_outlets", "[event]" )
             {
                 auto const mos = REQUIRE_TRY( estore->fetch_matching_outlets( { "subject.victor" } ) );
 
+                REQUIRE( !mos.empty() );
                 REQUIRE( *mos.begin() == ores.value() );
             }
         }
@@ -1524,7 +1405,7 @@ REGISTER_COMPONENT
 
 namespace kmap::view2::event {
 
-SCENARIO( "view::event::Requisite::fetch", "[node_view][event]" )
+SCENARIO( "view2::event::Requisite::fetch", "[node_view][event]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "event_store" );
 

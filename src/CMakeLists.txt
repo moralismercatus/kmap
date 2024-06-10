@@ -46,7 +46,7 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
                              KMAP_LOGGING_PATH=0
                              KMAP_LOG_EXCEPTION=1
                              KMAP_LOG_KTRY=0
-                             KMAP_LOG_KTRYE=1
+                             KMAP_LOG_KTRYE=0
                              KMAP_PROFILE=0
                              KMAP_TEST_PRE_ENV=1 )
     add_compile_options( -Wall
@@ -135,12 +135,13 @@ add_executable( emcc.index.html
                 com/cmd/standard_items.cpp
                 com/database/cache.cpp com/database/cache.hpp
                 com/database/db.cpp com/database/db.hpp
-                com/database/filesystem/db_fs.cpp com/database/filesystem/db_fs.hpp
                 com/database/filesystem/command.cpp com/database/filesystem/command.hpp
+                com/database/filesystem/db_fs.cpp com/database/filesystem/db_fs.hpp
                 com/database/js_bind.cpp
                 com/database/query_cache.cpp com/database/query_cache.hpp
                 com/database/root_node.cpp com/database/root_node.hpp
                 com/database/sm.cpp com/database/sm.hpp
+                com/database/test/misc.cpp
                 com/database/util.cpp com/database/util.hpp
                 com/event/event.cpp com/event/event.hpp
                 com/event/event_clerk.cpp com/event/event_clerk.hpp
@@ -161,12 +162,15 @@ add_executable( emcc.index.html
                 com/option/js_bind.cpp
                 com/option/option.cpp
                 com/option/option_clerk.cpp
+                com/search/js_bind.cpp
+                com/search/search.cpp com/search/search.hpp
                 com/tag/js_bind.cpp
                 com/tag/tag.cpp com/tag/tag.hpp
                 com/task/js_bind.cpp
                 com/task/task.cpp com/task/task.hpp
                 com/text_area/js_bind.cpp
                 com/text_area/text_area.cpp com/text_area/text_area.hpp
+                com/visnetwork/command.cpp
                 com/visnetwork/option.cpp com/visnetwork/option.hpp
                 com/visnetwork/visnetwork.cpp com/visnetwork/visnetwork.hpp
                 com/window/event.cpp
@@ -193,13 +197,16 @@ add_executable( emcc.index.html
                 path/act/take.cpp path/act/take.hpp
                 path/act/to_string.cpp path/act/to_string.hpp
                 path/act/update_body.cpp path/act/update_body.hpp
+                path/ancestry.cpp path/ancestry.hpp
                 path/disambiguate.cpp path/disambiguate.hpp
                 path/node_view.cpp path/node_view.hpp
                 path/node_view2.cpp path/node_view2.hpp
+                path/order.cpp path/order.hpp
                 path/parser/tokenizer.cpp path/parser/tokenizer.hpp
                 path/sm.cpp
                 path/view/act/abs_path.cpp path/view/act/abs_path.hpp
                 path/view/act/count.cpp path/view/act/count.hpp
+                path/view/act/create.cpp path/view/act/create.hpp
                 path/view/act/create_node.cpp path/view/act/create_node.hpp
                 path/view/act/erase_node.cpp path/view/act/erase_node.hpp
                 path/view/act/exists.cpp path/view/act/exists.hpp
@@ -207,6 +214,7 @@ add_executable( emcc.index.html
                 path/view/act/fetch_heading.cpp path/view/act/fetch_heading.hpp
                 path/view/act/fetch_node.cpp path/view/act/fetch_node.hpp
                 path/view/act/fetch_or_create_node.cpp path/view/act/fetch_or_create_node.hpp
+                path/view/act/fetch_title.cpp path/view/act/fetch_title.hpp
                 path/view/act/to_fetch_set.cpp path/view/act/to_fetch_set.hpp
                 path/view/act/to_heading_set.cpp path/view/act/to_heading_set.hpp
                 path/view/act/to_node_set.cpp path/view/act/to_node_set.hpp
@@ -224,6 +232,7 @@ add_executable( emcc.index.html
                 path/view/derivation_link.cpp path/view/derivation_link.hpp
                 path/view/desc.cpp path/view/desc.hpp
                 path/view/direct_desc.cpp path/view/direct_desc.hpp
+                path/view/exactly.cpp path/view/exactly.hpp
                 path/view/left_lineal.cpp path/view/left_lineal.hpp
                 path/view/link.cpp path/view/link.hpp
                 path/view/none_of.cpp path/view/none_of.hpp

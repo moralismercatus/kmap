@@ -38,8 +38,20 @@ auto AllOf::create( CreateContext const& ctx
        ; auto const& link : ls )
     {
         DerivationLink& dlink = KTRY( result::dyn_cast< DerivationLink >( link.get() ) );
-        auto const created = KTRY( dlink.create( ctx, root ) );
-        rset.insert( created.begin(), created.end() );
+        if( ctx.option.skip_existing ) // e.g., fetch_or_create
+        {
+            if( auto const fc = KTRY( dlink.fetch( FetchContext{ ctx.km, ctx.tether }, root ) )
+              ; fc.empty() )
+            {
+                auto const created = KTRY( dlink.create( ctx, root ) );
+                rset.insert( created.begin(), created.end() );
+            }
+        }
+        else
+        {
+            auto const created = KTRY( dlink.create( ctx, root ) );
+            rset.insert( created.begin(), created.end() );
+        }
     }
 
     rv = rset;

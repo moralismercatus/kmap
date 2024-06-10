@@ -68,6 +68,9 @@ template<>
 auto from_string( std::string const& s )
     -> Result< bool >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH( "s", s );
+
     auto rv = KMAP_MAKE_RESULT_EC( bool, error_code::common::conversion_failed );
     
     if( s == "true" )
@@ -540,6 +543,8 @@ auto is_valid_heading_path( std::string const& path )
             || c == ',' // back
             || c == '.' // forward
             || c == '\'' // disambiguator 
+            || c == '#' // tag
+            || c == '$' // attribute
             || c == '/'; // root
     };
 
@@ -673,6 +678,10 @@ auto to_uint64( std::string const& s
 {
     static_assert( sizeof( decltype( std::stoull( "", 0, base ) ) ) == sizeof( uint64_t ) );
 
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH( "s", s );
+        // KM_RESULT_PUSH( "base", base ); // TODO
+
     auto rv = KMAP_MAKE_RESULT( uint64_t );
 
     BC_CONTRACT()
@@ -772,6 +781,9 @@ auto to_uuid( uint64_t const& id )
 auto to_uuid( std::string const& s )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH( "s", s );
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     std::stringstream ss{ s };
     auto id = Uuid{};
@@ -1520,5 +1532,16 @@ auto is_ordered( Kmap const& kmap
         return nw->distance( kmap.root_node_id(), former ) < nw->distance( kmap.root_node_id(), latter );
     }
 }
+
+auto replace_unescaped_char( std::string const& input
+                           , char const c
+                           , std::string rep )
+    -> std::string
+{
+    auto pattern = boost::regex{ fmt::format( R"((?<!\\){})", c ) }; // Note: std::regex failed to understand "(?<!\\)" and would terminate, so using boost::regex instead.
+
+    return boost::regex_replace( input, pattern, rep );
+}
+
 
 } // namespace kmap

@@ -80,8 +80,9 @@ SCENARIO( "Erase canvas node within save/load", "[canvas][db][fs][save][load]" )
     }
 }
 
-SCENARIO( "Javascript preprocessed to transform ktry()", "[js_iface]" )
+SCENARIO( "Javascript preprocessed to transform ktry", "[js_iface]" )
 {
+    // Note: To get exact result/post string, call from JS console, and copy (as Javascript Literal) and paste here as "post".
     {
         auto const pre = "ktry( kmap.uuid_from_string( \"0x0\" ) );";
         auto const post = "{\n  const ktry_postproc_temp_val = kmap.uuid_from_string( \"0x0\" );\n\n  if (ktry_postproc_temp_val.has_error()) {\n    return ktry_postproc_temp_val.error();\n  }\n};";
@@ -100,6 +101,11 @@ SCENARIO( "Javascript preprocessed to transform ktry()", "[js_iface]" )
     {
         auto const pre = "const x = ktry( kmap.uuid_from_string( \"0x0\" ) );";
         auto const post = "const ktry_postproc_temp_val_x = kmap.uuid_from_string( \"0x0\" );\n\nif (ktry_postproc_temp_val_x.has_error()) {\n  return ktry_postproc_temp_val_x.error();\n}\n\nconst x = ktry_postproc_temp_val_x.value();";
+        REQUIRE( post == REQUIRE_TRY( js::eval< std::string >( fmt::format( "return kmap_preprocess_js_script( '{}' );", pre ) ) ) );
+    }
+    {
+        auto const pre = "return ktry( kmap.uuid_from_string( \"0x0\" ) );";
+        auto const post = "{\n  const ktry_postproc_temp_val = kmap.uuid_from_string( \"0x0\" );\n\n  if (ktry_postproc_temp_val.has_error()) {\n    return ktry_postproc_temp_val.error();\n  } else {\n    return ktry_postproc_temp_val.value();\n  }\n}";
         REQUIRE( post == REQUIRE_TRY( js::eval< std::string >( fmt::format( "return kmap_preprocess_js_script( '{}' );", pre ) ) ) );
     }
 }

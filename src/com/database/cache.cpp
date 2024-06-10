@@ -472,7 +472,7 @@ auto fetch_cached( Cache const& cache
                  , UniqueKeyVariant const& key )
     -> Result< ValueVariant >
 {
-    auto rv = KMAP_MAKE_RESULT( ValueVariant );
+    auto rv = result::make_result< ValueVariant >();
 
     std::visit( [ & ]( auto const& tbl ) mutable
                 {
@@ -545,7 +545,7 @@ auto fetch_deltas( Cache const& cache
                  , UniqueKeyVariant const& key )
     -> Result< DeltaItems< ValueVariant > >
 {
-    auto rv = KMAP_MAKE_RESULT( DeltaItems< ValueVariant > );
+    auto rv = result::make_result< DeltaItems< ValueVariant > >();
 
     std::visit( [ & ]( auto const& tbl ) mutable
                 {

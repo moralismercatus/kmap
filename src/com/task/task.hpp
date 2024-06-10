@@ -7,11 +7,12 @@
 #ifndef KMAP_TASK_HPP
 #define KMAP_TASK_HPP
 
-#include "com/cmd/cclerk.hpp"
-#include "com/event/event_clerk.hpp"
-#include "common.hpp"
-#include "component.hpp"
-#include "path/node_view2.hpp"
+#include <com/cmd/cclerk.hpp>
+#include <com/event/event_clerk.hpp>
+#include <com/tag/tag.hpp>
+#include <common.hpp>
+#include <component.hpp>
+#include <path/node_view2.hpp>
 
 namespace kmap
 {
@@ -81,6 +82,9 @@ namespace kmap::view2::task
 {
     auto const task_root = anchor::abs_root | view2::direct_desc( "task" );
     auto const task = view2::child( view2::all_of( view2::child, { "problem", "result" } ) ); // TODO: Factor is_categorized into the equation.
+    auto const active_tag = view2::tag::tag_root | view2::direct_desc( "task.status.open.active" );
+    auto const inactive_tag = view2::tag::tag_root | view2::direct_desc( "task.status.open.inactive" );
+    auto const closed_tag = view2::tag::tag_root | view2::direct_desc( "task.status.closed" );
 } // kmap::view2::task
 
 #endif // KMAP_TASK_HPP

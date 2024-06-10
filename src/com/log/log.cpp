@@ -216,7 +216,8 @@ auto fetch_or_create_daily_log( Kmap& kmap
 
     rv = KTRY( anchor::abs_root
              | view2::direct_desc( present_daily_log_path() )
-             | act2::fetch_or_create_node( kmap ) );
+             | act2::fetch_or_create_node( kmap )
+             | act2::single );
 
     return rv;
 }
@@ -279,13 +280,3 @@ REGISTER_COMPONENT
 } // namespace anonymous
 
 using namespace emscripten;
-
-// EMSCRIPTEN_BINDINGS( kmap_com_log_store )
-// {
-//     function( "log_store", &::log_store );
-
-//     class_< LT >( "LogStore" )
-//         .function( "push_task_to_log", &::LT::push_task_to_log )
-//         .function( "push_active_tasks_to_log", &::LT::push_active_tasks_to_log )
-//         ;
-// }

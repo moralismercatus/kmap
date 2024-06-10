@@ -7,10 +7,10 @@
 #ifndef KMAP_PATH_NODE_VIEW2_ACT_FETCH_HEADING_HPP
 #define KMAP_PATH_NODE_VIEW2_ACT_FETCH_HEADING_HPP
 
-#include "common.hpp"
-#include "kmap_fwd.hpp"
-#include "path/view/act/actor.hpp"
-#include "path/view/tether.hpp"
+#include <common.hpp>
+#include <kmap_fwd.hpp>
+#include <path/view/act/actor.hpp>
+#include <path/view/tether.hpp>
 
 namespace kmap::view2::act {
 

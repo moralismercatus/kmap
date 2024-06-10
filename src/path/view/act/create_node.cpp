@@ -37,6 +37,7 @@ auto operator|( Tether const& lhs
     -> Result< Uuid >
 {
     KM_RESULT_PROLOG();
+        // KM_RESULT_PUSH( "lhs", lhs | to_string );
 
     auto rv = KMAP_MAKE_RESULT( Uuid );
 

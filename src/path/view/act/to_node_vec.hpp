@@ -17,13 +17,22 @@ struct ToNodeVec
 {
     Kmap const& km;
 };
+struct TryNodeVec
+{
+    Kmap const& km;
+};
 
 auto to_node_vec( Kmap const& km )
     -> ToNodeVec;
+auto try_node_vec( Kmap const& km )
+    -> TryNodeVec;
 
 auto operator|( Tether const& lhs
               , ToNodeVec const& rhs )
     -> UuidVec;
+auto operator|( Tether const& lhs
+              , TryNodeVec const& rhs )
+    -> Result< UuidVec >;
 
 } // namespace kmap::view2::act
 

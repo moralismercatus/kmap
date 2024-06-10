@@ -58,6 +58,30 @@ auto NetworkCommand::register_standard_commands()
 {
     KM_RESULT_PROLOG();
 
+    // copy.body
+    {
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const src_node = nw.selected_node();
+        const dst_node = ktry( nw.fetch_node( args.get( 0 ) ) );
+        const src_body = ktry( nw.fetch_body( src_node ) );
+
+        ktry( nw.update_body( dst_node, src_body ) );
+        )%%%";
+
+        using Argument = com::Command::Argument;
+
+        auto const description = "copies body to destination path";
+        auto const arguments = std::vector< Argument >{ Argument{ "destination_path", "path to destination node", "heading_path" } };
+        auto const command = Command{ .path = "copy.body"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = "unconditional"
+                                    , .action = action_code };
+
+        KTRYE( cclerk_.register_command( command ) );
+    }
     // count.descendants
     {
         auto const action_code =
@@ -110,7 +134,8 @@ auto NetworkCommand::register_standard_commands()
         R"%%%(
         const title = args.get( 0 );
         const nw = kmap.network();
-        const child = ktry( nw.create_child( kmap.network().selected_node(), title ) );
+        const selected = nw.selected_node();
+        const child = ktry( nw.create_child( selected, title ) );
 
         ktry( nw.select_node( child ) );
         )%%%";
@@ -145,6 +170,44 @@ auto NetworkCommand::register_standard_commands()
         auto const description = "creates sibling node";
         auto const arguments = std::vector< Argument >{ Argument{ "title", "title", "unconditional" } };
         auto const command = Command{ .path = "create.sibling"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = "unconditional"
+                                    , .action = action_code };
+
+        KTRYE( cclerk_.register_command( command ) );
+    }
+    // edit.title
+    {
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const selected = nw.selected_node();
+        const current_title = ktry( nw.fetch_title( selected ) );
+        let new_title = null;
+
+        vexjs.dialog.prompt( {
+            message: 'New Title:'
+        ,   value: current_title
+        ,   callback: function( input )
+                     {
+                        if( input )
+                        {
+                            new_title = input;
+                            nw.update_title( selected, new_title ).throw_on_error();
+                            nw.update_heading( selected, kmap.format_heading( new_title ) ).throw_on_error();
+                            // TODO: Should rather return to last focus point.
+                            kmap.visnetwork().focus();
+                        }
+                     }
+        } );
+        )%%%";
+
+        using Argument = com::Command::Argument;
+
+        auto const description = "initiates title editing procedure";
+        auto const arguments = std::vector< Argument >{};
+        auto const command = Command{ .path = "edit.title"
                                     , .description = description
                                     , .arguments = arguments
                                     , .guard = "unconditional"
@@ -313,6 +376,28 @@ auto NetworkCommand::register_standard_commands()
 
         KTRYE( cclerk_.register_command( command ) );
     }
+    // sort.children.prompt
+    {
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const selected = nw.selected_node();
+
+        ktry( nw.sort_children_prompt( selected ) );
+        )%%%";
+
+        using Argument = com::Command::Argument;
+
+        auto const description = "sorts all children via user prompt";
+        auto const arguments = std::vector< Argument >{};
+        auto const command = Command{ .path = "sort.children.prompt"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = "unconditional"
+                                    , .action = action_code };
+
+        KTRYE( cclerk_.register_command( command ) );
+    }
     // travel.left
     {
         auto const action_code =
@@ -397,6 +482,30 @@ auto NetworkCommand::register_standard_commands()
 
         KTRYE( cclerk_.register_command( command ) );
     }
+    // update.body
+    {
+        auto const action_code =
+        R"%%%(
+        const content = args.get( 0 );
+        const nw = kmap.network();
+        const selected = nw.selected_node();
+        ktry( nw.update_body( selected, content ) );
+
+        ktry( nw.select_node( selected ) );
+        )%%%";
+
+        using Argument = com::Command::Argument;
+
+        auto const description = "replaces node body with arg";
+        auto const arguments = std::vector< Argument >{ Argument{ "body", "body", "unconditional" } };
+        auto const command = Command{ .path = "update.body"
+                                    , .description = description
+                                    , .arguments = arguments
+                                    , .guard = "unconditional"
+                                    , .action = action_code };
+
+        KTRYE( cclerk_.register_command( command ) );
+    }
 }
 
 SCENARIO( "count.descendants", "[network][cmd]" )
@@ -437,7 +546,7 @@ SCENARIO( "count.descendants", "[network][cmd]" )
     }
 }
 
-SCENARIO( "resolve.alias", "[network][cmd][alias]" )
+SCENARIO( "resolve.alias", "[network][cmd][alias][cli]" )
 {
     KMAP_COMPONENT_FIXTURE_SCOPED( "network.command", "cli" );
     auto& km = Singleton::instance();

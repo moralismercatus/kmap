@@ -6,7 +6,7 @@
 #include <path/view/order.hpp>
 
 #include <contract.hpp>
-#include <path/act/order.hpp>
+#include <path/order.hpp>
 #include <path/view/act/to_node_vec.hpp>
 #include <test/util.hpp>
 
@@ -27,7 +27,7 @@ auto Order::fetch( FetchContext const& ctx
                   | rvs::transform( [ & ]( auto const& e ){ return e.id; } )
                   | ranges::to< std::vector< Uuid > >();
 
-    auto const ordered = ns | view::act::order( ctx.km );
+    auto const ordered = KTRY( path::order( ctx.km, ns ) );
 
     for( auto const& n : ordered )
     {

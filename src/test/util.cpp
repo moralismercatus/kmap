@@ -3,14 +3,18 @@
  *
  * See LICENSE and CONTACTS.
  ******************************************************************************/
-#include "test/util.hpp"
+#include <test/util.hpp>
 
-#include "common.hpp"
-#include "com/database/db.hpp"
-#include "com/filesystem/filesystem.hpp"
-#include "error/master.hpp"
-#include "kmap.hpp"
-#include "test/master.hpp"
+#include <common.hpp>
+#include <com/database/db.hpp>
+#include <com/filesystem/filesystem.hpp>
+#include <error/master.hpp>
+#include <kmap.hpp>
+#include <test/master.hpp>
+
+#if !KMAP_NATIVE
+#include <js/iface.hpp>
+#endif // !KMAP_NATIVE
 
 #include <boost/filesystem.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -142,6 +146,49 @@ SaveToDiskFixture::~SaveToDiskFixture()
     try
     {
         KMAP_ENSURE_EXCEPT( fs::remove( file_path ) );
+    }
+    catch( std::exception const& e )
+    {
+        fmt::print( stderr, "Fixture dtor failed: {}|{}\n", file, line ); // Can't throw exception in dtor.
+        std::cerr << e.what() << '\n';
+        std::terminate();
+    }
+}
+
+DisableDebounceFixture::DisableDebounceFixture( std::string const& curr_file
+                                              , uint32_t const curr_line )
+    : file{ curr_file }
+    , line{ curr_line }
+{
+    try
+    {
+        KM_RESULT_PROLOG(); 
+
+#if !KMAP_NATIVE
+        prev_debounce = KTRYE( js::eval< bool >( "return kmap.flags.debounce;" ) );
+
+        KTRYE( js::eval_void( "kmap.flags.debounce = false;" ) );
+#endif // !KMAP_NATIVE
+    }
+    catch( std::exception const& e )
+    {
+        fmt::print( stderr, "Fixture ctor failed: {}|{}\n", file, line );
+        std::cerr << e.what() << '\n';
+        throw;
+    }
+}
+
+DisableDebounceFixture::~DisableDebounceFixture()
+{
+    auto& kmap = Singleton::instance(); // TODO: Why kmap's ctor automatically creating a db.root_node? For proper testing, seems like this shouldn't be auto happening.
+
+    try
+    {
+        KM_RESULT_PROLOG();
+
+#if !KMAP_NATIVE
+        KTRYE( js::eval_void( fmt::format( "kmap.flags.debounce = {};", to_string( prev_debounce ) ) ) );
+#endif // !KMAP_NATIVE
     }
     catch( std::exception const& e )
     {

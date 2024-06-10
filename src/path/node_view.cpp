@@ -2174,6 +2174,8 @@ auto operator|( Intermediary const& i
               , FetchNode const& op )
     -> Result< Uuid >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( Uuid );
     auto const ns = i | to_node_set( op.kmap );
 

@@ -21,6 +21,7 @@
 #include "test/master.hpp"
 #include "util/signal_exception.hpp"
 #include "utility.hpp"
+#include <path.hpp>
 #include <version.hpp>
 
 #include <boost/filesystem.hpp>
@@ -233,6 +234,16 @@ auto fetch_heading( Uuid const& node )
     return nw->fetch_heading( node );
 }
 
+auto format_node_label( Uuid const& node )
+    -> Result< std::string >
+{
+    KM_RESULT_PROLOG();
+
+    auto& km = Singleton::instance();
+
+    return KTRY( kmap::format_node_label( km, node ) );
+}
+
 auto fetch_parent( Uuid const& child )
                 
     -> Result< Uuid >
@@ -281,10 +292,9 @@ auto create_descendant( Uuid const& parent
 
     auto& km = Singleton::instance();
 
-    return view::make( parent )
-         | view::direct_desc( heading )
-         | view::create_node( km )
-         | view::to_single;
+    return anchor::node( parent )
+         | view2::direct_desc( heading )
+         | act2::create_node( km );
 }
 
 auto create_direct_descendant( Uuid const& parent
@@ -295,10 +305,9 @@ auto create_direct_descendant( Uuid const& parent
 
     auto& km = Singleton::instance();
 
-    return view::make( parent )
-         | view::direct_desc( heading )
-         | view::create_node( km )
-         | view::to_single;
+    return anchor::node( parent )
+         | view2::direct_desc( heading )
+         | act2::create_node( km );
 }
 
 auto delete_children( Uuid const& parent )
@@ -383,9 +392,9 @@ auto is_ancestor( Uuid const& ancestor
 {
     auto const& km = Singleton::instance();
 
-    return view::make( descendant )
-         | view::ancestor( ancestor )
-         | view::exists( km );
+    return anchor::node( descendant )
+         | view2::ancestor( ancestor )
+         | act2::exists( km );
 }
 
 auto is_lineal( Uuid const& root 
@@ -465,6 +474,9 @@ auto is_valid_heading_path( std::string const& path )
 auto load( std::string const& fs_path )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "fs_path", fs_path );
+
     auto& kmap = Singleton::instance();
 
     // TODO: load should return a Result<>, this should be propagated.
@@ -604,21 +616,6 @@ auto update_heading( Uuid const& node
     return kmap::Result< std::string >{ "updated" };
 }
 
-auto update_title( Uuid const& node
-                 , std::string const& content )
-    -> Result< std::string >
-{
-    KM_RESULT_PROLOG();
-
-    auto& km = Singleton::instance();
-    auto const nw = KTRY( km.fetch_component< com::Network >() );
-
-    KTRY( nw->update_title( node, content ) );
-
-    // TODO: Return result from 'update_*' in case error occurred.
-    return kmap::Result< std::string >{ "updated" };
-}
-
 auto uuid_from_string( std::string const& id )
     -> Result< Uuid >
 {
@@ -670,6 +667,8 @@ auto root_node()
 auto run_unit_tests( std::string const& arg )
     -> Result< std::string >
 {
+    KM_RESULT_PROLOG();
+
     // Automatically append standard options.
     auto const cmd_args = StringVec{ "kmap"
                                     , "--show_progress=true"
@@ -763,10 +762,10 @@ auto sort_children( Uuid const& parent )
 
     auto& km = Singleton::instance();
     auto const nw = KTRY( km.fetch_component< com::Network >() );
-    auto children = view::make( parent )
-                  | view::child
-                  | view::to_node_set( km )
-                  | act::order( km );
+    auto children = anchor::node( parent )
+                  | view2::child
+                  | view2::order
+                  | act2::to_node_vec( km );
 
     children |= actions::sort( [ & ]( auto const& lhs
                                     , auto const& rhs )
@@ -830,6 +829,8 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "fetch_node", &kmap::binding::fetch_node ); // This fetches a single node and errors if ambiguous.
     function( "fetch_or_create_node", &kmap::binding::fetch_or_create_node );
     function( "fetch_parent", &kmap::binding::fetch_parent );
+    function( "format_heading", &kmap::format_heading );
+    function( "format_node_label", &kmap::binding::format_node_label );
     function( "is_alias_pair", &kmap::binding::is_alias_pair );
     function( "is_ancestor", &kmap::binding::is_ancestor );
     function( "is_lineal", &kmap::binding::is_lineal );
@@ -857,7 +858,6 @@ EMSCRIPTEN_BINDINGS( kmap_module )
     function( "throw_load_signal", &kmap::binding::throw_load_signal );
     function( "update_body", &kmap::binding::update_body );
     function( "update_heading", &kmap::binding::update_heading );
-    function( "update_title", &kmap::binding::update_title );
     function( "uuid_from_string", &kmap::binding::uuid_from_string );
     function( "uuid_to_string", &kmap::binding::uuid_to_string );
     function( "version", &kmap::binding::version );

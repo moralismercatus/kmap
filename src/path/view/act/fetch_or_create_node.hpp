@@ -26,7 +26,7 @@ auto fetch_or_create_node( Kmap& km )
 
 auto operator|( Tether const& lhs
               , FetchOrCreateNode const& rhs )
-    -> Result< Uuid >;
+    -> Result< UuidSet >;
 
 } // namespace kmap::view2::act
 

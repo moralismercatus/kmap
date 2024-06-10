@@ -361,20 +361,6 @@ auto make_core_commands( Kmap& kmap )
                 | Attr::optional
         , activate_project( kmap )
         }
-    // ,   { "add.daily.task"
-    //     , "adds ancestral project to selected node as a alias task of the present daily log"
-    //     , ArgumentList{}
-    //     , add_daily_task( kmap )
-    //     }
-    // ,   { "add.definition"
-    //     , "associates node with given definition"
-    //     , ArgumentList{}
-    //          | InvertedPathArg{ "inverted definition path"
-    //                          , "associates <_> with selected node" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-    //                          , "/definitions"
-    //                          , kmap }
-    //     , add_definition( kmap )
-    //     }
     ,   { "add.objection" 
         , "adds a reference to an existing conclusion, as a objection of the present conclusion"
         , ArgumentList{}
@@ -419,46 +405,10 @@ auto make_core_commands( Kmap& kmap )
                        , kmap }
         , add_step( kmap )
         }
-    // ,   { "add.tag"
-    //     , "associates node with given tag"
-    //     , ArgumentList{}
-    //          | InvertedPathArg{ "inverted tag path"
-    //                          , "associates <_> with selected node" // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-    //                          , "/tags"
-    //                          , kmap }
-    //     , add_tag( kmap )
-    //     }
-    // ,   { "add.task" 
-    //     , "adds a reference to an existing project, as a task of the present project"
-    //     , ArgumentList{}
-    //         | ProjectArg{ "heading" 
-    //                     , "creates a reference to an existing project, <_> for the present project"
-    //                     , kmap }
-    //     , add_task( kmap )
-    //     }
-    // ,   { "create.alias"
-    //     , "creates an alias node"
-    //     , ArgumentList{}
-    //         | HeadingPathArg{ "source node path"
-    //                         , "creates an alias node referring to <_> as a child of present node" // TODO: replace "<_>" with user input.
-    //                         , kmap }
-    //         | HeadingPathArg{ "target node path"
-    //                         , "creates an alias node referring to <0> as a child of <_>" // TODO: replace "<_>" with user input.
-    //                         , kmap }
-    //             | Attr::optional
-    //     , create_alias( kmap )
-    //     }
     // ,   { "create.bookmark"
     //     , "bookmarks selected node"
     //     , ArgumentList{}
     //     , create_bookmark( kmap )
-    //     }
-    // ,   { "create.child"
-    //     , "appends child to selected node"
-    //     , ArgumentList{}
-    //         | TitleArg{ "child title"
-    //                   , "appends child to selected node" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-    //     , create_child( kmap )
     //     }
     ,   { "create.citation"
         , "creates a reference to a conclusion"
@@ -485,15 +435,6 @@ auto make_core_commands( Kmap& kmap )
                            , kmap }
         , create_conclusion( kmap )
         }
-    // ,   { "create.daily.log"
-    //     , "creates a log for today's date"
-        // , ArgumentList{}
-        //     // | DailyLogArg{ "date"
-        //     //              , "creates a log event for the date of <_>"
-        //     //              , kmap }
-        //     //     | Attr::optional
-        // , create_daily_log( kmap )
-        // }
     ,   { "create.definition"
         , "creates a new definition node"
         , ArgumentList{}
@@ -523,13 +464,6 @@ auto make_core_commands( Kmap& kmap )
                        , kmap }
         , create_prerequisite( kmap )
         }
-    // ,   { "create.project"
-    //     , "creates a new project"
-    //     , ArgumentList{}
-    //         | TitleArg{ "title" 
-    //                   , "creates a new project, <_>" }
-    //     , create_project( kmap )
-    //     }
     ,   { "create.recipe"
         , "creates a new recipe node"
         , ArgumentList{}
@@ -557,33 +491,12 @@ auto make_core_commands( Kmap& kmap )
                        , kmap }
         , create_step( kmap )
         }
-    // ,   { "create.sibling"
-    //     , "inserts node adjacent to selected node"
-    //     , ArgumentList{}
-    //         | TitleArg{ "sibling title"
-    //                   , "inserts <_> adjacent to selected node" } // TODO: replace "<_>" with user input. Statically replace "<_>" with "this argument", dynamically what is typed. 
-    //     , create_sibling( kmap )
-    //     }
     // ,   { "echo" 
     //     , "repeats argument to command line"
     //     , ArgumentList{}
     //         | TitleArg{ "title" 
     //                   , "repeats argument to command line" }
     //     , echo( kmap )
-    //     }
-    // ,   { "open.project" 
-    //     , "places selected project in open status"
-    //     , ArgumentList{}
-    //         | ProjectArg{ "heading" 
-    //                     , "changes the status of a project to open"
-    //                     , kmap }
-    //             | Attr::optional
-    //     , open_project( kmap )
-    //     }
-    // ,   { "close.project" 
-    //     , "places selected project in closed status"
-    //     , ArgumentList{}
-    //     , close_project( kmap )
     //     }
     // ,   { "copy.body"
     //     , "copies selected node body to a destination"
@@ -605,40 +518,16 @@ auto make_core_commands( Kmap& kmap )
     //     , ArgumentList{}
     //     , count_ancestors( kmap )
     //     }
-    // ,   { "count.descendants"
-    //     , "Returns the number of descendant nodes in the selected path, inclusive"
-    //     , ArgumentList{}
-    //     , count_descendants( kmap )
-    //     }
-    ,   { "deactivate.project" 
-        , "places selected project in open and deactivated status"
-        , ArgumentList{}
-            | ProjectArg{ "heading" 
-                        , "deactivates <_>"
-                        , kmap }
-                | Attr::optional
-        , deactivate_project( kmap )
-        }
     // ,   { "delete.children" 
     //     , "removes selected node's children"
     //     , ArgumentList{}
     //     , delete_children( kmap )
     //     }
-    // ,   { "delete.node" 
-    //     , "removes selected non-alias node"
+    // ,   { "edit.title" 
+    //     , "opens node title for editing"
     //     , ArgumentList{}
-    //     , delete_node( kmap )
+    //     , edit_title( kmap )
     //     }
-    // ,   { "edit"
-    //     , "opens node body for editing"
-    //     , ArgumentList{}
-    //     , edit_body( kmap )
-    //     }
-    ,   { "edit.title" 
-        , "opens node title for editing"
-        , ArgumentList{}
-        , edit_title( kmap )
-        }
     ,   { "execute"
         , "Runs script at current node"
         , ArgumentList{}
@@ -687,13 +576,6 @@ auto make_core_commands( Kmap& kmap )
                        , "Render the <_> as a node hierarchy" }
         , load_dot( kmap )
         }
-    // ,   { "load.state"
-    //     , "replaces present state with one from target database"
-    //     , ArgumentList{}
-    //         | FsPathArg{ "source file path"
-    //                    , "replaces current state with <_>" } // TODO: replace "<_>" with user input.
-    //     , load_state( kmap )
-    //     }
     // ,   { "load.kscript"
     //     , "loads and executes a kmap script"
     //     , ArgumentList{}
@@ -758,12 +640,6 @@ auto make_core_commands( Kmap& kmap )
     //                         , "moves selected node to <_>"
     //                         , kmap }
     //     , move_node( kmap )
-    //     }
-    // ,   { "move.up"
-    //     , "moves selected node above one"
-    //     , ArgumentList{}
-    //     , move_up( kmap )
-    //     }
     // ,   { "new"
     //     , "starts kmap state from scratch"
     //     , ArgumentList{}
@@ -840,14 +716,6 @@ auto make_core_commands( Kmap& kmap )
         , "Selects node at next descendant fork, if found"
         , ArgumentList{}
         , next_fork( kmap )
-        }
-    ,   { "select.node"
-        , "selects node"
-        , ArgumentList{}
-            | HeadingPathArg{ "destination node path"
-                            , "selects node given by <_>" // TODO: replace "<_>" with user input.
-                            , kmap }
-        , select_node( kmap )
         }
     ,   { "select.prev.fork"
         , "Selects node at previous ancestor fork, if found"

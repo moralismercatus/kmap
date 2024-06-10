@@ -46,7 +46,7 @@ public:
     auto operator()( Args&&... args ) const
     {
         auto nlinks = Links{};
-        ( nlinks.emplace_back( std::make_unique< std::decay_t< Args > >() ), ... );
+        ( nlinks.emplace_back( std::make_unique< std::decay_t< Args > >( args ) ), ... );
         return Derived{ nlinks };
     }
     template< typename Range >
@@ -71,7 +71,9 @@ public:
         auto links = Links{};
         for( auto const& e : rng )
         {
-            links.emplace_back( LinkPtr{ std::make_unique< RLink >( RLink{}( e ) ) } );
+            // TODO: Rather, rlink->clone() than make_unique< RLink >? Must be... unit test...
+            //       Or, is the rlink( e ) already accounting for copying previous links/state?
+            links.emplace_back( LinkPtr{ std::make_unique< RLink >( rlink( e ) ) } );
         }
         return Derived{ links };
     };
@@ -83,7 +85,9 @@ public:
         auto links = Links{};
         for( auto const& e : ilist )
         {
-            links.emplace_back( LinkPtr{ std::make_unique< RLink >( RLink{}( e ) ) } );
+            // TODO: Rather, rlink->clone() than make_unique< RLink >? Must be... unit test...
+            //       Or, is the rlink( e ) already accounting for copying previous links/state?
+            links.emplace_back( LinkPtr{ std::make_unique< RLink >( rlink( e ) ) } );
         }
         return Derived{ links };
     };

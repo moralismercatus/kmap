@@ -107,9 +107,9 @@ auto TagStore::register_standard_commands()
         )%%%";
         auto const description = "creates tag";
         // TODO: err.. need argument created, prior to calling install_command, but that's done in task_store, ATM.
-        auto const arguments = std::vector< Argument >{ Argument{ "tag_title"
-                                                                , "tag title"
-                                                                , "unconditional" } };
+        auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
+                                                                , "path to target tag"
+                                                                , "tag_path" } };
 
         KTRYE( cclerk_.register_command( com::Command{ .path = "create.tag"
                                                      , .description = description
@@ -117,29 +117,11 @@ auto TagStore::register_standard_commands()
                                                      , .guard = "unconditional"
                                                      , .action = action_code } ) );
     }
-    // erase.tag
+    // attach.tag
     {
         auto const action_code =
         R"%%%(
-            ktry( kmap.tag_store().erase_tag( kmap.selected_node(), args.get( 0 ) ) );
-            ktry( kmap.select_node( kmap.selected_node() ) );
-        )%%%";
-        auto const description = "erases node tag";
-        auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
-                                                                , "tag path"
-                                                                , "tag_path" } };
-
-        KTRYE( cclerk_.register_command( com::Command{ .path = "erase.tag"
-                                                     , .description = description
-                                                     , .arguments = arguments 
-                                                     , .guard = "unconditional" // TODO: "is_tagged_node"
-                                                     , .action = action_code } ) );
-    }
-    // tag.node
-    {
-        auto const action_code =
-        R"%%%(
-            ktry( kmap.tag_store().tag_node( kmap.selected_node(), args.get( 0 ) ) );
+            ktry( kmap.tag_store().attach_tag( kmap.selected_node(), args.get( 0 ) ) );
             ktry( kmap.select_node( kmap.selected_node() ) );
         )%%%";
         auto const description = "appends tag to node";
@@ -147,11 +129,34 @@ auto TagStore::register_standard_commands()
                                                                 , "path to target tag"
                                                                 , "tag_path" } };
 
-        KTRYE( cclerk_.register_command( com::Command{ .path = "tag.node"
+        KTRYE( cclerk_.register_command( com::Command{ .path = "attach.tag"
                                                      , .description = description
                                                      , .arguments = arguments 
                                                      , .guard = "unconditional"
                                                      , .action = action_code } ) );
+    }
+    // detach.tag
+    {
+        auto const action_code =
+        R"%%%(
+            ktry( kmap.tag_store().detach_tag( kmap.selected_node(), args.get( 0 ) ) );
+            ktry( kmap.select_node( kmap.selected_node() ) );
+        )%%%";
+        auto const description = "erases node tag";
+        auto const arguments = std::vector< Argument >{ Argument{ "tag_path"
+                                                                , "tag path"
+                                                                , "tag_path" } };
+
+        KTRYE( cclerk_.register_command( com::Command{ .path = "detach.tag"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = "unconditional" // TODO: "is_tagged_node"
+                                                     , .action = action_code } ) );
+    }
+    // tag.node
+    {
+        KTRYE( cclerk_.register_command_alias( com::CommandAlias{ .src_path = "attach.tag"
+                                                                , .dst_path = "tag.node" } ) );
     }
 }
 

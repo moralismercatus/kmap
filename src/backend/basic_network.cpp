@@ -293,6 +293,8 @@ auto fetch_lineage( BasicNetwork const& network
                   , Uuid const& node )
     -> Result< UuidVec >
 {
+    KM_RESULT_PROLOG();
+
     auto rv = KMAP_MAKE_RESULT( UuidVec );
     auto lineage = UuidVec{};
     auto parent = network.fetch_parent( node );

@@ -7,9 +7,10 @@
 #ifndef KMAP_TAG_TAG_HPP
 #define KMAP_TAG_TAG_HPP
 
-#include "com/cmd/cclerk.hpp"
-#include "common.hpp"
-#include "component.hpp"
+#include <com/cmd/cclerk.hpp>
+#include <common.hpp>
+#include <component.hpp>
+#include <path/node_view2.hpp>
 
 #include <set>
 #include <string>
@@ -59,9 +60,19 @@ public:
     auto tag_node( Uuid const& target 
                  , std::string const& tag_path )
         -> Result< Uuid >;
-    };
-
+};
 
 } // namespace kmap::com
+
+namespace kmap::view2::tag
+{
+    auto const tag_root = anchor::abs_root | view2::child( "meta" ) | view2::direct_desc( "tag" );
+    auto const tag = tag_root | direct_desc;
+} // kmap::view2::tag
+namespace kmap::view2::attrib
+{
+    auto const tag = view2::attr | view2::child( "tag" ) | view2::alias;
+    // Usage: n | view2::attrib::tag( view2::resolve | view2::tag( "my_tag" ) )
+} // kmap::view2::attr
 
 #endif // KMAP_TAG_TAG_HPP

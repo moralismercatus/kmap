@@ -82,7 +82,7 @@ kmap.autosave().set_threshold( option_value );
 auto Autosave::load()
     -> Result< void >
 {
-    auto rv = KMAP_MAKE_RESULT( void );
+    auto rv = result::make_result< void >();
 
     rv = outcome::success();
 
@@ -188,16 +188,12 @@ auto Autosave::interval()
 
     auto rv = KMAP_MAKE_RESULT( void );
 
-    fmt::print( "autosave::interval() entered\n" );
-
     if( counter_ >= threshold_ )
     {
-        fmt::print( "autosave::interval() threshold met\n" );
         auto const db = KTRY( fetch_component< com::Database >() );
 
         if( db->has_file_on_disk() )
         {
-            fmt::print( "autosave::interval() db has_file_on_disk\n" );
             KTRY( db->flush_delta_to_disk() );
         }
 

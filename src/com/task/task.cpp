@@ -6,6 +6,7 @@
 #include <com/task/task.hpp>
 
 #include <com/cmd/cclerk.hpp>
+#include <com/cli/cli.hpp> // Testing commands.
 #include <com/network/network.hpp>
 #include <com/tag/tag.hpp>
 #include <contract.hpp>
@@ -24,6 +25,10 @@
 #include <range/v3/algorithm/stable_sort.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/transform.hpp>
+
+#if KMAP_NATIVE
+#include <valgrind/callgrind.h>
+#endif // KMAP_NATIVE
 
 namespace rvs = ranges::views;
 
@@ -144,12 +149,12 @@ auto TaskStore::create_task( std::string const& title )
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const tag_store = KTRY( fetch_component< TagStore >() );
-    auto const task_root = KTRY( fetch_task_root( km ) );
-    auto const task = KTRY( nw->create_child( task_root, format_heading( title ), title ) );
+    auto const troot = KTRY( view2::task::task_root | act2::fetch_or_create_node( km ) | act2::single );
+    auto const task = KTRY( nw->create_child( troot, format_heading( title ), title ) );
     
-    KTRY( view::make( task )
-        | view::child( view::all_of( "problem", "result" ) )
-        | view::create_node( km ) );
+    KTRY( anchor::node( task )
+        | view2::all_of( view2::child, { "problem", "result" } )
+        | act2::create( km ) );
 
     KTRY( eclerk_.fire_event( { "subject.task_store", "verb.created", "object.task" }, { { "task_id", to_string( task ) } } ) );
 
@@ -318,6 +323,28 @@ SCENARIO( "TaskStore::create_subtask", "[task][create]" )
         }
     }
 }
+
+#if KMAP_NATIVE
+SCENARIO( "test create_task callgrind", "[task]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "task_store" );
+
+    auto& km = Singleton::instance();
+    auto tstore = REQUIRE_TRY( km.fetch_component< TaskStore >() );
+
+    {
+        for( auto i = 0u
+           ; i < 100u
+           ; ++i )
+        {
+            REQUIRE( tstore->create_task( std::to_string( i ) ) );
+        }
+        CALLGRIND_START_INSTRUMENTATION;
+        REQUIRE( tstore->create_task( "1000" ) );
+        CALLGRIND_STOP_INSTRUMENTATION;
+    }
+}
+#endif // KMAP_NATIVE
 
 // Return true if a tag other than `status.open` is found.
 // TODO: Rather, task has tag other than tag.status desc found.
@@ -669,16 +696,38 @@ auto TaskStore::register_standard_commands()
                                                        , .guard = guard_code
                                                        , .completion = completion_code } ) );
     }
+    // activate.task
+    {
+        auto const action_code =
+        R"%%%(
+        const nw = kmap.network();
+        const tstore = kmap.task_store();
+        const selected = nw.selected_node();
+
+        ktry( tstore.activate_task( selected ) );
+        ktry( nw.select_node( selected ) );
+        )%%%";
+        auto const description = "opens task and marks as inactive";
+        auto const arguments = std::vector< Argument >{};
+
+        KTRYE( cclerk_.register_command( com::Command{ .path = "activate.task"
+                                                     , .description = description
+                                                     , .arguments = arguments 
+                                                     , .guard = "unconditional" // TODO: kmap.task_store().is_task( kmap.selected_node() )
+                                                     , .action = action_code } ) );
+    }
     // add.subtask
     {
         auto const action_code =
         R"%%%(
-        const supertask = kmap.selected_node();
-        const target = ktry( kmap.fetch_node( args.get( 0 ) ) );
-        const subtask = ktry( create_child( supertask, "subtask" ) );
-        const alias = ktry( create_alias( target, subtask ) );
+        const nw = kmap.network();
+        const task_root = ktry( kmap.fetch_node( "/task" ) );
+        const supertask = nw.selected_node();
+        const target = ktry( kmap.fetch_child( task_root, args.get( 0 ) ) );
+        const subtask = ktry( kmap.fetch_or_create_node( supertask, ".subtask" ) );
+        const alias = ktry( nw.create_alias( target, subtask ) );
 
-        ktry( kmap.select_node( alias ) );
+        ktry( nw.select_node( alias ) );
         )%%%";
         auto const description = "adds existent task as subtask of current task";
         auto const arguments = std::vector< Argument >{ Argument{ "task_heading"
@@ -691,19 +740,25 @@ auto TaskStore::register_standard_commands()
                                                      , .guard = "unconditional" // TODO: kmap.task_store().is_task( kmap.selected_node() )
                                                      , .action = action_code } ) );
     }
-    // activate.task
+    // add.supertask
     {
         auto const action_code =
         R"%%%(
-        const selected = kmap.selected_node();
+        const nw = kmap.network();
+        const task_root = ktry( kmap.fetch_node( "/task" ) );
+        const subtask = nw.selected_node();
+        const supertask = ktry( kmap.fetch_child( task_root, args.get( 0 ) ) );
+        const subtaskn = ktry( kmap.fetch_or_create_node( supertask, ".subtask" ) );
+        const alias = ktry( nw.create_alias( subtask, subtaskn ) );
 
-        ktry( kmap.task_store().activate_task( selected ) );
-        ktry( kmap.select_node( selected ) );
+        ktry( nw.select_node( alias ) );
         )%%%";
-        auto const description = "opens task and marks as inactive";
-        auto const arguments = std::vector< Argument >{};
+        auto const description = "adds existent task as subtask of current task";
+        auto const arguments = std::vector< Argument >{ Argument{ "task_heading"
+                                                                , "task heading"
+                                                                , "task_heading" } };
 
-        KTRYE( cclerk_.register_command( com::Command{ .path = "activate.task"
+        KTRYE( cclerk_.register_command( com::Command{ .path = "add.supertask"
                                                      , .description = description
                                                      , .arguments = arguments 
                                                      , .guard = "unconditional" // TODO: kmap.task_store().is_task( kmap.selected_node() )
@@ -713,10 +768,12 @@ auto TaskStore::register_standard_commands()
     {
         auto const action_code =
         R"%%%(
-        const selected = kmap.selected_node();
+        const nw = kmap.network();
+        const tstore = kmap.task_store();
+        const selected = nw.selected_node();
 
-        ktry( kmap.task_store().deactivate_task( selected ) );
-        ktry( kmap.select_node( selected ) );
+        ktry( tstore.deactivate_task( selected ) );
+        ktry( nw.select_node( selected ) );
         )%%%";
         auto const description = "opens task and marks as inactive";
         auto const arguments = std::vector< Argument >{};
@@ -731,10 +788,12 @@ auto TaskStore::register_standard_commands()
     {
         auto const action_code =
         R"%%%(
-        const selected = kmap.selected_node();
+        const nw = kmap.network();
+        const tstore = kmap.task_store();
+        const selected = nw.selected_node();
 
-        ktry( kmap.task_store().close_task( selected ) );
-        ktry( kmap.select_node( selected ) );
+        ktry( tstore.close_task( selected ) );
+        ktry( nw.select_node( selected ) );
         )%%%";
         auto const description = "closes task meeting requirements";
         auto const arguments = std::vector< Argument >{};
@@ -749,10 +808,11 @@ auto TaskStore::register_standard_commands()
     {
         auto const action_code =
         R"%%%(
+        const nw = kmap.network();
         const tstore = kmap.task_store();
         const taskn = ktry( tstore.create_task( args.get( 0 ) ) );
 
-        ktry( kmap.select_node( taskn ) );
+        ktry( nw.select_node( taskn ) );
         )%%%";
         auto const description = "creates task";
         auto const arguments = std::vector< Argument >{ Argument{ "task_title"
@@ -765,34 +825,15 @@ auto TaskStore::register_standard_commands()
                                                      , .guard = "unconditional"
                                                      , .action = action_code } ) );
     }
-    // create.task.inactive
-    {
-        auto const action_code =
-        R"%%%(
-        const tstore = kmap.task_store();
-        const taskn = ktry( tstore.create_task( args.get( 0 ) ) );
-
-        ktry( kmap.select_node( taskn.value() ) );
-        )%%%";
-        auto const description = "creates task in inactive state";
-        auto const arguments = std::vector< Argument >{ Argument{ "task_title"
-                                                                , "task title"
-                                                                , "unconditional" } };
-
-        KTRYE( cclerk_.register_command( com::Command{ .path = "create.task.inactive"
-                                                     , .description = description
-                                                     , .arguments = arguments 
-                                                     , .guard = "unconditional"
-                                                     , .action = action_code } ) );
-    }
     // create.subtask
     {
         auto const action_code =
         R"%%%(
+            const nw = kmap.network();
             const tstore = kmap.task_store();
-            const taskn = ktry( tstore.create_subtask( kmap.selected_node(), args.get( 0 ) ) );
+            const taskn = ktry( tstore.create_subtask( nw.selected_node(), args.get( 0 ) ) );
 
-            ktry( kmap.select_node( taskn ) );
+            ktry( nw.select_node( taskn ) );
         )%%%";
         auto const description = "creates subtask";
         auto const arguments = std::vector< Argument >{ Argument{ "task_title"
@@ -805,21 +846,28 @@ auto TaskStore::register_standard_commands()
                                                      , .guard = "unconditional" // TODO: kmap.task_store().is_task( kmap.selected_node() )
                                                      , .action = action_code } ) );
     }
-    // create.subtask.inactive
+    // TODO: This has gaps. Event functionality may go unfired e.g., subtask created.
+    //       Ideally, this would be implemented in kscript, and there would be core commands (add.subtask, create.task, etc.)
+    //       which would fire any relevant events.
+    // create.supertask
     {
         auto const action_code =
         R"%%%(
+            const nw = kmap.network();
+            const selected = nw.selected_node();
             const tstore = kmap.task_store();
-            const taskn = ktry( tstore.create_subtask( kmap.selected_node(), args.get( 0 ) ) );
+            const taskn = ktry( tstore.create_task( args.get( 0 ) ) );
+            const subtaskn = ktry( nw.create_child( taskn, 'Subtask' ) );
+            ktry( nw.create_alias( selected, subtaskn ) );
 
-            ktry( kmap.select_node( taskn ) );
+            ktry( nw.select_node( taskn ) );
         )%%%";
-        auto const description = "creates subtask in inactive state";
+        auto const description = "creates supertask for selected task";
         auto const arguments = std::vector< Argument >{ Argument{ "task_title"
                                                                 , "task title"
                                                                 , "unconditional" } };
 
-        KTRYE( cclerk_.register_command( com::Command{ .path = "create.subtask.inactive"
+        KTRYE( cclerk_.register_command( com::Command{ .path = "create.supertask"
                                                      , .description = description
                                                      , .arguments = arguments 
                                                      , .guard = "unconditional" // TODO: kmap.task_store().is_task( kmap.selected_node() )
@@ -829,8 +877,11 @@ auto TaskStore::register_standard_commands()
     {
         auto const action_code =
         R"%%%(
-            ktry( kmap.task_store().cascade_tags( kmap.selected_node() ) );
-            ktry( kmap.select_node( kmap.selected_node() ) );
+            const nw = kmap.network();
+            const tstore = kmap.task_store();
+
+            ktry( tstore.cascade_tags( nw.selected_node() ) );
+            ktry( nw.select_node( nw.selected_node() ) );
         )%%%";
         auto const description = "Applies supertask tags to subtasks";
         auto const arguments = std::vector< Argument >{};
@@ -845,10 +896,11 @@ auto TaskStore::register_standard_commands()
     {
         auto const action_code =
         R"%%%(
-        const selected = kmap.selected_node();
+        const nw = kmap.network();
+        const selected = nw.selected_node();
 
         ktry( kmap.task_store().activate_task( selected ) );
-        ktry( kmap.select_node( selected ) );
+        ktry( nw.select_node( selected ) );
         )%%%";
         auto const description = "opens closed task and marks it as active";
         auto const arguments = std::vector< Argument >{};
@@ -858,6 +910,38 @@ auto TaskStore::register_standard_commands()
                                                      , .arguments = arguments 
                                                      , .guard = "unconditional" // TODO: kmap.task_store().is_task( kmap.selected_node() )
                                                      , .action = action_code } ) );
+    }
+}
+
+SCENARIO( ":add.task", "[task][cli][cmd]" )
+{
+    KMAP_COMPONENT_FIXTURE_SCOPED( "task_store", "cli", "network" );
+
+    auto& km = Singleton::instance();
+    auto const tstore = REQUIRE_TRY( km.fetch_component< com::TaskStore >() );
+    auto const cli = REQUIRE_TRY( km.fetch_component< com::Cli >() );
+
+    GIVEN( "task: victor,charlie" )
+    {
+        REQUIRE_TRY( cli->parse_raw( ":create.task Victor" ) );
+        REQUIRE_TRY( cli->parse_raw( ":create.task Charlie" ) );
+
+        GIVEN( "@charlie" )
+        {
+            REQUIRE_TRY( cli->parse_raw( ":@/task.charlie" ) );
+
+            GIVEN( ":add.subtask victor" )
+            {
+                REQUIRE_TRY( cli->parse_raw( ":add.subtask victor" ) );
+
+                THEN( "/task.charlie.subtask.victor" )
+                {
+                    REQUIRE(( anchor::abs_root
+                            | view2::direct_desc( "task.charlie.subtask.victor" )
+                            | act2::exists( km ) ));
+                }
+            }
+        }
     }
 }
 
@@ -883,17 +967,20 @@ auto order_tasks( Kmap const& km )
     enum class Status : int { active, inactive, closed, nontask }; // Ordered.
 
     auto rv = result::make_result< UuidVec >();
-    auto const task_root = KTRYE( fetch_task_root( km ) );
+    auto const task_root = KTRY( fetch_task_root( km ) );
     auto tasks = anchor::node( task_root )
                | view2::child
-               | view2::order
+               | view2::order // Ensure original ordering for stable sort.
                | act2::to_node_vec( km );
+    auto const active_tag = view2::tag::tag( "task.status.open.active" );
+    auto const inactive_tag = view2::tag::tag( "task.status.open.inactive" );
+    auto const closed_tag = view2::tag::tag( "task.status.closed" );
     auto const map_status = [ & ]( auto const& n )
     {
-             if( view::make( n ) | view::tag( "task.status.open.active" ) | view::exists( km ) )   { return Status::active; }
-        else if( view::make( n ) | view::tag( "task.status.open.inactive" ) | view::exists( km ) ) { return Status::inactive; }
-        else if( view::make( n ) | view::tag( "task.status.closed" ) | view::exists( km ) )        { return Status::closed; }
-        else                                                                                       { return Status::nontask; }
+        if     ( anchor::node( n ) | view2::attrib::tag( view2::resolve( active_tag ) ) | act2::exists( km ) )   { return Status::active; }
+        else if( anchor::node( n ) | view2::attrib::tag( view2::resolve( inactive_tag ) ) | act2::exists( km ) ) { return Status::inactive; }
+        else if( anchor::node( n ) | view2::attrib::tag( view2::resolve( closed_tag ) ) | act2::exists( km ) )   { return Status::closed; }
+        else                                                                                                     { return Status::nontask; }
     };
     auto status_map = tasks
                     | rvs::transform( [ & ]( auto const& t ){ return std::pair{ t, map_status( t ) }; } )

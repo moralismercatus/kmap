@@ -4,6 +4,8 @@
  * See LICENSE and CONTACTS.
  ******************************************************************************/
 
+const { network } = require("vis-network");
+
 class Network
 {
     network = null;
@@ -226,6 +228,24 @@ class Network
         {
             this.network.body.data.nodes.add( { id: uuid
                                               , label: title } );
+        }
+        catch( err )
+        {
+            console.error( String( err ) );
+            throw err;
+        }
+    }
+
+    create_image_node( uuid
+                     , title
+                     , url )
+    {
+        try
+        {
+            this.network.body.data.nodes.add( { id: uuid
+                                              , label: title
+                                              , shape: 'image'
+                                              , image: url } );
         }
         catch( err )
         {
@@ -660,5 +680,368 @@ function network_onkeyup( e )
     {
         kmap.event_store().fire_event( to_VectorString( [ 'subject.network', 'verb.raised', 'object.keyboard.key.' + mnemonic ] ) ).throw_on_error();
         e.preventDefault();
+    }
+}
+
+function kmap_vnw_create_node( vnw, nid, nlabel )
+{
+    const nw = kmap.network();
+    const img_node = kmap.fetch_descendant( kmap.uuid_from_string( nid ).value(), '.$.node.image' );
+
+    if( img_node.has_value() )
+    {
+        const img_url = nw.fetch_body( img_node.value() ); img_url.throw_on_error();
+
+        vnw.body.data.nodes.add( { id: nid 
+                                 , label: nlabel
+                                 , shape: 'image'
+                                 , image: img_url.value() } );
+    }
+    else
+    {
+        vnw.body.data.nodes.add( { id: nid 
+                                 , label: nlabel } );
+    }
+}
+
+async function kmap_qsort_async( arr, comparator )
+{
+    if( arr.length <= 1 ) {
+        return arr;
+    }
+
+    const pivot = arr[ arr.length - 1 ];
+    const leftArr = [];
+    const rightArr = [];
+
+    for( let i = 0; i < arr.length - 1; i++ ) {
+        const isLeftSmaller = await comparator( arr[ i ], pivot );
+        
+        if( isLeftSmaller ) {
+            console.log( 'left smaller' );
+            leftArr.push( arr[ i ] );
+        } else {
+            console.log( 'right smaller' );
+            rightArr.push( arr[ i ] );
+        }
+    }
+
+    return [
+        ...( await kmap_qsort_async( leftArr, comparator ) ),
+        pivot,
+        ...( await kmap_qsort_async( rightArr, comparator ) )
+    ];
+}
+
+async function kmap_qsort_prompt_comparator( nw )
+{
+    return (async function( lhs, rhs ) {
+        return new Promise( ( resolve, reject ) => {
+            console.log( `comparing ${lhs} <? ${rhs}` )
+            if( lhs == rhs) {
+                nw.body.data.nodes.clear();
+                nw.body.data.edges.clear();
+                resolve( false ); 
+                return false ;
+            }
+            nw.on( 'selectNode', function ( e ) {
+                if( e.nodes.length != 0 )
+                {
+                    const node = e.nodes[ 0 ];
+                    console.log( 'select node: ' + node ); 
+                    nw.body.data.nodes.clear();
+                    nw.body.data.edges.clear();
+                    if( node == lhs )
+                    {
+                        resolve( true );
+                    }
+                    else
+                    {
+                        resolve( false ); 
+                    }
+                }
+                else
+                {
+                    reject( 'no node selected: ' + node );
+                }
+        } );
+        const lhs_uuid = kmap.uuid_from_string( lhs ); lhs_uuid.throw_on_error();
+        const rhs_uuid = kmap.uuid_from_string( rhs ); rhs_uuid.throw_on_error();
+        const lhs_label = kmap.format_node_label( lhs_uuid.value() ); lhs_label.throw_on_error();
+        const rhs_label = kmap.format_node_label( rhs_uuid.value() ); rhs_label.throw_on_error();
+        kmap_vnw_create_node( nw, lhs, lhs_label.value() );
+        kmap_vnw_create_node( nw, rhs, rhs_label.value() );
+        nw.body.data.edges.add( { id: lhs + rhs, from: lhs, to: rhs } );
+        // Center:
+        const lpos = nw.getPositions( [ lhs ] )[ lhs ];
+        const rpos = nw.getPositions( [ rhs ] )[ rhs ];
+        console.assert( lpos );
+        console.assert( rpos );
+        nw.moveTo( { position: { x: ( lpos.x + rpos.x ) / 2
+                               , y: ( lpos.y + rpos.y ) / 2 }
+                   ,  scale: 4.00 } ); // TODO: Should come from an option.
+        } );
+    } );
+}
+
+async function kmap_sort_children_prompt( node )
+{
+    let nw = null;
+    const dialog = vexjs.open({
+        unsafeContent: '<div id="kmap.nw.cmp.prompt"></div>',
+        afterOpen: function () {
+        }
+    });
+    dialog.contentEl.style.width = '1400px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    dialog.contentEl.style.height = '800px';
+    // Note: Placing nw creation after dialog creation so that first render will get the adjusted window dimensions.
+    const container = document.getElementById( 'kmap.nw.cmp.prompt' );
+    console.log( container );
+    container.style.width = '1400px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    container.style.height = '800px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    let edges = new vis.DataSet();
+    let nodes = new vis.DataSet();
+    let data = {
+        nodes: nodes,
+        edges: edges
+    };
+    //  TODO: All these options should exist in a setting node, configurable by the user.
+    //        meta.option.sort.prompt.<option>
+    let options = {
+        height: '100%'
+        , width: '100%'
+        , autoResize: true
+        , layout: {
+            hierarchical: {
+                direction: 'LR'
+                // , sortMethod: 'directed' Disabled this setting, as enabling it caused all leaf nodes to become aligned.
+                // , nodeSpacing: 50
+                // , levelSeparation: 250
+                , blockShifting: true
+                , edgeMinimization: true
+                , parentCentralization: true
+            }
+        }
+        , physics: {
+            enabled: false
+            , hierarchicalRepulsion: { nodeDistance: 1 }
+        }
+        , interaction: { dragNodes: false }
+        , edges: {
+            smooth: {
+                type: 'cubicBezier'
+                , forceDirection: 'horizontal'
+            }
+        }
+        , nodes: {
+            shape: 'box'
+            , shapeProperties: { interpolation: false }
+            , widthConstraint: {
+                minimum: 100
+                , maximum: 100
+            }
+            , font: { multi: 'html' }
+        }
+    };
+
+    nw = new vis.Network(container, data, options);
+
+    nw.canvas.frame.onkeydown = function () { /*do nothing.*/ };
+    nw.canvas.frame.onkeyup = function () {
+        console.log( 'key downed' );
+    };
+    
+    // Note: I don't know why, but lifetime of "node/Uuid" input param expires during execution,
+    //       but converting it internal to the function (converting from string and back to type hack to create copy), works.
+    //       Probably an issue with async functions.
+    const parent_s = kmap.uuid_to_string( node );
+    const parent = kmap.uuid_from_string( parent_s ).value();
+    const children = kmap.fetch_children( parent );
+    let cids = []
+    for( i = 0; i < children.size(); ++i ){ cids.push( kmap.uuid_to_string( children.get( i ) ) ); } // Convert vector<Uuid> to JS list/array.
+    const qsr = await kmap_qsort_async( cids, await kmap_qsort_prompt_comparator( nw ) );
+    dialog.close();
+
+    if( qsr.length > 1 )
+    {
+        let knw = kmap.network();
+        let sorted_ids = new kmap.std$$vector$Uuid$();
+        for( i = 0; i < qsr.length; ++i ){ sorted_ids.push_back( kmap.uuid_from_string( qsr[ i ] ).value() ); } // Convert vector<Uuid> to JS list/array.
+        knw.reorder_children( parent, sorted_ids );
+        knw.select_node( parent ).throw_on_error();
+    }
+}
+
+async function kmap_sort_children_prompt( node )
+{
+    let nw = null;
+    const dialog = vexjs.open({
+        unsafeContent: '<div id="kmap.nw.cmp.prompt"></div>',
+        afterOpen: function () {
+        }
+    });
+    dialog.contentEl.style.width = '1400px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    dialog.contentEl.style.height = '800px';
+    // Note: Placing nw creation after dialog creation so that first render will get the adjusted window dimensions.
+    const container = document.getElementById( 'kmap.nw.cmp.prompt' );
+    console.log( container );
+    container.style.width = '1400px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    container.style.height = '800px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    let edges = new vis.DataSet();
+    let nodes = new vis.DataSet();
+    let data = {
+        nodes: nodes,
+        edges: edges
+    };
+    //  TODO: All these options should exist in a setting node, configurable by the user.
+    //        meta.option.sort.prompt.<option>
+    let options = {
+        height: '100%'
+        , width: '100%'
+        , autoResize: true
+        , layout: {
+            hierarchical: {
+                direction: 'LR'
+                // , sortMethod: 'directed' Disabled this setting, as enabling it caused all leaf nodes to become aligned.
+                // , nodeSpacing: 50
+                // , levelSeparation: 250
+                , blockShifting: true
+                , edgeMinimization: true
+                , parentCentralization: true
+            }
+        }
+        , physics: {
+            enabled: false
+            , hierarchicalRepulsion: { nodeDistance: 1 }
+        }
+        , interaction: { dragNodes: false }
+        , edges: {
+            smooth: {
+                type: 'cubicBezier'
+                , forceDirection: 'horizontal'
+            }
+        }
+        , nodes: {
+            shape: 'box'
+            , shapeProperties: { interpolation: false }
+            , widthConstraint: {
+                minimum: 100
+                , maximum: 100
+            }
+            , font: { multi: 'html' }
+        }
+    };
+
+    nw = new vis.Network(container, data, options);
+
+    nw.canvas.frame.onkeydown = function () { /*do nothing.*/ };
+    nw.canvas.frame.onkeyup = function () {
+        console.log( 'key downed' );
+    };
+    
+    // Note: I don't know why, but lifetime of "node/Uuid" input param expires during execution,
+    //       but converting it internal to the function (converting from string and back to type hack to create copy), works.
+    //       Probably an issue with async functions.
+    const parent_s = kmap.uuid_to_string( node );
+    const parent = kmap.uuid_from_string( parent_s ).value();
+    const children = kmap.fetch_children( parent );
+    let cids = []
+    for( i = 0; i < children.size(); ++i ){ cids.push( kmap.uuid_to_string( children.get( i ) ) ); } // Convert vector<Uuid> to JS list/array.
+    const qsr = await kmap_qsort_async( cids, await kmap_qsort_prompt_comparator( nw ) );
+    dialog.close();
+
+    if( qsr.length > 1 )
+    {
+        let knw = kmap.network();
+        let sorted_ids = new kmap.std$$vector$Uuid$();
+        for( i = 0; i < qsr.length; ++i ){ sorted_ids.push_back( kmap.uuid_from_string( qsr[ i ] ).value() ); } // Convert vector<Uuid> to JS list/array.
+        knw.reorder_children( parent, sorted_ids );
+        knw.select_node( parent ).throw_on_error();
+    }
+}
+
+async function kmap_insert_child_prompt( parent, child )
+{
+    // TODO: This won't be qsort, but similarly based, binary descent.
+    //       From siblings, split in half, larger or smaller? OK, next set: larger or smaller?
+    let nw = null;
+    const dialog = vexjs.open({
+        unsafeContent: '<div id="kmap.nw.cmp.prompt"></div>',
+        afterOpen: function () {
+        }
+    });
+    dialog.contentEl.style.width = '1400px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    dialog.contentEl.style.height = '800px';
+    // Note: Placing nw creation after dialog creation so that first render will get the adjusted window dimensions.
+    const container = document.getElementById( 'kmap.nw.cmp.prompt' );
+    console.log( container )
+    container.style.width = '1400px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    container.style.height = '800px'; // TODO: Can I auto calculate this to be 2/3 of window?
+    let edges = new vis.DataSet();
+    let nodes = new vis.DataSet();
+    let data = {
+        nodes: nodes
+        , edges: edges
+    };
+    //  TODO: All these options should exist in a setting node, configurable by the user.
+    //        meta.option.sort.prompt.<option>
+    let options = {
+        height: '100%'
+        , width: '100%'
+        , autoResize: true
+        , layout: {
+            hierarchical: {
+                direction: 'LR'
+                // , sortMethod: 'directed' Disabled this setting, as enabling it caused all leaf nodes to become aligned.
+                // , nodeSpacing: 50
+                // , levelSeparation: 250
+                , blockShifting: true
+                , edgeMinimization: true
+                , parentCentralization: true
+            }
+        }
+        , physics: {
+            enabled: false
+            , hierarchicalRepulsion: { nodeDistance: 1 }
+        }
+        , interaction: { dragNodes: false }
+        , edges: {
+            smooth: {
+                type: 'cubicBezier'
+                , forceDirection: 'horizontal'
+            }
+        }
+        , nodes: {
+            shape: 'box'
+            , shapeProperties: { interpolation: false }
+            , widthConstraint: {
+                minimum: 100
+                , maximum: 100
+            }
+            , font: { multi: 'html' }
+        }
+    };
+
+    nw = new vis.Network(container, data, options);
+
+    nw.canvas.frame.onkeydown = function () { /*do nothing.*/ };
+    nw.canvas.frame.onkeyup = function () {
+        console.log( 'key downed' );
+    };
+    
+    const selected = kmap.selected_node();
+    const children = kmap.fetch_children( selected );
+    let cids = []
+    for( i = 0; i < children.size(); ++i ){ cids.push( kmap.uuid_to_string( children.get( i ) ) ); } // Convert vector<Uuid> to JS list/array.
+    const qsr = await kmap_qsort_async( cids, await kmap_qsort_prompt_comparator( nw ) );
+    dialog.close();
+
+    if( qsr.length > 1 )
+    {
+        let knw = kmap.network();
+        let sorted_ids = new kmap.std$$vector$Uuid$();
+        for( i = 0; i < qsr.length; ++i ){ sorted_ids.push_back( kmap.uuid_from_string( qsr[ i ] ).value() ); } // Convert vector<Uuid> to JS list/array.
+        knw.reorder_children( selected, sorted_ids );
+        knw.select_node( selected ); // TODO: Throw on error?
     }
 }

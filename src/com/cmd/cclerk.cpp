@@ -57,25 +57,26 @@ auto CommandClerk::check_registered()
 
     auto rv = result::make_result< void >();
 
-KMAP_LOG_LINE();
     for( auto const& guard : registered_guards
                            | rvs::values )
     {
         KTRY( check_registered( guard ) );
     }
-KMAP_LOG_LINE();
     for( auto const& arg : registered_arguments
                          | rvs::values )
     {
         KTRY( check_registered( arg ) );
     }
-KMAP_LOG_LINE();
     for( auto const& cmd : registered_commands
                          | rvs::values )
     {
         KTRY( check_registered( cmd ) );
     }
-KMAP_LOG_LINE();
+    for( auto const& cmd : registered_command_aliases
+                         | rvs::values )
+    {
+        KTRY( check_registered( cmd ) );
+    }
 
     rv = outcome::success();
 
@@ -213,6 +214,51 @@ auto CommandClerk::check_registered( Command const& cmd )
     return rv;
 }
 
+// TODO: Last piece of puzzle before aliasing is enabled.
+auto CommandClerk::check_registered( CommandAlias const& ca )
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "src_path", ca.src_path );
+        KM_RESULT_PUSH_STR( "dst_path", ca.dst_path );
+
+    auto rv = KMAP_MAKE_RESULT( void );
+    auto const vdst = view2::cmd::command_root
+                    | view2::direct_desc( ca.dst_path );
+    auto const vsrc = view2::cmd::command_root
+                    | view2::direct_desc( ca.src_path );
+
+    if( vdst | act2::exists( kmap ) )
+    {
+        if( !( vdst | view2::alias_src( vsrc | view2::cmd::command_children )
+                    | act2::exists( kmap ) ) )
+        {
+            auto const reinstall = KTRY( util::confirm_reinstall( "command_alias", ca.dst_path ) );
+
+            if( reinstall )
+            {
+                KMAP_LOG_LINE();
+                KTRY( vdst | act2::erase_node( kmap ) );
+                KTRY( install_command_alias( ca ) ); // Re-install.
+            }
+        }
+    }
+    else
+    {
+        auto const reinstall = KTRY( util::confirm_reinstall( "command_alias", ca.dst_path ) );
+
+        if( reinstall )
+        {
+            KMAP_LOG_LINE();
+            KTRY( install_command_alias( ca ) );
+        }
+    }
+
+    rv = outcome::success();
+
+    return rv;
+}
+
 auto CommandClerk::check_registered( Guard const& guard )
     -> Result< void >
 {
@@ -297,6 +343,25 @@ auto CommandClerk::install_command( Command const& cmd )
     return rv;
 }
 
+auto CommandClerk::install_command_alias( CommandAlias const& ca )
+    -> Result< Uuid >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "src_path", ca.src_path );
+        KM_RESULT_PUSH_STR( "dst_path", ca.dst_path );
+
+    auto rv = KMAP_MAKE_RESULT( Uuid );
+    auto cstore = KTRY( kmap.fetch_component< CommandStore >() );
+
+    auto const cmdn = KTRY( cstore->install_command_alias( ca ) );
+
+    installed_command_aliases.emplace( ca.dst_path, cmdn );
+
+    rv = cmdn;
+
+    return rv;
+}
+
 auto CommandClerk::install_guard( Guard const& guard )
     -> Result< Uuid >
 {
@@ -329,6 +394,13 @@ auto CommandClerk::install_registered()
             KTRY( install_argument( arg ) );
         }
     }
+    for( auto const& [ path, cmd ] : registered_guards )
+    {
+        if( !installed_guards.contains( path ) )
+        {
+            KTRY( install_guard( cmd ) );
+        }
+    }
     for( auto const& [ path, cmd ] : registered_commands )
     {
         if( !installed_commands.contains( path ) )
@@ -336,11 +408,11 @@ auto CommandClerk::install_registered()
             KTRY( install_command( cmd ) );
         }
     }
-    for( auto const& [ path, cmd ] : registered_guards )
+    for( auto const& [ path, ca ] : registered_command_aliases )
     {
-        if( !installed_guards.contains( path ) )
+        if( !installed_command_aliases.contains( path ) )
         {
-            KTRY( install_guard( cmd ) );
+            KTRY( install_command_alias( ca ) );
         }
     }
 
@@ -371,6 +443,20 @@ auto CommandClerk::register_command( Command const& cmd )
     KMAP_ENSURE( !registered_commands.contains( cmd.path ), error_code::common::uncategorized );
 
     registered_commands.emplace( cmd.path, cmd );
+
+    return outcome::success();
+}
+
+auto CommandClerk::register_command_alias( CommandAlias const& ca ) 
+    -> Result< void >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH( "src_path", ca.src_path );
+        KM_RESULT_PUSH( "dst_path", ca.dst_path );
+
+    KMAP_ENSURE( !registered_command_aliases.contains( ca.dst_path ), error_code::common::uncategorized );
+
+    registered_command_aliases.emplace( ca.dst_path, ca );
 
     return outcome::success();
 }

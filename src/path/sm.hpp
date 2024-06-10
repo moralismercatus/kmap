@@ -7,12 +7,13 @@
 #ifndef KMAP_PATH_SM_HPP
 #define KMAP_PATH_SM_HPP
 
-#include "common.hpp"
-#include "contract.hpp"
-#include "com/database/db.hpp"
-#include "com/network/network.hpp"
-#include "kmap.hpp"
-#include "util/sm/logger.hpp"
+#include <attribute.hpp>
+#include <com/database/db.hpp>
+#include <com/network/network.hpp>
+#include <common.hpp>
+#include <contract.hpp>
+#include <kmap.hpp>
+#include <util/sm/logger.hpp>
 
 #include <boost/sml.hpp>
 #include <range/v3/action/remove_if.hpp>
@@ -31,6 +32,7 @@ namespace kmap
 
 namespace sm::ev
 {
+    struct Attr {};
     struct Bwd {};
     struct Cmplt {};
     struct Dis {};
@@ -41,15 +43,16 @@ namespace sm::ev
 
     namespace detail
     {
-        inline auto const cmplt = boost::sml::event< sm::ev::Cmplt >;
+        inline auto const anonymous = boost::sml::event< boost::sml::anonymous >;
         inline auto const any = boost::sml::event< boost::sml::_ >;
+        inline auto const attrib = boost::sml::event< sm::ev::Attr >;
         inline auto const bwd = boost::sml::event< sm::ev::Bwd >;
-        inline auto const tag = boost::sml::event< sm::ev::Tag >;
+        inline auto const cmplt = boost::sml::event< sm::ev::Cmplt >;
         inline auto const dis = boost::sml::event< sm::ev::Dis >;
         inline auto const fwd = boost::sml::event< sm::ev::Fwd >;
         inline auto const heading = boost::sml::event< sm::ev::Heading >;
         inline auto const root = boost::sml::event< sm::ev::Root >;
-        inline auto const anonymous = boost::sml::event< boost::sml::anonymous >;
+        inline auto const tag = boost::sml::event< sm::ev::Tag >;
         inline auto const unexpected = boost::sml::unexpected_event< boost::sml::_ >;
     }
 }
@@ -57,6 +60,7 @@ namespace sm::ev
 namespace sm::state
 {
     // Exposed States.
+    class AttrNode;
     class BwdNode;
     class DisNode;
     class Done;
@@ -67,6 +71,7 @@ namespace sm::state
 
     namespace detail
     {
+        inline auto const AttrNode = boost::sml::state< sm::state::AttrNode >;
         inline auto const BwdNode = boost::sml::state< sm::state::BwdNode >;
         inline auto const Check = boost::sml::state< class Check >;
         inline auto const Decided = boost::sml::state< class Decided >;
@@ -106,6 +111,10 @@ auto process_token( Driver& driver
     else if( token.starts_with( '#' ) )
     {
         driver.process_event( sm::ev::Tag{} );
+    }
+    else if( token == "$" )
+    {
+        driver.process_event( sm::ev::Attr{} );
     }
     else if( is_valid_heading( token ) )
     {
@@ -157,6 +166,15 @@ public:
         KM_RESULT_PROLOG();
 
         /* Guards */
+        auto const attr_node_exists = [ & ]( auto const& ev )
+        {
+            BC_ASSERT( output_ );
+            BC_ASSERT( !output_->prospect.empty() );
+
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const rv = nw->fetch_attr_node( output_->prospect.back() ).has_value();
+            return rv;
+        };
         auto const child_heading_exists = [ & ]( auto const& ev )
         {
             BC_ASSERT( output_ );
@@ -212,6 +230,15 @@ public:
         };
 
         /* Actions */
+        auto const push_attr_node = [ & ]( auto const& ev )
+        {
+            BC_ASSERT( output_ );
+            BC_ASSERT( !output_->prospect.empty() );
+
+            auto const nw = KTRYE( kmap_.fetch_component< com::Network >() );
+            auto const attrn = KTRYE( nw->fetch_attr_node( output_->prospect.back() ) );
+            output_->prospect.emplace_back( attrn );
+        };
         auto const push_child_heading = [ & ]( auto const& ev )
         {
             BC_ASSERT( output_ );
@@ -316,6 +343,7 @@ public:
         ,   FwdNode + bwd                              / set_error_msg( "path precedes root" ) = Error 
         ,   FwdNode + heading [ child_heading_exists ] / push_child_heading                    = Heading
         ,   FwdNode + heading                          / set_error_msg( "invalid heading" )    = Error
+        ,   FwdNode + attrib [ attr_node_exists ]      / push_attr_node                        = AttrNode
         ,   FwdNode + root                             / set_error_msg( "invalid root path" )  = Error 
         ,   FwdNode + any                                                                      = Error
         ,   FwdNode + unexpected                                                               = Error
@@ -338,6 +366,10 @@ public:
         ,   DisNode + dis                              / set_error_msg( "path precedes root" ) = Error
         ,   DisNode + any                                                                      = Error
         ,   DisNode + unexpected                                                               = Error
+
+        ,   AttrNode + fwd                    = FwdNode
+        ,   AttrNode + any                    = Error
+        ,   AttrNode + unexpected             = Error
 
         ,   Error + any        = Error  
         ,   Error + unexpected = Error  
@@ -521,17 +553,20 @@ public:
         };
         #endif // 0
 
+        // Note: apparently, if a event isn't listed in the table below, it doesn't qualify for 'any'/`sml::_`.
         return make_transition_table
         (
-        *   Start + fwd                          / start_selected                        = Next
-        ,   Start + bwd     [ is_selected_root ] / set_error_msg( "path precedes root" ) = Error 
-        ,   Start + bwd                          / start_selected_parent                 = Next
-        ,   Start + heading [ heading_exists ]   / start_any_leads                       = Next
-        ,   Start + heading                      / set_error_msg( "invalid heading" )    = Error
-        ,   Start + root                         / start_root                            = Next
-        ,   Start + dis                          / set_error_msg( "invalid heading" )    = Error
-        ,   Start + any [ !is_anonymous ]                                                = Error
-        ,   Start + unexpected_event< boost::sml::_ >                                    = Error 
+        *   Start + fwd                          / start_selected                                = Next
+        ,   Start + bwd     [ is_selected_root ] / set_error_msg( "path precedes root" )         = Error 
+        ,   Start + bwd                          / start_selected_parent                         = Next
+        ,   Start + heading [ heading_exists ]   / start_any_leads                               = Next
+        ,   Start + heading                      / set_error_msg( "invalid heading" )            = Error
+        ,   Start + root                         / start_root                                    = Next
+        ,   Start + dis                          / set_error_msg( "invalid heading" )            = Error
+        ,   Start + attrib                       / set_error_msg( "cannot start with attr" )     = Error
+        ,   Start + tag                          / set_error_msg( "TODO: impl. start with tag" ) = Error
+        ,   Start + any [ !is_anonymous ]                                                        = Error
+        ,   Start + unexpected_event< boost::sml::_ >                                            = Error 
 
         ,   Next + any [ !is_anonymous ] / ( /*launder,*/ propagate ) = Check
         ,   Next + unexpected_event< boost::sml::_ > = Error

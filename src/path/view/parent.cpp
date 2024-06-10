@@ -66,6 +66,25 @@ auto Parent::fetch( FetchContext const& ctx
 
                 return fs;
             }
+        ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
+            {
+                auto const nw = KTRYE( ctx.km.fetch_component< com::Network >() );
+                auto fs = FetchSet{};
+
+                if( auto const parent = nw->fetch_parent( node )
+                  ; parent )
+                {
+                    auto const t = KTRY( pred | act::to_fetch_set( ctx ) );
+                    auto const& idv = t.get< Uuid >();
+
+                    if( idv.contains( parent.value() ) )
+                    {
+                        fs = FetchSet{ LinkNode{ .id = parent.value() } };
+                    }
+                }
+
+                return fs;
+            }
         };
 
         return std::visit( dispatch, pred_.value() );

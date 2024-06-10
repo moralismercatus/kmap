@@ -30,6 +30,7 @@
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <fmt/format.h>
 #include <range/v3/action/remove_if.hpp>
 #include <range/v3/action/sort.hpp>
 #include <range/v3/action/transform.hpp>
@@ -715,7 +716,7 @@ auto tokenize_path( std::string const& raw )
 {
     // I think I can temporarily go from string to ast to tokens 
     auto rv = StringVec{};
-    auto const rgx = std::regex{ R"([\.\,\/\']|[^\.\,\/\']+)" }; // .,/' or one or more of none of these: heading.
+    auto const rgx = std::regex{ R"([\.\,\/\'\#\$]|[^\.\,\/\'\#\$]+)" }; // .,/' or one or more of none of these; i.e., heading.
 
     rv = raw
        | views::tokenize( rgx )
@@ -1198,39 +1199,45 @@ SCENARIO( "decide_path", "[network][path]" )
     auto const rn = nw->root_node();
     auto const check = [ & ]( auto const& root
                             , auto const& selected
-                            , auto const& ipath
-                            , std::vector< std::string > const& abs_opaths ) -> bool
+                            , auto const& path
+                            , auto const& tether ) -> bool
     {
         auto decided_set = std::set< Uuid >{};
-        auto expected = std::set< Uuid >{};
+        auto expected = tether | act2::to_node_set( km );
+        auto const decided = decide_path( km, root, selected, path );
 
-        if( auto const decided = decide_path( km, root, selected, ipath )
-          ; decided )
+        if( !expected.empty() && decided.has_error() )
+        {
+            return kmap::test::succ( decided ); // Ensure error info is printed to console.
+        }
+        else if( !expected.empty() && decided )
         {
             decided_set = decided.value() | ranges::to< std::set >();
 
-            for( auto const& opath : abs_opaths )
-            {
-                auto const n = REQUIRE_TRY( decide_path( km, rn, rn, opath ) );
-
-                REQUIRE( n.size() == 1 );
-
-                expected.emplace( n.at( 0 ) );
-            }
+            return decided_set == expected;
         }
-
-        return decided_set == expected;
+        else if( expected.empty() && !decided )
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     };
+    auto const empty_tether = anchor::abs_root | view2::parent;
+
+    fmt::print( "empty_tether size: {}\n", ( empty_tether | act2::to_node_set( km ) ).size() );
 
     GIVEN( "/" )
     {
-
-        REQUIRE( check( rn, rn, "", {} ) );
-        REQUIRE( check( rn, rn, "/", { "/" } ) );
-        REQUIRE( check( rn, rn, ".", { "/" } ) );
-        REQUIRE( check( rn, rn, ",", {} ) );
-        REQUIRE( check( rn, rn, "'", {} ) );
-        REQUIRE( check( rn, rn, "#", {} ) );
+        REQUIRE( check( rn, rn, "", empty_tether ) );
+        REQUIRE( check( rn, rn, "/", anchor::abs_root ) );
+        REQUIRE( check( rn, rn, ".", anchor::abs_root ) );
+        REQUIRE( check( rn, rn, ",", empty_tether ) );
+        REQUIRE( check( rn, rn, "'", empty_tether ) );
+        REQUIRE( check( rn, rn, "#", empty_tether ) );
+        REQUIRE( check( rn, rn, "$", empty_tether ) );
 
         GIVEN( "/#test" )
         {
@@ -1243,41 +1250,51 @@ SCENARIO( "decide_path", "[network][path]" )
         {
             auto const n1 = REQUIRE_TRY( nw->create_child( rn, "1" ) );
 
-            REQUIRE( check( rn, rn, "", {} ) );
-            REQUIRE( check( rn, rn, "/", { "/" } ) );
-            REQUIRE( check( rn, rn, "/1", { "/1" } ) );
-            REQUIRE( check( rn, rn, ".", { "/" } ) );
-            REQUIRE( check( rn, rn, ".1", { "/1" } ) );
-            REQUIRE( check( rn, rn, ",", {} ) );
-            REQUIRE( check( rn, rn, "'", {} ) );
-            REQUIRE( check( rn, rn, "#", {} ) );
-            REQUIRE( check( rn, rn, "1", { "/1" } ) );
+            REQUIRE( check( rn, rn, "", empty_tether ) );
+            REQUIRE( check( rn, rn, "/", anchor::abs_root ) );
+            REQUIRE( check( rn, rn, "/1", anchor::abs_root | view2::child( "1" ) ) );
+            REQUIRE( check( rn, rn, ".", anchor::abs_root ) );
+            REQUIRE( check( rn, rn, ".1", anchor::abs_root | view2::child( "1" ) ) );
+            REQUIRE( check( rn, rn, ",", empty_tether ) );
+            REQUIRE( check( rn, rn, "'", empty_tether ) );
+            REQUIRE( check( rn, rn, "#", empty_tether ) );
+            REQUIRE( check( rn, rn, "1", anchor::abs_root | view2::child( "1" ) ) );
 
-            REQUIRE( check( rn, n1, "", {} ) );
-            REQUIRE( check( rn, n1, "/", { "/" } ) );
-            REQUIRE( check( rn, n1, "/1", { "/1" } ) );
-            REQUIRE( check( rn, n1, ".", { "/1" } ) );
-            REQUIRE( check( rn, n1, ".1", {} ) );
-            REQUIRE( check( rn, n1, ",", { "/" } ) );
-            REQUIRE( check( rn, n1, "'", {} ) );
-            REQUIRE( check( rn, n1, "#", {} ) );
-            REQUIRE( check( rn, n1, "1", { "/1" } ) );
+            REQUIRE( check( rn, n1, "", empty_tether ) );
+            REQUIRE( check( rn, n1, "/", anchor::abs_root ) );
+            REQUIRE( check( rn, n1, "/1", anchor::abs_root | view2::child( "1" ) ) );
+            REQUIRE( check( rn, n1, ".", anchor::abs_root | view2::child( "1" ) ) );
+            REQUIRE( check( rn, n1, ".1", empty_tether ) );
+            REQUIRE( check( rn, n1, ",", anchor::abs_root ) );
+            REQUIRE( check( rn, n1, "'", empty_tether ) );
+            REQUIRE( check( rn, n1, "#", empty_tether ) );
+            REQUIRE( check( rn, n1, "1", anchor::abs_root | view2::child( "1" ) ) );
 
-            REQUIRE( check( n1, n1, "", {} ) );
-            REQUIRE( check( n1, n1, "/", { "/1" } ) );
-            REQUIRE( check( n1, n1, "/1", {} ) );
-            REQUIRE( check( n1, n1, ".", { "/1" } ) );
-            REQUIRE( check( n1, n1, ".1", {} ) );
-            REQUIRE( check( n1, n1, ",", {} ) );
-            REQUIRE( check( n1, n1, "'", {} ) );
-            REQUIRE( check( n1, n1, "#", {} ) );
-            REQUIRE( check( n1, n1, "1", { "/1" } ) );
+            REQUIRE( check( n1, n1, "", empty_tether ) );
+            REQUIRE( check( n1, n1, "/", anchor::abs_root | view2::child( "1" ) ) );
+            REQUIRE( check( n1, n1, "/1", empty_tether ) );
+            REQUIRE( check( n1, n1, ".", anchor::abs_root | view2::child( "1" ) ) );
+            REQUIRE( check( n1, n1, ".1", empty_tether ) );
+            REQUIRE( check( n1, n1, ",", empty_tether ) );
+            REQUIRE( check( n1, n1, "'", empty_tether ) );
+            REQUIRE( check( n1, n1, "#", empty_tether ) );
+            REQUIRE( check( n1, n1, "1", anchor::abs_root | view2::child( "1" ) ) );
 
             GIVEN( "/1#test" )
             {
                 auto const t = REQUIRE_TRY( tstore->create_tag( "test" ) );
 
                 REQUIRE_TRY( tstore->tag_node( n1, t ) );
+            }
+            GIVEN( "/1.$.a1" )
+            {
+                REQUIRE_TRY( anchor::node( n1 )
+                           | view2::attr
+                           | view2::child( "a1" )
+                           | act2::create_node( km ) );
+
+                REQUIRE( check( n1, n1, ".$", anchor::node( n1 ) | view2::attr ) );
+                REQUIRE( check( n1, n1, ".$.a1", anchor::node( n1 ) | view2::attr | view2::child( "a1" ) ) );
             }
         }
     }
@@ -2276,13 +2293,13 @@ auto format_node_label( Kmap const& km
     auto const nw = KTRY( km.fetch_component< com::Network >() );
     auto const db_title = KTRY( nw->fetch_title( node ) );
     auto const child_count = nw->fetch_children( node ).size();
-    auto const tags = view::make( node )
-                    | view::tag
-                    | view::to_node_set( km );
+    auto const tags = anchor::node( node )
+                    | view2::attrib::tag
+                    | act2::to_node_set( km );
     auto const tag_hs = tags
-                        | views::transform( [ & ]( auto const& t ){ return KTRYE( nw->fetch_heading( t ) ); } )
-                        | ranges::to< std::vector >()
-                        | actions::sort;
+                      | views::transform( [ & ]( auto const& t ){ return KTRYE( nw->fetch_heading( t ) ); } )
+                      | ranges::to< std::vector >()
+                      | actions::sort;
     auto const tag_line = tag_hs
                         | views::intersperse( "][" )
                         | views::join

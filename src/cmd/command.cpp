@@ -21,7 +21,6 @@
 #include <util/result.hpp>
 #include <util/script/script.hpp>
 
-#include <boost/algorithm/string/replace.hpp>
 #include <range/v3/action/join.hpp>
 #include <range/v3/view/drop.hpp>
 #include <range/v3/view/enumerate.hpp>
@@ -154,7 +153,7 @@ auto execute_javascript( Uuid const& node
 
     auto rv = result::make_result< void >();
     auto const stringed = args
-                        | views::transform( []( auto const& arg ){ return io::format( "'{}'", boost::replace_all_copy( arg, "'", "\\'" ) ); } )
+                        | views::transform( []( auto const& arg ){ return io::format( "'{}'", replace_unescaped_char( arg, '\'', R"(\\')" ) ); } )
                         | to< StringVec >();
     auto const csep = stringed
                     | views::join( ',' )
@@ -249,7 +248,7 @@ auto evaluate_guard( Kmap const& kmap
                                   }
                                   else if constexpr( std::is_same_v< T, cmd::ast::Javascript > )
                                   {
-                                      auto const escaped_arg = boost::replace_all_copy( arg, "'", "\\'" );
+                                      auto const escaped_arg = replace_unescaped_char( arg, '\'', R"(\\')" );
 
                                       KTRY( execute_javascript( guard_node
                                                               , e.code

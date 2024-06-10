@@ -95,11 +95,11 @@ const fpath = kmap.database().path();
 
 if( fpath.has_value() )
 {
-    document.title = `Knowledge Map ${version} [${build}] - [${fpath.value()}]`;
+    document.title = 'Knowledge Map ' + version + ' [' + build + '] - [' + fpath.value() + ']';
 }
 else
 {
-    document.title = `Knowledge Map ${version} [${build}]`;
+    document.title = 'Knowledge Map ' + version + ' [' + build + ']';
 }
 )%%%";
             KTRY( oclerk_.register_option( { .heading = "window.title"

@@ -8,6 +8,7 @@
 #define KMAP_CANVAS_CANVAS_HPP
 
 #include <com/canvas/common.hpp>
+#include <com/cmd/cclerk.hpp>
 #include <com/event/event_clerk.hpp>
 #include <common.hpp>
 #include <component.hpp>
@@ -146,6 +147,8 @@ public:
                , float const base )
         -> Result< void >;
     auto redraw()
+        -> Result< void >;
+    auto register_standard_commands()
         -> Result< void >;
     auto register_standard_events()
         -> Result< void >;

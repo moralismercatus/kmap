@@ -26,8 +26,8 @@ enum class network
 ,   invalid_edge
 ,   invalid_node 
 ,   invalid_ordering
-,   invalid_parent
-,   invalid_path // Ambiguity between this and invalid_node. Yes, a node that isn't found at syntactically valid path X is "invalid", but the path is still a "valid" path.
+,   invalid_parent // TODO: Ambiguity; Does this mean that a node doesn't have a parent, or that the parent isn't a "valid" parent?
+,   invalid_path // TODO: Ambiguity between this and invalid_node. Yes, a node that isn't found at syntactically valid path X is "invalid", but the path is still a "valid" path.
 ,   invalid_root
 ,   no_prev_selection
 };

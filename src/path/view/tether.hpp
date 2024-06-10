@@ -85,9 +85,11 @@ public:
     auto operator()( Args&&... args ) const
         -> TetherCT
     {
-        tail_link = tail_link( std::forward< Args >( args )... );
+        auto t = *this;
+        
+        t.tail_link = tail_link( std::forward< Args >( args )... );
 
-        return *this;
+        return t;
     }
 
     auto to_string() const

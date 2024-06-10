@@ -62,7 +62,8 @@ auto CommandStore::install_argument( Argument const& arg )
 #endif // !KMAP_NATIVE
     
     auto const arg_root = KTRY( view2::cmd::argument_root
-                              | act2::fetch_or_create_node( km ) );
+                              | act2::fetch_or_create_node( km )
+                              | act2::single );
     auto const vargn = view::make( arg_root ) 
                      | view::direct_desc( arg.path );
     auto const guard_code = util::to_js_body_code( util::js::beautify( arg.guard ) );
@@ -105,7 +106,8 @@ auto CommandStore::install_command( Command const& cmd )
     auto& km = kmap_inst();
     auto const nw = KTRY( fetch_component< com::Network >() );
     auto const cmd_root = KTRY( view2::cmd::command_root
-                              | act2::fetch_or_create_node( km ) );
+                              | act2::fetch_or_create_node( km )
+                              | act2::single );
     auto const vcmd = view::make( cmd_root )
                     | view::direct_desc( cmd.path );
 
@@ -165,6 +167,33 @@ auto CommandStore::install_command( Command const& cmd )
     return rv;
 }
 
+auto CommandStore::install_command_alias( CommandAlias const& ca )
+    -> Result< Uuid >
+{
+    KM_RESULT_PROLOG();
+        KM_RESULT_PUSH_STR( "src_path", ca.src_path );
+        KM_RESULT_PUSH_STR( "dst_path", ca.dst_path );
+
+    auto rv = result::make_result< Uuid >();
+    auto& km = kmap_inst();
+    auto const nw = KTRY( fetch_component< com::Network >() );
+    auto const cmd_root = KTRY( view2::cmd::command_root
+                              | act2::fetch_or_create_node( km )
+                              | act2::single );
+    auto const vsrc_cmd = view2::cmd::command_root
+                        | view2::direct_desc( ca.src_path );
+    auto const vdst_cmd = view2::cmd::command_root
+                        | view2::direct_desc( ca.dst_path );
+
+    KTRY( vdst_cmd
+        | view2::alias_src( vsrc_cmd | view2::cmd::command_children )
+        | act2::create( km ) );
+
+    rv = KTRY( vdst_cmd | act2::fetch_node( km ) );
+
+    return rv;
+}
+
 auto CommandStore::install_guard( Guard const& guard )
     -> Result< Uuid >
 {
@@ -179,7 +208,8 @@ auto CommandStore::install_guard( Guard const& guard )
 #endif // !KMAP_NATIVE
     
     auto const guard_root = KTRY( view2::cmd::guard_root
-                                | act2::fetch_or_create_node( km ) );
+                                | act2::fetch_or_create_node( km )
+                                | act2::single );
     auto const vguardn = view::make( guard_root ) 
                        | view::direct_desc( guard.path );
     auto const guard_code = util::to_js_body_code( util::js::beautify( guard.action ) );

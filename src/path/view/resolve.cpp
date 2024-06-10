@@ -78,7 +78,6 @@ auto Resolve::fetch( FetchContext const& ctx
             }
         ,   [ & ]( Tether const& pred ) -> Result< FetchSet >
             {
-                auto const nw = KTRY( ctx.km.fetch_component< com::Network >() );
                 auto const resolutions = KTRY( [ & ]() -> Result< std::vector< LinkNode > > // Note: set_intersection requires two sorted ranges.
                 {
                     auto t = KTRY( view2::resolve.fetch( ctx, node ) ) | ranges::to< std::vector >();
@@ -91,22 +90,6 @@ auto Resolve::fetch( FetchContext const& ctx
                     ranges::sort( t );
                     return t;
                 }() );
-
-                fmt::print( "[resolve] Tether: {}\n", pred | act::to_string );
-
-                for( auto const& e : resolutions )
-                {
-                    fmt::print( "[resolve][resolution] {}\n", KTRY( anchor::abs_root | view2::desc( e.id ) | act::abs_path_flat( ctx.km ) ) );
-                }
-                for( auto const& e : ns )
-                {
-                    fmt::print( "[resolve][n] {}\n", KTRY( anchor::abs_root | view2::desc( e.id ) | act::abs_path_flat( ctx.km ) ) );
-                }
-                for( auto const& e : rvs::set_intersection( resolutions, ns )
-                                   | ranges::to< FetchSet >() )
-                {
-                    fmt::print( "[resolve] {}: {}\n", pred | act::to_string, anchor::node( e.id ) | act::abs_path_flat( ctx.km ) );
-                }
 
                 return rvs::set_intersection( resolutions, ns )
                      | ranges::to< FetchSet >();

@@ -15,12 +15,13 @@ namespace {
 
 using namespace emscripten;
 
-auto fuzzy_search_titles( std::string const& query )
+auto fuzzy_search_titles( std::string const& query
+                        , unsigned const& limit )
     -> void
 {
     auto const& km = kmap::Singleton::instance();
 
-    auto const results =  util::fuzzy_search_titles( km, query );
+    auto const results =  util::fuzzy_search_titles( km, query, limit );
 }
 
 EMSCRIPTEN_BINDINGS( kmap_fuzzy_search )
